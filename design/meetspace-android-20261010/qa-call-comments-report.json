@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-12",
+  "variant": 1,
+  "screen": "call",
+  "environment": "http://127.0.0.1:8766",
+  "verification": "Browser UI interactions and DOM geometry checks",
+  "passed": [
+    "Comments button opens the meeting comments panel on phone and tablet",
+    "Chat and comments panels open independently, with only one visible at a time",
+    "Adding a comment appends the author, time and text, updates both counters and clears the composer",
+    "Whitespace-only input disables the submit button",
+    "Comment draft survives opening chat and changing microphone state",
+    "Added comments survive microphone rerender",
+    "HTML markup is displayed as plain text and long unbroken text wraps",
+    "Ctrl+Enter submits a comment",
+    "Escape closes comments and returns focus to the toolbar button",
+    "No horizontal page overflow at 360x640, 768x1024 and 1194x834",
+    "Composer, submit button, comments control and leave button remain inside all checked viewports",
+    "Visual review at 390x844 and 1194x834",
+    "JavaScript syntax checks passed for screens.js, call-comments.js and gallery.js"
+  ],
+  "screenshots": [
+    "previews/call-comments-phone.jpg",
+    "previews/call-comments-tablet.jpg",
+    "previews/call-comments-gallery.jpg"
+  ]
+}
