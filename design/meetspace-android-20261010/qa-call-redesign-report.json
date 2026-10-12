@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-12",
+  "variant": 1,
+  "screen": "call",
+  "environment": "http://127.0.0.1:8766",
+  "verification": "Browser UI interactions, screenshots and DOM geometry",
+  "passed": [
+    "Separate comments control and panel removed from the video meeting",
+    "Bottom navigation opens Meetings, Chats and Profile",
+    "Meeting chat opens on phone and tablet",
+    "File chooser accepts multiple local files",
+    "A selected file can be removed before sending",
+    "Text and pending attachment survive microphone rerender",
+    "Text and file send together and display as a message with file name, size and download link",
+    "File-only message sends and clears pending attachments",
+    "Recording control opens the recording dialog",
+    "Pause, resume, stop and start update the recording button and dialog",
+    "Composer, call controls, recording button and bottom navigation stay inside tested viewports",
+    "No horizontal overflow at 360x640, 390x844, 768x1024 and 1194x834",
+    "Visual review of compact phone, phone and tablet layouts",
+    "JavaScript syntax checks and git diff whitespace check passed"
+  ],
+  "screenshots": [
+    "previews/call-redesign-phone.jpg",
+    "previews/call-redesign-tablet.jpg",
+    "previews/call-recording-phone.jpg"
+  ],
+  "prototypeScope": "Files remain local; recording controls simulate recording state. No backend upload or media capture."
+}

@@ -1,0 +1,95 @@
+/* Call controls sit above the same three destinations used by the workspace. */
+.call-body { position: relative; }
+.call-heading { min-width: 0; flex: 1; }
+.call-heading h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recording-control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 40px; padding: 9px 12px; color: #dbe4f4; background: #293346; border: 1px solid #3a455a; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.recording-control > svg:first-child { width: 17px; height: 17px; color: #fb8998; }
+.recording-control > svg:last-child { width: 13px; height: 13px; color: #8ea0bb; }
+.recording-control.paused > svg:first-child { color: #ebc37d; }
+.recording-control.stopped > svg:first-child { color: #adc1ff; }
+.call-toolbar { padding: 10px 20px 15px; gap: 15px; }
+.call-screen .bottom-nav { display: flex; flex-shrink: 0; align-items: flex-start; justify-content: center; min-height: 80px; padding: 8px 12px 20px; gap: 0; position: relative; background: #1e2838; border-top: 1px solid #344056; }
+.call-screen .bottom-nav:after { content: ""; width: 120px; height: 3px; background: #99a8c0; border-radius: 5px; position: absolute; bottom: 6px; left: calc(50% - 60px); }
+.call-screen .bottom-nav .nav-item { flex: 1; max-width: 200px; min-width: 0; min-height: 50px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 2px 4px; border-radius: 0; background: transparent; color: #94a4bc; font-size: 10px; font-weight: 400; }
+.call-screen .bottom-nav .nav-item.active { color: #9db7ff; font-weight: 600; }
+.call-screen .bottom-nav .nav-item:before { display: none; }
+.call-screen .bottom-nav .nav-item > svg { width: 25px; height: 25px; margin: 0; }
+.call-screen .nav-profile-avatar { width: 27px; height: 27px; background: #344765; color: #b5caff; }
+.call-screen .nav-unread { top: 0; right: calc(50% - 16px); background: #9db7ff; }
+.call-side.meeting-chat { width: 350px; display: flex; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; border-color: #354155; border-radius: 20px; }
+.call-side.meeting-chat[hidden] { display: none; }
+.meeting-chat-header { display: flex; align-items: center; justify-content: space-between; padding: 17px 18px; border-bottom: 1px solid #354155; gap: 10px; }
+.meeting-chat-header h2 { font-size: 17px; letter-spacing: -.4px; }
+.meeting-chat-header p { font-size: 10px; color: #9eacc2; margin-top: 6px; }
+.meeting-chat-header .icon-button { color: #aab9cf; width: 34px; height: 36px; flex-shrink: 0; }
+.call-chat-feed { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #506079 transparent; padding: 16px; }
+.call-chat-date { color: #93a4bf; font-size: 10px; text-align: center; margin: 0 0 18px; }
+.call-chat-message { display: flex; margin-bottom: 14px; }
+.call-chat-bubble { padding: 12px; border-radius: 14px 14px 14px 4px; background: #2d394d; max-width: 96%; min-width: 0; }
+.call-chat-author { display: block; color: #b9cbff; font-size: 10px; line-height: 1.5; margin-bottom: 5px; }
+.call-chat-bubble > p { font-size: 12px; line-height: 1.6; color: #e0e7f3; white-space: pre-wrap; overflow-wrap: anywhere; }
+.call-chat-time { display: block; margin-top: 8px; font-size: 9px; text-align: right; color: #a8b7cc; }
+.call-chat-message.mine { justify-content: flex-end; }
+.call-chat-message.mine .call-chat-bubble { background: #344a73; border-radius: 14px 14px 4px 14px; }
+.call-file-card, .call-pending-file { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 10px; border: 1px solid #526078; border-radius: 10px; text-decoration: none; color: #e6edf9; }
+.call-file-card { margin-top: 10px; background: #ffffff08; }
+.call-file-icon { display: grid; place-items: center; width: 32px; height: 36px; border-radius: 8px; background: #8caeff21; color: #afc6ff; flex-shrink: 0; }
+.call-file-card > span:nth-child(2), .call-pending-file > span:nth-child(2) { flex: 1; min-width: 0; }
+.call-file-card strong, .call-pending-file strong { display: block; font-size: 11px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.call-file-card small, .call-pending-file small { display: block; margin-top: 5px; color: #a6b5cb; font-size: 9px; }
+.call-file-card > svg { width: 16px; height: 16px; flex-shrink: 0; color: #b3c4dd; }
+.call-chat-composer { padding: 13px 14px 15px; border-top: 1px solid #354155; background: #263142; }
+.call-chat-composer label { display: block; color: #b5c3d7; font-size: 10px; margin-bottom: 9px; }
+.call-compose-row { display: flex; align-items: flex-end; gap: 5px; padding: 5px; border: 1px solid #50607a; border-radius: 14px; background: #202a39; }
+.call-compose-row:focus-within { border-color: #85a6ff; box-shadow: 0 0 0 1px #85a6ff; }
+.call-compose-row textarea { width: 100%; min-width: 0; min-height: 52px; max-height: 100px; resize: none; background: transparent; border: 0; outline: none; color: #f3f6fc; font: inherit; font-size: 12px; line-height: 1.6; padding: 7px 0; }
+.call-compose-row textarea::placeholder { color: #9baac0; }
+.call-compose-row .icon-button { width: 36px; height: 38px; flex-shrink: 0; border-radius: 10px; color: #b8c7df; }
+.call-compose-row .call-send { background: #416df3; color: #fff; }
+.call-compose-row .call-send:disabled { background: #35435a; color: #8192ac; cursor: default; }
+.call-pending-files { display: grid; gap: 7px; max-height: 125px; overflow-y: auto; margin-bottom: 12px; }
+.call-pending-files[hidden] { display: none; }
+.call-pending-file { padding: 7px; background: #303e53; }
+.call-pending-file .icon-button { width: 28px; height: 32px; flex-shrink: 0; color: #b7c7dc; }
+.call-pending-file .icon-button svg { width: 16px; height: 16px; }
+.meeting-chat :focus-visible { outline: 2px solid #91adff; outline-offset: 3px; }
+.meeting-chat textarea:focus-visible { outline: none; }
+.recording-summary { display: flex; align-items: center; gap: 15px; padding: 17px; background: var(--surface2); border: 1px solid var(--line); border-radius: 16px; }
+.recording-summary > span { display: grid; place-items: center; background: #df59651a; color: #d95265; width: 45px; height: 45px; border-radius: 13px; flex-shrink: 0; }
+.recording-summary.paused > span { background: #d59b2118; color: #b27c14; }
+.recording-summary.stopped > span { background: var(--accent-soft); color: var(--accent); }
+.recording-summary h3 { font-size: 15px; }
+.recording-summary p { margin-top: 5px; color: var(--muted); }
+.recording-panel .recording-stop { color: #c64858; }
+@media (min-width: 780px) and (max-width: 1050px) {
+  .call-side.meeting-chat { width: 310px; }
+  .call-screen:has(.meeting-chat:not([hidden])) .participant-strip { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 779px) {
+  .call-side.meeting-chat { position: absolute; inset: 7px 12px; width: auto; z-index: 3; box-shadow: 0 12px 35px #0c132940; }
+}
+@media (max-width: 599px) {
+  .call-header { gap: 9px; padding: 10px 14px; }
+  .call-header h1 { font-size: 13px; }
+  .recording-control { font-size: 9px; gap: 6px; padding: 8px; min-height: 36px; }
+  .recording-control > svg:first-child { width: 14px; height: 14px; }
+  .recording-control > svg:last-child { width: 11px; height: 11px; }
+  .call-screen .share-stage { min-height: 140px; }
+  .call-screen .participant { min-height: 74px; }
+  .call-screen .participant .avatar { width: 36px; height: 36px; font-size: 12px; }
+  .call-screen .presentation h2 { font-size: 26px; }
+  .call-toolbar { padding: 8px 12px 13px; gap: 7px; }
+  .call-control .control-disc { width: 45px; height: 42px; }
+  .call-screen .bottom-nav { min-height: 75px; padding-top: 7px; padding-bottom: 18px; }
+  .call-screen .bottom-nav .nav-item { font-size: 10px; min-height: 47px; }
+  .meeting-chat-header { padding: 12px 15px; }
+  .meeting-chat-header h2 { font-size: 16px; }
+  .call-chat-feed { padding: 14px; }
+  .call-chat-composer { padding: 11px 12px 12px; }
+}
+@media (max-width: 599px) and (max-height: 740px) {
+  .call-screen .presentation { padding: 5%; max-height: 78%; aspect-ratio: 16 / 10; }
+  .call-screen .presentation h2 { font-size: 19px; margin: 7% 0 3%; letter-spacing: -.7px; }
+  .call-screen .presentation > p { font-size: 7px; }
+  .call-screen .presentation .pres-top, .call-screen .pres-footer { font-size: 5px; letter-spacing: 1px; }
+}

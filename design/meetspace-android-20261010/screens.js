@@ -459,25 +459,8 @@
     title: "Видеовстреча",
     group: "Встреча",
     render: () =>
-      `<main class="call-screen">${status()}<header class="call-header"><div><h1>${E(M.state.meetingTitle || "Дизайн-синхронизация")}</h1><p>12:48 <span style="color:#60718c">/</span> 5 участников</p></div><span class="spacer"></span><span class="badge"><i class="record-dot"></i> Идёт запись</span><button class="icon-button" data-action="callInfo" aria-label="Информация о встрече">${I("Ellipsis")}</button></header><div class="call-body"><div class="call-stage"><section class="share-stage">${presentation()}<div class="sharing-label">${I("Monitor")} Анна Кузнецова демонстрирует экран</div></section><div class="participant-strip"><div class="participant speaking">${avatar("АК", "orange")}<span class="person-name">Анна Кузнецова</span>${I("AudioLines")}</div><div class="participant">${avatar("МП", "mint")}<span class="person-name">Мария Полякова</span>${I("MicOff")}</div><div class="participant">${avatar("ДВ")}<span class="person-name">Дмитрий Волков</span>${I("MicOff")}</div><div class="participant">${avatar(E(M.profileInitials?.() || "АС"), "blue")}<span class="person-name">Вы${M.state.camera ? " · камера в демо" : ""}</span>${I(M.state.mic ? "Mic" : "MicOff")}</div></div></div><aside class="call-side" ${M.state.callChat ? "" : "hidden"}><div class="row"><h2>Чат встречи</h2><span class="spacer"></span><button class="icon-button" data-action="callChat" aria-label="Закрыть чат">${I("X")}</button></div><div class="chat-date">Сегодня</div><div class="chat-message"><div class="bubble"><h4>Мария Полякова</h4>Хорошо видно, можем начинать!<small>10:02</small></div></div><div class="chat-message"><div class="bubble"><h4>Дмитрий Волков</h4>Давайте обсудим сценарий первого входа.<small>10:08</small></div></div>${(M.state.callMessages || []).map((text) => `<div class="chat-message"><div class="bubble">${E(text)}<small>Вы · сейчас</small></div></div>`).join("")}<form id="call-message-form"><label><span class="muted" style="font-size:11px">Сообщение участникам</span><input placeholder="Написать…" aria-label="Сообщение участникам"/><button class="button primary wide" style="margin-top:10px">Отправить</button></label></form></aside>${M.renderCallComments?.() || ""}</div><footer class="call-toolbar">${callControl(M.state.mic ? "Микрофон" : "Без звука", M.state.mic ? "Mic" : "MicOff", "mic", M.state.mic ? "" : "off")}${callControl("Камера", M.state.camera ? "Video" : "VideoOff", "camera", M.state.camera ? "" : "off")}${callControl("Экран", "MonitorUp", "shareScreen", "share-control")}${callControl("Участники", "Users", "participants")}${callControl("Чат", "MessageCircle", "callChat", M.state.callChat ? "selected" : "")}${M.callCommentsControl?.() || ""}${callControl("Выйти", "PhoneOff", "leaveCall", "leave")}</footer></main>`,
-    bind: () => {
-      M.bindCallComments?.();
-      document
-        .getElementById("call-message-form")
-        ?.addEventListener("submit", (e) => {
-          e.preventDefault();
-          const input = e.target.querySelector("input");
-          if (!input.value.trim()) return;
-          const msg = document.createElement("div");
-          msg.className = "chat-message";
-          msg.innerHTML = `<div class="bubble">${E(input.value)}<small>Вы · сейчас</small></div>`;
-          e.target.before(msg);
-          (M.state.callMessages || (M.state.callMessages = [])).push(
-            input.value,
-          );
-          input.value = "";
-        });
-    },
+      `<main class="call-screen">${status()}<header class="call-header"><div class="call-heading"><h1>${E(M.state.meetingTitle || "Дизайн-синхронизация")}</h1><p>12:48 <span style="color:#60718c">/</span> 5 участников</p></div>${M.renderRecordingControl()}<button class="icon-button" data-action="callInfo" aria-label="Информация о встрече">${I("Ellipsis")}</button></header><div class="call-body"><div class="call-stage"><section class="share-stage">${presentation()}<div class="sharing-label">${I("Monitor")} Анна Кузнецова демонстрирует экран</div></section><div class="participant-strip"><div class="participant speaking">${avatar("АК", "orange")}<span class="person-name">Анна Кузнецова</span>${I("AudioLines")}</div><div class="participant">${avatar("МП", "mint")}<span class="person-name">Мария Полякова</span>${I("MicOff")}</div><div class="participant">${avatar("ДВ")}<span class="person-name">Дмитрий Волков</span>${I("MicOff")}</div><div class="participant">${avatar(E(M.profileInitials?.() || "АС"), "blue")}<span class="person-name">Вы${M.state.camera ? " · камера в демо" : ""}</span>${I(M.state.mic ? "Mic" : "MicOff")}</div></div></div>${M.renderMeetingChat()}</div><footer class="call-toolbar">${callControl(M.state.mic ? "Микрофон" : "Без звука", M.state.mic ? "Mic" : "MicOff", "mic", M.state.mic ? "" : "off")}${callControl("Камера", M.state.camera ? "Video" : "VideoOff", "camera", M.state.camera ? "" : "off")}${callControl("Экран", "MonitorUp", "shareScreen", "share-control")}${callControl("Участники", "Users", "participants")}${callControl("Чат", "MessageCircle", "callChat", M.state.callChat ? "selected" : "")}${callControl("Выйти", "PhoneOff", "leaveCall", "leave")}</footer><nav class="bottom-nav" aria-label="Основная навигация">${nav("meetings")}</nav></main>`,
+    bind: () => M.bindMeetingChat(),
   };
   M.actions = {
     join: () =>
@@ -722,11 +705,6 @@
       M.state.participantName = name;
       M.go("call");
     },
-    callChat: () => {
-      M.state.callChat = !M.state.callChat;
-      if (M.state.callChat) M.state.callComments = false;
-      M.render();
-    },
     participants: () =>
       M.modal(
         "Участники · 5",
@@ -751,7 +729,7 @@
     callInfo: () =>
       M.modal(
         "О встрече",
-        `<div class="stack"><p>Дизайн-синхронизация · 5 участников</p><p>В макете показано состояние «Идёт запись». В реальной встрече запись запускает организатор, а участники видят уведомление.</p><button class="button secondary" data-action="copyInvite">${I("Link")}Ссылка приглашения</button></div>`,
+        `<div class="stack"><p>Дизайн-синхронизация · 5 участников</p><p>Управляйте записью кнопкой вверху экрана. Сообщения и файлы доступны в чате встречи.</p><button class="button secondary" data-action="copyInvite">${I("Link")}Ссылка приглашения</button></div>`,
       ),
     leaveCall: () =>
       M.modal(
