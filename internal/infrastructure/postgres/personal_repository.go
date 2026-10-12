@@ -84,7 +84,9 @@ const personalProjection = `SELECT c.id,c.type,c.created_at,c.updated_at,lm.crea
  COALESCE(c.name,'') AS name,c.description,c.created_by,c.avatar_version,m.role AS my_role,m.notifications_enabled,m.history_cleared_through,
  CASE WHEN c.type='group' THEN (SELECT count(*) FROM conversation_members gm WHERE gm.conversation_id=c.id AND gm.left_at IS NULL) ELSE 0 END AS member_count,
  lm.sender_user_id AS last_sender_id,COALESCE(NULLIF(su.display_name,''),'Пользователь') AS last_sender_name,
- CASE WHEN lm.deleted_at IS NOT NULL THEN 'Сообщение удалено' ELSE COALESCE(NULLIF(left(lm.text,160),''),CASE WHEN lm.id IS NULL THEN '' ELSE 'Вложение' END) END AS preview,
+ CASE WHEN lm.deleted_at IS NOT NULL THEN 'Сообщение удалено'
+ WHEN lm.kind='call' THEN CASE WHEN lm.sender_user_id=m.user_id THEN 'Исходящий звонок' ELSE 'Входящий звонок' END
+ ELSE COALESCE(NULLIF(left(lm.text,160),''),CASE WHEN lm.id IS NULL THEN '' ELSE 'Вложение' END) END AS preview,
  ` + personalUnreadSQL + ` AS unread_count
  FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
  LEFT JOIN users u ON c.type='direct' AND u.id=CASE WHEN c.user_low_id=m.user_id THEN c.user_high_id ELSE c.user_low_id END

@@ -4,6 +4,7 @@ import type {
   PersonalPeer,
   DirectConversation,
   DirectConversationHideReceipt,
+  DirectCall,
   GroupConversation,
   GroupMember,
   GroupRole,
@@ -137,6 +138,11 @@ export class ApiError extends Error {
   }
 }
 const messages: Record<string, string> = {
+  "user is already in a call":
+    "Пользователь уже разговаривает. Попробуйте позвонить позже.",
+  "call is no longer ringing": "На звонок уже ответили или он завершён.",
+  "call request already used":
+    "Этот запрос звонка уже обработан. Начните новый звонок.",
   "password must contain 8 to 128 characters":
     "Пароль должен содержать от 8 до 128 символов.",
   "invalid email or password": "Неверный email или пароль.",
@@ -515,10 +521,10 @@ export const api = {
    *
    * @returns Promise с проверенным ответом API; сетевые ошибки и отказ сервера отклоняют Promise.
    */
-  wsTicket: (id: string, signal?: AbortSignal) =>
+  wsTicket: (id: string, signal?: AbortSignal, clientId?: string) =>
     request<{ ticket: string; expiresAt: string }>(
       `/conferences/${encodeURIComponent(id)}/ws-ticket`,
-      { method: "POST", signal },
+      { method: "POST", signal, ...(clientId ? { body: { clientId } } : {}) },
     ),
   /**
    * iceConfig читает доступные настройки ICE для установления WebRTC-соединения.
@@ -1238,6 +1244,32 @@ export const api = {
     request<{ ticket: string; expiresAt: string }>("/ws-ticket", {
       method: "POST",
       body: {},
+      signal,
+    }),
+  startDirectCall: (
+    targetUserId: string,
+    clientRequestId: string,
+    clientId: string,
+    signal?: AbortSignal,
+  ) =>
+    request<Item<DirectCall>>("/calls", {
+      method: "POST",
+      body: { targetUserId, clientRequestId, clientId },
+      signal,
+    }),
+  activeDirectCall: (signal?: AbortSignal) =>
+    request<{ item: DirectCall | null }>("/calls/active", { signal }),
+  directCall: (id: string, signal?: AbortSignal) =>
+    request<Item<DirectCall>>(`/calls/${encodeURIComponent(id)}`, { signal }),
+  directCallAction: (
+    id: string,
+    action: "accept" | "decline" | "cancel" | "end" | "heartbeat",
+    clientId: string,
+    signal?: AbortSignal,
+  ) =>
+    request<Item<DirectCall>>(`/calls/${encodeURIComponent(id)}/${action}`, {
+      method: "POST",
+      body: { clientId },
       signal,
     }),
   /**

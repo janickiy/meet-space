@@ -231,6 +231,9 @@ func (r *ConferenceRecordingRepository) List(ctx context.Context, userID, confer
 // @return:
 //   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (r *ConferenceRecordingRepository) authorizeRead(ctx context.Context, userID, conferenceID string) error {
+	if _, err := findConference(r.db.WithContext(ctx), conferenceID, false); err != nil {
+		return err
+	}
 	participant, err := findMembership(r.db.WithContext(ctx), conferenceID, userID)
 	if err != nil {
 		return membershipError(err)

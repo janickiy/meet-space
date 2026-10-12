@@ -36,9 +36,33 @@ func NewSessionRepository(db *gorm.DB) *SessionRepository { return &SessionRepos
 //   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
 //   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func authorizeSession(db *gorm.DB, conferenceID, userID string, locked bool) (conferences.Participant, error) {
-	c, err := findConference(db, conferenceID, locked)
+	return authorizeRoomSession(db, conferenceID, userID, locked, "", false)
+}
+
+func authorizeRoomSession(db *gorm.DB, conferenceID, userID string, locked bool, clientID string, requireClient bool) (conferences.Participant, error) {
+	c, err := findMediaRoom(db, conferenceID, locked)
 	if err != nil {
 		return conferences.Participant{}, err
+	}
+	if c.Kind == "direct_call" {
+		// A membership alone cannot grant access to another device or revive an
+		// ended call. Only the two clients that started/accepted may connect.
+		q := db.Table("direct_calls").Where("conference_id=? AND status='accepted' AND caller_lease_until>clock_timestamp() AND callee_lease_until>clock_timestamp()", conferenceID)
+		if requireClient {
+			if clientID == "" {
+				return conferences.Participant{}, apperrors.ErrForbidden
+			}
+			q = q.Where("(caller_user_id=? AND caller_client_id=?) OR (callee_user_id=? AND accepted_by_client_id=?)", userID, clientID, userID, clientID)
+		} else {
+			q = q.Where("caller_user_id=? OR callee_user_id=?", userID, userID)
+		}
+		var count int64
+		if err = q.Count(&count).Error; err != nil {
+			return conferences.Participant{}, err
+		}
+		if count != 1 {
+			return conferences.Participant{}, apperrors.ErrForbidden
+		}
 	}
 	p, err := findMembership(db, conferenceID, userID)
 	if errors.Is(err, apperrors.ErrNotFound) {
@@ -77,6 +101,10 @@ func (r *SessionRepository) Authorize(ctx context.Context, conferenceID, userID 
 	return authorizeSession(r.db.WithContext(ctx), conferenceID, userID, false)
 }
 
+func (r *SessionRepository) AuthorizeClient(ctx context.Context, conferenceID, userID, clientID string) (conferences.Participant, error) {
+	return authorizeRoomSession(r.db.WithContext(ctx), conferenceID, userID, false, clientID, true)
+}
+
 // Open создаёт историческую физическую сессию только для действующего допущенного участника.
 // Операции с базой данных объединяет в транзакцию.
 //
@@ -94,7 +122,7 @@ func (r *SessionRepository) Open(ctx context.Context, session realtime.Session) 
 
 		@return:
 		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
-			p, err := authorizeSession(tx, session.ConferenceID, session.UserID, true)
+			p, err := authorizeRoomSession(tx, session.ConferenceID, session.UserID, true, session.ClientID, true)
 			if err != nil {
 				return err
 			}
@@ -132,7 +160,7 @@ func (r *SessionRepository) Close(ctx context.Context, connectionID string, seen
 				return err
 			}
 			// Порядок блокировок совпадает с обновлением медиа, Open, удалением участника и завершением.
-			if _, err := findConference(tx, session.ConferenceID, true); err != nil {
+			if _, err := findMediaRoom(tx, session.ConferenceID, true); err != nil {
 				return err
 			}
 			return tx.Model(&realtime.Session{}).Where("connection_id = ? AND status = 'connected'", connectionID).
@@ -171,7 +199,7 @@ func (r *SessionRepository) Stale(ctx context.Context, before time.Time, cursor 
 //   - результат 2 ([]conferences.Participant): собранные элементы результата; состав ограничивается параметрами операции.
 //   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (r *SessionRepository) Roster(ctx context.Context, conferenceID string) (conferences.Status, []conferences.Participant, error) {
-	c, err := findConference(r.db.WithContext(ctx), conferenceID, false)
+	c, err := findMediaRoom(r.db.WithContext(ctx), conferenceID, false)
 	if err != nil {
 		return "", nil, err
 	}

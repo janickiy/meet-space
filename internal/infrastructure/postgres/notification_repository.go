@@ -109,7 +109,7 @@ func (r *NotificationRepository) Generate(ctx context.Context) error {
             SELECT p.user_id, 'soon:' || c.id::text || ':' || (extract(epoch from c.scheduled_at)*1000000)::bigint::text AS dedup_key,
               jsonb_build_object('conferenceId',c.id,'scheduledAt',c.scheduled_at) AS payload
             FROM conferences c JOIN conference_participants p ON p.conference_id=c.id
-            WHERE c.status='scheduled' AND c.scheduled_at > now() AND c.scheduled_at <= now()+interval '15 minutes'
+            WHERE c.kind='meeting' AND c.status='scheduled' AND c.scheduled_at > now() AND c.scheduled_at <= now()+interval '15 minutes'
 			  AND p.user_id IS NOT NULL AND p.admission_state IN ('admitted','waiting') AND p.status NOT IN ('kicked','rejected')
 			  AND NOT EXISTS(SELECT 1 FROM conference_chat_preferences cp WHERE cp.conference_id=c.id AND cp.user_id=p.user_id AND (cp.left_at IS NOT NULL OR NOT cp.notifications_enabled))
               AND NOT EXISTS(SELECT 1 FROM notifications n WHERE n.user_id=p.user_id AND n.dedup_key='soon:' || c.id::text || ':' || (extract(epoch from c.scheduled_at)*1000000)::bigint::text)

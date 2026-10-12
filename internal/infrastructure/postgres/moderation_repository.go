@@ -182,7 +182,7 @@ func (r *ConferenceRepository) UpdateMediaState(ctx context.Context, conferenceI
 
 		@return:
 		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
-			conference, err := findConference(tx, conferenceID, true)
+			conference, err := findMediaRoom(tx, conferenceID, true)
 			if err != nil {
 				return err
 			}
@@ -235,7 +235,7 @@ func (r *ConferenceRepository) MediaPolicy(ctx context.Context, conferenceID, pa
 	if err != nil {
 		return media.ParticipantPolicy{}, mapNotFound(err)
 	}
-	conference, err := findConference(r.db.WithContext(ctx), conferenceID, false)
+	conference, err := findMediaRoom(r.db.WithContext(ctx), conferenceID, false)
 	if err != nil {
 		return media.ParticipantPolicy{}, err
 	}
@@ -285,7 +285,7 @@ func (r *ConferenceRepository) ClearDisconnectedMedia(ctx context.Context, confe
 
 		@return:
 		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
-			if _, err := findConference(tx, conferenceID, true); err != nil {
+			if _, err := findMediaRoom(tx, conferenceID, true); err != nil {
 				return err
 			}
 			if err := tx.Where("id = ? AND conference_id = ?", participantID, conferenceID).Take(&p).Error; err != nil {

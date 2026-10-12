@@ -28,6 +28,7 @@ import { useAuth } from "../auth";
 import { chatTime } from "../chatPresentation";
 import { ConversationActions } from "../components/FolderPicker";
 import { DirectUserInfoModal } from "../components/DirectConversationActions";
+import { DirectCallButton } from "../components/DirectCallButton";
 import { PersonalPeerStatus } from "../components/PersonalPeerStatus";
 import { PersonalPeerPresenceProvider } from "../usePersonalPeerPresence";
 import { MessageThread } from "../components/ChatPanel";
@@ -393,6 +394,12 @@ export function PersonalPage() {
                       )}
                     </span>
                   </button>
+                )}
+                {selected?.type === "direct" && (
+                  <DirectCallButton
+                    userId={selected.peer.id}
+                    name={selected.peer.displayName}
+                  />
                 )}
                 {selected && (
                   <ConversationActions

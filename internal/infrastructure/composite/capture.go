@@ -264,6 +264,15 @@ readLoop:
 			}
 			epoch = frame.CapturedAt
 			last = epoch
+			// An established subscription records the conference timeline, including
+			// silent intervals. Waiting for RTP leaves muted rooms stuck in starting.
+			if options.OnStarted != nil {
+				if err := options.OnStarted(); err != nil {
+					captureErr = err
+					break
+				}
+			}
+			started = true
 			continue
 		}
 		// Параллельные издатели SFU могут поставить время до захвата блокировки потока.
@@ -346,15 +355,6 @@ readLoop:
 			if err := writer.WriteRTP(&packet, frame.CapturedAt); err != nil {
 				captureErr = err
 				break readLoop
-			}
-			if !started {
-				started = true
-				if options.OnStarted != nil {
-					if err := options.OnStarted(); err != nil {
-						captureErr = err
-						break readLoop
-					}
-				}
 			}
 		case "track.end":
 			track, exists := active[frame.TrackID]
@@ -472,6 +472,10 @@ type sourceState struct {
 
 // sourceJitterWindow bounds RTP reordering during ordinary packet capture.
 const sourceJitterWindow = 200 * time.Millisecond
+
+// Observed screen-share streams can exceed the requested capture frame rate.
+// Keep enough frames between periodic keyframes without relaxing the byte cap.
+const maxPrerollFrames = 4096
 
 // newSourceWriter создаёт запись элементарного потока для одного источника медиа.
 //
@@ -599,7 +603,7 @@ func (w *sourceWriter) pop() error {
 			}
 			w.state.preroll = append(w.state.preroll, frame)
 			w.state.bytes += len(frame.data)
-			if w.state.bytes > 4<<20 || len(w.state.preroll) > 300 {
+			if w.state.bytes > 4<<20 || len(w.state.preroll) > maxPrerollFrames {
 				return fmt.Errorf("recording keyframe pre-roll limit exceeded")
 			}
 		} else {

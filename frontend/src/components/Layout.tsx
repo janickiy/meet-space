@@ -31,6 +31,7 @@ import { PRODUCT_NAME, PRODUCT_TAGLINE } from "../brand";
 import { AccountSettingsModal } from "./AccountSettingsModal";
 import { AccountSettingsContext } from "./AccountSettingsContext";
 import { Copyright } from "./Copyright";
+import { DirectCallsProvider } from "./DirectCalls";
 
 /**
  * Layout объединяет навигацию, поиск и личный профиль, не управляя соединениями комнаты.
@@ -211,250 +212,261 @@ export function Layout() {
       : sectionTitle;
   return (
     <AccountSettingsContext.Provider value={showAccountSettings}>
-      {personal.notice && (
-        <div className="personal-notice" role="status">
-          <Link
-            to={`/personal/${personal.notice.id}`}
-            onClick={personal.dismiss}
-          >
-            <strong>{personal.notice.name}</strong>
-            <span>{personal.notice.text}</span>
-          </Link>
-          <button
-            className="icon-button"
-            aria-label="Закрыть уведомление о сообщении"
-            onClick={personal.dismiss}
-          >
-            <X size={18} />
-          </button>
-        </div>
-      )}
-      <div className="app-shell" inert={settingsOpen || settingsRouteOpen}>
-        <a className="skip-link" href="#workspace-main">
-          Перейти к содержимому
-        </a>
-        <div className="app-chrome">
-          <div className="chrome-context">
-            <LayoutGrid size={16} aria-hidden="true" />
-            <span>{PRODUCT_NAME}</span>
-            <span className="chrome-slash" aria-hidden="true">
-              /
-            </span>
-            <strong>{sectionContext}</strong>
-          </div>
-          <Link
-            to="/conferences/new"
-            className="chrome-create"
-            aria-label="Создать встречу"
-            title="Создать встречу"
-          >
-            <Plus size={20} aria-hidden="true" />
-          </Link>
-        </div>
-        <aside
-          id="app-sidebar"
-          ref={sidebar}
-          className={`sidebar ${open ? "sidebar-open" : ""}`}
-          role={open ? "dialog" : undefined}
-          aria-modal={open || undefined}
-          aria-label={open ? `Меню ${PRODUCT_NAME}` : undefined}
-        >
-          <div className="sidebar-head">
-            <Brand to="/app" />
-            <button
-              className="icon-button mobile-only"
-              aria-label="Закрыть меню"
-              onClick={() => setOpen(false)}
+      <DirectCallsProvider>
+        {personal.notice && (
+          <div className="personal-notice" role="status">
+            <Link
+              to={`/personal/${personal.notice.id}`}
+              onClick={personal.dismiss}
             >
-              <X />
+              <strong>{personal.notice.name}</strong>
+              <span>{personal.notice.text}</span>
+            </Link>
+            <button
+              className="icon-button"
+              aria-label="Закрыть уведомление о сообщении"
+              onClick={personal.dismiss}
+            >
+              <X size={18} />
             </button>
           </div>
-          <p className="sidebar-tagline">
-            <span>{PRODUCT_TAGLINE.replace(/\s+в одном месте\.$/, "")}</span>{" "}
-            <strong>в одном месте.</strong>
-          </p>
-          <p className="sidebar-caption">Рабочее пространство</p>
-          <nav className="sidebar-nav" aria-label="Основная навигация">
-            {items.map(({ to, label, Icon, ...props }) => (
-              <NavLink
-                key={to}
-                to={to}
-                {...props}
-                onClick={(event) =>
-                  to === "/app/settings" ? openSettings(event) : setOpen(false)
-                }
-                className={({ isActive }) =>
-                  isActive ? "nav-item nav-active" : "nav-item"
-                }
-              >
-                <Icon size={22} aria-hidden="true" />
-                <span className="nav-label-text">{label}</span>
-                {to === "/personal" && (
-                  <UnreadMessageCount count={personal.unread} />
-                )}
-              </NavLink>
-            ))}
-          </nav>
-          <p className="sidebar-caption sidebar-personal-caption">
-            Личное пространство
-          </p>
-          <nav className="sidebar-nav" aria-label="Личное пространство">
-            <NavLink
-              to="/folders"
-              onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                isActive ? "nav-item nav-active" : "nav-item"
-              }
-            >
-              <Folder size={22} aria-hidden="true" />
-              <span className="nav-label-text">Папки</span>
-            </NavLink>
-          </nav>
-          <nav
-            className="sidebar-nav sidebar-service-nav"
-            aria-label="Настройки приложения"
-          >
-            {serviceItems.map(({ to, label, Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={(event) =>
-                  to === "/app/settings" ? openSettings(event) : setOpen(false)
-                }
-                className={({ isActive }) =>
-                  isActive ? "nav-item nav-active" : "nav-item"
-                }
-              >
-                <Icon size={22} aria-hidden="true" />
-                <span className="nav-label-text">{label}</span>
-              </NavLink>
-            ))}
-          </nav>
-          <div className="sidebar-bottom">
-            <button
-              type="button"
-              className="profile profile-button"
-              aria-label="Открыть настройки аккаунта"
-              onClick={(event) => {
-                const target = open
-                  ? opener.current || menuButton.current || event.currentTarget
-                  : event.currentTarget;
-                setOpen(false);
-                showAccountSettings(target);
-              }}
-            >
-              <span className="avatar">
-                {initials(user?.displayName || user?.email || "")}
-              </span>
-              <div>
-                <strong>{user?.displayName || "Мой аккаунт"}</strong>
-                <span>{user?.email}</span>
-              </div>
-            </button>
-            <button
-              className="logout-button"
-              disabled={leaving}
-              onClick={leaveAccount}
-            >
-              <LogOut size={22} />
-              <span className="nav-label-text">
-                {leaving ? "Выходим…" : "Выйти из аккаунта"}
-              </span>
-            </button>
-          </div>
-        </aside>
-        {open && (
-          <button
-            className="sidebar-shade"
-            aria-label="Скрыть меню"
-            onClick={() => setOpen(false)}
-          />
         )}
-        <div className="workspace" inert={open}>
-          <header className="workspace-top">
-            <button
-              className="icon-button mobile-only"
-              aria-label="Открыть меню"
-              aria-controls="app-sidebar"
-              aria-expanded={open}
-              ref={menuButton}
-              onClick={() => {
-                opener.current = menuButton.current;
-                setOpen(true);
-              }}
-            >
-              <Menu aria-hidden="true" />
-            </button>
-            <div className="workspace-mobile-brand">
-              <Brand to="/app" />
+        <div className="app-shell" inert={settingsOpen || settingsRouteOpen}>
+          <a className="skip-link" href="#workspace-main">
+            Перейти к содержимому
+          </a>
+          <div className="app-chrome">
+            <div className="chrome-context">
+              <LayoutGrid size={16} aria-hidden="true" />
+              <span>{PRODUCT_NAME}</span>
+              <span className="chrome-slash" aria-hidden="true">
+                /
+              </span>
+              <strong>{sectionContext}</strong>
             </div>
-            <span className="workspace-context">{sectionContext}</span>
-            <div className="workspace-account">
-              <NotificationBell />
+            <Link
+              to="/conferences/new"
+              className="chrome-create"
+              aria-label="Создать встречу"
+              title="Создать встречу"
+            >
+              <Plus size={20} aria-hidden="true" />
+            </Link>
+          </div>
+          <aside
+            id="app-sidebar"
+            ref={sidebar}
+            className={`sidebar ${open ? "sidebar-open" : ""}`}
+            role={open ? "dialog" : undefined}
+            aria-modal={open || undefined}
+            aria-label={open ? `Меню ${PRODUCT_NAME}` : undefined}
+          >
+            <div className="sidebar-head">
+              <Brand to="/app" />
+              <button
+                className="icon-button mobile-only"
+                aria-label="Закрыть меню"
+                onClick={() => setOpen(false)}
+              >
+                <X />
+              </button>
+            </div>
+            <p className="sidebar-tagline">
+              <span>{PRODUCT_TAGLINE.replace(/\s+в одном месте\.$/, "")}</span>{" "}
+              <strong>в одном месте.</strong>
+            </p>
+            <p className="sidebar-caption">Рабочее пространство</p>
+            <nav className="sidebar-nav" aria-label="Основная навигация">
+              {items.map(({ to, label, Icon, ...props }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  {...props}
+                  onClick={(event) =>
+                    to === "/app/settings"
+                      ? openSettings(event)
+                      : setOpen(false)
+                  }
+                  className={({ isActive }) =>
+                    isActive ? "nav-item nav-active" : "nav-item"
+                  }
+                >
+                  <Icon size={22} aria-hidden="true" />
+                  <span className="nav-label-text">{label}</span>
+                  {to === "/personal" && (
+                    <UnreadMessageCount count={personal.unread} />
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+            <p className="sidebar-caption sidebar-personal-caption">
+              Личное пространство
+            </p>
+            <nav className="sidebar-nav" aria-label="Личное пространство">
+              <NavLink
+                to="/folders"
+                onClick={() => setOpen(false)}
+                className={({ isActive }) =>
+                  isActive ? "nav-item nav-active" : "nav-item"
+                }
+              >
+                <Folder size={22} aria-hidden="true" />
+                <span className="nav-label-text">Папки</span>
+              </NavLink>
+            </nav>
+            <nav
+              className="sidebar-nav sidebar-service-nav"
+              aria-label="Настройки приложения"
+            >
+              {serviceItems.map(({ to, label, Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={(event) =>
+                    to === "/app/settings"
+                      ? openSettings(event)
+                      : setOpen(false)
+                  }
+                  className={({ isActive }) =>
+                    isActive ? "nav-item nav-active" : "nav-item"
+                  }
+                >
+                  <Icon size={22} aria-hidden="true" />
+                  <span className="nav-label-text">{label}</span>
+                </NavLink>
+              ))}
+            </nav>
+            <div className="sidebar-bottom">
               <button
                 type="button"
-                className="topbar-profile"
-                aria-label="Профиль и настройки аккаунта"
-                onClick={(event) => showAccountSettings(event.currentTarget)}
+                className="profile profile-button"
+                aria-label="Открыть настройки аккаунта"
+                onClick={(event) => {
+                  const target = open
+                    ? opener.current ||
+                      menuButton.current ||
+                      event.currentTarget
+                    : event.currentTarget;
+                  setOpen(false);
+                  showAccountSettings(target);
+                }}
               >
                 <span className="avatar">
                   {initials(user?.displayName || user?.email || "")}
                 </span>
-                <span className="topbar-profile-text">
+                <div>
                   <strong>{user?.displayName || "Мой аккаунт"}</strong>
-                  <small>{user?.email}</small>
+                  <span>{user?.email}</span>
+                </div>
+              </button>
+              <button
+                className="logout-button"
+                disabled={leaving}
+                onClick={leaveAccount}
+              >
+                <LogOut size={22} />
+                <span className="nav-label-text">
+                  {leaving ? "Выходим…" : "Выйти из аккаунта"}
                 </span>
               </button>
             </div>
-          </header>
-          <main id="workspace-main" className="workspace-main" tabIndex={-1}>
-            <Suspense fallback={<Loading />}>
-              <Outlet />
-            </Suspense>
-          </main>
-          <footer className="workspace-footer">
-            <Copyright />
-          </footer>
-          <nav className="mobile-bottom-nav" aria-label="Быстрая навигация">
-            <NavLink to="/app" end aria-label="Главная — быстрая навигация">
-              <Home size={20} />
-              Главная
-            </NavLink>
-            <NavLink to="/conferences" aria-label="Встречи — быстрая навигация">
-              <Video size={20} />
-              Встречи
-            </NavLink>
-            <NavLink
-              to="/personal"
-              aria-label={`Личные — быстрая навигация${personal.unread ? `, непрочитанных: ${personal.unread}` : ""}`}
-            >
-              <span className="mobile-nav-message-icon">
-                <MessageCircle size={20} aria-hidden="true" />
-                <UnreadMessageCount count={personal.unread} />
-              </span>
-              Личные
-            </NavLink>
-            <NavLink to="/recordings" aria-label="Записи — быстрая навигация">
-              <CirclePlay size={20} />
-              Записи
-            </NavLink>
+          </aside>
+          {open && (
             <button
-              ref={bottomButton}
-              aria-label="Все разделы"
-              aria-expanded={open}
-              aria-controls="app-sidebar"
-              onClick={() => {
-                opener.current = bottomButton.current;
-                setOpen(true);
-              }}
-            >
-              <Ellipsis size={20} />
-              Ещё
-            </button>
-          </nav>
+              className="sidebar-shade"
+              aria-label="Скрыть меню"
+              onClick={() => setOpen(false)}
+            />
+          )}
+          <div className="workspace" inert={open}>
+            <header className="workspace-top">
+              <button
+                className="icon-button mobile-only"
+                aria-label="Открыть меню"
+                aria-controls="app-sidebar"
+                aria-expanded={open}
+                ref={menuButton}
+                onClick={() => {
+                  opener.current = menuButton.current;
+                  setOpen(true);
+                }}
+              >
+                <Menu aria-hidden="true" />
+              </button>
+              <div className="workspace-mobile-brand">
+                <Brand to="/app" />
+              </div>
+              <span className="workspace-context">{sectionContext}</span>
+              <div className="workspace-account">
+                <NotificationBell />
+                <button
+                  type="button"
+                  className="topbar-profile"
+                  aria-label="Профиль и настройки аккаунта"
+                  onClick={(event) => showAccountSettings(event.currentTarget)}
+                >
+                  <span className="avatar">
+                    {initials(user?.displayName || user?.email || "")}
+                  </span>
+                  <span className="topbar-profile-text">
+                    <strong>{user?.displayName || "Мой аккаунт"}</strong>
+                    <small>{user?.email}</small>
+                  </span>
+                </button>
+              </div>
+            </header>
+            <main id="workspace-main" className="workspace-main" tabIndex={-1}>
+              <Suspense fallback={<Loading />}>
+                <Outlet />
+              </Suspense>
+            </main>
+            <footer className="workspace-footer">
+              <Copyright />
+            </footer>
+            <nav className="mobile-bottom-nav" aria-label="Быстрая навигация">
+              <NavLink to="/app" end aria-label="Главная — быстрая навигация">
+                <Home size={20} />
+                Главная
+              </NavLink>
+              <NavLink
+                to="/conferences"
+                aria-label="Встречи — быстрая навигация"
+              >
+                <Video size={20} />
+                Встречи
+              </NavLink>
+              <NavLink
+                to="/personal"
+                aria-label={`Личные — быстрая навигация${personal.unread ? `, непрочитанных: ${personal.unread}` : ""}`}
+              >
+                <span className="mobile-nav-message-icon">
+                  <MessageCircle size={20} aria-hidden="true" />
+                  <UnreadMessageCount count={personal.unread} />
+                </span>
+                Личные
+              </NavLink>
+              <NavLink to="/recordings" aria-label="Записи — быстрая навигация">
+                <CirclePlay size={20} />
+                Записи
+              </NavLink>
+              <button
+                ref={bottomButton}
+                aria-label="Все разделы"
+                aria-expanded={open}
+                aria-controls="app-sidebar"
+                onClick={() => {
+                  opener.current = bottomButton.current;
+                  setOpen(true);
+                }}
+              >
+                <Ellipsis size={20} />
+                Ещё
+              </button>
+            </nav>
+          </div>
         </div>
-      </div>
-      {settingsDialog}
+        {settingsDialog}
+      </DirectCallsProvider>
     </AccountSettingsContext.Provider>
   );
 }

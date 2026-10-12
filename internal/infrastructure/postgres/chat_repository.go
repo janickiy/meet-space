@@ -113,6 +113,11 @@ func (r *ChatRepository) decorateMessages(tx *gorm.DB, items []chat.Message, cut
 			replyIDs = append(replyIDs, *items[i].ReplyTo)
 		}
 	}
+	if r.direct {
+		if err := decorateCallHistory(tx, items, ids); err != nil {
+			return err
+		}
+	}
 	var attachments []chat.Attachment
 	if err := r.attachments(tx).Where("message_id IN ? AND status='attached'", ids).Order("created_at,id").Find(&attachments).Error; err != nil {
 		return err
@@ -340,6 +345,9 @@ func (r *ChatRepository) Edit(ctx context.Context, userID, conferenceID, id, tex
 		if message.SenderID != userID {
 			return apperrors.ErrForbidden
 		}
+		if message.CallID != nil {
+			return apperrors.New(apperrors.ErrForbidden, "call history cannot be edited")
+		}
 		if message.DeletedAt != nil {
 			return apperrors.New(apperrors.ErrConflict, "message was deleted")
 		}
@@ -380,6 +388,9 @@ func (r *ChatRepository) Delete(ctx context.Context, userID, conferenceID, id st
 		}
 		if message.SenderID != userID && p.Role != conferences.Owner && p.Role != conferences.CoHost {
 			return apperrors.ErrForbidden
+		}
+		if message.CallID != nil {
+			return apperrors.New(apperrors.ErrForbidden, "call history cannot be deleted as a message")
 		}
 		if message.DeletedAt == nil {
 			if err := r.messages(tx).Where("id=?", id).Updates(map[string]any{"text": "", "deleted_at": gorm.Expr("clock_timestamp()"), "updated_at": gorm.Expr("clock_timestamp()"), "version": gorm.Expr("version+1")}).Error; err != nil {

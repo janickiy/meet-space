@@ -81,7 +81,11 @@ export function parseRealtime(
  *
  * @returns состояние, данные или действия React-хука; ресурсы освобождаются при изменении зависимостей.
  */
-export function useRealtime(conferenceId: string, enabled: boolean) {
+export function useRealtime(
+  conferenceId: string,
+  enabled: boolean,
+  clientId?: string,
+) {
   const queryClient = useQueryClient();
   const [state, setState] = useState<RealtimeState | null>(null);
   const [status, setStatus] = useState("Отключено");
@@ -229,7 +233,11 @@ export function useRealtime(conferenceId: string, enabled: boolean) {
         if (disposed) return;
         setStatus(retry ? "Переподключение…" : "Подключение…");
         try {
-          const { ticket } = await api.wsTicket(conferenceId, abort.signal);
+          const { ticket } = await api.wsTicket(
+            conferenceId,
+            abort.signal,
+            clientId,
+          );
           if (disposed) return;
           const ws = new WebSocket(
             websocketURL(conferenceId, ticket),
@@ -455,7 +463,7 @@ export function useRealtime(conferenceId: string, enabled: boolean) {
         }
       };
     },
-    [conferenceId, enabled, generation, queryClient],
+    [conferenceId, enabled, clientId, generation, queryClient],
   );
   /**
    * send передаёт исходящее событие через действующее соединение.

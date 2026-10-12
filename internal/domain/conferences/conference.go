@@ -67,6 +67,7 @@ func CanTransition(from, to Status) bool {
 type Conference struct {
 	ID                 string `gorm:"type:uuid;primaryKey"`
 	OwnerID            string `gorm:"column:owner_id;type:uuid"`
+	Kind               string `gorm:"default:meeting"`
 	Title              string
 	InviteCode         string `gorm:"column:invite_code"`
 	Status             Status

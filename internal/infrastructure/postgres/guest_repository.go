@@ -25,7 +25,7 @@ func (r *GuestRepository) JoinGuest(ctx context.Context, code, name, resumeUserI
 	var participant conferences.Participant
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var conference conferences.Conference
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("invite_code = ?", code).Take(&conference).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("invite_code = ? AND kind = 'meeting'", code).Take(&conference).Error; err != nil {
 			return mapNotFound(err)
 		}
 		if conference.Status != conferences.Created && conference.Status != conferences.Active {

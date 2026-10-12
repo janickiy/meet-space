@@ -61,6 +61,20 @@ type Message struct {
 	DeletedAt          *time.Time    `json:"deletedAt"`
 	Attachments        []Attachment  `json:"attachments" gorm:"-"`
 	Important          bool          `json:"important,omitempty" gorm:"-"`
+	CallID             *string       `json:"-" gorm:"->;-:migration"`
+	Call               *CallHistory  `json:"call,omitempty" gorm:"-"`
+}
+
+// CallHistory projects the authoritative call state without exposing room or device credentials.
+type CallHistory struct {
+	ID           string     `json:"id"`
+	CallerUserID string     `json:"callerUserId"`
+	CalleeUserID string     `json:"calleeUserId"`
+	Status       string     `json:"status"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	AcceptedAt   *time.Time `json:"acceptedAt"`
+	EndedAt      *time.Time `json:"endedAt"`
+	DurationSec  int64      `json:"durationSec"`
 }
 
 // TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.

@@ -1,0 +1,25 @@
+.call-history-message {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.85rem 1rem;
+  color: var(--primary);
+  background: var(--primary-soft, #f1e8f5);
+  border-radius: 0.85rem;
+}
+.call-history-message > svg {
+  flex-shrink: 0;
+}
+.call-history-message > span {
+  display: grid;
+  gap: 0.2rem;
+}
+.call-history-message > span > span {
+  font-size: 0.875rem;
+}
+.call-history-missed {
+  color: #b32c46;
+  background: #fff0f2;
+}

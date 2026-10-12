@@ -16,6 +16,7 @@ type Session struct {
 	ParticipantID  string     `json:"participantId" gorm:"type:uuid"`
 	UserID         string     `json:"userId" gorm:"type:uuid"`
 	ConnectionID   string     `json:"connectionId" gorm:"type:uuid"`
+	ClientID       string     `json:"clientId,omitempty" gorm:"-"`
 	Status         string     `json:"status"`
 	ConnectedAt    time.Time  `json:"connectedAt"`
 	DisconnectedAt *time.Time `json:"disconnectedAt,omitempty"`
@@ -33,6 +34,7 @@ type Identity struct {
 	UserID        string    `json:"userId"`
 	ExpiresAt     time.Time `json:"expiresAt"`
 	AuthSessionID string    `json:"authSessionId,omitempty"`
+	ClientID      string    `json:"clientId,omitempty"`
 }
 
 // Envelope is the versioned WebSocket event. ReplyTo correlates a response with its request.

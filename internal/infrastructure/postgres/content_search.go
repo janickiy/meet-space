@@ -9,7 +9,7 @@ import (
 // Permissions являются частью SQL до rank/page; snippet содержит обычный текст,
 // не HTML. Старый summary исключается, если сменилось поколение transcript.
 const contentSearchSQL = `WITH searchquery AS (SELECT websearch_to_tsquery('simple'::regconfig,?) AS query),
- permitted AS (SELECT c.* FROM conferences c WHERE
+ permitted AS (SELECT c.* FROM conferences c WHERE c.kind='meeting' AND
  EXISTS(SELECT 1 FROM conference_participants p WHERE p.conference_id=c.id AND p.user_id=? AND p.admission_state='admitted' AND p.status IN ('joined','left'))
  AND (?='' OR c.id::text=?)
  AND (? IN ('','all') OR (?='owned' AND c.owner_id::text=?) OR (?='participating' AND c.owner_id::text<>?))

@@ -203,6 +203,9 @@ export function SuccessMark() {
  *
  * @returns JSX-представление компонента для текущих свойств и состояния.
  */
+const openModalElements = new Set<HTMLDivElement>();
+let modalBodyOverflow = "";
+
 export function Modal({
   title,
   children,
@@ -237,7 +240,10 @@ export function Modal({
      * @returns функция освобождения созданных ресурсов, если эффект её объявляет; иначе значение не возвращается.
      */ () => {
       const previous = document.activeElement as HTMLElement | null;
-      const overflow = document.body.style.overflow;
+      const element = dialog.current!;
+      if (!openModalElements.size)
+        modalBodyOverflow = document.body.style.overflow;
+      openModalElements.add(element);
       document.body.style.overflow = "hidden";
       /**
        * focusable находит доступные элементы диалога для клавиатурного фокуса.
@@ -267,6 +273,12 @@ export function Modal({
        * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
        */
       function handle(event: KeyboardEvent) {
+        // Incoming calls can appear above another dialog: only the top dialog handles keys.
+        if (
+          Array.from(document.querySelectorAll('[role="dialog"]')).at(-1) !==
+          dialog.current
+        )
+          return;
         // Горячие клавиши фоновой встречи не должны реагировать на ввод в диалоге.
         event.stopPropagation();
         if (event.key === "Escape") {
@@ -301,10 +313,19 @@ export function Modal({
        * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
        */
       return () => {
-        document.body.style.overflow = overflow;
+        openModalElements.delete(element);
+        if (!openModalElements.size)
+          document.body.style.overflow = modalBodyOverflow;
         document.removeEventListener("keydown", handle);
         const target = restoreFocus.current?.() || previous;
-        if (target?.isConnected && !target.closest("[inert]")) target.focus();
+        const remaining = Array.from(openModalElements).at(-1);
+        if (
+          target?.isConnected &&
+          !target.closest("[inert]") &&
+          (!remaining || remaining.contains(target))
+        )
+          target.focus();
+        else remaining?.focus();
       };
     },
     [],

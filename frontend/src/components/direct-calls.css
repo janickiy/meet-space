@@ -1,0 +1,309 @@
+.direct-call-modal.modal {
+  width: min(1180px, calc(100vw - 32px));
+  max-width: none;
+  background: #131317;
+  color: #f5f5f7;
+  padding: 24px;
+  border: 1px solid #41414b;
+  border-radius: 24px;
+  box-shadow: 0 28px 90px #0006;
+}
+.direct-call-modal > h2 {
+  color: #f5f5f7;
+}
+.direct-call-modal .modal-close {
+  color: #ddd;
+}
+.direct-call-modal .error-notice {
+  margin: 12px 0;
+}
+.direct-call-person {
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 32px 20px;
+  background: #24242b;
+  border-radius: 16px;
+  text-align: center;
+}
+.direct-call-avatar {
+  width: clamp(100px, 20vw, 220px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #53445e;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: clamp(40px, 8vw, 80px);
+  font-weight: 600;
+  overflow: hidden;
+}
+.direct-call-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.direct-call-person h3 {
+  margin: 24px 0 6px;
+  color: #f5f5f7;
+  font-size: 24px;
+}
+.direct-call-person p {
+  margin: 0;
+  color: #c8c8d1;
+}
+.direct-call-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 18px;
+}
+.direct-call-control {
+  display: flex;
+  min-width: 84px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: #292930;
+  border: 1px solid #42424c;
+  border-radius: 16px;
+  color: #e9e9ee;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.direct-call-control:hover {
+  background: #373741;
+}
+.direct-call-control[aria-pressed="true"] {
+  background: #46354e;
+  border-color: #a27eb4;
+}
+.direct-call-control:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.direct-call-end.button {
+  background: #a62e3b;
+  border-color: #c44c58;
+  color: #fff;
+  border-radius: 16px;
+}
+.direct-call-end.button:hover {
+  background: #c23a49;
+}
+.direct-call-accept.button {
+  background: #188453;
+  border-color: #21a96c;
+  color: #fff;
+  border-radius: 16px;
+}
+.direct-call-meta {
+  display: flex;
+  justify-content: space-between;
+  color: #c8c8d1;
+  margin-bottom: 16px;
+}
+.direct-call-body {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+.direct-call-with-chat {
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 340px);
+}
+.direct-call-stage {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.direct-call-self {
+  width: 190px;
+  max-width: 35%;
+  margin: auto;
+}
+.direct-call-modal .media-tile {
+  min-height: 0;
+  border-radius: 14px;
+  background: #24242b;
+}
+.direct-call-modal .media-tile video {
+  width: 100%;
+  max-height: 52vh;
+  object-fit: contain;
+}
+.direct-call-self .media-tile {
+  aspect-ratio: 16 / 9;
+}
+.direct-call-self .media-audio-symbol {
+  min-height: 80px;
+}
+.direct-call-self .participant-tile-initials {
+  font-size: 26px;
+  width: 46px;
+  height: 46px;
+}
+.direct-call-peer {
+  min-height: 300px;
+}
+.direct-call-peer .media-tile {
+  min-height: 300px;
+  height: 100%;
+}
+.direct-call-peer .media-audio-symbol {
+  min-height: 300px;
+}
+.direct-call-chat {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: #24232b;
+  border-radius: 16px;
+  overflow: hidden;
+  max-height: 62vh;
+}
+.direct-call-chat > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8e5ec;
+}
+.direct-call-chat .chat-messages {
+  min-height: 120px;
+  overflow: auto;
+}
+.direct-call-notice {
+  position: fixed;
+  z-index: 250;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #d6bbc8;
+  border-radius: 14px;
+  padding: 14px 18px;
+  background: #fff6f8;
+  color: #673147;
+  box-shadow: 0 8px 30px #0002;
+}
+.direct-call-notice button {
+  background: none;
+  color: inherit;
+  border: 0;
+  margin-left: auto;
+  cursor: pointer;
+}
+@media (max-width: 700px) {
+  .direct-call-modal.modal {
+    padding: 18px 12px;
+    border-radius: 18px;
+  }
+  .direct-call-person {
+    min-height: 300px;
+  }
+  .direct-call-with-chat {
+    grid-template-columns: 1fr;
+  }
+  .direct-call-chat {
+    max-height: 380px;
+  }
+  .direct-call-controls {
+    gap: 6px;
+  }
+  .direct-call-control {
+    min-width: 60px;
+    padding: 10px 6px;
+    font-size: 11px;
+  }
+}
+.direct-call-modal .media-tile {
+  position: relative;
+  border-color: #41414b;
+}
+.direct-call-modal .media-tile[hidden] {
+  display: none;
+}
+.direct-call-modal .media-tile-label {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 16px);
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #111b;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.direct-call-modal .participant-tile-initials {
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 120px;
+  font-size: 48px;
+  border-radius: 50%;
+  background: #53445e;
+  color: #fff;
+}
+.direct-call-modal .direct-call-self .participant-tile-initials {
+  width: 44px;
+  height: 44px;
+  font-size: 24px;
+}
+.direct-call-modal .media-tile-microphone {
+  display: inline-flex;
+}
+.direct-call-modal .media-tile-microphone > svg {
+  width: 16px;
+  height: 16px;
+}
+.direct-call-modal .media-tile-local.media-tile-screen video {
+  transform: none;
+}
+.direct-call-chat .personal-thread {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 10px;
+  flex: 1;
+  min-height: 0;
+}
+.direct-call-chat .chat-panel-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.direct-call-chat .chat-messages {
+  flex: 1;
+  min-height: 120px;
+  max-height: 38vh;
+}
+.direct-call-chat .chat-composer {
+  flex: none;
+}
+.direct-call-chat .chat-compose-caption {
+  display: none;
+}
+.direct-call-person h3,
+.direct-call-meta > span {
+  overflow-wrap: anywhere;
+}
+.direct-call-modal.modal > h2 {
+  margin: 0 42px 18px 0;
+  text-align: left;
+  font-size: 18px;
+}

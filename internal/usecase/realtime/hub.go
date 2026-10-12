@@ -312,6 +312,17 @@ func (h *Hub) Authorize(ctx context.Context, conferenceID, userID string) (confe
 	return h.repo.Authorize(ctx, conferenceID, userID)
 }
 
+// AuthorizeClient additionally scopes private calls to the initiating/accepting
+// client. Ordinary conference repositories preserve their existing contract.
+func (h *Hub) AuthorizeClient(ctx context.Context, conferenceID, userID, clientID string) (conferences.Participant, error) {
+	if repo, ok := h.repo.(interface {
+		AuthorizeClient(context.Context, string, string, string) (conferences.Participant, error)
+	}); ok {
+		return repo.AuthorizeClient(ctx, conferenceID, userID, clientID)
+	}
+	return h.repo.Authorize(ctx, conferenceID, userID)
+}
+
 // Check includes the live subscription in API readiness; a healthy Redis Ping
 // alone does not establish that this Hub can receive conference events.
 func (h *Hub) Check(ctx context.Context) error {
@@ -346,7 +357,7 @@ func (h *Hub) SetDisconnectObserver(observer DisconnectObserver) {
 // @return:
 //   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (h *Hub) ValidateSession(ctx context.Context, session domain.Session) error {
-	p, err := h.repo.Authorize(ctx, session.ConferenceID, session.UserID)
+	p, err := h.AuthorizeClient(ctx, session.ConferenceID, session.UserID, session.ClientID)
 	if err != nil {
 		return err
 	}
@@ -372,6 +383,10 @@ func (h *Hub) ValidateSession(ctx context.Context, session domain.Session) error
 //   - результат 1 (domain.Session): значение, подготовленное операцией для вызывающей стороны.
 //   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (h *Hub) Prepare(ctx context.Context, conferenceID, userID string) (domain.Session, error) {
+	return h.PrepareClient(ctx, conferenceID, userID, "")
+}
+
+func (h *Hub) PrepareClient(ctx context.Context, conferenceID, userID, clientID string) (domain.Session, error) {
 	h.mu.Lock()
 	closing := h.closing
 	unavailable := h.unavailable
@@ -382,12 +397,12 @@ func (h *Hub) Prepare(ctx context.Context, conferenceID, userID string) (domain.
 	if unavailable {
 		return domain.Session{}, apperrors.ErrUnavailable
 	}
-	p, err := h.repo.Authorize(ctx, conferenceID, userID)
+	p, err := h.AuthorizeClient(ctx, conferenceID, userID, clientID)
 	if err != nil {
 		return domain.Session{}, err
 	}
 	now := time.Now().UTC()
-	s := domain.Session{ID: uuid.NewString(), ConferenceID: conferenceID, ParticipantID: p.ID, UserID: userID, ConnectionID: uuid.NewString(), Status: "connected", ConnectedAt: now, LastSeenAt: now}
+	s := domain.Session{ID: uuid.NewString(), ConferenceID: conferenceID, ParticipantID: p.ID, UserID: userID, ClientID: clientID, ConnectionID: uuid.NewString(), Status: "connected", ConnectedAt: now, LastSeenAt: now}
 	return s, h.repo.Open(ctx, s)
 }
 
@@ -430,7 +445,7 @@ func (h *Hub) Register(ctx context.Context, session domain.Session, socket Socke
 		return err
 	}
 	// Учитываем завершение или выход одновременно с upgrade соединения и регистрацией в Redis.
-	if _, err := h.repo.Authorize(ctx, session.ConferenceID, session.UserID); err != nil {
+	if _, err := h.AuthorizeClient(ctx, session.ConferenceID, session.UserID, session.ClientID); err != nil {
 		h.Unregister(session)
 		return err
 	}
@@ -498,7 +513,7 @@ func (h *Hub) Unregister(session domain.Session) {
 // @return:
 //   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (h *Hub) Touch(ctx context.Context, session domain.Session) error {
-	if _, err := h.repo.Authorize(ctx, session.ConferenceID, session.UserID); err != nil {
+	if _, err := h.AuthorizeClient(ctx, session.ConferenceID, session.UserID, session.ClientID); err != nil {
 		return err
 	}
 	// Проверка членства не должна добавлять своё время к пятисекундному окну.
@@ -560,7 +575,7 @@ func (h *Hub) SendToParticipant(ctx context.Context, conferenceID, participantID
 // @return:
 //   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (h *Hub) SendToConnection(ctx context.Context, session domain.Session, targetID string, event domain.Envelope) error {
-	if _, err := h.repo.Authorize(ctx, session.ConferenceID, session.UserID); err != nil {
+	if _, err := h.AuthorizeClient(ctx, session.ConferenceID, session.UserID, session.ClientID); err != nil {
 		return err
 	}
 	sender, err := h.store.Get(ctx, session.ConnectionID)
@@ -577,7 +592,7 @@ func (h *Hub) SendToConnection(ctx context.Context, session domain.Session, targ
 	if target.ConferenceID != session.ConferenceID {
 		return apperrors.ErrForbidden
 	}
-	if _, err := h.repo.Authorize(ctx, target.ConferenceID, target.UserID); err != nil {
+	if _, err := h.AuthorizeClient(ctx, target.ConferenceID, target.UserID, target.ClientID); err != nil {
 		return apperrors.ErrForbidden
 	}
 	err = h.store.Publish(ctx, domain.Bus{Kind: "event", ConferenceID: session.ConferenceID, ConnectionID: targetID, Event: &event})

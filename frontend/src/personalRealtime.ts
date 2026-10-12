@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
 import { api } from "./api";
+import { receiveDirectCallEvent } from "./components/DirectCalls";
 import { invalidateFolders, purgeFolder, purgeFolderTarget } from "./folders";
 import {
   directConversationHistoryCutoff,
@@ -264,12 +265,16 @@ export function usePersonalRealtime(userId?: string) {
           client.setQueryData(connectionKey, "connected");
           attempts = 0;
           refresh();
+          void client.invalidateQueries({
+            queryKey: ["direct-call-active", userId],
+          });
           void client.invalidateQueries({ queryKey: ["personal-chat"] });
           void client.invalidateQueries({ queryKey: ["personal-chat-read"] });
         };
         socket.onmessage = ({ data }) => {
           if (controller.signal.aborted) return;
           if (typeof data !== "string") return;
+          if (receiveDirectCallEvent(data, userId)) return;
           const folderEvent = acceptFolderEvent(data);
           if (folderEvent) {
             if (folderEvent.type === "folder.deleted") {

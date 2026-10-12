@@ -437,6 +437,33 @@ export interface ChatMessage {
   attachments: ChatAttachment[];
   /** Personal bookmark, projected only into the acting member's REST reads. */
   important?: boolean;
+  /** Серверная запись истории звонка; направление определяется текущим пользователем. */
+  call?: DirectCallHistory;
+}
+
+export type DirectCallStatus =
+  "ringing" | "accepted" | "declined" | "cancelled" | "ended" | "missed";
+
+export interface DirectCallHistory {
+  id: string;
+  callerUserId: string;
+  calleeUserId: string;
+  status: DirectCallStatus;
+  createdAt: string;
+  acceptedAt?: string | null;
+  endedAt?: string | null;
+  durationSec?: number;
+}
+
+export interface DirectCall extends DirectCallHistory {
+  conversationId: string;
+  conferenceId?: string | null;
+  caller: { id: string; displayName: string; avatarUrl?: string };
+  callee: { id: string; displayName: string; avatarUrl?: string };
+  callerClientId: string;
+  acceptedByClientId?: string | null;
+  expiresAt: string;
+  version: number;
 }
 
 export interface ConferenceChatPreferences {

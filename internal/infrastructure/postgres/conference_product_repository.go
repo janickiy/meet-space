@@ -172,6 +172,7 @@ func (r *ConferenceRepository) Timeline(ctx context.Context, userID string, quer
 		return nil, err
 	}
 	q := r.db.WithContext(ctx).Model(&conferences.Conference{}).
+		Where("conferences.kind = 'meeting'").
 		Joins("JOIN conference_participants p ON p.conference_id = conferences.id AND p.user_id = ?", userID).
 		Where("p.admission_state IN ('admitted','waiting')").
 		Where("NOT EXISTS (SELECT 1 FROM conference_chat_preferences cp WHERE cp.conference_id=conferences.id AND cp.user_id=? AND cp.left_at IS NOT NULL)", userID)

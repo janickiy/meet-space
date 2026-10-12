@@ -39,7 +39,7 @@ const folderConversationsSQL = `SELECT c.id, COALESCE(lm.created_at,c.created_at
 const folderConferencesSQL = `SELECT c.id,COALESCE(c.finished_at,c.scheduled_at,c.created_at) AS activity_at,c.title AS label
  FROM conference_participants p JOIN conferences c ON c.id=p.conference_id
  JOIN users actor ON actor.id=p.user_id AND actor.guest_conference_id IS NULL
- WHERE p.user_id=? AND p.admission_state IN('admitted','waiting') AND p.status NOT IN('kicked','rejected')
+ WHERE c.kind='meeting' AND p.user_id=? AND p.admission_state IN('admitted','waiting') AND p.status NOT IN('kicked','rejected')
  AND NOT EXISTS(SELECT 1 FROM conference_chat_preferences cp WHERE cp.conference_id=c.id AND cp.user_id=p.user_id AND cp.left_at IS NOT NULL)`
 const folderEligibleSQL = `WITH eligible_conversations AS (` + folderConversationsSQL + `), eligible_conferences AS (` + folderConferencesSQL + `) `
 const folderCountProjection = `SELECT f.id,f.name,f.position,f.created_at,f.updated_at,

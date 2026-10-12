@@ -242,7 +242,22 @@ func (h *Handler) Ticket(c *gin.Context) {
 		httpresponse.Fail(c, err)
 		return
 	}
-	if _, err = h.hub.Authorize(ctx, id, identity.UserID); err != nil {
+	var request struct {
+		ClientID string `json:"clientId"`
+	}
+	if err = json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 1024)).Decode(&request); err != nil && !errors.Is(err, io.EOF) {
+		httpresponse.Fail(c, apperrors.ErrInvalidInput)
+		return
+	}
+	if request.ClientID != "" {
+		clientID, parseErr := uuid.Parse(request.ClientID)
+		if parseErr != nil || clientID == uuid.Nil {
+			httpresponse.Fail(c, apperrors.ErrInvalidInput)
+			return
+		}
+		identity.ClientID = clientID.String()
+	}
+	if _, err = h.hub.AuthorizeClient(ctx, id, identity.UserID, identity.ClientID); err != nil {
 		httpresponse.Fail(c, err)
 		return
 	}
@@ -378,7 +393,7 @@ func (h *Handler) Connect(c *gin.Context) {
 			return
 		}
 	}
-	session, err := h.hub.Prepare(ctx, id, identity.UserID)
+	session, err := h.hub.PrepareClient(ctx, id, identity.UserID, identity.ClientID)
 	if err != nil {
 		httpresponse.Fail(c, err)
 		return

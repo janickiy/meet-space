@@ -13,6 +13,7 @@ import (
 	"time"
 
 	authapp "github.com/janickiy/meet-space/internal/app/auth"
+	callsapp "github.com/janickiy/meet-space/internal/app/calls"
 	captionsapp "github.com/janickiy/meet-space/internal/app/captions"
 	chatapp "github.com/janickiy/meet-space/internal/app/chat"
 	conferencesapp "github.com/janickiy/meet-space/internal/app/conferences"
@@ -37,6 +38,7 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 	wstransport "github.com/janickiy/meet-space/internal/transport/websocket"
 	authusecase "github.com/janickiy/meet-space/internal/usecase/auth"
+	callsusecase "github.com/janickiy/meet-space/internal/usecase/calls"
 	chatusecase "github.com/janickiy/meet-space/internal/usecase/chat"
 	conferenceusecase "github.com/janickiy/meet-space/internal/usecase/conferences"
 	foldersusecase "github.com/janickiy/meet-space/internal/usecase/folders"
@@ -161,6 +163,8 @@ func RunAPI() error {
 	defer globalWS.Shutdown()
 	globalWS.RegisterRoutes(router)
 	personalHandler := &personalapp.Handler{Repo: personalRepository, Events: personalEvents, Presence: userPresence}
+	callService := &callsusecase.Service{Repo: postgresinfra.NewCallRepository(db), Bus: notificationBus, Observer: hub}
+	httptransport.RegisterCallRoutes(router, &callsapp.Handler{Service: callService}, httpmiddleware.Authenticate(authService), personalHandler.AccountOnly, rateLimiter)
 	httptransport.RegisterPersonalRoutes(router, personalHandler, chatapp.NewHandler(personalChat).ForConversations().WithGroupDownloads(personalAssets), httpmiddleware.Authenticate(authService), rateLimiter)
 	httptransport.RegisterPersonalAssetRoutes(router, personalapp.NewAssetHandler(personalAssets), httpmiddleware.Authenticate(authService), personalHandler.AccountOnly, rateLimiter)
 	folderHandler := foldersapp.NewHandler(postgresinfra.NewFolderRepository(db), &foldersusecase.Events{Bus: notificationBus})
@@ -216,6 +220,7 @@ func RunAPI() error {
 	go chatService.Run(ctx)
 	go personalChat.Run(ctx)
 	go personalAssets.Run(ctx)
+	go callService.Run(ctx)
 	go notificationService.Run(ctx)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.APIPort))
 	if err != nil {

@@ -83,7 +83,7 @@ func (r *ConferenceRepository) Get(ctx context.Context, id string) (conferences.
 //   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (r *ConferenceRepository) GetByInvite(ctx context.Context, code string) (conferences.Conference, error) {
 	var conference conferences.Conference
-	err := r.db.WithContext(ctx).Where("invite_code = ?", code).Take(&conference).Error
+	err := r.db.WithContext(ctx).Where("invite_code = ? AND kind = 'meeting'", code).Take(&conference).Error
 	return conference, mapNotFound(err)
 }
 
@@ -101,6 +101,7 @@ func (r *ConferenceRepository) GetByInvite(ctx context.Context, code string) (co
 func (r *ConferenceRepository) ListForUser(ctx context.Context, userID string, limit, offset int) ([]conferences.Conference, error) {
 	items := []conferences.Conference{}
 	err := r.db.WithContext(ctx).Model(&conferences.Conference{}).
+		Where("conferences.kind = 'meeting'").
 		Joins("JOIN conference_participants p ON p.conference_id = conferences.id").
 		Where("p.user_id = ? AND p.admission_state IN ('admitted','waiting')", userID).
 		Where("NOT EXISTS (SELECT 1 FROM conference_chat_preferences cp WHERE cp.conference_id=conferences.id AND cp.user_id=? AND cp.left_at IS NOT NULL)", userID).
@@ -349,6 +350,12 @@ func (r *ConferenceRepository) Leave(ctx context.Context, id, userID string) (co
 //   - результат 1 (conferences.Conference): значение, подготовленное операцией для вызывающей стороны.
 //   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func findConference(db *gorm.DB, id string, locked bool) (conferences.Conference, error) {
+	return findMediaRoom(db.Where("kind = 'meeting'"), id, locked)
+}
+
+// findMediaRoom includes private call rooms. Only the media lifecycle may use
+// it; ordinary meeting APIs must go through findConference instead.
+func findMediaRoom(db *gorm.DB, id string, locked bool) (conferences.Conference, error) {
 	if locked {
 		db = db.Clauses(clause.Locking{Strength: "UPDATE"})
 	}

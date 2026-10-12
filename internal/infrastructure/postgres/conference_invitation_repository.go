@@ -26,7 +26,7 @@ func NewConferenceInvitationRepository(db *gorm.DB) *ConferenceInvitationReposit
 // invitationActor checks both the account and room authority before returning directory data.
 func invitationActor(tx *gorm.DB, actor, conference string, lock bool) (d.Conference, error) {
 	var c d.Conference
-	q := tx.Where("id=?", conference)
+	q := tx.Where("id=? AND kind='meeting'", conference)
 	if lock {
 		q = q.Clauses(clause.Locking{Strength: "UPDATE"})
 	}

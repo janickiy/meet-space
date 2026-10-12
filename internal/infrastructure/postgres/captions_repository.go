@@ -26,6 +26,9 @@ func NewCaptionsRepository(db *gorm.DB) *CaptionsRepository { return &CaptionsRe
 // @return состояние, включая право управления, либо ошибка доступа.
 func (r *CaptionsRepository) Read(ctx context.Context, user, cid string) (domain.State, error) {
 	db := r.db.WithContext(ctx)
+	if _, err := findConference(db, cid, false); err != nil {
+		return domain.State{}, err
+	}
 	p, err := findMembership(db, cid, user)
 	if err != nil {
 		return domain.State{}, membershipError(err)
@@ -106,7 +109,7 @@ func (r *CaptionsRepository) Claim(ctx context.Context, analytics bool, maximum,
 		}
 		if analytics {
 			if e := tx.Exec(`INSERT INTO live_transcription_sessions(conference_id,origin,status)
-   SELECT id,started_at,'queued' FROM conferences WHERE status='active' AND started_at IS NOT NULL ON CONFLICT(conference_id) DO NOTHING`).Error; e != nil {
+   SELECT id,started_at,'queued' FROM conferences WHERE kind='meeting' AND status='active' AND started_at IS NOT NULL ON CONFLICT(conference_id) DO NOTHING`).Error; e != nil {
 				return e
 			}
 		}
@@ -119,7 +122,7 @@ func (r *CaptionsRepository) Claim(ctx context.Context, analytics bool, maximum,
 		}
 		result := tx.Raw(`UPDATE live_transcription_sessions s SET lease_token=?,analytics_enabled=?,lease_until=clock_timestamp()+interval '15 seconds',attempts=attempts+1,updated_at=clock_timestamp()
    WHERE s.id=(SELECT l.id FROM live_transcription_sessions l JOIN conferences c ON c.id=l.conference_id
-    WHERE c.status='active' AND l.status IN ('queued','active','degraded','off') AND (l.enabled OR ?) AND l.attempts<?
+    WHERE c.kind='meeting' AND c.status='active' AND l.status IN ('queued','active','degraded','off') AND (l.enabled OR ?) AND l.attempts<?
      AND (l.lease_until IS NULL OR l.lease_until<clock_timestamp()) ORDER BY l.updated_at LIMIT 1 FOR UPDATE OF l SKIP LOCKED)
    RETURNING s.id AS session_id,s.conference_id,s.enabled,s.language,s.status,s.generation,s.origin,COALESCE(s.enabled_at,s.origin) AS enabled_at,s.attempts,s.lease_token AS token`, uuid.NewString(), analytics, analytics, attempts).Scan(&lease)
 		if result.Error != nil {
@@ -138,7 +141,7 @@ func (r *CaptionsRepository) Claim(ctx context.Context, analytics bool, maximum,
 // @return true пока обработка разрешена.
 func (r *CaptionsRepository) Renew(ctx context.Context, lease live.Lease) (bool, error) {
 	result := r.db.WithContext(ctx).Exec(`UPDATE live_transcription_sessions SET lease_until=clock_timestamp()+interval '15 seconds'
- WHERE id=? AND generation=? AND lease_token=? AND lease_until>clock_timestamp() AND EXISTS(SELECT 1 FROM conferences c WHERE c.id=conference_id AND c.status='active')`, lease.SessionID, lease.Generation, lease.Token)
+ WHERE id=? AND generation=? AND lease_token=? AND lease_until>clock_timestamp() AND EXISTS(SELECT 1 FROM conferences c WHERE c.id=conference_id AND c.kind='meeting' AND c.status='active')`, lease.SessionID, lease.Generation, lease.Token)
 	return result.RowsAffected == 1, result.Error
 }
 

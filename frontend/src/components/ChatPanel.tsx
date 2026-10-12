@@ -39,6 +39,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { ItemActions, type ItemAction } from "./ItemActions";
 import { Button, ErrorNotice, Modal } from "./ui";
 import { MessagingSkeleton } from "./MessagingSkeleton";
+import { CallHistoryMessage } from "./CallHistoryMessage";
 import "./chat-design.css";
 
 function isAccessDenied(error: unknown) {
@@ -766,15 +767,17 @@ export function MessageThread({
                         >
                           {chatTime(message.createdAt)}
                         </time>
-                        {message.version > 1 && !message.deletedAt && (
-                          <span
-                            className="chat-message-edited"
-                            title="Сообщение изменено"
-                          >
-                            <Pencil size={11} aria-hidden="true" />
-                            <span className="sr-only">изменено</span>
-                          </span>
-                        )}
+                        {message.version > 1 &&
+                          !message.deletedAt &&
+                          !message.call && (
+                            <span
+                              className="chat-message-edited"
+                              title="Сообщение изменено"
+                            >
+                              <Pencil size={11} aria-hidden="true" />
+                              <span className="sr-only">изменено</span>
+                            </span>
+                          )}
                       </header>
                       <div className="chat-message-bubble">
                         {message.replyPreview && (
@@ -787,7 +790,11 @@ export function MessageThread({
                             </span>
                           </blockquote>
                         )}
-                        {(message.deletedAt || message.text) && (
+                        {message.call && !message.deletedAt && (
+                          <CallHistoryMessage call={message.call} />
+                        )}
+                        {(message.deletedAt ||
+                          (!message.call && message.text)) && (
                           <p
                             className={
                               message.deletedAt
@@ -843,82 +850,84 @@ export function MessageThread({
                           ))}
                       </div>
                     </div>
-                    {!message.deletedAt && (!readOnly || mayBookmark) && (
-                      <div className="chat-message-tools">
-                        <ItemActions
-                          label={`Действия с сообщением: ${message.senderName}, ${chatTime(message.createdAt)}`}
-                          actions={
-                            [
-                              ...(mayBookmark
-                                ? [
-                                    {
-                                      label: message.important
-                                        ? "Убрать из важных"
-                                        : "В важные",
-                                      icon: (
-                                        <Star
-                                          size={16}
-                                          fill={
-                                            message.important
-                                              ? "currentColor"
-                                              : "none"
-                                          }
-                                        />
-                                      ),
-                                      pressed: !!message.important,
-                                      disabled: bookmark.isPending,
-                                      run: () =>
-                                        bookmark.mutate({
-                                          messageId: message.id,
-                                          important: !message.important,
-                                        }),
-                                    },
-                                  ]
-                                : []),
-                              ...(!readOnly
-                                ? [
-                                    {
-                                      label: "Ответить",
-                                      icon: <Reply size={16} />,
-                                      disabled: send.isPending,
-                                      run: () => {
-                                        setReply(message);
-                                        composer.current?.focus();
+                    {!message.deletedAt &&
+                      !message.call &&
+                      (!readOnly || mayBookmark) && (
+                        <div className="chat-message-tools">
+                          <ItemActions
+                            label={`Действия с сообщением: ${message.senderName}, ${chatTime(message.createdAt)}`}
+                            actions={
+                              [
+                                ...(mayBookmark
+                                  ? [
+                                      {
+                                        label: message.important
+                                          ? "Убрать из важных"
+                                          : "В важные",
+                                        icon: (
+                                          <Star
+                                            size={16}
+                                            fill={
+                                              message.important
+                                                ? "currentColor"
+                                                : "none"
+                                            }
+                                          />
+                                        ),
+                                        pressed: !!message.important,
+                                        disabled: bookmark.isPending,
+                                        run: () =>
+                                          bookmark.mutate({
+                                            messageId: message.id,
+                                            important: !message.important,
+                                          }),
                                       },
-                                    },
-                                  ]
-                                : []),
-                              ...(!readOnly && own
-                                ? [
-                                    {
-                                      label: "Изменить",
-                                      icon: <Pencil size={16} />,
-                                      run: () => {
-                                        setEditing(message);
-                                        setEditText(message.text);
-                                        edit.reset();
+                                    ]
+                                  : []),
+                                ...(!readOnly
+                                  ? [
+                                      {
+                                        label: "Ответить",
+                                        icon: <Reply size={16} />,
+                                        disabled: send.isPending,
+                                        run: () => {
+                                          setReply(message);
+                                          composer.current?.focus();
+                                        },
                                       },
-                                    },
-                                  ]
-                                : []),
-                              ...(!readOnly && (own || mayModerate)
-                                ? [
-                                    {
-                                      label: "Удалить",
-                                      icon: <Trash2 size={16} />,
-                                      danger: true,
-                                      run: () => {
-                                        setDeleting(message);
-                                        remove.reset();
+                                    ]
+                                  : []),
+                                ...(!readOnly && own
+                                  ? [
+                                      {
+                                        label: "Изменить",
+                                        icon: <Pencil size={16} />,
+                                        run: () => {
+                                          setEditing(message);
+                                          setEditText(message.text);
+                                          edit.reset();
+                                        },
                                       },
-                                    },
-                                  ]
-                                : []),
-                            ] satisfies ItemAction[]
-                          }
-                        />
-                      </div>
-                    )}
+                                    ]
+                                  : []),
+                                ...(!readOnly && (own || mayModerate)
+                                  ? [
+                                      {
+                                        label: "Удалить",
+                                        icon: <Trash2 size={16} />,
+                                        danger: true,
+                                        run: () => {
+                                          setDeleting(message);
+                                          remove.reset();
+                                        },
+                                      },
+                                    ]
+                                  : []),
+                              ] satisfies ItemAction[]
+                            }
+                          />
+                        </div>
+                      )}
                   </article>
                 </Fragment>
               );

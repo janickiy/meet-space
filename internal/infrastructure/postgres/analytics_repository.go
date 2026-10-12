@@ -24,7 +24,7 @@ func NewAnalyticsRepository(db *gorm.DB) *AnalyticsRepository { return &Analytic
 func (r *AnalyticsRepository) Source(ctx context.Context, job jobs.Job) (time.Time, time.Time, []domain.Interval, error) {
 	var bounds struct{ Start, End time.Time }
 	rows := []domain.Interval{}
-	err := r.db.WithContext(ctx).Raw(`SELECT COALESCE(started_at,created_at) AS start,COALESCE(finished_at,clock_timestamp()) AS end FROM conferences WHERE id=?`, job.ConferenceID).Scan(&bounds).Error
+	err := r.db.WithContext(ctx).Raw(`SELECT COALESCE(started_at,created_at) AS start,COALESCE(finished_at,clock_timestamp()) AS end FROM conferences WHERE id=? AND kind='meeting'`, job.ConferenceID).Scan(&bounds).Error
 	if err != nil || bounds.Start.IsZero() {
 		return bounds.Start, bounds.End, rows, jobs.ErrSkip
 	}
@@ -64,6 +64,9 @@ func (r *AnalyticsRepository) Save(ctx context.Context, job jobs.Job, value doma
 // @args ctx — срок выполнения; user,cid — актор/встреча.
 // @return snapshot с понятной приближённостью speaking-time.
 func (r *AnalyticsRepository) Read(ctx context.Context, user, cid string) (domain.Conference, error) {
+	if _, err := findConference(r.db.WithContext(ctx), cid, false); err != nil {
+		return domain.Conference{}, err
+	}
 	p, err := findMembership(r.db.WithContext(ctx), cid, user)
 	if err != nil {
 		return domain.Conference{}, membershipError(err)
@@ -105,6 +108,6 @@ func (r *AnalyticsRepository) Read(ctx context.Context, user, cid string) (domai
 func (r *AnalyticsRepository) Tick(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,dedup_key,max_attempts)
  SELECT 'analytics.aggregate',id,id,1,'analytics:'||id::text||':'||floor(extract(epoch FROM clock_timestamp())/30)::text,3
- FROM conferences WHERE status='active' OR finished_at>clock_timestamp()-interval '2 minutes' ORDER BY created_at DESC LIMIT 100
+ FROM conferences WHERE kind='meeting' AND (status='active' OR finished_at>clock_timestamp()-interval '2 minutes') ORDER BY created_at DESC LIMIT 100
  ON CONFLICT(dedup_key) DO NOTHING`).Error
 }

@@ -42,6 +42,7 @@ import type {
 } from "../types";
 import { formatDate, initials } from "../utils";
 import { ConferenceInviteContent } from "./ConferenceInvitations";
+import { DirectCallButton } from "./DirectCallButton";
 import { Button, CopyLink, ErrorNotice, Loading, Modal } from "./ui";
 import "./conference-chat-info.css";
 
@@ -739,6 +740,14 @@ function ConferenceChatUserProfile({
         <Button variant="outline" onClick={onRefresh}>
           Повторить загрузку
         </Button>
+      )}
+      {canMessage && (
+        <DirectCallButton
+          userId={member.userId!}
+          name={member.displayName}
+          label
+          onStart={onNavigate}
+        />
       )}
       {canMessage && (
         <Button

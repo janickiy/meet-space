@@ -22,6 +22,7 @@ import { ConversationAvatar } from "./GroupChats";
 import { FolderPicker } from "./FolderPicker";
 import { ItemActions } from "./ItemActions";
 import { Button, ErrorNotice, Modal } from "./ui";
+import { DirectCallButton } from "./DirectCallButton";
 
 /**
  * Фиксирует автора, диалог и поколение интерфейса на момент подтверждения действия.
@@ -98,6 +99,12 @@ export function DirectUserInfoModal({
         </dl>
       </div>
       <div className="personal-confirm-actions">
+        <DirectCallButton
+          userId={conversation.peer.id}
+          name={conversation.peer.displayName}
+          label
+          onStart={onClose}
+        />
         <Button variant="outline" onClick={onClose}>
           Закрыть
         </Button>

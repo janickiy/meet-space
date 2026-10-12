@@ -32,8 +32,8 @@ func (r *PlatformRepository) Summary(ctx context.Context) (platform.Summary, err
 		FailedTranscriptions24h int64 `gorm:"column:failed_transcriptions24h"`
 	}
 	err := r.db.WithContext(ctx).Raw(`SELECT
-		(SELECT COUNT(*) FROM conferences WHERE status = 'active') AS active_conferences,
-		(SELECT COUNT(*) FROM conference_participants p JOIN conferences c ON c.id = p.conference_id WHERE c.status = 'active' AND p.status = 'joined') AS joined_participants,
+		(SELECT COUNT(*) FROM conferences WHERE kind = 'meeting' AND status = 'active') AS active_conferences,
+		(SELECT COUNT(*) FROM conference_participants p JOIN conferences c ON c.id = p.conference_id WHERE c.kind = 'meeting' AND c.status = 'active' AND p.status = 'joined') AS joined_participants,
 		(SELECT COUNT(*) FROM record WHERE platform_conference_id IS NOT NULL AND deleted_at IS NULL AND status IN ('starting','recording','degraded','stopping','finalizing','uploading')) AS active_recordings,
 		(SELECT COUNT(*) FROM background_jobs WHERE state IN ('queued','processing')) AS queued_jobs,
 		(SELECT COUNT(*) FROM background_jobs WHERE state = 'failed' AND updated_at >= NOW() - INTERVAL '24 hours') AS failed_jobs24h,
