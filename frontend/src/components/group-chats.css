@@ -160,6 +160,29 @@
   border-bottom: 1px solid var(--border);
   border-radius: 0;
 }
+.group-member-profile-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.group-member-profile-button:hover:not(:disabled),
+.group-member-profile-button:focus-visible {
+  background: var(--surface-soft);
+}
+.group-member-profile-button:disabled {
+  cursor: default;
+}
 .group-members-heading {
   display: flex;
   align-items: center;

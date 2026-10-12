@@ -18,11 +18,10 @@ import {
 import { revokePersonalConversation } from "../personalRealtime";
 import { usePersonalPeerPresence } from "../usePersonalPeerPresence";
 import type { DirectConversation } from "../types";
-import { ConversationAvatar } from "./GroupChats";
 import { FolderPicker } from "./FolderPicker";
 import { ItemActions } from "./ItemActions";
 import { Button, ErrorNotice, Modal } from "./ui";
-import { DirectCallButton } from "./DirectCallButton";
+import { UserInfoModal } from "./UserInfoModal";
 
 /**
  * Фиксирует автора, диалог и поколение интерфейса на момент подтверждения действия.
@@ -64,52 +63,15 @@ export function DirectUserInfoModal({
     revokePersonalConversation(client, conversation.id, user.id);
     onClose();
   }, [denied, client, conversation.id, user, onClose]);
-  const online = presence.online;
-  const statusText = presence.isPending
-    ? "Проверяем статус…"
-    : online === true
-      ? "В сети"
-      : online === false
-        ? "не в сети."
-        : "Статус временно недоступен.";
   return (
-    <Modal
-      title="Информация о пользователе"
-      className="personal-info-modal"
+    <UserInfoModal
+      person={conversation.peer}
+      subtitle="Участник вашей переписки"
+      online={presence.online}
+      presencePending={presence.isPending}
       onClose={onClose}
       returnFocus={returnFocus}
-    >
-      <div className="personal-user-info">
-        <ConversationAvatar conversation={conversation} large />
-        <h3>{conversation.peer.displayName}</h3>
-        <p>Участник вашей переписки</p>
-        <p
-          className={`personal-user-presence${online === true ? " personal-user-presence-online" : ""}`}
-          role="status"
-          aria-live="polite"
-        >
-          <span className="personal-user-presence-dot" aria-hidden="true" />
-          {statusText}
-        </p>
-        <dl>
-          <dt>Имя</dt>
-          <dd>{conversation.peer.displayName}</dd>
-          <dt>Идентификатор пользователя</dt>
-          <dd className="personal-user-id">{conversation.peer.id}</dd>
-        </dl>
-      </div>
-      <div className="personal-confirm-actions">
-        <DirectCallButton
-          userId={conversation.peer.id}
-          name={conversation.peer.displayName}
-          label
-          onStart={onClose}
-        />
-        <Button variant="outline" onClick={onClose}>
-          Закрыть
-        </Button>
-      </div>
-    </Modal>
+    />
   );
 }
 

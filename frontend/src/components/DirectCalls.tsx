@@ -594,6 +594,7 @@ function DirectCallMedia({
                 name={self.displayName}
                 local
                 video={media.view.cameraEnabled}
+                microphoneEnabled={media.view.microphoneEnabled}
               />
             </div>
           )}
@@ -626,6 +627,12 @@ function DirectCallMedia({
                       !preferences.hideParticipantVideo
                     }
                     sinkId={preferences.audioOutputId}
+                    microphoneEnabled={
+                      live.state?.participants.find(
+                        (participant) =>
+                          participant.id === stream.participantId,
+                      )?.microphoneEnabled ?? stream.kinds.includes("audio")
+                    }
                     covered={!!media.view.localScreen || screens.length > 0}
                   />
                 ))

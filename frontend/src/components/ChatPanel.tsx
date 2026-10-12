@@ -202,7 +202,6 @@ export function MessageThread({
     if (accessDenied) onAccessDenied?.();
   }, [accessDenied, onAccessDenied]);
   const messages = accessDenied ? [] : mergeChatPages(query.data?.pages || []);
-  if (personal) messages.reverse();
   const confirmedPending =
     !!pending &&
     messages.some(
@@ -210,7 +209,7 @@ export function MessageThread({
         message.senderId === user?.id &&
         message.clientRequestId === pending.clientRequestId,
     );
-  const latest = (personal ? messages.at(0) : messages.at(-1))?.id;
+  const latest = messages.at(-1)?.id;
 
   /** Обновляет историю и счётчик непрочитанных сообщений после изменения на сервере. */
   const invalidate = () => {
@@ -321,9 +320,8 @@ export function MessageThread({
     if (!element) return;
     /** Проверяет край с новыми сообщениями и сохраняет место чтения старой истории. */
     const observe = () => {
-      newestVisible.current = personal
-        ? element.scrollTop < 40
-        : element.scrollHeight - element.scrollTop - element.clientHeight < 40;
+      newestVisible.current =
+        element.scrollHeight - element.scrollTop - element.clientHeight < 40;
       if (personal) {
         const bounds = element.getBoundingClientRect();
         const anchor = Array.from(
@@ -350,11 +348,10 @@ export function MessageThread({
       );
     };
     if (olderAnchor.current && !query.isFetchingNextPage) {
-      element.scrollTop = personal
-        ? olderAnchor.current.top
-        : olderAnchor.current.top +
-          element.scrollHeight -
-          olderAnchor.current.height;
+      element.scrollTop =
+        olderAnchor.current.top +
+        element.scrollHeight -
+        olderAnchor.current.height;
       olderAnchor.current = null;
     } else if (!initialScroll.current && focused) {
       const target = Array.from(
@@ -363,7 +360,7 @@ export function MessageThread({
       target?.scrollIntoView?.({ block: "center" });
       target?.focus({ preventScroll: true });
     } else if (!initialScroll.current || newestVisible.current) {
-      element.scrollTop = personal ? 0 : element.scrollHeight;
+      element.scrollTop = element.scrollHeight;
       setHasNewMessages(false);
     } else if (previousLatest.current && previousLatest.current !== latest) {
       if (personal && readingAnchor.current) {
@@ -441,9 +438,7 @@ export function MessageThread({
         markerRect.bottom > Math.min(window.innerHeight, listRect.bottom) ||
         markerRect.left < Math.max(0, listRect.left) ||
         markerRect.right > Math.min(window.innerWidth, listRect.right) ||
-        (personal
-          ? list.scrollTop >= 40
-          : list.scrollHeight - list.scrollTop - list.clientHeight >= 40)
+        list.scrollHeight - list.scrollTop - list.clientHeight >= 40
       )
         return;
       void transport
@@ -714,7 +709,7 @@ export function MessageThread({
             aria-label={personal ? "Личные сообщения" : "Сообщения встречи"}
             aria-live="polite"
           >
-            {!personal && olderMessagesButton}
+            {olderMessagesButton}
             {!messages.length && !query.isError && (
               <div className="messaging-empty">
                 <MessageCircle aria-hidden="true" />
@@ -728,7 +723,6 @@ export function MessageThread({
                 </p>
               </div>
             )}
-            {personal && pendingMessage}
             {messages.map((message, index) => {
               const own = message.senderId === user?.id;
               const day = chatDayKey(message.createdAt);
@@ -741,13 +735,6 @@ export function MessageThread({
                         <span>{chatDayLabel(message.createdAt)}</span>
                       </div>
                     )}
-                  {personal && message.id === latest && (
-                    <span
-                      ref={lastMarker}
-                      className="chat-read-marker"
-                      aria-hidden="true"
-                    />
-                  )}
                   <article
                     className={`chat-message ${own ? "chat-message-own" : ""} ${message.id === focused ? "chat-message-focused" : ""}`}
                     data-testid={`chat-message-${message.id}`}
@@ -932,16 +919,12 @@ export function MessageThread({
                 </Fragment>
               );
             })}
-            {!personal && pendingMessage}
-            {personal ? (
-              olderMessagesButton
-            ) : (
-              <span
-                ref={lastMarker}
-                className="chat-read-marker"
-                aria-hidden="true"
-              />
-            )}
+            {pendingMessage}
+            <span
+              ref={lastMarker}
+              className="chat-read-marker"
+              aria-hidden="true"
+            />
           </div>
         )}
         {hasNewMessages && (
@@ -949,11 +932,11 @@ export function MessageThread({
             variant="outline"
             onClick={() => {
               const list = viewport.current;
-              if (list) list.scrollTop = personal ? 0 : list.scrollHeight;
+              if (list) list.scrollTop = list.scrollHeight;
               setHasNewMessages(false);
             }}
           >
-            {personal ? "Новые сообщения ↑" : "Новые сообщения ↓"}
+            Новые сообщения ↓
           </Button>
         )}
         <ErrorNotice error={downloadError || null} />

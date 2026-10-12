@@ -109,6 +109,7 @@
   font-size: calc(15px * var(--text-scale));
 }
 .chat-panel .chat-uploads-compact > .button,
+.chat-panel .chat-compose-row .emoji-picker-trigger,
 .chat-panel .chat-send-button.button {
   width: 44px;
   height: 44px;
