@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
-  MessageCircle,
   Mic,
   MicOff,
   MonitorUp,
   PhoneOff,
-  RefreshCw,
   Settings,
-  Users,
   Video,
   VideoOff,
-  X,
 } from "lucide-react";
-import { personalChatAPI } from "../api";
 import type { DirectCall } from "../types";
 import { useRealtime } from "../realtime";
 import { useMedia } from "../useMedia";
@@ -25,12 +20,11 @@ import { useSpeakingParticipants } from "../useSpeakingParticipants";
 import { meetingShortcut } from "../conferenceShortcuts";
 import { initials } from "../utils";
 import { MediaTile } from "./RealtimePanel";
-import { MessageThread } from "./ChatPanel";
 import { useAccountSettings } from "./AccountSettingsContext";
 import { Button, ErrorNotice } from "./ui";
 
 /** A private two-person room uses the conference media client and account settings.
- * The owning call document keeps its streams alive while side panels or settings open.
+ * The owning call document keeps its streams alive while account settings open.
  */
 export function DirectCallMedia({
   call,
@@ -56,7 +50,6 @@ export function DirectCallMedia({
   const [preferences, setPreferences] = useState(() =>
     readDevicePreferences(userId),
   );
-  const [panel, setPanel] = useState<"chat" | "participants" | null>(null);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [now, setNow] = useState(Date.now);
   const started = useRef("");
@@ -126,9 +119,6 @@ export function DirectCallMedia({
   const peerPresence = live.state?.participants.find(
     (person) => person.userId === peer.id,
   );
-  const selfPresence = live.state?.participants.find(
-    (person) => person.userId === self.id,
-  );
   // Only the counterpart can occupy the remote tile, including during reconnects.
   const remote = media.view.remoteStreams.filter(
     (stream) =>
@@ -171,21 +161,12 @@ export function DirectCallMedia({
   const elapsed = `${Math.floor(seconds / 60)
     .toString()
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
-  const togglePanel = (next: "chat" | "participants") =>
-    setPanel((current) => (current === next ? null : next));
   useEffect(() => {
     const dialog = body.current?.closest('[role="dialog"]');
     if (!dialog) return;
     const handle = (event: Event) => {
-      const key = meetingShortcut(
-        event as KeyboardEvent,
-        ["m", "v", "c"],
-        dialog,
-      );
-      if (key === "c") {
-        event.preventDefault();
-        togglePanel("chat");
-      } else if (!busy && key) {
+      const key = meetingShortcut(event as KeyboardEvent, ["m", "v"], dialog);
+      if (!busy && key) {
         event.preventDefault();
         if (key === "m") void media.microphone(!media.view.microphoneEnabled);
         else void media.camera(!media.view.cameraEnabled);
@@ -207,24 +188,8 @@ export function DirectCallMedia({
       <div className="direct-call-meta">
         <span>{peer.displayName}</span>
         <time aria-label={`Длительность звонка: ${elapsed}`}>{elapsed}</time>
-        <button
-          type="button"
-          className="direct-call-reconnect"
-          aria-label="Переподключиться"
-          title="Переподключиться"
-          disabled={!online || pending}
-          onClick={() => {
-            media.stop();
-            live.reconnect();
-          }}
-        >
-          <RefreshCw size={20} />
-        </button>
       </div>
-      <div
-        ref={body}
-        className={`direct-call-body${panel ? " direct-call-with-panel" : ""}`}
-      >
+      <div ref={body} className="direct-call-body">
         <div className="direct-call-stage">
           {preferences.showSelf && (
             <div className="direct-call-self">
@@ -299,97 +264,6 @@ export function DirectCallMedia({
             )}
           </div>
         </div>
-        {panel && (
-          <aside className="direct-call-panel" aria-label="Панель звонка">
-            <header>
-              <strong>
-                {panel === "chat" ? "Чат звонка" : "Участники звонка"}
-              </strong>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setPanel(null)}
-                aria-label="Закрыть панель"
-              >
-                <X size={20} />
-              </button>
-            </header>
-            <div className="direct-call-panel-tabs">
-              <button
-                type="button"
-                aria-pressed={panel === "chat"}
-                onClick={() => setPanel("chat")}
-              >
-                Чат
-              </button>
-              <button
-                type="button"
-                aria-pressed={panel === "participants"}
-                onClick={() => setPanel("participants")}
-              >
-                Участники (2)
-              </button>
-            </div>
-            <div className="direct-call-chat" hidden={panel !== "chat"}>
-              <MessageThread
-                scopeId={call.conversationId}
-                transport={personalChatAPI}
-                personal
-                visible={panel === "chat"}
-              />
-            </div>
-            {panel === "participants" && (
-              <ul className="direct-call-participants">
-                {[self, peer].map((person) => {
-                  const local = person.id === self.id;
-                  const presence = local ? selfPresence : peerPresence;
-                  const connected = online && !!presence?.online;
-                  const mic = local
-                    ? media.view.microphoneEnabled
-                    : presence?.microphoneEnabled;
-                  const camera = local
-                    ? media.view.cameraEnabled
-                    : presence?.cameraEnabled;
-                  return (
-                    <li key={person.id}>
-                      <span
-                        className="direct-call-participant-avatar"
-                        aria-hidden="true"
-                      >
-                        {person.avatarUrl ? (
-                          <img src={person.avatarUrl} alt="" />
-                        ) : (
-                          initials(person.displayName)
-                        )}
-                      </span>
-                      <div>
-                        <strong>
-                          {person.displayName}
-                          {local ? " · вы" : ""}
-                        </strong>
-                        <small>
-                          {connected ? "В звонке" : "Подключается…"}
-                        </small>
-                      </div>
-                      <span className="direct-call-participant-devices">
-                        {mic ? (
-                          <Mic size={17} aria-label="Микрофон включён" />
-                        ) : (
-                          <MicOff size={17} aria-label="Микрофон выключен" />
-                        )}
-                        {camera ? (
-                          <Video size={17} aria-label="Камера включена" />
-                        ) : (
-                          <VideoOff size={17} aria-label="Камера выключена" />
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </aside>
-        )}
       </div>
       {connectionProblem && (
         <p className="direct-call-connection-notice" role="status">
@@ -480,30 +354,6 @@ export function DirectCallMedia({
         >
           <MonitorUp />
           <span>Демонстрация</span>
-        </button>
-        <button
-          type="button"
-          className="direct-call-control direct-call-control-wide"
-          aria-pressed={panel === "participants"}
-          aria-label="Участники (2)"
-          title="Участники"
-          onClick={() => togglePanel("participants")}
-        >
-          <Users />
-          <span>
-            Участники <b>2</b>
-          </span>
-        </button>
-        <button
-          type="button"
-          className="direct-call-control direct-call-control-wide"
-          aria-pressed={panel === "chat"}
-          aria-label="Чат"
-          title="Чат"
-          onClick={() => togglePanel("chat")}
-        >
-          <MessageCircle />
-          <span>Чат</span>
         </button>
         <button
           type="button"

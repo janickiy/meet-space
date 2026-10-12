@@ -59,8 +59,7 @@
   font-weight: 600;
   overflow: hidden;
 }
-.direct-call-avatar img,
-.direct-call-participant-avatar img {
+.direct-call-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -86,8 +85,7 @@
   border-top: 1px solid var(--room-border);
   flex-shrink: 0;
 }
-.direct-call-control,
-.direct-call-reconnect {
+.direct-call-control {
   display: inline-flex;
   width: 52px;
   height: 52px;
@@ -117,26 +115,15 @@
   align-items: center;
   gap: 8px;
 }
-.direct-call-control b {
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 50%;
-  background: var(--room-surface-raised);
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-}
-.direct-call-control:hover:not(:disabled),
-.direct-call-reconnect:hover:not(:disabled) {
+
+.direct-call-control:hover:not(:disabled) {
   background: var(--room-surface-raised);
 }
 .direct-call-control[aria-pressed="true"] {
   background: #503a5b;
   border-color: #c499d6;
 }
-.direct-call-control:disabled,
-.direct-call-reconnect:disabled {
+.direct-call-control:disabled {
   opacity: 0.5;
   cursor: default;
 }
@@ -177,11 +164,7 @@
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
-.direct-call-reconnect {
-  width: 44px;
-  height: 44px;
-  border-radius: 9px;
-}
+
 .direct-call-body {
   flex: 1;
   display: grid;
@@ -190,9 +173,7 @@
   min-height: 240px;
   gap: 16px;
 }
-.direct-call-with-panel {
-  grid-template-columns: minmax(0, 1fr) 320px;
-}
+
 .direct-call-stage {
   min-width: 0;
   min-height: 0;
@@ -348,123 +329,6 @@
 .direct-call-modal .media-audio-unlock {
   flex: 0 0 auto;
 }
-.direct-call-panel {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface, #fff);
-  color: var(--text, #24232b);
-  border: 1px solid var(--border, #e8e5ec);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.direct-call-panel > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  gap: 8px;
-}
-.direct-call-panel-tabs {
-  display: flex;
-  padding: 0 12px 10px;
-  gap: 4px;
-}
-.direct-call-panel-tabs button {
-  flex: 1;
-  min-height: 44px;
-  font: inherit;
-  font-size: 13px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.direct-call-panel-tabs button[aria-pressed="true"] {
-  background: var(--primary-soft);
-  color: var(--primary, #704481);
-}
-.direct-call-chat {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.direct-call-chat[hidden] {
-  display: none;
-}
-.direct-call-chat .personal-thread {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 8px;
-  flex: 1;
-  min-height: 0;
-}
-.direct-call-chat .chat-panel-body {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: 100%;
-}
-.direct-call-chat .chat-messages {
-  flex: 1;
-  min-height: 80px;
-  max-height: none;
-  overflow: auto;
-}
-.direct-call-chat .chat-composer {
-  flex: none;
-}
-.direct-call-chat .chat-compose-caption {
-  display: none;
-}
-.direct-call-participants {
-  list-style: none;
-  padding: 4px 14px;
-  margin: 0;
-  overflow: auto;
-}
-.direct-call-participants li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 0;
-}
-.direct-call-participant-avatar {
-  display: grid;
-  place-items: center;
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--primary-soft);
-  color: var(--primary, #704481);
-}
-.direct-call-participants li > div {
-  min-width: 0;
-  flex: 1;
-}
-.direct-call-participants strong {
-  display: block;
-  font-size: 14px;
-  overflow-wrap: anywhere;
-}
-.direct-call-participants small {
-  display: block;
-  margin-top: 4px;
-  color: var(--muted);
-}
-.direct-call-participant-devices {
-  display: inline-flex;
-  gap: 6px;
-  color: var(--muted);
-}
 .direct-call-connection-notice {
   flex-shrink: 0;
   color: var(--room-muted);
@@ -508,9 +372,6 @@
   .direct-call-control-wide {
     width: 52px;
   }
-  .direct-call-with-panel {
-    grid-template-columns: minmax(0, 1fr) 280px;
-  }
 }
 @media (max-width: 600px) {
   .direct-call-modal.modal {
@@ -523,14 +384,6 @@
   .direct-call-body {
     position: relative;
     min-height: 200px;
-  }
-  .direct-call-with-panel {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .direct-call-panel {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
   }
   .direct-call-self {
     width: 130px;
