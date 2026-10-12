@@ -92,6 +92,7 @@ export function MessageThread({
   onAccessDenied,
   focusMessageId,
   onLatest,
+  visible = true,
 }: {
   scopeId: string;
   transport: ChatTransport;
@@ -104,6 +105,8 @@ export function MessageThread({
   onAccessDenied?: () => void;
   focusMessageId?: string;
   onLatest?: () => void;
+  /** A hidden side tab keeps its draft without measuring or marking reads. */
+  visible?: boolean;
 }) {
   const historyKey = personal ? "personal-chat" : "chat";
   const readKey = personal ? "personal-chat-read" : "chat-read";
@@ -304,7 +307,7 @@ export function MessageThread({
   // Изменение размера поля не двигает список сообщений; курсор возвращается после выбора смайлика.
   useEffect(() => {
     const element = composer.current;
-    if (!element) return;
+    if (!element || !visible) return;
     element.style.height = "auto";
     element.style.height = `${Math.max(24, Math.min(120, element.scrollHeight))}px`;
     if (pendingCaret.current !== null) {
@@ -312,10 +315,10 @@ export function MessageThread({
       element.setSelectionRange(pendingCaret.current, pendingCaret.current);
       pendingCaret.current = null;
     }
-  }, [text, open, readOnly]);
+  }, [text, open, readOnly, visible]);
 
   useEffect(() => {
-    if (!open || !latest) return;
+    if (!open || !visible || !latest) return;
     const element = viewport.current;
     if (!element) return;
     /** Проверяет край с новыми сообщениями и сохраняет место чтения старой истории. */
@@ -402,6 +405,7 @@ export function MessageThread({
     };
   }, [
     open,
+    visible,
     latest,
     messages.length,
     query.isFetchingNextPage,
@@ -413,6 +417,7 @@ export function MessageThread({
   useEffect(() => {
     if (
       !open ||
+      !visible ||
       !readCandidate ||
       readCandidate === lastRead.current ||
       readCandidate === read.data?.item.lastReadMessageId
@@ -458,6 +463,7 @@ export function MessageThread({
     return () => clearTimeout(timer);
   }, [
     open,
+    visible,
     readCandidate,
     read.data?.item.lastReadMessageId,
     scopeId,

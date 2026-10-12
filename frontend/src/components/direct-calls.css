@@ -1,185 +1,481 @@
+/* Call surfaces share the conference palette; only the compact toolbar differs. */
 .direct-call-modal.modal {
-  width: min(1180px, calc(100vw - 32px));
+  --room-speaking-accent: #42d88b;
+  width: min(1240px, calc(100vw - 32px));
   max-width: none;
-  background: #131317;
-  color: #f5f5f7;
-  padding: 24px;
-  border: 1px solid #41414b;
-  border-radius: 24px;
+  max-height: calc(100dvh - 32px);
+  height: min(850px, calc(100dvh - 32px));
+  display: flex;
+  flex-direction: column;
+  background: var(--room-bg);
+  color: var(--room-text);
+  padding: 20px;
+  border: 1px solid var(--room-border);
+  border-radius: 20px;
   box-shadow: 0 28px 90px #0006;
+  overflow: auto;
 }
-.direct-call-modal > h2 {
-  color: #f5f5f7;
+.direct-call-modal.modal > h2 {
+  color: var(--room-text);
+  margin: 0 44px 12px 0;
+  text-align: left;
+  font-size: 18px;
+  flex-shrink: 0;
 }
 .direct-call-modal .modal-close {
-  color: #ddd;
+  color: var(--room-muted);
 }
 .direct-call-modal .error-notice {
-  margin: 12px 0;
+  margin: 8px 0;
+  flex-shrink: 0;
 }
 .direct-call-person {
-  min-height: 380px;
+  min-height: 180px;
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 32px 20px;
-  background: #24242b;
-  border-radius: 16px;
+  padding: 24px 16px;
+  background: radial-gradient(
+    ellipse at center,
+    var(--room-surface-raised),
+    var(--room-surface)
+  );
+  border: 1px solid var(--room-border);
+  border-radius: 14px;
   text-align: center;
 }
 .direct-call-avatar {
-  width: clamp(100px, 20vw, 220px);
+  width: clamp(80px, 16vw, 180px);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: #53445e;
+  background: var(--room-surface-raised);
+  border: 1px solid var(--room-border);
   display: grid;
   place-items: center;
-  color: #fff;
-  font-size: clamp(40px, 8vw, 80px);
+  color: var(--room-text);
+  font-size: clamp(32px, 6vw, 72px);
   font-weight: 600;
   overflow: hidden;
 }
-.direct-call-avatar img {
+.direct-call-avatar img,
+.direct-call-participant-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 .direct-call-person h3 {
-  margin: 24px 0 6px;
-  color: #f5f5f7;
-  font-size: 24px;
+  margin: 20px 0 6px;
+  color: var(--room-text);
+  font-size: 22px;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 .direct-call-person p {
   margin: 0;
-  color: #c8c8d1;
+  color: var(--room-muted);
 }
 .direct-call-controls {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
-  justify-content: center;
-  gap: 10px;
-  padding-top: 18px;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0 0;
+  margin-top: 14px;
+  border-top: 1px solid var(--room-border);
+  flex-shrink: 0;
 }
-.direct-call-control {
-  display: flex;
-  min-width: 84px;
-  flex-direction: column;
+.direct-call-control,
+.direct-call-reconnect {
+  display: inline-flex;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 12px;
-  background: #292930;
-  border: 1px solid #42424c;
-  border-radius: 16px;
-  color: #e9e9ee;
+  background: var(--room-surface);
+  border: 1px solid var(--room-border);
+  border-radius: 12px;
+  color: var(--room-text);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
 }
-.direct-call-control:hover {
-  background: #373741;
+.direct-call-control > svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.direct-call-control-wide {
+  width: auto;
+}
+.direct-call-control-wide > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.direct-call-control b {
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 50%;
+  background: var(--room-surface-raised);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+.direct-call-control:hover:not(:disabled),
+.direct-call-reconnect:hover:not(:disabled) {
+  background: var(--room-surface-raised);
 }
 .direct-call-control[aria-pressed="true"] {
-  background: #46354e;
-  border-color: #a27eb4;
+  background: #503a5b;
+  border-color: #c499d6;
 }
-.direct-call-control:disabled {
+.direct-call-control:disabled,
+.direct-call-reconnect:disabled {
   opacity: 0.5;
   cursor: default;
 }
+.direct-call-end,
 .direct-call-end.button {
-  background: #a62e3b;
-  border-color: #c44c58;
+  background: #ba2639;
+  border-color: #ba2639;
   color: #fff;
-  border-radius: 16px;
+  border-radius: 12px;
+  margin-left: auto;
 }
-.direct-call-end.button:hover {
-  background: #c23a49;
+.direct-call-end:hover:not(:disabled),
+.direct-call-end.button:hover:not(:disabled) {
+  background: #992033;
+  border-color: #992033;
 }
 .direct-call-accept.button {
   background: #188453;
   border-color: #21a96c;
   color: #fff;
-  border-radius: 16px;
+  border-radius: 12px;
 }
 .direct-call-meta {
   display: flex;
-  justify-content: space-between;
-  color: #c8c8d1;
-  margin-bottom: 16px;
+  align-items: center;
+  gap: 12px;
+  color: var(--room-muted);
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+.direct-call-meta > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.direct-call-meta > time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.direct-call-reconnect {
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
 }
 .direct-call-body {
+  flex: 1;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
+  min-height: 240px;
   gap: 16px;
 }
-.direct-call-with-chat {
-  grid-template-columns: minmax(0, 1fr) minmax(270px, 340px);
+.direct-call-with-panel {
+  grid-template-columns: minmax(0, 1fr) 320px;
 }
 .direct-call-stage {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 .direct-call-self {
-  width: 190px;
-  max-width: 35%;
-  margin: auto;
+  width: 170px;
+  flex: 0 0 auto;
+  align-self: center;
+}
+.direct-call-peer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .direct-call-modal .media-tile {
+  position: relative;
   min-height: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   border-radius: 14px;
-  background: #24242b;
+  background: var(--room-surface);
+  border: 1px solid var(--room-border);
+}
+.direct-call-modal .media-tile[hidden] {
+  display: none;
+}
+.direct-call-peer > .media-tile {
+  flex: 1 1 0;
 }
 .direct-call-modal .media-tile video {
   width: 100%;
-  max-height: 52vh;
+  height: 100%;
+  max-height: none;
   object-fit: contain;
+  display: block;
 }
 .direct-call-self .media-tile {
   aspect-ratio: 16 / 9;
 }
-.direct-call-self .media-audio-symbol {
-  min-height: 80px;
+.direct-call-modal .media-tile-local:not(.media-tile-screen) video {
+  transform: scaleX(-1);
 }
-.direct-call-self .participant-tile-initials {
-  font-size: 26px;
-  width: 46px;
-  height: 46px;
-}
-.direct-call-peer {
-  min-height: 300px;
-}
-.direct-call-peer .media-tile {
-  min-height: 300px;
+.direct-call-modal .media-audio-symbol {
+  width: 100%;
   height: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+    ellipse at center,
+    var(--room-surface-raised),
+    var(--room-surface)
+  );
 }
-.direct-call-peer .media-audio-symbol {
-  min-height: 300px;
+.direct-call-modal .participant-tile-initials {
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 120px;
+  font-size: 48px;
+  border-radius: 50%;
+  background: var(--room-surface-raised);
+  border: 1px solid var(--room-border);
+  color: var(--room-text);
 }
-.direct-call-chat {
+.direct-call-modal .direct-call-self .participant-tile-initials {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+}
+.direct-call-modal .media-tile-label {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--room-bg) 82%, transparent);
+  color: var(--room-text);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.direct-call-modal .media-tile-label > span:first-child {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.direct-call-modal .media-tile-badges {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.direct-call-modal .media-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--room-speaking-accent);
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--audio-level, 0);
+  transition: opacity 50ms linear;
+}
+.direct-call-modal .media-tile-microphone {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--room-muted);
+}
+.direct-call-modal .media-tile-microphone::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: calc(var(--audio-level, 0) * 100%);
+  background: var(--room-speaking-accent);
+  z-index: -1;
+  pointer-events: none;
+}
+.direct-call-modal .media-tile > .button {
+  position: absolute;
+  inset: 10px auto auto 10px;
+  max-width: calc(100% - 20px);
+}
+.direct-call-modal .media-tile > .field-hint,
+.direct-call-modal .media-tile-reconnecting {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--room-muted);
+  background: var(--room-surface);
+  border-radius: 6px;
+}
+.direct-call-modal .media-audio-unlock {
+  flex: 0 0 auto;
+}
+.direct-call-panel {
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  color: #24232b;
-  border-radius: 16px;
+  background: var(--surface, #fff);
+  color: var(--text, #24232b);
+  border: 1px solid var(--border, #e8e5ec);
+  border-radius: 14px;
   overflow: hidden;
-  max-height: 62vh;
 }
-.direct-call-chat > header {
+.direct-call-panel > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e8e5ec;
+  padding: 12px 14px;
+  gap: 8px;
+}
+.direct-call-panel-tabs {
+  display: flex;
+  padding: 0 12px 10px;
+  gap: 4px;
+}
+.direct-call-panel-tabs button {
+  flex: 1;
+  min-height: 44px;
+  font: inherit;
+  font-size: 13px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.direct-call-panel-tabs button[aria-pressed="true"] {
+  background: var(--primary-soft);
+  color: var(--primary, #704481);
+}
+.direct-call-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.direct-call-chat[hidden] {
+  display: none;
+}
+.direct-call-chat .personal-thread {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 8px;
+  flex: 1;
+  min-height: 0;
+}
+.direct-call-chat .chat-panel-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 .direct-call-chat .chat-messages {
-  min-height: 120px;
+  flex: 1;
+  min-height: 80px;
+  max-height: none;
   overflow: auto;
+}
+.direct-call-chat .chat-composer {
+  flex: none;
+}
+.direct-call-chat .chat-compose-caption {
+  display: none;
+}
+.direct-call-participants {
+  list-style: none;
+  padding: 4px 14px;
+  margin: 0;
+  overflow: auto;
+}
+.direct-call-participants li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+}
+.direct-call-participant-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--primary-soft);
+  color: var(--primary, #704481);
+}
+.direct-call-participants li > div {
+  min-width: 0;
+  flex: 1;
+}
+.direct-call-participants strong {
+  display: block;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.direct-call-participants small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+.direct-call-participant-devices {
+  display: inline-flex;
+  gap: 6px;
+  color: var(--muted);
+}
+.direct-call-connection-notice {
+  flex-shrink: 0;
+  color: var(--room-muted);
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+.direct-call-retry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
 }
 .direct-call-notice {
   position: fixed;
@@ -205,105 +501,59 @@
   margin-left: auto;
   cursor: pointer;
 }
-@media (max-width: 700px) {
+@media (max-width: 850px) {
+  .direct-call-control-wide > span {
+    display: none;
+  }
+  .direct-call-control-wide {
+    width: 52px;
+  }
+  .direct-call-with-panel {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+}
+@media (max-width: 600px) {
   .direct-call-modal.modal {
-    padding: 18px 12px;
-    border-radius: 18px;
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 14px 10px;
+    border-radius: 16px;
   }
-  .direct-call-person {
-    min-height: 300px;
+  .direct-call-body {
+    position: relative;
+    min-height: 200px;
   }
-  .direct-call-with-chat {
-    grid-template-columns: 1fr;
+  .direct-call-with-panel {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .direct-call-chat {
-    max-height: 380px;
+  .direct-call-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+  }
+  .direct-call-self {
+    width: 130px;
   }
   .direct-call-controls {
     gap: 6px;
+    padding-top: 10px;
+    margin-top: 10px;
   }
-  .direct-call-control {
-    min-width: 60px;
-    padding: 10px 6px;
-    font-size: 11px;
+  .direct-call-control,
+  .direct-call-control-wide {
+    width: 44px;
+    height: 44px;
+    padding: 9px;
+    border-radius: 10px;
+  }
+  .direct-call-meta {
+    margin-bottom: 10px;
+    gap: 8px;
   }
 }
-.direct-call-modal .media-tile {
-  position: relative;
-  border-color: #41414b;
-}
-.direct-call-modal .media-tile[hidden] {
-  display: none;
-}
-.direct-call-modal .media-tile-label {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - 16px);
-  padding: 5px 9px;
-  border-radius: 8px;
-  background: #111b;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.direct-call-modal .participant-tile-initials {
-  display: grid;
-  place-items: center;
-  width: 120px;
-  height: 120px;
-  font-size: 48px;
-  border-radius: 50%;
-  background: #53445e;
-  color: #fff;
-}
-.direct-call-modal .direct-call-self .participant-tile-initials {
-  width: 44px;
-  height: 44px;
-  font-size: 24px;
-}
-.direct-call-modal .media-tile-microphone {
-  display: inline-flex;
-}
-.direct-call-modal .media-tile-microphone > svg {
-  width: 16px;
-  height: 16px;
-}
-.direct-call-modal .media-tile-local.media-tile-screen video {
-  transform: none;
-}
-.direct-call-chat .personal-thread {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 10px;
-  flex: 1;
-  min-height: 0;
-}
-.direct-call-chat .chat-panel-body {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: 100%;
-}
-.direct-call-chat .chat-messages {
-  flex: 1;
-  min-height: 120px;
-  max-height: 38vh;
-}
-.direct-call-chat .chat-composer {
-  flex: none;
-}
-.direct-call-chat .chat-compose-caption {
-  display: none;
-}
-.direct-call-person h3,
-.direct-call-meta > span {
-  overflow-wrap: anywhere;
-}
-.direct-call-modal.modal > h2 {
-  margin: 0 42px 18px 0;
-  text-align: left;
-  font-size: 18px;
+@media (prefers-reduced-motion: reduce) {
+  .direct-call-modal .media-tile::after {
+    transition: none;
+  }
 }

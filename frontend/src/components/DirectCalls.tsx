@@ -9,30 +9,14 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router";
-import {
-  MessageCircle,
-  Mic,
-  MicOff,
-  MonitorUp,
-  Phone,
-  PhoneOff,
-  RefreshCw,
-  Video,
-  VideoOff,
-  X,
-} from "lucide-react";
-import { api, personalChatAPI } from "../api";
+import { Phone, PhoneOff, X } from "lucide-react";
+import { api } from "../api";
 import { useAuth } from "../auth";
 import type { DirectCall } from "../types";
-import { useRealtime } from "../realtime";
-import { useMedia } from "../useMedia";
-import {
-  readDevicePreferences,
-  subscribeDevicePreferences,
-} from "../prejoinDevices";
+import { readDevicePreferences } from "../prejoinDevices";
 import { initials } from "../utils";
+import { DirectCallMedia } from "./DirectCallMedia";
 import { MediaTile } from "./RealtimePanel";
-import { MessageThread } from "./ChatPanel";
 import { Button, ErrorNotice, Modal } from "./ui";
 import toneURL from "../assets/device-tone.wav";
 import "./direct-calls.css";
@@ -377,6 +361,7 @@ export function DirectCallsProvider({ children }: { children: ReactNode }) {
               key={call.id}
               call={call}
               userId={userId}
+              clientId={clientId}
               onEnd={() => void action("end")}
               pending={pending}
             />
@@ -415,6 +400,7 @@ function CallRinging({
   onEnd: () => void;
 }) {
   const peer = incoming ? call.caller : call.callee;
+  const self = incoming ? call.callee : call.caller;
   const player = useRef<HTMLAudioElement | null>(null);
   const [soundBlocked, setSoundBlocked] = useState(false);
   useEffect(() => {
@@ -478,31 +464,40 @@ function CallRinging({
         }[call.status];
   return (
     <>
-      <div className="direct-call-person">
-        <div className="direct-call-avatar">
-          {peer.avatarUrl ? (
-            <img src={peer.avatarUrl} alt="" />
-          ) : (
-            initials(peer.displayName)
+      <div className="direct-call-body">
+        <div className="direct-call-stage">
+          {call.status === "ringing" && (
+            <div className="direct-call-self">
+              <MediaTile name={self.displayName} local video={false} />
+            </div>
           )}
+          <div className="direct-call-person">
+            <div className="direct-call-avatar">
+              {peer.avatarUrl ? (
+                <img src={peer.avatarUrl} alt="" />
+              ) : (
+                initials(peer.displayName)
+              )}
+            </div>
+            <h3>{peer.displayName}</h3>
+            <p role="status" aria-live="polite">
+              {label}
+            </p>
+            {soundBlocked && call.status === "ringing" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  void player.current
+                    ?.play()
+                    .then(() => setSoundBlocked(false))
+                    .catch(() => {});
+                }}
+              >
+                Включить звук звонка
+              </Button>
+            )}
+          </div>
         </div>
-        <h3>{peer.displayName}</h3>
-        <p role="status" aria-live="polite">
-          {label}
-        </p>
-        {soundBlocked && call.status === "ringing" && (
-          <Button
-            variant="outline"
-            onClick={() => {
-              void player.current
-                ?.play()
-                .then(() => setSoundBlocked(false))
-                .catch(() => {});
-            }}
-          >
-            Включить звук звонка
-          </Button>
-        )}
       </div>
       <div className="direct-call-controls">
         {call.status === "ringing" && incoming && (
@@ -522,239 +517,6 @@ function CallRinging({
               ? "Отклонить"
               : "Завершить"
             : "Закрыть"}
-        </Button>
-      </div>
-    </>
-  );
-}
-
-function DirectCallMedia({
-  call,
-  userId,
-  onEnd,
-  pending,
-}: {
-  call: DirectCall;
-  userId: string;
-  onEnd: () => void;
-  pending: boolean;
-}) {
-  const live = useRealtime(call.conferenceId!, true, clientId);
-  const media = useMedia(live, call.conferenceId!, {});
-  const [preferences, setPreferences] = useState(() =>
-    readDevicePreferences(userId),
-  );
-  const [chat, setChat] = useState(false);
-  const [now, setNow] = useState(Date.now);
-  const started = useRef("");
-  const desired = useRef({
-    microphoneEnabled: preferences.microphoneEnabled,
-    cameraEnabled: false,
-  });
-  const peer = call.caller.id === userId ? call.callee : call.caller;
-  const self = call.caller.id === userId ? call.caller : call.callee;
-  useEffect(() => subscribeDevicePreferences(userId, setPreferences), [userId]);
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-  useEffect(() => {
-    const connectionId = live.state?.connectionId;
-    if (!connectionId || started.current === connectionId) return;
-    started.current = connectionId;
-    media.start(true, { ...preferences, ...desired.current });
-  }, [live.state?.connectionId]);
-  useEffect(() => {
-    if (media.running) media.configure(preferences);
-  }, [preferences, media.configure, media.running, media.view.controlBusy]);
-  const seconds = Math.max(
-    0,
-    Math.floor((now - Date.parse(call.acceptedAt || call.createdAt)) / 1000),
-  );
-  const elapsed = `${Math.floor(seconds / 60)
-    .toString()
-    .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
-  const busy = pending || media.view.controlBusy || !media.view.mediaPeerId;
-  const remote = media.view.remoteStreams.filter((stream) => !stream.screen);
-  const screens = media.view.remoteStreams.filter((stream) => stream.screen);
-  return (
-    <>
-      <div className="direct-call-meta">
-        <span>{peer.displayName}</span>
-        <time>{elapsed}</time>
-      </div>
-      <div
-        className={`direct-call-body${chat ? " direct-call-with-chat" : ""}`}
-      >
-        <div className="direct-call-stage">
-          {preferences.showSelf && (
-            <div className="direct-call-self">
-              <MediaTile
-                stream={media.view.localStream || undefined}
-                name={self.displayName}
-                local
-                video={media.view.cameraEnabled}
-                microphoneEnabled={media.view.microphoneEnabled}
-              />
-            </div>
-          )}
-          <div className="direct-call-peer">
-            {media.view.localScreen && (
-              <MediaTile
-                stream={media.view.localScreen}
-                name="Ваш экран"
-                local
-                screen
-              />
-            )}
-            {screens.map((stream) => (
-              <MediaTile
-                key={stream.id}
-                stream={stream.stream}
-                name={`${peer.displayName} · экран`}
-                screen
-                sinkId={preferences.audioOutputId}
-              />
-            ))}
-            {remote.length
-              ? remote.map((stream) => (
-                  <MediaTile
-                    key={stream.id}
-                    stream={stream.stream}
-                    name={peer.displayName}
-                    video={
-                      stream.kinds.includes("video") &&
-                      !preferences.hideParticipantVideo
-                    }
-                    sinkId={preferences.audioOutputId}
-                    microphoneEnabled={
-                      live.state?.participants.find(
-                        (participant) =>
-                          participant.id === stream.participantId,
-                      )?.microphoneEnabled ?? stream.kinds.includes("audio")
-                    }
-                    covered={!!media.view.localScreen || screens.length > 0}
-                  />
-                ))
-              : !screens.length &&
-                !media.view.localScreen && (
-                  <div className="direct-call-person">
-                    <div className="direct-call-avatar">
-                      {peer.avatarUrl ? (
-                        <img src={peer.avatarUrl} alt="" />
-                      ) : (
-                        initials(peer.displayName)
-                      )}
-                    </div>
-                    <h3>{peer.displayName}</h3>
-                    <p role="status">
-                      {media.view.connectionState === "connected"
-                        ? "Ожидаем собеседника…"
-                        : "Подключаем звонок…"}
-                    </p>
-                  </div>
-                )}
-          </div>
-        </div>
-        {chat && (
-          <aside className="direct-call-chat">
-            <header>
-              <strong>Чат</strong>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setChat(false)}
-                aria-label="Закрыть чат"
-              >
-                <X size={20} />
-              </button>
-            </header>
-            <MessageThread
-              scopeId={call.conversationId}
-              transport={personalChatAPI}
-              personal
-            />
-          </aside>
-        )}
-      </div>
-      <ErrorNotice error={live.error} />
-      {media.view.error && <ErrorNotice>{media.view.error}</ErrorNotice>}
-      <div className="direct-call-controls">
-        {!media.running ? (
-          <Button
-            onClick={() => media.start(false)}
-            disabled={!live.state?.connectionId}
-          >
-            Подключиться без микрофона
-          </Button>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="direct-call-control"
-              disabled={busy}
-              aria-pressed={media.view.microphoneEnabled}
-              onClick={() => {
-                desired.current.microphoneEnabled =
-                  !media.view.microphoneEnabled;
-                void media.microphone(desired.current.microphoneEnabled);
-              }}
-            >
-              {media.view.microphoneEnabled ? <Mic /> : <MicOff />}
-              <span>Микрофон</span>
-            </button>
-            <button
-              type="button"
-              className="direct-call-control"
-              disabled={busy}
-              aria-pressed={media.view.cameraEnabled}
-              onClick={() => {
-                desired.current.cameraEnabled = !media.view.cameraEnabled;
-                void media.camera(desired.current.cameraEnabled);
-              }}
-            >
-              {media.view.cameraEnabled ? <Video /> : <VideoOff />}
-              <span>Камера</span>
-            </button>
-            <button
-              type="button"
-              className="direct-call-control"
-              disabled={busy}
-              aria-pressed={media.view.screenSharing}
-              onClick={() =>
-                void (media.view.screenSharing
-                  ? media.stopScreen()
-                  : media.startScreen())
-              }
-            >
-              <MonitorUp />
-              <span>Экран</span>
-            </button>
-          </>
-        )}
-        <button
-          type="button"
-          className="direct-call-control"
-          aria-pressed={chat}
-          onClick={() => setChat(!chat)}
-        >
-          <MessageCircle />
-          <span>Чат</span>
-        </button>
-        <button
-          type="button"
-          className="direct-call-control"
-          onClick={() => {
-            media.stop();
-            live.reconnect();
-          }}
-        >
-          <RefreshCw />
-          <span>Переподключить</span>
-        </button>
-        <Button className="direct-call-end" onClick={onEnd} disabled={pending}>
-          <PhoneOff size={24} />
-          <span>Завершить</span>
         </Button>
       </div>
     </>
