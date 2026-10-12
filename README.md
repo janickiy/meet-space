@@ -1,10 +1,10 @@
-# job recorder
+# meet space
 
 REST API сервиса записи видеопотока на Go + Gin.
 
 ## Документация и выпуск
 
-Meetrix включает веб-интерфейс, конференции, SFU, запись и опциональные фоновые
+meet space включает веб-интерфейс, конференции, SFU, запись и опциональные фоновые
 интеграции. Текущая архитектура — один Docker Compose-хост. Реальный staging
 пока не предоставлен; локальные проверки не означают готовность production.
 
@@ -605,13 +605,6 @@ make debug-stop
 6. Поставь breakpoint в локальном файле проекта.
 7. Нажми Debug и вызови нужный HTTP endpoint.
 
-## Postman
-
-Коллекция Postman:
-
-```text
-docs/postman/job-recorder.postman_collection.json
-```
 
 Переменные коллекции:
 
