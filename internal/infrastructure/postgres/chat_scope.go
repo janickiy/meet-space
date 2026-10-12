@@ -26,7 +26,9 @@ func (r *ChatRepository) messages(tx *gorm.DB) *gorm.DB {
 	if r.direct {
 		return tx.Model(&chat.Message{}).Table("conversation_messages").Omit("ConferenceID", "SenderName")
 	}
-	return tx.Model(&chat.Message{}).Omit("ConversationID", "SenderName")
+	// CallID belongs only to conversation_messages; model-based SELECTs must not
+	// project it from conference chat_messages, which has no such column.
+	return tx.Model(&chat.Message{}).Omit("ConversationID", "SenderName", "CallID")
 }
 func (r *ChatRepository) attachments(tx *gorm.DB) *gorm.DB {
 	if r.direct {

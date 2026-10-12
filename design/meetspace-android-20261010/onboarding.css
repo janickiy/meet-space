@@ -1866,3 +1866,36 @@
   background: #15244010;
   color: #152440;
 }
+
+/* Account creation reuses the first-run form on phones and tablets. */
+.on-account-switch { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 5px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+.on-account-switch button { border: 0; background: transparent; color: var(--accent); font-weight: 600; min-height: 48px; padding: 8px; }
+.on-password-field { position: relative; }
+.on-password-field input { padding-right: 52px; }
+.on-password-field button { position: absolute; top: 0; right: 2px; width: 46px; height: 48px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); border-radius: 9px; }
+.on-password-hint { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.on-layout .on-field input[aria-invalid="true"] { border-color: var(--danger); }
+.on-layout-account .on-heading { margin-bottom: 22px; }
+.on-layout-account .on-content { padding-top: 20px; padding-bottom: 20px; }
+.on-layout-account .on-server-pill { margin-bottom: 20px; }
+.on-layout-account .on-form { gap: 14px; }
+.on-layout-account .on-demo { margin-top: 12px; }
+.on-layout-account .on-account-switch { margin-top: 8px; }
+.on-account-switch button:focus-visible, .on-password-field button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 759px) {
+  .on-layout-account .on-main { padding-top: 18px; }
+  .on-layout-account .on-mobile-brand { margin-bottom: 8px; }
+  .on-layout-account .on-content { padding-top: 10px; padding-bottom: 18px; }
+  .on-layout-account .on-heading h1 { margin: 8px 0 10px; }
+  .on-layout-account .on-heading { margin-bottom: 20px; }
+  .on-layout-account .on-form { gap: 13px; }
+  .on-layout-account .on-server-pill { margin-bottom: 18px; }
+  .on-layout-account .on-account-switch { font-size: 11px; }
+}
+@media (min-width: 760px) {
+  .on-layout-account .on-main { padding-top: 24px; padding-bottom: 20px; }
+  .on-layout-account .on-content { padding-top: 10px; padding-bottom: 10px; }
+  .on-layout-account .on-heading { margin-bottom: 18px; }
+  .on-layout-account .on-heading h1 { margin-top: 8px; }
+  .on-layout-account .on-form { gap: 12px; }
+}

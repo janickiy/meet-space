@@ -36,7 +36,7 @@ window.MS = {
     this.state.screen = id;
     this.render();
   },
-  render() {
+  render(notify = true) {
     document.documentElement.dataset.theme = this.state.theme;
     document.body.dataset.screen = this.state.screen;
     const screen = this.screens[this.state.screen] || this.screens.meetings;
@@ -45,17 +45,21 @@ window.MS = {
     const url = new URL(location.href);
     url.searchParams.set("screen", this.state.screen);
     url.searchParams.set("theme", this.state.theme);
+    const chat = this.chatRoute?.() || null;
+    const personalCall = this.personalCallSnapshot?.() || null;
+    if (chat) url.searchParams.set("chat", chat);
+    else url.searchParams.delete("chat");
     const section = this.accountSectionRoute?.() || null;
     if (section) url.searchParams.set("section", section);
     else url.searchParams.delete("section");
     history.replaceState(null, "", url);
-    if (window.parent !== window)
+    if (notify && window.parent !== window)
       window.parent.postMessage(
         {
           type: "ms:navigate",
           screen: this.state.screen,
           theme: this.state.theme,
-          section,
+          section, chat, personalCall,
         },
         location.origin === "null" ? "*" : location.origin,
       );
@@ -89,6 +93,7 @@ window.MS = {
       ? params.get("screen")
       : "meetings";
     this.state.theme = params.get("theme") === "dark" ? "dark" : "light";
+    this.setChatRoute?.(params.get("chat"));
     document.addEventListener("click", (e) => {
       const target = e.target.closest("button,a");
       if (!target) return;
@@ -134,14 +139,16 @@ window.MS = {
         ? e.data.screen
         : this.state.screen;
       const theme = e.data.theme === "dark" ? "dark" : "light";
+      const chatChanged = this.setChatRoute?.(e.data.chat);
+      const callChanged = Object.hasOwn(e.data, "personalCall") ? this.setPersonalCallSnapshot?.(e.data.personalCall) : false;
       const sectionChanged = Object.hasOwn(e.data, "section")
         ? this.setAccountSectionRoute?.(e.data.section) : false;
-      if (next !== this.state.screen || theme !== this.state.theme || sectionChanged) {
+      if (next !== this.state.screen || theme !== this.state.theme || sectionChanged || chatChanged || callChanged) {
         this.closeModal();
         this.state.screen = next;
         this.state.theme = theme;
         this.state.themeMode = theme;
-        this.render();
+        this.render(false);
       }
     });
     this.render();

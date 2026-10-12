@@ -180,6 +180,19 @@ export function rememberDirectConversationHistoryCutoff(
   return cutoff > known;
 }
 
+/** Clears search results and observers without refetching a revoked or cleared history. */
+export function purgePersonalConversationSearch(
+  client: QueryClient,
+  id: string,
+  userId: string,
+) {
+  const filters = { queryKey: ["personal-chat-search", id, userId] };
+  // Removal alone leaves the last result in a mounted observer until its next render.
+  // Reset also cancels pending requests, so a late response cannot restore a snippet.
+  for (const query of client.getQueryCache().findAll(filters)) query.reset();
+  client.removeQueries(filters);
+}
+
 /**
  * Убирает старые сообщения, ссылки и курсоры чтения из кеша и пересоздаёт редактор диалога.
  * Пересоздание освобождает загрузки, черновики, ответы и локальные ссылки вложений.
@@ -191,6 +204,7 @@ export function resetDirectConversationHistory(
   id: string,
   userId: string,
 ) {
+  purgePersonalConversationSearch(client, id, userId);
   for (const key of ["personal-chat", "personal-chat-read"]) {
     void client.cancelQueries({ queryKey: [key, id, userId] });
     client.removeQueries({ queryKey: [key, id, userId] });

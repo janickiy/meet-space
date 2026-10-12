@@ -72,6 +72,13 @@
       description: "Видео, сообщения и файлы. Управление записью и привычная навигация — рядом.",
     },
     {
+      id: "personal-call",
+      label: "Личный звонок",
+      group: "meeting",
+      title: "Ближе к собеседнику.",
+      description: "Один значок в переписке — и вы на связи. Личный звонок с управлением микрофоном, камерой и быстрым возвратом в чат.",
+    },
+    {
       id: "welcome",
       label: "Добро пожаловать",
       group: "onboarding",
@@ -93,6 +100,13 @@
       group: "onboarding",
       title: "Команда уже ждёт вас.",
       description: "Войдите в своё рабочее пространство и продолжите общение.",
+    },
+    {
+      id: "register",
+      label: "Создание аккаунта",
+      group: "onboarding",
+      title: "Ваш первый шаг к команде.",
+      description: "Имя, почта и пароль — создание аккаунта на выбранном сервере. Форма доступна при входе и после установки.",
     },
     {
       id: "deploy",
@@ -144,6 +158,8 @@
   let current =
     screens.find((s) => s.id === params.get("screen")) || screens[0];
   let section = ["profile", "audio", "video", "notifications", "appearance", "connection"].includes(params.get("section")) ? params.get("section") : null;
+  let chat = params.get("chat") || "team";
+  let personalCall = null;
   let theme = params.get("theme") === "dark" ? "dark" : "light";
   let view = ["compare", "phone", "tablet"].includes(params.get("view"))
     ? params.get("view")
@@ -153,7 +169,7 @@
   let portrait = params.get("orientation") === "portrait";
   const $ = (id) => document.getElementById(id);
   const frames = [$("phone-preview"), $("tablet-preview")];
-  const initialPreview = `preview.html?rev=20261012-meeting-title&screen=${current.id}&theme=${theme}${current.id === "settings" && section ? `&section=${section}` : ""}`;
+  const initialPreview = `preview.html?rev=20261012-registration&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "settings" && section ? `&section=${section}` : ""}`;
   frames.forEach((frame) => {
     if (frame.getAttribute("src") !== initialPreview)
       frame.src = initialPreview;
@@ -176,18 +192,19 @@
     url.searchParams.set("screen", current.id);
     url.searchParams.set("theme", theme);
     url.searchParams.set("view", view);
+    url.searchParams.set("chat", chat);
     if (portrait) url.searchParams.set("orientation", "portrait");
     else url.searchParams.delete("orientation");
     if (current.id === "settings" && section) url.searchParams.set("section", section);
     else url.searchParams.delete("section");
     history.replaceState(null, "", url);
-    $("open-screen").href = `preview.html?rev=20261012-meeting-title&screen=${current.id}&theme=${theme}${current.id === "settings" && section ? `&section=${section}` : ""}`;
+    $("open-screen").href = `preview.html?rev=20261012-registration&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "settings" && section ? `&section=${section}` : ""}`;
   }
   function notifyFrames(except) {
     frames.forEach((frame) => {
       if (frame.contentWindow && frame.contentWindow !== except)
         frame.contentWindow.postMessage(
-          { type: "ms:screen", screen: current.id, theme, section },
+          { type: "ms:screen", screen: current.id, theme, section, chat, personalCall },
           "*",
         );
     });
@@ -329,7 +346,11 @@
         ? event.data.theme
         : theme;
       const nextSection = ["profile", "audio", "video", "notifications", "appearance", "connection"].includes(event.data.section) ? event.data.section : null;
-      if (next && (next.id !== current.id || nextTheme !== theme || nextSection !== section)) {
+      const nextChat = typeof event.data.chat === "string" ? event.data.chat : chat;
+      const nextCall = event.data.personalCall || null;
+      if (next && (next.id !== current.id || nextTheme !== theme || nextSection !== section || nextChat !== chat || JSON.stringify(nextCall) !== JSON.stringify(personalCall))) {
+        chat = nextChat;
+        personalCall = nextCall;
         section = nextSection;
         current = next;
         theme = nextTheme;

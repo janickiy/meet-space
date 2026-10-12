@@ -32,6 +32,7 @@ import { DirectCallButton } from "../components/DirectCallButton";
 import { PersonalPeerStatus } from "../components/PersonalPeerStatus";
 import { PersonalPeerPresenceProvider } from "../usePersonalPeerPresence";
 import { MessageThread } from "../components/ChatPanel";
+import { PersonalChatSearchModal } from "../components/PersonalChatSearch";
 import { ItemActions } from "../components/ItemActions";
 import { NewDirectChatModal } from "../components/NewDirectChatModal";
 import { UnreadMessageCount } from "../components/UnreadMessageCount";
@@ -60,6 +61,12 @@ export function PersonalPage() {
   const [creating, setCreating] = useState(false);
   const [newDirect, setNewDirect] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageFocus, setMessageFocus] = useState<{
+    id: string;
+    request: number;
+  }>();
+  const messageSearchTrigger = useRef<HTMLButtonElement>(null);
   const [userInfoOpen, setUserInfoOpen] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const infoTrigger = useRef<HTMLButtonElement>(null);
@@ -130,6 +137,8 @@ export function PersonalPage() {
     revokePersonalConversation(client, id, user.id);
     setInfoOpen(false);
     setUserInfoOpen(false);
+    setMessageSearchOpen(false);
+    setMessageFocus(undefined);
     navigate(`/personal${location.search}`, { replace: true });
   }, [client, id, user, navigate, location.search]);
   const paramSearch = params.get("search") || "";
@@ -190,7 +199,13 @@ export function PersonalPage() {
   useEffect(() => {
     setInfoOpen(false);
     setUserInfoOpen(false);
-  }, [id]);
+    setMessageSearchOpen(false);
+    setMessageFocus(undefined);
+  }, [
+    id,
+    selected?.type === "direct" ? selected.historyClearedThrough : 0,
+    threadVersion.data,
+  ]);
   return (
     <PersonalPeerPresenceProvider
       conversation={selected?.type === "direct" ? selected : undefined}
@@ -402,6 +417,18 @@ export function PersonalPage() {
                   />
                 )}
                 {selected && (
+                  <button
+                    ref={messageSearchTrigger}
+                    type="button"
+                    className="icon-button"
+                    aria-label="Найти в чате"
+                    title="Найти в чате"
+                    onClick={() => setMessageSearchOpen(true)}
+                  >
+                    <Search size={20} aria-hidden="true" />
+                  </button>
+                )}
+                {selected && (
                   <ConversationActions
                     conversation={selected}
                     onGroupInfo={() => setInfoOpen(true)}
@@ -424,6 +451,10 @@ export function PersonalPage() {
                     scopeId={id}
                     transport={personalChatAPI}
                     personal
+                    visible={!messageSearchOpen}
+                    focusMessageId={messageFocus?.id}
+                    focusRequest={messageFocus?.request}
+                    onLatest={() => setMessageFocus(undefined)}
                     composerPlaceholder={
                       selected.type === "group"
                         ? "Напишите в группу…"
@@ -439,6 +470,23 @@ export function PersonalPage() {
             </>
           )}
         </div>
+        {messageSearchOpen && selected && id && (
+          <PersonalChatSearchModal
+            key={`${user?.id}:${id}:${threadVersion.data}:${selected.type === "direct" ? selected.historyClearedThrough || 0 : 0}`}
+            conversationId={id}
+            conversationName={conversationName(selected)}
+            onClose={() => setMessageSearchOpen(false)}
+            onSelect={(messageId) => {
+              setMessageFocus((old) => ({
+                id: messageId,
+                request: (old?.request || 0) + 1,
+              }));
+              setMessageSearchOpen(false);
+            }}
+            returnFocus={() => messageSearchTrigger.current}
+            onAccessDenied={revoke}
+          />
+        )}
         {creating && <GroupCreateModal onClose={() => setCreating(false)} />}
         {newDirect && (
           <NewDirectChatModal onClose={() => setNewDirect(false)} />

@@ -93,6 +93,7 @@ export function MessageThread({
   focusMessageId,
   onLatest,
   visible = true,
+  focusRequest = 0,
 }: {
   scopeId: string;
   transport: ChatTransport;
@@ -107,12 +108,14 @@ export function MessageThread({
   onLatest?: () => void;
   /** A hidden side tab keeps its draft without measuring or marking reads. */
   visible?: boolean;
+  /** Repeated selection can revisit the same message without discarding the draft. */
+  focusRequest?: number;
 }) {
   const historyKey = personal ? "personal-chat" : "chat";
   const readKey = personal ? "personal-chat-read" : "chat-read";
   const { user } = useAuth();
   const mayBookmark = !personal && !!user && !user.guestConferenceId;
-  const focused = !personal && focusMessageId ? focusMessageId : undefined;
+  const focused = focusMessageId || undefined;
   const client = useQueryClient();
   const [open, setOpen] = useState(true);
   const [text, setText] = useState("");
@@ -186,7 +189,7 @@ export function MessageThread({
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
       focused && !pageParam
-        ? api.conferenceChatMessageContext(scopeId, focused, signal)
+        ? transport.messageContext(scopeId, focused, signal)
         : transport.messages(scopeId, pageParam, signal),
     getNextPageParam: (last) => last.nextCursor || undefined,
     refetchInterval: 15000,
@@ -200,11 +203,30 @@ export function MessageThread({
   });
   const accessDenied =
     !!onAccessDenied &&
-    (isAccessDenied(query.error) || isAccessDenied(read.error));
+    ((isAccessDenied(query.error) &&
+      !(
+        focused &&
+        query.error instanceof ApiError &&
+        query.error.status === 404
+      )) ||
+      isAccessDenied(read.error));
   useEffect(() => {
     if (accessDenied) onAccessDenied?.();
   }, [accessDenied, onAccessDenied]);
-  const messages = accessDenied ? [] : mergeChatPages(query.data?.pages || []);
+  const historyUnavailable =
+    isAccessDenied(query.error) || isAccessDenied(read.error);
+  const messages = historyUnavailable
+    ? []
+    : mergeChatPages(query.data?.pages || []);
+  useEffect(() => {
+    if (!historyUnavailable) return;
+    downloadController.current?.abort();
+    setDownload(null);
+    setReply(null);
+    setEditing(null);
+    setDeleting(null);
+    setEditText("");
+  }, [historyUnavailable]);
   const confirmedPending =
     !!pending &&
     messages.some(
@@ -219,6 +241,9 @@ export function MessageThread({
     void client.invalidateQueries({ queryKey: [historyKey, scopeId] });
     void client.invalidateQueries({ queryKey: [readKey, scopeId] });
     if (personal) {
+      void client.resetQueries({
+        queryKey: ["personal-chat-search", scopeId, user?.id],
+      });
       void client.invalidateQueries({ queryKey: ["personal-list", user?.id] });
       void client.invalidateQueries({
         queryKey: ["personal-summary", user?.id],
@@ -318,6 +343,17 @@ export function MessageThread({
   }, [text, open, readOnly, visible]);
 
   useEffect(() => {
+    initialScroll.current = false;
+    previousLatest.current = undefined;
+    olderAnchor.current = null;
+    readingAnchor.current = null;
+    markerVisible.current = false;
+    newestVisible.current = false;
+    setReadCandidate(null);
+    setHasNewMessages(false);
+  }, [focused, focusRequest]);
+
+  useEffect(() => {
     if (!open || !visible || !latest) return;
     const element = viewport.current;
     if (!element) return;
@@ -410,6 +446,7 @@ export function MessageThread({
     messages.length,
     query.isFetchingNextPage,
     focused,
+    focusRequest,
     personal,
     pending?.clientRequestId,
   ]);
@@ -418,6 +455,7 @@ export function MessageThread({
     if (
       !open ||
       !visible ||
+      !!focused ||
       !readCandidate ||
       readCandidate === lastRead.current ||
       readCandidate === read.data?.item.lastReadMessageId
@@ -465,6 +503,7 @@ export function MessageThread({
     open,
     visible,
     readCandidate,
+    focused,
     read.data?.item.lastReadMessageId,
     scopeId,
     client,
@@ -699,7 +738,22 @@ export function MessageThread({
               "Встреча завершена. Чат сохранён и доступен только для чтения."}
           </p>
         )}
-        <ErrorNotice error={query.error} />
+        <ErrorNotice
+          error={
+            focused &&
+            query.error instanceof ApiError &&
+            query.error.status === 404
+              ? null
+              : query.error
+          }
+        />
+        {focused &&
+          query.error instanceof ApiError &&
+          query.error.status === 404 && (
+            <p className="field-hint" role="status">
+              Сообщение больше недоступно. Вернитесь к последним сообщениям.
+            </p>
+          )}
         {query.isError && (
           <Button variant="outline" onClick={() => void query.refetch()}>
             Повторить загрузку чата

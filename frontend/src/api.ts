@@ -1502,7 +1502,24 @@ export const statusLabels: Record<ConferenceStatus, string> = {
 // Both scopes use the same contracts and authenticated request/retry layer.
 export function createChatAPI(namespace: "conferences" | "conversations") {
   const base = (id: string) => `/${namespace}/${encodeURIComponent(id)}`;
+  const history = (id: string) =>
+    namespace === "conversations" ? base(id) : `${base(id)}/chat`;
   return {
+    searchMessages: (
+      id: string,
+      q: string,
+      before?: string,
+      signal?: AbortSignal,
+    ) =>
+      request<ChatPage>(
+        `${history(id)}/messages/search?${new URLSearchParams({ q, limit: "20", ...(before ? { before } : {}) })}`,
+        { signal },
+      ),
+    messageContext: (id: string, messageId: string, signal?: AbortSignal) =>
+      request<ChatPage>(
+        `${history(id)}/messages/${encodeURIComponent(messageId)}/context`,
+        { signal },
+      ),
     messages: (id: string, before?: string, signal?: AbortSignal) =>
       request<ChatPage>(
         `${base(id)}/messages?limit=50${before ? `&before=${encodeURIComponent(before)}` : ""}`,

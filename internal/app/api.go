@@ -154,7 +154,8 @@ func RunAPI() error {
 	if err != nil {
 		return fmt.Errorf("personal assets initialization: %w", err)
 	}
-	personalChat, err := chatusecase.NewService(context.Background(), postgresinfra.NewDirectChatRepository(db), s3Client, personalEvents)
+	personalChatRepository := postgresinfra.NewDirectChatRepository(db)
+	personalChat, err := chatusecase.NewService(context.Background(), personalChatRepository, s3Client, personalEvents)
 	if err != nil {
 		return fmt.Errorf("personal chat initialization: %w", err)
 	}
@@ -166,6 +167,7 @@ func RunAPI() error {
 	callService := &callsusecase.Service{Repo: postgresinfra.NewCallRepository(db), Bus: notificationBus, Observer: hub}
 	httptransport.RegisterCallRoutes(router, &callsapp.Handler{Service: callService}, httpmiddleware.Authenticate(authService), personalHandler.AccountOnly, rateLimiter)
 	httptransport.RegisterPersonalRoutes(router, personalHandler, chatapp.NewHandler(personalChat).ForConversations().WithGroupDownloads(personalAssets), httpmiddleware.Authenticate(authService), rateLimiter)
+	httptransport.RegisterPersonalSearchRoutes(router, &chatapp.SearchHandler{Service: &chatusecase.SearchService{Repo: personalChatRepository}}, httpmiddleware.Authenticate(authService), personalHandler.AccountOnly, rateLimiter)
 	httptransport.RegisterPersonalAssetRoutes(router, personalapp.NewAssetHandler(personalAssets), httpmiddleware.Authenticate(authService), personalHandler.AccountOnly, rateLimiter)
 	folderHandler := foldersapp.NewHandler(postgresinfra.NewFolderRepository(db), &foldersusecase.Events{Bus: notificationBus})
 	httptransport.RegisterFolderRoutes(router, folderHandler, httpmiddleware.Authenticate(authService), rateLimiter)

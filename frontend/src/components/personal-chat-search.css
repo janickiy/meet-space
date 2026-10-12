@@ -1,0 +1,105 @@
+.personal-chat-search-modal.modal {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+}
+.personal-chat-search-name {
+  margin: 0 0 16px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.personal-chat-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.personal-chat-search-field > svg {
+  flex-shrink: 0;
+}
+.personal-chat-search-field input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+}
+.personal-chat-search-field input:focus {
+  outline: none;
+  box-shadow: none;
+}
+.personal-chat-search-field:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.personal-chat-search-results {
+  min-height: 100px;
+  overflow: auto;
+  padding: 12px 3px 3px;
+  margin-top: 8px;
+}
+.personal-chat-search-results ul {
+  padding: 0;
+  margin: 0 0 12px;
+  list-style: none;
+}
+.personal-chat-search-results li + li {
+  border-top: 1px solid var(--border);
+}
+.personal-chat-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.personal-chat-search-result:hover {
+  background: var(--primary-soft);
+}
+.personal-chat-search-result:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.personal-chat-search-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.personal-chat-search-meta strong,
+.personal-chat-search-excerpt {
+  overflow-wrap: anywhere;
+}
+.personal-chat-search-meta time {
+  font-size: 12px;
+  color: var(--muted);
+}
+.personal-chat-search-excerpt {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.personal-chat-search-excerpt mark {
+  color: inherit;
+  background: var(--primary-soft);
+  box-shadow: inset 0 -2px var(--primary);
+}
+.personal-chat-search-jump {
+  color: var(--primary);
+  font-size: 12px;
+}

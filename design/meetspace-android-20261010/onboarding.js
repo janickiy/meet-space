@@ -39,7 +39,7 @@
   const side = (install = false) =>
     `<aside class="on-side"><a class="on-logo" href="#welcome" data-go="welcome">${logo()}</a><div class="on-side-body"><span class="on-kicker">${install ? "ВАШ СЕРВЕР. ВАШИ ПРАВИЛА." : "БЛИЖЕ К КОМАНДЕ."}</span><h2>${install ? "Своё пространство.<br>Полный контроль." : "Быть на одной<br>волне."}</h2><p>${install ? "Подключите удалённый сервер, а мы покажем каждый шаг настройки." : "Встречи, сообщения и идеи —<br>в одном пространстве."}</p>${visual()}</div><div class="on-side-footer"><span>${I("ShieldCheck")} На вашей инфраструктуре</span><span>MeetSpace для Android</span></div></aside>`;
   const frame = (content, opts = {}) =>
-    `<div class="on-layout ${opts.welcome ? "on-layout-welcome" : ""}">${side(opts.install)}<main class="on-main"><div class="on-mobile-brand"><a class="on-logo" href="#welcome" data-go="welcome">${logo()}</a><span class="on-platform">ANDROID</span></div>${opts.back ? `<button class="on-back" data-go="${opts.back}">${I("ArrowLeft")} ${opts.backLabel || "Назад"}</button>` : ""}<div class="on-content">${content}</div><div class="on-bottom-note">${I("LockKeyhole")} ${opts.install ? "Данные доступа не сохраняются в макете" : "Ваше общение остаётся в вашем пространстве"}</div></main></div>`;
+    `<div class="on-layout ${opts.welcome ? "on-layout-welcome" : ""} ${opts.account ? "on-layout-account" : ""}">${side(opts.install)}<main class="on-main"><div class="on-mobile-brand"><a class="on-logo" href="#welcome" data-go="welcome">${logo()}</a><span class="on-platform">ANDROID</span></div>${opts.back ? `<button class="on-back" data-go="${opts.back}">${I("ArrowLeft")} ${opts.backLabel || "Назад"}</button>` : ""}<div class="on-content">${content}</div><div class="on-bottom-note">${I("LockKeyhole")} ${opts.install ? "Данные доступа не сохраняются в макете" : "Ваше общение остаётся в вашем пространстве"}</div></main></div>`;
   const heading = (eyebrow, title, subtitle) =>
     `<div class="on-heading"><span class="on-kicker">${eyebrow}</span><h1>${title}</h1><p>${subtitle}</p></div>`;
   const field = (label, name, value, placeholder, other = "") =>
@@ -118,7 +118,7 @@
     "Вход в пространство",
     () =>
       frame(
-        `${heading("02 / ВХОД В ПРОСТРАНСТВО", "С возвращением.", "Ваша команда уже здесь.")}<div class="on-server-pill"><span>${I("Server")} ${e(new URL(S().server).hostname)}</span><button data-go="connect">Изменить</button></div><form id="on-login-form" class="on-form" novalidate>${field("Электронная почта", "email", "anna@example.org", "you@company.ru", 'type="email" autocomplete="off" required')}${field("Пароль", "password", "", "Введите demo", 'type="password" autocomplete="off" required')}<p class="on-field-hint">Для просмотра макета введите пароль <strong>demo</strong>.</p>${error}<button type="submit" class="button primary on-full">Войти в MeetSpace ${I("ArrowRight")}</button></form><button class="on-text-link" data-toast="Восстановление доступа показано как сценарий. Обратитесь к администратору вашего сервера.">Не получается войти?</button>${demo("Вход демонстрационный. Данные не отправляются и не сохраняются.")}`,
+        `${heading("02 / ВХОД В ПРОСТРАНСТВО", "С возвращением.", "Ваша команда уже здесь.")}<div class="on-server-pill"><span>${I("Server")} ${e(new URL(S().server).hostname)}</span><button data-go="connect">Изменить</button></div><form id="on-login-form" class="on-form" novalidate>${field("Электронная почта", "email", "anna@example.org", "you@company.ru", 'type="email" autocomplete="off" required')}${field("Пароль", "password", "", "Введите demo", 'type="password" autocomplete="off" required')}<p class="on-field-hint">Для просмотра макета введите пароль <strong>demo</strong>.</p>${error}<button type="submit" class="button primary on-full">Войти в MeetSpace ${I("ArrowRight")}</button></form><button class="on-text-link" data-toast="Восстановление доступа показано как сценарий. Обратитесь к администратору вашего сервера.">Не получается войти?</button><div class="on-account-switch"><span>Нет аккаунта?</span><button data-go="register">Создать аккаунт</button></div>${demo("Вход демонстрационный. Данные не отправляются и не сохраняются.")}`,
         { back: "connect" },
       ),
     () => {
@@ -136,6 +136,61 @@
         form.elements.password.value = "";
         M.toast("Демонстрационное пространство открыто");
         M.go("meetings");
+      });
+    },
+  );
+
+  register(
+    "register",
+    "Создание аккаунта",
+    () => frame(
+      `${heading("АККАУНТ MEETSPACE", "Создайте аккаунт.", "Для встреч и общения с вашей командой.")}
+      <div class="on-server-pill"><span>${I("Server")} ${e(new URL(S().server).hostname)}</span><button data-go="connect">Изменить</button></div>
+      <form id="on-register-form" class="on-form on-form-compact" novalidate>
+        ${field("Имя для встреч", "name", "", "Как вас зовут", 'autocomplete="off" maxlength="100" required aria-describedby="on-register-error"')}
+        ${field("Электронная почта", "email", "", "you@company.ru", 'type="email" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="254" required aria-describedby="on-register-error"')}
+        ${[ ["password", "Пароль", "Минимум 8 символов"], ["confirm", "Повторите пароль", "Ещё раз введите пароль"] ].map(([name, label, placeholder]) => `<div class="field on-field"><span><label for="on-register-${name}">${label}</label></span><div class="on-password-field"><input id="on-register-${name}" name="${name}" type="password" placeholder="${placeholder}" autocomplete="off" required aria-describedby="${name === "password" ? "on-password-hint " : ""}on-register-error"><button type="button" data-password-toggle="${name}" aria-controls="on-register-${name}" aria-label="${name === "password" ? "Показать пароль" : "Показать повтор пароля"}" aria-pressed="false">${I("Eye")}</button></div>${name === "password" ? '<small id="on-password-hint" class="on-password-hint">От 8 до 128 символов.</small>' : ""}</div>`).join("")}
+        <div id="on-register-error" class="on-form-error" role="alert" hidden></div>
+        <button type="submit" class="button primary on-full">Создать аккаунт ${I("ArrowRight")}</button>
+      </form>
+      <div class="on-account-switch"><span>Уже есть аккаунт?</span><button data-go="login">Войти</button></div>
+      ${demo("Регистрация демонстрационная. Данные не отправляются и не сохраняются.")}`,
+      { back: "login", backLabel: "Ко входу", account: true },
+    ),
+    () => {
+      const form = document.getElementById("on-register-form");
+      const fail = (name, message) => {
+        showError(form, message);
+        form.elements[name].setAttribute("aria-invalid", "true");
+        form.elements[name].focus();
+      };
+      form.addEventListener("input", (evt) => {
+        evt.target.removeAttribute("aria-invalid");
+        form.querySelector(".on-form-error").hidden = true;
+      });
+      form.querySelectorAll("[data-password-toggle]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const input = form.elements[button.dataset.passwordToggle];
+          const show = input.type === "password";
+          input.type = show ? "text" : "password";
+          button.setAttribute("aria-pressed", String(show));
+          button.setAttribute("aria-label", `${show ? "Скрыть" : "Показать"} ${input.name === "password" ? "пароль" : "повтор пароля"}`);
+          button.innerHTML = I(show ? "EyeOff" : "Eye");
+        });
+      });
+      form.addEventListener("submit", (evt) => {
+        evt.preventDefault();
+        form.querySelectorAll("[aria-invalid]").forEach((input) => input.removeAttribute("aria-invalid"));
+        const name = form.elements.name.value.trim();
+        if (!name || Array.from(name).length > 100) return fail("name", "Введите имя от 1 до 100 символов.");
+        form.elements.email.value = form.elements.email.value.trim();
+        if (!form.elements.email.validity.valid || new TextEncoder().encode(form.elements.email.value).length > 254) return fail("email", "Проверьте адрес электронной почты.");
+        const password = form.elements.password.value;
+        if (Array.from(password).length < 8 || Array.from(password).length > 128) return fail("password", "Пароль должен содержать от 8 до 128 символов.");
+        if (form.elements.confirm.value !== password) return fail("confirm", "Пароли не совпадают. Повторите пароль.");
+        form.reset();
+        M.go("meetings");
+        M.toast("Демо: аккаунт создан. Добро пожаловать в MeetSpace!");
       });
     },
   );
@@ -319,7 +374,7 @@
 
   register("complete", "Пространство готово", () =>
     frame(
-      `${progress(5)}<div class="on-complete-art" aria-hidden="true"><div class="on-complete-orbit"></div><span>${I("Check")}</span><i></i><b>✦</b></div>${heading("ГОТОВО К ОБЩЕНИЮ", "Ваше пространство<br><span>готово.</span>", "Так выглядит успешное завершение установки. Дальше — вход в MeetSpace.")}<div class="on-result-address"><span class="on-small-label">АДРЕС ВАШЕГО ПРОСТРАНСТВА</span><strong>${e(S().domain)}</strong><span>${I("CircleCheck")} HTTPS · пример результата</span></div><button class="button primary on-full" data-go="login">Перейти в MeetSpace ${I("ArrowRight")}</button><button class="on-text-link" data-go="welcome">На первый экран</button>${demo("Сервер не развёрнут. Это финальный экран сценария установки.")}`,
+      `${progress(5)}<div class="on-complete-art" aria-hidden="true"><div class="on-complete-orbit"></div><span>${I("Check")}</span><i></i><b>✦</b></div>${heading("ГОТОВО К ОБЩЕНИЮ", "Ваше пространство<br><span>готово.</span>", "Создайте аккаунт, чтобы начать встречи и общение с командой.")}<div class="on-result-address"><span class="on-small-label">АДРЕС ВАШЕГО ПРОСТРАНСТВА</span><strong>${e(S().domain)}</strong><span>${I("CircleCheck")} HTTPS · пример результата</span></div><button class="button primary on-full" data-go="register">Создать аккаунт ${I("ArrowRight")}</button><div class="on-account-switch"><span>Уже есть аккаунт?</span><button data-go="login">Войти</button></div><button class="on-text-link" data-go="welcome">На первый экран</button>${demo("Сервер не развёрнут. Это финальный экран сценария установки.")}`,
       { install: true },
     ),
   );

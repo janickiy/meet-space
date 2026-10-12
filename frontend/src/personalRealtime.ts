@@ -12,6 +12,7 @@ import { invalidateFolders, purgeFolder, purgeFolderTarget } from "./folders";
 import {
   directConversationHistoryCutoff,
   observeDirectConversationNotifications,
+  purgePersonalConversationSearch,
   rememberDirectConversationHistoryCutoff,
   resetDirectConversationHistory,
   updateDirectConversation,
@@ -29,6 +30,7 @@ export function revokePersonalConversation(
   id: string,
   userId: string,
 ) {
+  purgePersonalConversationSearch(client, id, userId);
   void client.cancelQueries({ queryKey: ["personal-list", userId] });
   void client.cancelQueries({ queryKey: ["personal-summary", userId] });
   const cached = client.getQueriesData<InfiniteData<PersonalPage>>({
@@ -270,6 +272,11 @@ export function usePersonalRealtime(userId?: string) {
           });
           void client.invalidateQueries({ queryKey: ["personal-chat"] });
           void client.invalidateQueries({ queryKey: ["personal-chat-read"] });
+          // Reconnect can follow missed deletion or membership events; discard stale snippets first.
+          void client.resetQueries({
+            queryKey: ["personal-chat-search"],
+            predicate: (query) => query.queryKey[2] === userId,
+          });
         };
         socket.onmessage = ({ data }) => {
           if (controller.signal.aborted) return;
@@ -369,6 +376,8 @@ export function usePersonalRealtime(userId?: string) {
             setNotice((current) => (current?.id === id ? null : current));
             if (pathname.current === `/personal/${id}`)
               navigate("/personal", { replace: true });
+            refresh();
+            return;
           }
           refresh();
           if (event.type.startsWith("conversation.member."))
@@ -377,6 +386,15 @@ export function usePersonalRealtime(userId?: string) {
           void client.invalidateQueries({
             queryKey: ["personal-chat-read", id],
           });
+          if (["message.updated", "message.deleted"].includes(event.type))
+            // Invalidation retains old data on a failed refetch; reset removes edited/deleted text immediately.
+            void client.resetQueries({
+              queryKey: ["personal-chat-search", id, userId],
+            });
+          else if (event.type === "message.created")
+            void client.invalidateQueries({
+              queryKey: ["personal-chat-search", id, userId],
+            });
           if (
             event.type === "message.created" &&
             m &&
