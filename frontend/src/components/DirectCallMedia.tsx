@@ -19,6 +19,7 @@ import { useMedia } from "../useMedia";
 import {
   readDevicePreferences,
   subscribeDevicePreferences,
+  type DevicePreferences,
 } from "../prejoinDevices";
 import { useSpeakingParticipants } from "../useSpeakingParticipants";
 import { meetingShortcut } from "../conferenceShortcuts";
@@ -35,12 +36,17 @@ export function DirectCallMedia({
   call,
   userId,
   clientId,
+  initialDevices,
   onEnd,
   pending,
 }: {
   call: DirectCall;
   userId: string;
   clientId: string;
+  initialDevices: Pick<
+    DevicePreferences,
+    "microphoneEnabled" | "cameraEnabled"
+  >;
   onEnd: () => void;
   pending: boolean;
 }) {
@@ -55,10 +61,7 @@ export function DirectCallMedia({
   const [now, setNow] = useState(Date.now);
   const started = useRef("");
   const body = useRef<HTMLDivElement>(null);
-  const desired = useRef({
-    microphoneEnabled: preferences.microphoneEnabled,
-    cameraEnabled: false,
-  });
+  const desired = useRef({ ...initialDevices });
   const peer = call.caller.id === userId ? call.callee : call.caller;
   const self = call.caller.id === userId ? call.caller : call.callee;
   useEffect(() => subscribeDevicePreferences(userId, setPreferences), [userId]);

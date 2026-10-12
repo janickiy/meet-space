@@ -557,3 +557,10 @@
     transition: none;
   }
 }
+
+.direct-call-preview-note {
+  margin: 12px 0 0;
+  color: var(--room-muted);
+  font-size: 13px;
+  text-align: center;
+}

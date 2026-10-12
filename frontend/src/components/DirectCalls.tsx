@@ -3,17 +3,22 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router";
-import { Phone, PhoneOff, X } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff, X } from "lucide-react";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import type { DirectCall } from "../types";
-import { readDevicePreferences } from "../prejoinDevices";
+import {
+  readDevicePreferences,
+  type DevicePreferences,
+} from "../prejoinDevices";
+import { useCallPreview } from "../useCallPreview";
 import { initials } from "../utils";
 import { DirectCallMedia } from "./DirectCallMedia";
 import { MediaTile } from "./RealtimePanel";
@@ -133,6 +138,9 @@ export function DirectCallsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     apply(detail.data?.item || null);
   }, [detail.data, apply]);
+  useEffect(() => {
+    setMediaStopped(false);
+  }, [call?.id]);
   useEffect(() => {
     setCall(null);
     setPending(false);
@@ -277,7 +285,7 @@ export function DirectCallsProvider({ children }: { children: ReactNode }) {
     const expected = userId;
     setPending(true);
     setError(null);
-    if (kind === "end" || kind === "cancel") setMediaStopped(true);
+    if (kind !== "accept") setMediaStopped(true);
     try {
       const result = await api.directCallAction(
         call.id,
@@ -352,33 +360,78 @@ export function DirectCallsProvider({ children }: { children: ReactNode }) {
           returnFocus={() => trigger.current}
         >
           {error && <ErrorNotice>{error.message}</ErrorNotice>}
-          {call.status === "accepted" &&
-          owned &&
-          !mediaStopped &&
-          call.conferenceId &&
-          intent.current.has(call.id) ? (
-            <DirectCallMedia
-              key={call.id}
-              call={call}
-              userId={userId}
-              clientId={clientId}
-              onEnd={() => void action("end")}
-              pending={pending}
-            />
-          ) : (
-            <CallRinging
-              call={call}
-              userId={userId}
-              incoming={incoming}
-              owned={owned}
-              pending={pending}
-              onAccept={() => void action("accept")}
-              onEnd={close}
-            />
-          )}
+          <CallSession
+            key={`${userId}:${call.id}`}
+            call={call}
+            userId={userId}
+            incoming={incoming}
+            owned={owned}
+            pending={pending}
+            mediaStopped={mediaStopped}
+            mediaAllowed={intent.current.has(call.id)}
+            previewBlocked={conferencePage}
+            onAccept={() => void action("accept")}
+            onEnd={close}
+          />
         </Modal>
       )}
     </DirectCallsContext.Provider>
+  );
+}
+
+type CallDevices = Pick<
+  DevicePreferences,
+  "microphoneEnabled" | "cameraEnabled"
+>;
+
+// Keep the pre-answer selection across the transition from local preview to the room.
+function CallSession(props: {
+  call: DirectCall;
+  userId: string;
+  incoming: boolean;
+  owned: boolean;
+  pending: boolean;
+  mediaStopped: boolean;
+  mediaAllowed: boolean;
+  previewBlocked: boolean;
+  onAccept: () => void;
+  onEnd: () => void;
+}) {
+  const [devices, setDevices] = useState<CallDevices>(() => ({
+    microphoneEnabled: readDevicePreferences(props.userId).microphoneEnabled,
+    cameraEnabled: false,
+  }));
+  const setMicrophone = useCallback((enabled: boolean) => {
+    setDevices((old) => ({ ...old, microphoneEnabled: enabled }));
+  }, []);
+  const setCamera = useCallback((enabled: boolean) => {
+    setDevices((old) => ({ ...old, cameraEnabled: enabled }));
+  }, []);
+  if (
+    props.call.status === "accepted" &&
+    props.owned &&
+    !props.mediaStopped &&
+    props.call.conferenceId &&
+    props.mediaAllowed
+  ) {
+    return (
+      <DirectCallMedia
+        call={props.call}
+        userId={props.userId}
+        clientId={clientId}
+        initialDevices={devices}
+        onEnd={props.onEnd}
+        pending={props.pending}
+      />
+    );
+  }
+  return (
+    <CallRinging
+      {...props}
+      devices={devices}
+      setMicrophone={setMicrophone}
+      setCamera={setCamera}
+    />
   );
 }
 
@@ -388,6 +441,11 @@ function CallRinging({
   incoming,
   owned,
   pending,
+  mediaStopped,
+  previewBlocked,
+  devices,
+  setMicrophone,
+  setCamera,
   onAccept,
   onEnd,
 }: {
@@ -396,11 +454,47 @@ function CallRinging({
   incoming: boolean;
   owned: boolean;
   pending: boolean;
+  mediaStopped: boolean;
+  previewBlocked: boolean;
+  devices: CallDevices;
+  setMicrophone: (enabled: boolean) => void;
+  setCamera: (enabled: boolean) => void;
   onAccept: () => void;
   onEnd: () => void;
 }) {
   const peer = incoming ? call.caller : call.callee;
   const self = incoming ? call.callee : call.caller;
+  const [preferences] = useState(() => readDevicePreferences(userId));
+  // Incoming rings never capture devices until the recipient interacts or answers.
+  const [microphoneArmed, setMicrophoneArmed] = useState(!incoming && owned);
+  const previewEnabled =
+    call.status === "ringing" && !mediaStopped && !previewBlocked;
+  const microphoneUnavailable = useCallback(
+    () => setMicrophone(false),
+    [setMicrophone],
+  );
+  const cameraUnavailable = useCallback(() => setCamera(false), [setCamera]);
+  const microphone = useCallPreview(
+    "audio",
+    previewEnabled && microphoneArmed && devices.microphoneEnabled,
+    preferences.audioInputId,
+    preferences.noiseSuppression,
+    microphoneUnavailable,
+  );
+  const camera = useCallPreview(
+    "video",
+    previewEnabled && devices.cameraEnabled,
+    preferences.videoInputId,
+    false,
+    cameraUnavailable,
+  );
+  const preview = useMemo(() => {
+    const tracks = [
+      ...(microphone.stream?.getTracks() || []),
+      ...(camera.stream?.getTracks() || []),
+    ];
+    return tracks.length ? new MediaStream(tracks) : undefined;
+  }, [microphone.stream, camera.stream]);
   const player = useRef<HTMLAudioElement | null>(null);
   const [soundBlocked, setSoundBlocked] = useState(false);
   useEffect(() => {
@@ -468,7 +562,13 @@ function CallRinging({
         <div className="direct-call-stage">
           {call.status === "ringing" && (
             <div className="direct-call-self">
-              <MediaTile name={self.displayName} local video={false} />
+              <MediaTile
+                name={self.displayName}
+                local
+                stream={preview}
+                video={!!camera.stream}
+                microphoneEnabled={!!microphone.stream}
+              />
             </div>
           )}
           <div className="direct-call-person">
@@ -499,7 +599,62 @@ function CallRinging({
           </div>
         </div>
       </div>
+      {call.status === "ringing" && (
+        <>
+          <p className="direct-call-preview-note">
+            {incoming
+              ? "Выберите устройства перед ответом."
+              : "Собеседник услышит и увидит вас после ответа."}
+          </p>
+          {(microphone.error || camera.error) && (
+            <ErrorNotice>{microphone.error || camera.error}</ErrorNotice>
+          )}
+        </>
+      )}
       <div className="direct-call-controls">
+        {call.status === "ringing" && (
+          <>
+            <button
+              type="button"
+              className="direct-call-control"
+              aria-label={
+                devices.microphoneEnabled
+                  ? "Выключить микрофон"
+                  : "Включить микрофон"
+              }
+              title={
+                devices.microphoneEnabled
+                  ? "Выключить микрофон"
+                  : "Включить микрофон"
+              }
+              aria-pressed={devices.microphoneEnabled}
+              aria-busy={microphone.loading}
+              disabled={pending || mediaStopped || previewBlocked}
+              onClick={() => {
+                setMicrophoneArmed(true);
+                setMicrophone(!devices.microphoneEnabled);
+              }}
+            >
+              {devices.microphoneEnabled ? <Mic /> : <MicOff />}
+            </button>
+            <button
+              type="button"
+              className="direct-call-control"
+              aria-label={
+                devices.cameraEnabled ? "Выключить камеру" : "Включить камеру"
+              }
+              title={
+                devices.cameraEnabled ? "Выключить камеру" : "Включить камеру"
+              }
+              aria-pressed={devices.cameraEnabled}
+              aria-busy={camera.loading}
+              disabled={pending || mediaStopped || previewBlocked}
+              onClick={() => setCamera(!devices.cameraEnabled)}
+            >
+              {devices.cameraEnabled ? <Video /> : <VideoOff />}
+            </button>
+          </>
+        )}
         {call.status === "ringing" && incoming && (
           <Button
             className="direct-call-accept"
