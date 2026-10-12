@@ -7,8 +7,7 @@
   const avatars = () =>
     `<div class="avatars">${avatar("АК", "", "sm")}${avatar("МП", "mint", "sm")}${avatar("ДВ", "orange", "sm")}${avatar("+2", "blue", "sm")}</div>`;
   const navItems = [
-    ["home", "Home", "Главная"],
-    ["calls", "Video", "Звонки"],
+    ["meetings", "Video", "Встречи"],
     ["messages", "MessagesSquare", "Чаты"],
     ["settings", "UserRound", "Профиль"],
   ];
@@ -17,32 +16,36 @@
       ? "messages"
       : active === "settings"
         ? "settings"
-        : active === "home"
-          ? "home"
-          : "calls";
+        : "meetings";
     return navItems
       .map(
         ([id, icon, label]) =>
-          `<button class="nav-item ${selected === id ? "active" : ""}" data-go="${id}" aria-label="${label}" ${selected === id ? 'aria-current="page"' : ""}>${id === "settings" ? '<span class="nav-profile-avatar" aria-hidden="true">АС<i></i></span>' : I(icon)}<span>${label}</span>${id === "messages" ? '<i class="nav-unread"></i>' : ""}</button>`,
+          `<button class="nav-item ${selected === id ? "active" : ""}" data-go="${id}" aria-label="${label}" ${selected === id ? 'aria-current="page"' : ""}>${id === "settings" ? `<span class="nav-profile-avatar" aria-hidden="true">${E(M.profileInitials?.() || "АС")}<i></i></span>` : I(icon)}<span>${label}</span>${id === "messages" ? '<i class="nav-unread"></i>' : ""}</button>`,
       )
       .join("");
   };
   const status = () =>
     `<div class="statusbar"><span>9:41</span><div class="status-indicators">${I("Signal")}${I("Wifi")}<span class="battery" aria-label="Заряд батареи"></span></div></div>`;
-  const shell = (content, active = "home", extra = "") => {
+  const shell = (content, active = "meetings", extra = "") => {
     const screen = M.state.screen;
     const title =
       {
-        home: "Главная",
-        calls: "Звонки",
+        meetings: "Встречи",
         messages: "Чаты",
         thread: "Чаты",
-        settings: "Профиль",
+        settings: "Настройки аккаунта",
       }[screen] ||
       M.screens[screen]?.title ||
       "MeetSpace";
-    const search = ["calls", "messages"].includes(screen);
-    return `<div class="shell tm-shell screen-${screen} ${screen === "thread" ? "thread-shell" : ""}">${status()}<div class="app-layout"><div class="app-main"><header class="app-header"><div class="tm-heading"><img src="assets/brand-mark.svg" class="tm-desktop-brand" alt="MeetSpace"/><h1>${E(title)}</h1></div><div class="header-actions">${search ? `<button class="icon-button" data-action="screenSearch" aria-label="${screen === "calls" ? "Поиск звонков" : "Поиск чатов"}" aria-expanded="${Boolean(M.state.searchOpen?.[screen])}">${I("Search")}</button>` : screen === "home" ? `<button class="icon-button" data-action="notifications" aria-label="Уведомления">${I("Bell")}</button>` : `<button class="icon-button" data-go="${active === "settings" ? "settings" : "calls"}" aria-label="Назад к ${active === "settings" ? "профилю" : "звонкам"}">${I("ArrowLeft")}</button>`}</div></header><div class="tm-screen-stage"><main class="content ${extra}">${content}</main>${search ? `<button class="tm-fab ${screen === "messages" ? "chat-fab" : ""}" data-action="${screen === "calls" ? "newMeeting" : "newChat"}" aria-label="${screen === "calls" ? "Новый звонок" : "Новый чат"}">${I("Plus")}</button>` : ""}</div><nav class="bottom-nav" aria-label="Главная навигация">${nav(active)}</nav></div></div></div>`;
+    const search = screen === "messages";
+    const headerAction = search
+      ? `<button class="icon-button" data-action="screenSearch" aria-label="Поиск чатов" aria-expanded="${Boolean(M.state.searchOpen?.messages)}">${I("Search")}</button>`
+      : screen === "meetings"
+        ? `<button class="icon-button" data-go="calendar" aria-label="Открыть календарь">${I("CalendarDays")}</button><button class="icon-button" data-go="recordings" aria-label="Записи встреч">${I("CirclePlay")}</button>`
+        : screen === "settings"
+          ? ""
+          : `<button class="icon-button" data-go="meetings" aria-label="Назад к встречам">${I("ArrowLeft")}</button>`;
+    return `<div class="shell tm-shell screen-${screen} ${screen === "thread" ? "thread-shell" : ""}">${status()}<div class="app-layout"><div class="app-main"><header class="app-header"><div class="tm-heading"><img src="assets/brand-mark.svg" class="tm-desktop-brand" alt="MeetSpace"/><h1>${E(title)}</h1></div><div class="header-actions">${headerAction}</div></header><div class="tm-screen-stage"><main class="content ${extra}">${content}</main>${search ? `<button class="tm-fab chat-fab" data-action="newChat" aria-label="Новый чат">${I("Plus")}<span>Новый чат</span></button>` : ""}</div><nav class="bottom-nav" aria-label="Основная навигация">${nav(active)}</nav></div></div></div>`;
   };
   M.shell = shell;
   const serverAddress = () =>
@@ -163,167 +166,6 @@
       : "";
   const meetingRow = (m) =>
     `<button class="agenda-row" data-action="meeting" data-title="${E(m.title)}" data-time="${m.time}" data-date="${m.date || "2026-10-12"}"><span class="agenda-time">${m.time}<small>${m.end}</small></span><span class="agenda-mark ${m.tone}"></span><span class="agenda-detail"><h3>${E(m.title)}</h3><p>${m.meta}</p></span>${I("ChevronRight")}</button>`;
-  const homeConversation = (c) =>
-    `<button class="home-chat-row" data-action="chat" data-chat="${c.id}" data-kind="${c.kind}" data-search="${E(c.name.toLocaleLowerCase("ru"))}" data-personal="${c.kind === "direct"}" data-unread="${Boolean(c.unread)}">${chatAvatar(c)}<span class="home-chat-copy"><strong>${E(c.name)}</strong>${groupMeta(c)}<span>${E(c.preview)}</span></span><span class="home-chat-meta"><time>${c.time}</time>${c.unread ? `<span class="unread">${c.unread}</span>` : I("CheckCheck")}</span></button>`;
-  const homeAction = (action, icon, title, note) =>
-    `<button class="home-action-card" data-action="${action}"><span class="home-action-icon">${I(icon)}</span><span class="home-action-title">${title}</span><span class="home-action-note">${note}</span>${I("ArrowUpRight")}</button>`;
-  M.screens.home = {
-    title: "Главная",
-    group: "Рабочее пространство",
-    render: () =>
-      shell(
-        `
-      <div class="home-workspace">
-        <aside class="home-chats" aria-label="Недавние чаты">
-          <div class="home-chat-profile"><button class="home-person" data-go="settings" aria-label="Профиль Александра"><span class="home-online-avatar">${avatar("АС")}<i></i></span><span><strong>Александр</strong><small>В сети</small></span></button><button class="icon-button home-compose" data-action="newChat" aria-label="Новый чат">${I("Plus")}</button></div>
-          <div class="home-chat-heading"><h2>Ваши чаты</h2><span>${contacts.length}</span></div>
-          <label class="search-box home-chat-search">${I("Search")}<input id="home-chat-search" type="search" placeholder="Найти человека или чат" aria-label="Найти человека или чат" value="${E(M.state.homeQuery || "")}"/></label>
-          <div class="home-chat-filters" role="group" aria-label="Фильтры чатов">${[
-            ["all", "Все"],
-            ["personal", "Личные"],
-            ["unread", "Новые"],
-          ]
-            .map(
-              ([id, label]) =>
-                `<button data-home-filter="${id}" aria-pressed="${(M.state.homeFilter || "all") === id}">${label}${id === "unread" ? `<span>${contacts.filter((c) => c.unread).length}</span>` : ""}</button>`,
-            )
-            .join("")}</div>
-          <div class="home-chat-list">${contacts.map(homeConversation).join("")}<p class="home-chat-empty" id="home-chat-empty" hidden>Чаты не найдены.<br/>Попробуйте другое имя.</p></div>
-          <button class="home-chat-folder" data-action="folders">${I("Folder")}<span>Папки команды</span>${I("ChevronRight")}</button>
-        </aside>
-        <section class="home-start" aria-labelledby="home-title">
-          <div class="home-start-inner">
-            <div class="home-welcome"><div class="home-brand-name">Meet<span>Space</span></div><h1 id="home-title">Чаты и видеовстречи</h1><p>Будьте рядом, где бы вы ни находились.</p></div>
-            <div class="home-action-grid">
-              ${homeAction("newMeeting", "Video", "Новый звонок", "Начните разговор сейчас")}
-              ${homeAction("newChat", "MessageCircle", "Новый чат", "Напишите коллеге или команде")}
-              ${homeAction("join", "Link", "Подключиться<br/> к звонку", "По ссылке-приглашению")}
-              ${homeAction("schedule", "CalendarDays", "Запланировать<br/> встречу", "Выберите удобное время")}
-            </div>
-            <article class="home-invite"><div class="home-invite-art" aria-hidden="true"><span class="invite-person back">${I("UserRound")}</span><span class="invite-person front">${I("UserRound")}</span><span class="invite-plus">${I("Plus")}</span></div><div class="home-invite-copy"><h2>Встречаться проще вместе</h2><p>Пригласите коллег в MeetSpace по ссылке.</p><button class="button primary" data-action="copyHomeInvite">${I("Copy")}Скопировать ссылку</button></div></article>
-          </div>
-          <footer class="home-start-footer"><span>${I("ShieldCheck")} Пространство вашей команды</span><button data-go="calendar">Календарь ${I("ArrowUpRight")}</button></footer>
-        </section>
-      </div>`,
-        "home",
-        "flush home-content",
-      ),
-    bind: () => {
-      const filterChats = () => {
-        const query = (M.state.homeQuery || "").trim().toLocaleLowerCase("ru");
-        const filter = M.state.homeFilter || "all";
-        let count = 0;
-        document.querySelectorAll(".home-chat-row").forEach((row) => {
-          const visible =
-            row.dataset.search.includes(query) &&
-            (filter === "all" ||
-              (filter === "personal"
-                ? row.dataset.personal === "true"
-                : row.dataset.unread === "true"));
-          row.hidden = !visible;
-          if (visible) count++;
-        });
-        document.getElementById("home-chat-empty").hidden = count > 0;
-      };
-      document
-        .getElementById("home-chat-search")
-        .addEventListener("input", (e) => {
-          M.state.homeQuery = e.target.value;
-          filterChats();
-        });
-      document.querySelectorAll("[data-home-filter]").forEach(
-        (button) =>
-          (button.onclick = () => {
-            M.state.homeFilter = button.dataset.homeFilter;
-            document
-              .querySelectorAll("[data-home-filter]")
-              .forEach((item) =>
-                item.setAttribute("aria-pressed", String(item === button)),
-              );
-            filterChats();
-          }),
-      );
-      filterChats();
-    },
-  };
-  const callHistory = [
-    {
-      id: "review",
-      date: "9 октября",
-      title: "Продукт. Следующая глава",
-      duration: "45 мин",
-      time: "14:00",
-      tone: "blue",
-      record: 0,
-    },
-    {
-      id: "demo",
-      date: "8 октября",
-      title: "Демо новой версии",
-      duration: "1 ч",
-      time: "11:00",
-      tone: "mint",
-      record: 3,
-    },
-    {
-      id: "anna",
-      date: "8 октября",
-      title: "Анна Кузнецова",
-      duration: "12 мин",
-      time: "09:30",
-      tone: "orange",
-    },
-    {
-      id: "planning",
-      date: "7 октября",
-      title: "Планы команды",
-      duration: "32 мин",
-      time: "16:00",
-      tone: "",
-    },
-    {
-      id: "design",
-      date: "6 октября",
-      title: "Обсуждение дизайна",
-      duration: "25 мин",
-      time: "13:15",
-      tone: "blue",
-    },
-  ];
-  const callResults = () => {
-    const rows = callHistory.filter((c) =>
-      c.title
-        .toLocaleLowerCase("ru")
-        .includes((M.state.callQuery || "").trim().toLocaleLowerCase("ru")),
-    );
-    let previous = "";
-    return (
-      rows
-        .map((c) => {
-          const heading =
-            previous !== c.date ? `<h2 class="call-date">${c.date}</h2>` : "";
-          previous = c.date;
-          return `${heading}<button class="call-history-row" data-action="historyCall" data-call="${c.id}">${avatar(I("Video"), c.tone)}<span class="call-history-copy"><strong>${E(c.title)}</strong><span>${I("ArrowUpRight")}${c.duration}</span></span><time>${c.time}</time></button>`;
-        })
-        .join("") ||
-      '<div class="tm-empty">Звонки не найдены.<br/>Попробуйте другое название.</div>'
-    );
-  };
-  M.screens.calls = {
-    title: "Звонки",
-    group: "Рабочее пространство",
-    render: () =>
-      shell(
-        `<div class="calls-layout"><section class="calls-start" aria-label="Начать звонок"><div class="call-actions"><button class="call-action call-action-main" data-action="newMeeting">${I("Video")}<span>Новый звонок</span></button><button class="call-action" data-action="join">${I("UserRound")}<span>Подключиться</span></button><button class="call-action" data-action="schedule">${I("CalendarDays")}<span>Запланировать</span></button></div><div class="call-shortcuts"><button data-go="calendar">${I("CalendarDays")}Календарь${I("ChevronRight")}</button><button data-go="recordings">${I("CirclePlay")}Записи${I("ChevronRight")}</button></div>${M.state.created ? `<button class="call-upcoming" data-go="calendar">${I("CalendarDays")}<span><small>Запланировано · ${E(M.state.created.date)} · ${E(M.state.created.time)}</small><strong>${E(M.state.created.title)}</strong></span>${I("ChevronRight")}</button>` : ""}<div class="calls-tablet-note"><img src="assets/brand-mark.svg" alt=""/><h2>Разговор начинается здесь</h2><p>Созвонитесь с командой сейчас<br/>или выберите удобное время.</p><button class="button secondary" data-action="copyHomeInvite">${I("Link")}Пригласить по ссылке</button></div></section><section class="call-history" aria-label="История звонков"><div class="call-history-heading"><h2>Недавние звонки</h2><span>${callHistory.length}</span></div><label class="search-box tm-search" ${M.state.searchOpen?.calls ? "" : "hidden"}>${I("Search")}<input id="call-search" type="search" aria-label="Найти звонок" placeholder="Найти звонок" value="${E(M.state.callQuery || "")}"/></label><div id="call-results">${callResults()}</div></section></div>`,
-        "calls",
-        "calls-content",
-      ),
-    bind: () =>
-      document.getElementById("call-search")?.addEventListener("input", (e) => {
-        M.state.callQuery = e.target.value;
-        document.getElementById("call-results").innerHTML = callResults();
-      }),
-  };
   const conversationList = () =>
     `<aside class="conversation-list"><div class="chat-filters" role="group" aria-label="Фильтры чатов">${[
       ["all", "Все"],
@@ -354,7 +196,7 @@
     const isGroup = c.kind === "group";
     const firstAuthor = isGroup ? member(c.members[1]) : c;
     const secondAuthor = isGroup ? member(c.members[2] || c.members[1]) : c;
-    return `<section class="thread"><header class="thread-header"><button class="icon-button phone-back" data-go="messages" aria-label="Назад к чатам">${I("ArrowLeft")}</button>${chatAvatar(c)}<div><h3>${E(c.name)}</h3><p>${isGroup ? `Группа · ${groupCount(c)}` : "В сети"}</p></div><span class="spacer"></span><button class="icon-button" data-action="chatCall" aria-label="Начать видеовстречу">${I("Video")}</button><button class="icon-button" data-action="chatInfo" aria-label="Информация о чате">${I("Ellipsis")}</button></header>${c.created ? "" : `<div class="thread-banner">${I("Pin")}<span>Встречаемся в 10:00 · Дизайн-синхронизация</span></div>`}<div class="thread-log" id="thread-log">${c.created ? `<div class="chat-date">Вы создали группу</div>${M.state.messages.some((message) => message.chat === c.id) ? "" : `<div class="group-welcome">${chatAvatar(c)}<h3>${E(c.name)}</h3><p>${groupCount(c)} · Всё готово к общению.<br/>Напишите первое сообщение.</p></div>`}` : `<div class="chat-date">Сегодня, 12 октября</div><div class="chat-message">${avatar(E(firstAuthor.initials), firstAuthor.tone)}<div><div class="bubble"><h4>${E(firstAuthor.name)}</h4>Доброе утро! Собрала материалы к встрече. Посмотрите, когда будет минутка.<div class="chat-file">${I("FileText")}<div><strong>Обзор продукта.pdf</strong><span>2,4 МБ · PDF</span></div><button class="icon-button" data-action="attachment" aria-label="Открыть файл">${I("ArrowDown")}</button></div><small>09:32</small></div><button class="chat-reaction" data-action="reaction" aria-label="Отметить сообщение полезным">${I("Check")}<span>${M.state.reacted ? "3" : "2"}</span></button></div></div><div class="chat-message mine"><div class="bubble">Спасибо! Посмотрю перед созвоном. Есть пара идей по навигации.<small>09:34 · ✓✓</small></div></div><div class="chat-message">${avatar(E(secondAuthor.initials), secondAuthor.tone)}<div class="bubble"><h4>${E(secondAuthor.name)}</h4>Отлично, давайте начнём с них. До встречи!<small>09:38</small></div></div>`}${M.state.messages
+    return `<section class="thread"><header class="thread-header"><button class="icon-button phone-back" data-go="messages" aria-label="Назад к чатам">${I("ArrowLeft")}</button>${chatAvatar(c)}<div><h3>${E(c.name)}</h3><p>${isGroup ? `Группа · ${groupCount(c)}` : "В сети"}</p></div><span class="spacer"></span><button class="icon-button" data-action="chatInfo" aria-label="Информация о чате">${I("Ellipsis")}</button></header>${c.created ? "" : `<div class="thread-banner">${I("Pin")}<span>Встречаемся в 10:00 · Дизайн-синхронизация</span></div>`}<div class="thread-log" id="thread-log">${c.created ? `<div class="chat-date">Вы создали группу</div>${M.state.messages.some((message) => message.chat === c.id) ? "" : `<div class="group-welcome">${chatAvatar(c)}<h3>${E(c.name)}</h3><p>${groupCount(c)} · Всё готово к общению.<br/>Напишите первое сообщение.</p></div>`}` : `<div class="chat-date">Сегодня, 12 октября</div><div class="chat-message">${avatar(E(firstAuthor.initials), firstAuthor.tone)}<div><div class="bubble"><h4>${E(firstAuthor.name)}</h4>Доброе утро! Собрала материалы к встрече. Посмотрите, когда будет минутка.<div class="chat-file">${I("FileText")}<div><strong>Обзор продукта.pdf</strong><span>2,4 МБ · PDF</span></div><button class="icon-button" data-action="attachment" aria-label="Открыть файл">${I("ArrowDown")}</button></div><small>09:32</small></div><button class="chat-reaction" data-action="reaction" aria-label="Отметить сообщение полезным">${I("Check")}<span>${M.state.reacted ? "3" : "2"}</span></button></div></div><div class="chat-message mine"><div class="bubble">Спасибо! Посмотрю перед созвоном. Есть пара идей по навигации.<small>09:34 · ✓✓</small></div></div><div class="chat-message">${avatar(E(secondAuthor.initials), secondAuthor.tone)}<div class="bubble"><h4>${E(secondAuthor.name)}</h4>Отлично, давайте начнём с них. До встречи!<small>09:38</small></div></div>`}${M.state.messages
       .filter((m) => m.chat === c.id)
       .map(
         (m) =>
@@ -362,7 +204,7 @@
       )
       .join(
         "",
-      )}</div><form class="composer" id="message-form"><button class="icon-button" type="button" data-action="attach" aria-label="Прикрепить файл">${I("Paperclip")}</button><input id="message-input" autocomplete="off" aria-label="Сообщение" placeholder="Написать сообщение…"/><button class="icon-button send-button" aria-label="Отправить сообщение">${I("ArrowUp")}</button></form></section>`;
+      )}</div><div class="thread-create-actions"><button class="button primary" type="button" data-action="newChat" aria-label="Новый чат">${I("Plus")}Новый чат</button></div><form class="composer" id="message-form"><button class="icon-button" type="button" data-action="attach" aria-label="Прикрепить файл">${I("Paperclip")}</button><input id="message-input" autocomplete="off" aria-label="Сообщение" placeholder="Написать сообщение…"/><button class="icon-button send-button" aria-label="Отправить сообщение">${I("ArrowUp")}</button></form></section>`;
   };
   const bindMessages = () => {
     document.querySelectorAll("[data-filter]").forEach(
@@ -607,8 +449,8 @@
     group: "Встреча",
     render: () =>
       shell(
-        `<div class="prejoin-layout"><div class="camera-preview">${avatar("АС", "blue")}<p>${M.state.camera ? "Предпросмотр камеры в макете" : "Камера выключена"}</p><div class="camera-controls"><button class="icon-button ${M.state.mic ? "" : "off"}" data-action="mic" aria-label="${M.state.mic ? "Выключить" : "Включить"} микрофон" aria-pressed="${M.state.mic}">${I(M.state.mic ? "Mic" : "MicOff")}</button><button class="icon-button ${M.state.camera ? "" : "off"}" data-action="camera" aria-label="${M.state.camera ? "Выключить" : "Включить"} камеру" aria-pressed="${M.state.camera}">${I(M.state.camera ? "Video" : "VideoOff")}</button></div></div><div class="prejoin-info"><span class="badge blue">${I("Video")} Ваша следующая встреча</span><h1>${E(M.state.meetingTitle || "Дизайн-синхронизация")}</h1><p>12 октября · 10:00 — 10:45<br/>Организатор: Анна Кузнецова</p><label class="field">Ваше имя<input id="participant-name" value="${E(M.state.participantName || "Александр Соколов")}" autocomplete="name"/></label><div class="device-line">${I("Mic")}Встроенный микрофон <span class="spacer"></span><button class="icon-button" data-action="devices" aria-label="Настроить устройства">${I("Settings")}</button></div><button class="button primary" data-action="enterCall">Присоединиться ${I("ArrowRight")}</button><button class="button quiet" data-go="calls">Вернуться к звонкам</button><p style="font-size:10px;text-align:center;margin-top:14px">Демоэкраны · камера и микрофон устройства не используются</p></div></div>`,
-        "calls",
+        `<div class="prejoin-layout"><div class="camera-preview">${avatar(E(M.profileInitials?.() || "АС"), "blue")}<p>${M.state.camera ? "Предпросмотр камеры в макете" : "Камера выключена"}</p><div class="camera-controls"><button class="icon-button ${M.state.mic ? "" : "off"}" data-action="mic" aria-label="${M.state.mic ? "Выключить" : "Включить"} микрофон" aria-pressed="${M.state.mic}">${I(M.state.mic ? "Mic" : "MicOff")}</button><button class="icon-button ${M.state.camera ? "" : "off"}" data-action="camera" aria-label="${M.state.camera ? "Выключить" : "Включить"} камеру" aria-pressed="${M.state.camera}">${I(M.state.camera ? "Video" : "VideoOff")}</button></div></div><div class="prejoin-info"><span class="badge blue">${I("Video")} Ваша следующая встреча</span><h1>${E(M.state.meetingTitle || "Дизайн-синхронизация")}</h1><p>${M.meetingSummary ? M.meetingSummary(M.state.meetingMeta) : "Проверьте звук и камеру перед встречей"}</p><label class="field">Ваше имя<input id="participant-name" value="${E(M.state.participantName || M.state.profileName || "Александр Соколов")}" autocomplete="name"/></label><div class="device-line">${I("Mic")}Встроенный микрофон <span class="spacer"></span><button class="icon-button" data-action="devices" aria-label="Настроить устройства">${I("Settings")}</button></div><button class="button primary" data-action="enterCall">Присоединиться ${I("ArrowRight")}</button><button class="button quiet" data-go="meetings">Вернуться к встречам</button><p style="font-size:10px;text-align:center;margin-top:14px">Демоэкраны · камера и микрофон устройства не используются</p></div></div>`,
+        "meetings",
       ),
   };
   const callControl = (label, icon, action, cls = "") =>
@@ -617,7 +459,7 @@
     title: "Видеовстреча",
     group: "Встреча",
     render: () =>
-      `<main class="call-screen">${status()}<header class="call-header"><div><h1>${E(M.state.meetingTitle || "Дизайн-синхронизация")}</h1><p>12:48 <span style="color:#60718c">/</span> 5 участников</p></div><span class="spacer"></span><span class="badge"><i class="record-dot"></i> Идёт запись</span><button class="icon-button" data-action="callInfo" aria-label="Информация о встрече">${I("Ellipsis")}</button></header><div class="call-body"><div class="call-stage"><section class="share-stage">${presentation()}<div class="sharing-label">${I("Monitor")} Анна Кузнецова демонстрирует экран</div></section><div class="participant-strip"><div class="participant speaking">${avatar("АК", "orange")}<span class="person-name">Анна Кузнецова</span>${I("AudioLines")}</div><div class="participant">${avatar("МП", "mint")}<span class="person-name">Мария Полякова</span>${I("MicOff")}</div><div class="participant">${avatar("ДВ")}<span class="person-name">Дмитрий Волков</span>${I("MicOff")}</div><div class="participant">${avatar("АС", "blue")}<span class="person-name">Вы${M.state.camera ? " · камера в демо" : ""}</span>${I(M.state.mic ? "Mic" : "MicOff")}</div></div></div><aside class="call-side" ${M.state.callChat ? "" : "hidden"}><div class="row"><h2>Чат встречи</h2><span class="spacer"></span><button class="icon-button" data-action="callChat" aria-label="Закрыть чат">${I("X")}</button></div><div class="chat-date">Сегодня</div><div class="chat-message"><div class="bubble"><h4>Мария Полякова</h4>Хорошо видно, можем начинать!<small>10:02</small></div></div><div class="chat-message"><div class="bubble"><h4>Дмитрий Волков</h4>Давайте обсудим сценарий первого входа.<small>10:08</small></div></div>${(M.state.callMessages || []).map((text) => `<div class="chat-message"><div class="bubble">${E(text)}<small>Вы · сейчас</small></div></div>`).join("")}<form id="call-message-form"><label><span class="muted" style="font-size:11px">Сообщение участникам</span><input placeholder="Написать…" aria-label="Сообщение участникам"/><button class="button primary wide" style="margin-top:10px">Отправить</button></label></form></aside></div><footer class="call-toolbar">${callControl(M.state.mic ? "Микрофон" : "Без звука", M.state.mic ? "Mic" : "MicOff", "mic", M.state.mic ? "" : "off")}${callControl("Камера", M.state.camera ? "Video" : "VideoOff", "camera", M.state.camera ? "" : "off")}${callControl("Экран", "MonitorUp", "shareScreen", "share-control")}${callControl("Участники", "Users", "participants")}${callControl("Чат", "MessageCircle", "callChat", M.state.callChat ? "selected" : "")}${callControl("Выйти", "PhoneOff", "leaveCall", "leave")}</footer></main>`,
+      `<main class="call-screen">${status()}<header class="call-header"><div><h1>${E(M.state.meetingTitle || "Дизайн-синхронизация")}</h1><p>12:48 <span style="color:#60718c">/</span> 5 участников</p></div><span class="spacer"></span><span class="badge"><i class="record-dot"></i> Идёт запись</span><button class="icon-button" data-action="callInfo" aria-label="Информация о встрече">${I("Ellipsis")}</button></header><div class="call-body"><div class="call-stage"><section class="share-stage">${presentation()}<div class="sharing-label">${I("Monitor")} Анна Кузнецова демонстрирует экран</div></section><div class="participant-strip"><div class="participant speaking">${avatar("АК", "orange")}<span class="person-name">Анна Кузнецова</span>${I("AudioLines")}</div><div class="participant">${avatar("МП", "mint")}<span class="person-name">Мария Полякова</span>${I("MicOff")}</div><div class="participant">${avatar("ДВ")}<span class="person-name">Дмитрий Волков</span>${I("MicOff")}</div><div class="participant">${avatar(E(M.profileInitials?.() || "АС"), "blue")}<span class="person-name">Вы${M.state.camera ? " · камера в демо" : ""}</span>${I(M.state.mic ? "Mic" : "MicOff")}</div></div></div><aside class="call-side" ${M.state.callChat ? "" : "hidden"}><div class="row"><h2>Чат встречи</h2><span class="spacer"></span><button class="icon-button" data-action="callChat" aria-label="Закрыть чат">${I("X")}</button></div><div class="chat-date">Сегодня</div><div class="chat-message"><div class="bubble"><h4>Мария Полякова</h4>Хорошо видно, можем начинать!<small>10:02</small></div></div><div class="chat-message"><div class="bubble"><h4>Дмитрий Волков</h4>Давайте обсудим сценарий первого входа.<small>10:08</small></div></div>${(M.state.callMessages || []).map((text) => `<div class="chat-message"><div class="bubble">${E(text)}<small>Вы · сейчас</small></div></div>`).join("")}<form id="call-message-form"><label><span class="muted" style="font-size:11px">Сообщение участникам</span><input placeholder="Написать…" aria-label="Сообщение участникам"/><button class="button primary wide" style="margin-top:10px">Отправить</button></label></form></aside></div><footer class="call-toolbar">${callControl(M.state.mic ? "Микрофон" : "Без звука", M.state.mic ? "Mic" : "MicOff", "mic", M.state.mic ? "" : "off")}${callControl("Камера", M.state.camera ? "Video" : "VideoOff", "camera", M.state.camera ? "" : "off")}${callControl("Экран", "MonitorUp", "shareScreen", "share-control")}${callControl("Участники", "Users", "participants")}${callControl("Чат", "MessageCircle", "callChat", M.state.callChat ? "selected" : "")}${callControl("Выйти", "PhoneOff", "leaveCall", "leave")}</footer></main>`,
     bind: () => {
       document
         .getElementById("call-message-form")
@@ -636,56 +478,7 @@
         });
     },
   };
-  const profileRow = (icon, label, action, value = "") =>
-    `<button class="profile-option" data-action="${action}">${I(icon)}<span>${label}</span>${value ? `<small>${E(value)}</small>` : ""}${I("ChevronRight")}</button>`;
-  M.screens.settings = {
-    title: "Профиль",
-    group: "Рабочее пространство",
-    render: () =>
-      shell(
-        `<div class="profile-layout"><section class="profile-hero"><button class="profile-identity" data-action="editProfile" aria-label="Редактировать профиль"><span class="profile-portrait">${avatar("АС", "blue")}<i class="presence-dot ${M.state.presence === "Не беспокоить" ? "busy" : M.state.presence === "Нет на месте" ? "away" : ""}"></i></span><h1>${E(M.state.profileName || "Александр Соколов")}${I("ChevronRight")}</h1><span>${E(M.state.profileEmail || "alex@example.org")}</span></button><button class="profile-presence" data-action="presence">${E(M.state.presence || "В сети")}${I("ChevronDown")}</button><button class="profile-server-summary" data-action="servers">${I("Server")}<span><strong>Пространство команды</strong><small>${E(new URL(serverAddress()).host)}</small></span>${I("ChevronRight")}</button></section><div class="profile-groups"><section class="profile-group">${profileRow("Share2", "Поделиться контактом", "shareContact")}</section><section class="profile-group"><label class="profile-option">${I("Bell")}<span>Уведомления</span><input id="profile-notifications" class="toggle" type="checkbox" aria-label="Уведомления" ${M.state.notificationsEnabled !== false ? "checked" : ""}/></label>${profileRow("Folder", "Папки с чатами", "folders")}${profileRow("SunMoon", "Тема оформления", "appearance", M.state.themeMode === "system" ? "Системная" : M.state.theme === "dark" ? "Тёмная" : "Светлая")}${profileRow("Video", "Настройки звонков", "devices")}${profileRow("Server", "Подключение к серверу", "servers")}${profileRow("LockKeyhole", "Конфиденциальность", "privacy")}</section><section class="profile-group">${profileRow("LogOut", "Выйти из аккаунта", "logout")}</section><p class="profile-app-note">MeetSpace · Пространство вашей команды</p></div></div>`,
-        "settings",
-        "profile-content",
-      ),
-    bind: () =>
-      document
-        .getElementById("profile-notifications")
-        ?.addEventListener("change", (e) => {
-          M.state.notificationsEnabled = e.target.checked;
-          M.toast(
-            e.target.checked
-              ? "Уведомления включены в макете"
-              : "Уведомления выключены в макете",
-          );
-        }),
-  };
-  const meetingForm = (scheduled) =>
-    M.modal(
-      scheduled ? "Запланировать встречу" : "Новая встреча",
-      `<form id="meeting-form" class="stack"><label class="field">Название<input name="title" placeholder="Например, обсуждение проекта" required maxlength="80"/></label>${scheduled ? '<div class="two-fields"><label class="field">Дата · 5–25 октября<input name="date" type="date" value="2026-10-12" min="2026-10-05" max="2026-10-25" required/></label><label class="field">Время<input name="time" type="time" value="17:00" min="09:00" max="18:00" required/></label></div>' : ""}<label class="field">Описание<textarea placeholder="Что будем обсуждать?"></textarea></label><button class="button primary">${scheduled ? "Запланировать" : "Создать и подключиться"}</button></form>`,
-      () =>
-        (document.getElementById("meeting-form").onsubmit = (e) => {
-          e.preventDefault();
-          const data = new FormData(e.target);
-          M.state.meetingTitle = data.get("title");
-          if (scheduled) {
-            const date = data.get("date");
-            M.state.created = {
-              date,
-              title: data.get("title"),
-              time: data.get("time"),
-              end: "30 мин",
-              meta: `${date === "2026-10-12" ? "Сегодня" : date} · Вы — организатор`,
-              tone: "mint",
-            };
-            M.go(M.state.screen === "calls" ? "calls" : "home");
-            M.toast("Встреча добавлена в демонстрационный список");
-          } else M.go("prejoin");
-        }),
-    );
   M.actions = {
-    newMeeting: () => meetingForm(false),
-    schedule: () => meetingForm(true),
     join: () =>
       M.modal(
         "Войти по ссылке",
@@ -699,6 +492,7 @@
               return;
             }
             M.state.meetingTitle = "Встреча по приглашению";
+            M.state.meetingMeta = null;
             M.go("prejoin");
           }),
       ),
@@ -754,15 +548,8 @@
                 })
                 .join("")}</div>`
             : ""
-        }<button class="button secondary" data-action="chatCall">${I("Video")}${isGroup ? "Позвонить группе" : "Позвонить"}</button></div>`,
+        }</div>`,
       );
-    },
-    chatCall: () => {
-      const c = contacts.find((c) => c.id === M.state.chat) || contacts[0];
-      M.state.meetingTitle =
-        c.kind === "group" ? `Звонок группы «${c.name}»` : c.name;
-      M.state.meetingMeta = null;
-      M.go("prejoin");
     },
     newChat: () =>
       M.modal(
@@ -820,8 +607,6 @@
             M.state.chat = c.id;
             M.state.filter = "all";
             M.state.chatQuery = "";
-            M.state.homeFilter = "all";
-            M.state.homeQuery = "";
             M.go("thread");
           };
           document.querySelector('#group-form input[name="name"]').oninput = (
@@ -969,12 +754,7 @@
     leaveCall: () =>
       M.modal(
         "Выйти из встречи?",
-        `<div class="stack"><p>Остальные участники смогут продолжить разговор.</p><button class="button danger" data-go="calls">Выйти из встречи</button><button class="button secondary" data-close>Остаться</button></div>`,
-      ),
-    servers: () =>
-      M.modal(
-        "Ваши серверы",
-        `<div class="stack"><div class="row">${avatar(I("Server"), "blue")}<div><h3>Команда продукта</h3><p>${E(new URL(serverAddress()).host)}</p></div><span class="badge green">Выбран</span></div><button class="button secondary" data-go="connect">${I("Plus")}Добавить сервер</button><button class="button quiet" data-go="welcome">Настроить своё пространство</button></div>`,
+        `<div class="stack"><p>Остальные участники смогут продолжить разговор.</p><button class="button danger" data-go="meetings">Выйти из встречи</button><button class="button secondary" data-close>Остаться</button></div>`,
       ),
     logout: () =>
       M.modal(
@@ -988,56 +768,15 @@
       const screen = M.state.screen;
       M.state.searchOpen ||= {};
       M.state.searchOpen[screen] = !M.state.searchOpen[screen];
-      if (!M.state.searchOpen[screen])
-        M.state[screen === "calls" ? "callQuery" : "chatQuery"] = "";
+      if (!M.state.searchOpen[screen]) M.state.chatQuery = "";
       M.render();
       if (M.state.searchOpen[screen])
-        document
-          .getElementById(screen === "calls" ? "call-search" : "chat-search")
-          ?.focus();
+        document.getElementById("chat-search")?.focus();
     },
     dismissInvite: () => {
       M.state.inviteDismissed = true;
       M.render();
     },
-    historyCall: (button) => {
-      const call = callHistory.find((c) => c.id === button.dataset.call);
-      if (!call) return;
-      M.modal(
-        E(call.title),
-        `<div class="stack"><p>${call.date} · ${call.time} · ${call.duration}</p><button class="button primary" id="repeat-call">${I("Video")}Позвонить снова</button>${call.record !== undefined ? '<button class="button secondary" id="history-record">Открыть запись</button>' : ""}</div>`,
-        () => {
-          document.getElementById("repeat-call").onclick = () => {
-            M.state.meetingTitle = call.title;
-            M.state.meetingMeta = null;
-            M.go("prejoin");
-          };
-          document
-            .getElementById("history-record")
-            ?.addEventListener("click", () => {
-              M.state.record = call.record;
-              M.go("recording");
-            });
-        },
-      );
-    },
-    editProfile: () =>
-      M.modal(
-        "Редактировать профиль",
-        `<form id="profile-form" class="stack"><label class="field">Имя и фамилия<input name="name" value="${E(M.state.profileName || "Александр Соколов")}" maxlength="60" required/></label><label class="field">Электронная почта<input type="email" name="email" value="${E(M.state.profileEmail || "alex@example.org")}" required/></label><button class="button primary">Сохранить изменения</button></form>`,
-        () => {
-          document.getElementById("profile-form").onsubmit = (e) => {
-            e.preventDefault();
-            const data = new FormData(e.target);
-            if (!String(data.get("name")).trim()) return;
-            M.state.profileName = String(data.get("name")).trim();
-            M.state.profileEmail = data.get("email");
-            M.closeModal();
-            M.render();
-            M.toast("Изменения сохранены в макете");
-          };
-        },
-      ),
     presence: () =>
       M.modal(
         "Ваш статус",
@@ -1048,20 +787,6 @@
       M.closeModal();
       M.render();
     },
-    appearance: () =>
-      M.modal(
-        "Тема оформления",
-        `<div class="stack">${[
-          ["light", "Светлая"],
-          ["dark", "Тёмная"],
-          ["system", "Системная"],
-        ]
-          .map(
-            ([id, label]) =>
-              `<button class="button secondary" data-action="setTheme" data-theme-value="${id}" aria-pressed="${(M.state.themeMode === "system" ? "system" : M.state.theme) === id}">${I(id === "light" ? "Sun" : id === "dark" ? "Moon" : "Monitor")}${label}${(M.state.themeMode === "system" ? "system" : M.state.theme) === id ? I("Check") : ""}</button>`,
-          )
-          .join("")}</div>`,
-      ),
     setTheme: (b) => {
       M.state.themeMode = b.dataset.themeValue;
       M.state.theme =

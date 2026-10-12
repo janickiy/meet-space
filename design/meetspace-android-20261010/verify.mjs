@@ -13,8 +13,7 @@ const { chromium } = require("playwright");
 const base = process.env.MEETSPACE_QA_URL || "http://127.0.0.1:8766";
 const outDir = fileURLToPath(new URL(".", import.meta.url));
 const screens = [
-  "home",
-  "calls",
+  "meetings",
   "messages",
   "thread",
   "calendar",
@@ -98,10 +97,10 @@ async function matrix(viewport) {
         empty: document.querySelector("#app").innerText.trim().length < 20,
         navigationValid:
           !document.querySelector(".tm-shell") ||
-          (document.querySelectorAll(".bottom-nav button").length === 4 &&
+          (document.querySelectorAll(".bottom-nav button").length === 3 &&
             [...document.querySelectorAll(".bottom-nav button")]
               .map((b) => b.getAttribute("aria-label"))
-              .join(",") === "Главная,Звонки,Чаты,Профиль"),
+              .join(",") === "Встречи,Чаты,Профиль"),
       }));
       const entry = {
         screen,
@@ -159,50 +158,15 @@ try {
     `Matrix: ${report.matrix.filter((x) => x.pass).length}/${report.matrix.length} passed`,
   );
   for (const viewport of [viewports[1], viewports[3]]) {
-    await flow("four-tabs-calls-profile", viewport, async (page) => {
-      await page.goto(url("home"));
-      const nav = page.locator(".bottom-nav");
+    await flow("three-tabs-profile", viewport, async (page) => {
+      await page.goto(url("meetings"));
       assert.deepEqual(
-        await nav
-          .locator("button")
+        await page
+          .locator(".bottom-nav button")
           .evaluateAll((items) =>
             items.map((item) => item.getAttribute("aria-label")),
           ),
-        ["Главная", "Звонки", "Чаты", "Профиль"],
-      );
-      assert.equal(await page.locator(".home-action-card").count(), 4);
-      await nav.getByRole("button", { name: "Звонки", exact: true }).click();
-      await stateIs(page, "calls");
-      assert.equal(await page.locator(".call-action").count(), 3);
-      assert.equal(await page.locator(".call-history-row").count(), 5);
-      await page
-        .getByRole("button", { name: "Поиск звонков", exact: true })
-        .click();
-      await page.getByLabel("Найти звонок", { exact: true }).fill("Анна");
-      assert.equal(await page.locator(".call-history-row").count(), 1);
-      await page
-        .getByLabel("Найти звонок", { exact: true })
-        .fill("Нет такого звонка");
-      assert(await page.locator(".tm-empty").isVisible());
-      await page.getByLabel("Найти звонок", { exact: true }).fill("Продукт");
-      await page.locator(".call-history-row").click();
-      await page.locator("#history-record").click();
-      await stateIs(page, "recording");
-      await page.locator('.bottom-nav [data-go="calls"]').click();
-      await page
-        .getByRole("button", { name: "Поиск звонков", exact: true })
-        .click();
-      assert.equal(await page.locator(".call-history-row").count(), 5);
-      await page.locator('.call-action[data-action="schedule"]').click();
-      await page
-        .locator('#meeting-form input[name="title"]')
-        .fill("Новая встреча из звонков");
-      await page.locator("#meeting-form button").click();
-      await stateIs(page, "calls");
-      assert(
-        (await page.locator(".call-upcoming").innerText()).includes(
-          "Новая встреча из звонков",
-        ),
+        ["Встречи", "Чаты", "Профиль"],
       );
       await page.locator('.bottom-nav [data-go="messages"]').click();
       await page.locator('[data-filter="personal"]').click();
@@ -215,143 +179,183 @@ try {
       assert.equal(await page.locator(".chat-invite-note").count(), 0);
       await page.locator('.bottom-nav [data-go="settings"]').click();
       await stateIs(page, "settings");
+      const openAccountSection = async (section) => {
+        if (viewport.width < 780 && await page.locator('.account-back').isVisible())
+          await page.locator('.account-back').click();
+        await page.locator(`[data-action="accountSection"][data-section="${section}"]`).click();
+      };
+      await openAccountSection("profile");
+      assert(await page.locator('#account-save-name').isDisabled());
+      await page.locator('#account-name').fill("   ");
+      assert(await page.locator('#account-save-name').isDisabled());
+      await page.locator('#account-name').fill("Александр Тест");
+      await page.locator('#account-save-name').click();
+      assert.equal(await page.locator('#account-name').inputValue(), "Александр Тест");
+      assert.equal(await page.locator('input[type="email"]').getAttribute('readonly'), "");
+      assert.equal(await page.locator('.nav-profile-avatar').innerText(), "АТ");
+      await openAccountSection("audio");
+      await page.getByRole('switch', {name:'Подключаться с выключенным микрофоном', exact:true}).check();
+      await page.getByRole('combobox', {name:'Микрофон', exact:true}).selectOption('headset');
+      await openAccountSection("notifications");
+      await page.getByLabel('Напоминания о встречах', {exact:true}).uncheck();
+      await page.locator('#account-save-notifications').click();
+      assert(await page.locator('#account-save-notifications').isDisabled());
+      await openAccountSection("audio");
+      assert.equal(await page.getByRole('combobox', {name:'Микрофон', exact:true}).inputValue(), 'headset');
+      assert(await page.getByRole('switch', {name:'Подключаться с выключенным микрофоном', exact:true}).isChecked());
+      await openAccountSection("notifications");
+      assert(!(await page.getByLabel('Напоминания о встречах', {exact:true}).isChecked()));
+      await openAccountSection("appearance");
+      await page.getByRole('radio', {name:'Тёмная тема', exact:true}).check();
+      assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+      await page.getByRole('combobox', {name:'Размер текста', exact:true}).selectOption('200');
+      assert.equal(await page.locator('.account-layout').evaluate(el => getComputedStyle(el).fontSize), '28px');
+      await page.locator('.bottom-nav [data-go="meetings"]').click();
+      await stateIs(page, "meetings");
+    });
+    await flow("meeting-filters", viewport, async (page) => {
+      await page.goto(url("meetings"));
+      const rows = page.locator(".cf-entry");
+      assert.equal(await rows.count(), 4);
       await page
-        .getByRole("button", { name: "Редактировать профиль", exact: true })
+        .getByLabel("Найти встречу", { exact: true })
+        .fill("  ДИЗАЙН  ");
+      assert.equal(await rows.count(), 1);
+      await page
+        .getByLabel("Найти встречу", { exact: true })
+        .fill("нет такой встречи");
+      assert(
+        await page
+          .getByRole("heading", { name: "Встречи не найдены", exact: true })
+          .isVisible(),
+      );
+      await page
+        .getByRole("button", { name: "Очистить поиск", exact: true })
+        .click();
+      const role =
+        viewport.width < 780
+          ? async () => {
+              await page
+                .getByRole("button", { name: "Фильтры встреч", exact: true })
+                .click();
+              return page.getByRole("dialog");
+            }
+          : async () => page.locator("#desktop-meeting-filters");
+      let filters = await role();
+      await filters
+        .getByLabel("Моё участие", { exact: true })
+        .selectOption("participating");
+      if (viewport.width < 780)
+        await filters
+          .getByRole("button", { name: "Применить", exact: true })
+          .click();
+      assert.equal(await rows.count(), 1);
+      filters = await role();
+      await filters
+        .getByLabel("Моё участие", { exact: true })
+        .selectOption("owned");
+      await filters
+        .getByLabel("Встречи с даты", { exact: true })
+        .fill("2026-10-13");
+      if (viewport.width < 780)
+        await filters
+          .getByRole("button", { name: "Применить", exact: true })
+          .click();
+      else
+        await filters
+          .getByLabel("Встречи с даты", { exact: true })
+          .press("Tab");
+      assert.equal(await rows.count(), 1);
+      assert.match(await rows.innerText(), /Планы на неделю/);
+      await page
+        .getByRole("button", { name: "Сбросить фильтры", exact: true })
+        .filter({ visible: true })
+        .click();
+      await page.getByRole("tab", { name: "Активные", exact: true }).click();
+      assert.equal(await rows.count(), 1);
+      await page
+        .getByRole("button", { name: "Подключиться", exact: true })
+        .click();
+      assert.match(
+        await page.locator(".prejoin-info").innerText(),
+        /Максим Петров/,
+      );
+      await page
+        .getByRole("button", { name: "Вернуться к встречам", exact: true })
+        .click();
+      await page.getByRole("tab", { name: "Завершённые", exact: true }).click();
+      assert.equal(await rows.count(), 3);
+      await page
+        .getByRole("button", {
+          name: "Подробнее о встрече Продукт. Следующая глава",
+          exact: true,
+        })
         .click();
       await page
-        .locator('#profile-form input[name="name"]')
-        .fill("Александр Тест");
-      await page.locator("#profile-form button").click();
-      assert(
-        (await page.locator(".profile-identity").innerText()).includes(
-          "Александр Тест",
-        ),
-      );
-      await page.locator('[data-action="presence"]').click();
-      await page.locator('[data-presence="Не беспокоить"]').click();
-      assert.equal(
-        await page.locator(".profile-presence").innerText(),
-        "Не беспокоить",
-      );
-      await page.getByLabel("Уведомления", { exact: true }).uncheck();
-      await page.locator('.bottom-nav [data-go="calls"]').click();
-      await page.locator('.bottom-nav [data-go="settings"]').click();
-      assert(
-        !(await page.getByLabel("Уведомления", { exact: true }).isChecked()),
-      );
-      await page.locator('[data-action="appearance"]').click();
-      await page.locator('[data-theme-value="dark"]').click();
-      assert.equal(
-        await page.locator("html").getAttribute("data-theme"),
-        "dark",
-      );
-      await page.locator('[data-action="shareContact"]').click();
-      await page
-        .context()
-        .grantPermissions(["clipboard-read", "clipboard-write"]);
-      await page.locator('[data-action="copyContact"]').click();
-      await page
-        .getByRole("status")
-        .getByText("Почта скопирована", { exact: true })
-        .waitFor();
-      assert.equal(
-        await page.evaluate(() => navigator.clipboard.readText()),
-        "alex@example.org",
-      );
-      await page.keyboard.press("Escape");
-      await page.locator('.bottom-nav [data-go="home"]').click();
-      await stateIs(page, "home");
-      assert.equal(await page.locator(".home-action-card").count(), 4);
+        .getByRole("button", { name: "Смотреть запись", exact: true })
+        .click();
+      await stateIs(page, "recording");
     });
-    await flow("home-actions-and-chats", viewport, async (page) => {
-      await page.goto(url("home"));
-      await ready(page);
-      assert.equal(await page.locator(".home-action-card").count(), 4);
-      await page.locator("#home-chat-search").fill("Анна");
-      assert.equal(await page.locator(".home-chat-row:visible").count(), 1);
-      await page.locator('[data-home-filter="personal"]').click();
-      assert.equal(await page.locator(".home-chat-row:visible").count(), 1);
-      await page.locator("#home-chat-search").fill("Несуществующий чат");
-      assert(await page.locator("#home-chat-empty").isVisible());
-      await page.locator("#home-chat-search").fill("");
-      await page.locator('[data-home-filter="unread"]').click();
-      assert.equal(await page.locator(".home-chat-row:visible").count(), 2);
-      await page.locator('.home-chat-row[data-chat="anna"]').click();
-      await stateIs(page, "thread");
-      assert(
-        (await page.locator(".thread-header").innerText()).includes(
-          "Анна Кузнецова",
-        ),
+    await flow("meeting-planning", viewport, async (page) => {
+      await page.goto(url("meetings"));
+      await page.locator('[data-action="schedule"]').click();
+      await page
+        .getByLabel("Название встречи", { exact: true })
+        .fill("Планирование <проекта>");
+      await page.getByLabel("Дата", { exact: true }).fill("2026-11-03");
+      await page.getByLabel("Время", { exact: true }).fill("14:30");
+      await page
+        .getByRole("combobox", { name: "Длительность", exact: true })
+        .selectOption("45");
+      await page.locator('input[name="waitingRoom"]').check();
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Запланировать", exact: true })
+        .click();
+      assert.match(
+        await page.getByRole("dialog").innerText(),
+        /3 ноября · 14:30 · 45 мин/,
       );
-      await page.goto(url("home"));
-      await page.locator('.home-action-card[data-action="newChat"]').click();
-      await page.locator('#dialog-root [data-chat="max"]').click();
-      await stateIs(page, "thread");
-      await page.goto(url("home"));
-      await page.locator('.home-action-card[data-action="join"]').click();
       await page
-        .locator("#join-form input")
-        .fill("http://meet.example.org/room/demo");
-      await page.locator("#join-form button").click();
-      assert(await page.getByRole("dialog").isVisible());
-      await page
-        .locator("#join-form input")
-        .fill("https://meet.example.org/room/demo");
-      await page.locator("#join-form button").click();
-      await stateIs(page, "prejoin");
-      await page.goto(url("home"));
-      await page.locator('.home-action-card[data-action="schedule"]').click();
-      await page
-        .locator('#meeting-form input[name="title"]')
-        .fill("Новая главная — обсуждение");
-      await page.locator("#meeting-form button").click();
-      await stateIs(page, "home");
-      await page.evaluate(() => MS.go("calendar"));
-      assert(
-        (await page.locator(".timeline").innerText()).includes(
-          "Новая главная — обсуждение",
-        ),
+        .getByRole("button", { name: "К списку встреч", exact: true })
+        .click();
+      assert.equal(await page.locator(".cf-entry").count(), 5);
+      assert.match(
+        await page.locator(".cf-entry").first().innerText(),
+        /Планирование <проекта>/,
       );
-      await page.goto(url("home"));
+      await page.locator('[data-action="newMeeting"]').click();
       await page
-        .context()
-        .grantPermissions(["clipboard-read", "clipboard-write"]);
-      await page.locator('[data-action="copyHomeInvite"]').click();
+        .getByLabel("Название встречи", { exact: true })
+        .fill("Комната без даты");
       await page
-        .getByRole("status")
-        .getByText("Демо-ссылка на встречу скопирована")
-        .waitFor();
-      assert.equal(
-        await page.evaluate(() => navigator.clipboard.readText()),
-        "https://meet.example.org/room/design",
+        .getByRole("button", { name: "Создать встречу", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Открыть встречу", exact: true })
+        .click();
+      assert.match(await page.locator(".prejoin-info").innerText(), /Без даты/);
+      assert.match(
+        await page.locator(".prejoin-info").innerText(),
+        /Организатор: Вы/,
       );
-      await page.evaluate(() => {
-        Object.defineProperty(navigator, "clipboard", {
-          configurable: true,
-          value: {
-            writeText: async () => {
-              throw new Error("Clipboard disabled for fallback test");
-            },
-          },
-        });
-      });
-      await page.locator('[data-action="copyHomeInvite"]').click();
-      assert.equal(
-        await page.locator("#home-invite-link").inputValue(),
-        "https://meet.example.org/room/design",
-      );
-      await page.keyboard.press("Escape");
-      assert.equal(await page.getByRole("dialog").count(), 0);
+      await page
+        .getByRole("button", { name: "Вернуться к встречам", exact: true })
+        .click();
+      assert.equal(await page.locator(".cf-entry").count(), 6);
     });
     await flow("meeting", viewport, async (page) => {
-      await page.goto(url("home"));
+      await page.goto(url("meetings"));
       await ready(page);
-      await page.locator('.home-action-card[data-action="newMeeting"]').click();
+      await page.locator('[data-action="newMeeting"]').click();
       await page
         .locator('#meeting-form input[name="title"]')
         .fill("Обсуждение главной");
       await page
-        .getByRole("button", { name: "Создать и подключиться", exact: true })
+        .getByRole("button", { name: "Создать встречу", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Открыть встречу", exact: true })
         .click();
       await stateIs(page, "prejoin");
       await page.getByLabel("Выключить микрофон", { exact: true }).click();
@@ -373,7 +377,7 @@ try {
       await page
         .getByRole("button", { name: "Выйти из встречи", exact: true })
         .click();
-      await stateIs(page, "calls");
+      await stateIs(page, "meetings");
     });
     await flow("messages", viewport, async (page) => {
       await page.goto(url("messages"));
@@ -536,13 +540,10 @@ try {
       await page.locator('[data-filter="all"]').click();
       await rows.first().click();
       await page
-        .getByRole("button", { name: "Начать видеовстречу", exact: true })
+        .getByRole("button", { name: "Информация о чате", exact: true })
         .click();
-      await stateIs(page, "prejoin");
-      assert.match(
-        await page.locator("#app").innerText(),
-        /Звонок группы «Проект <Альфа>»/,
-      );
+      assert(await page.getByRole("dialog", { name: "О группе", exact: true }).isVisible());
+      assert.match(await page.getByRole("dialog").innerText(), /Проект <Альфа>/);
     });
     await flow("calendar", viewport, async (page) => {
       await page.goto(url("calendar"));
@@ -606,7 +607,7 @@ try {
       await page
         .getByRole("button", { name: "Войти в MeetSpace", exact: false })
         .click();
-      await stateIs(page, "home");
+      await stateIs(page, "meetings");
     });
     await flow("installer", viewport, async (page) => {
       await page.goto(url("welcome"));
@@ -644,7 +645,7 @@ try {
     });
   }
   await flow("gallery-sync", { width: 1440, height: 1100 }, async (page) => {
-    await page.goto(`${base}/index.html?screen=home`);
+    await page.goto(`${base}/index.html?screen=meetings`);
     await page.frameLocator("#phone-preview").locator("#app > *").waitFor();
     await page.getByLabel("Выбрать экран макета").selectOption("prejoin");
     await page
@@ -685,11 +686,11 @@ try {
     await page.getByLabel("Выбрать экран макета").selectOption("settings");
     await page
       .frameLocator("#phone-preview")
-      .locator('[data-action="appearance"]')
+      .locator('[data-action="accountSection"][data-section="appearance"]')
       .click();
     await page
       .frameLocator("#phone-preview")
-      .locator('[data-theme-value="light"]')
+      .getByRole("radio", { name: "Светлая тема", exact: true })
       .click();
     await page.waitForFunction(
       () =>
@@ -710,47 +711,40 @@ try {
     );
   });
   const shots = [
-    { name: "calls-phone", screen: "calls", viewport: viewports[1] },
+    { name: "meetings-phone", screen: "meetings", viewport: viewports[1] },
     {
-      name: "calls-phone-dark",
-      screen: "calls",
+      name: "meetings-phone-dark",
+      screen: "meetings",
       viewport: viewports[1],
       theme: "dark",
     },
-    { name: "calls-tablet", screen: "calls", viewport: viewports[3] },
+    { name: "meetings-tablet", screen: "meetings", viewport: viewports[3] },
+    {
+      name: "meetings-tablet-portrait",
+      screen: "meetings",
+      viewport: viewports[2],
+    },
     {
       name: "messages-phone-dark",
       screen: "messages",
       viewport: viewports[1],
       theme: "dark",
     },
+    { name: "messages-tablet", screen: "messages", viewport: viewports[3] },
     {
       name: "profile-phone-dark",
       screen: "settings",
       viewport: viewports[1],
       theme: "dark",
     },
-    { name: "profile-tablet", screen: "settings", viewport: viewports[3] },
     {
-      name: "four-tabs",
-      url: `${base}/four-tabs.html?theme=dark`,
-      viewport: { width: 1800, height: 1100 },
+      name: "three-tabs",
+      url: `${base}/three-tabs.html?theme=light`,
+      viewport: { width: 1400, height: 1200 },
     },
-    { name: "home-phone", screen: "home", viewport: viewports[1] },
-    { name: "home-tablet", screen: "home", viewport: viewports[3] },
-    { name: "home-portrait", screen: "home", viewport: viewports[2] },
-    {
-      name: "home-phone-dark",
-      screen: "home",
-      viewport: viewports[1],
-      theme: "dark",
-    },
-    { name: "call-tablet", screen: "call", viewport: viewports[3] },
-    { name: "welcome-phone", screen: "welcome", viewport: viewports[1] },
-    { name: "messages-tablet", screen: "messages", viewport: viewports[3] },
     {
       name: "gallery",
-      url: `${base}/index.html?screen=home&theme=light&view=compare`,
+      url: `${base}/index.html?screen=meetings&theme=light&view=compare`,
       viewport: { width: 1600, height: 1200 },
     },
   ];

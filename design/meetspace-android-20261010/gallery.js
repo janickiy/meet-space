@@ -2,24 +2,16 @@
   "use strict";
   const screens = [
     {
-      id: "home",
-      label: "Главная",
+      id: "meetings",
+      label: "Встречи",
       group: "workspace",
-      title: "Главная, звонки, чаты и профиль.",
+      title: "Встречи, чаты и профиль.",
       description:
-        "Главная сохранена. Звонки, чаты и профиль оформлены по мобильным референсам.",
-    },
-    {
-      id: "calls",
-      label: "Звонки",
-      group: "workspace",
-      title: "Звонки — в отдельной вкладке.",
-      description:
-        "Новый звонок, подключение по ссылке, планирование и история разговоров.",
+        "Создавайте встречи, планируйте разговоры и находите нужное по названию, статусу или дате.",
     },
     {
       id: "messages",
-      label: "Сообщения",
+      label: "Чаты",
       group: "workspace",
       title: "Разговор, который объединяет.",
       description:
@@ -31,7 +23,7 @@
       group: "workspace",
       title: "Ваш профиль и настройки.",
       description:
-        "Профиль, уведомления и подключение к серверу вашей команды.",
+        "Профиль, аудио, видео, уведомления и оформление — привычные настройки в мобильном формате.",
     },
     {
       id: "thread",
@@ -39,7 +31,7 @@
       group: "workspace",
       title: "От идеи — к общему решению.",
       description:
-        "Контекст, файлы и быстрый переход к звонку внутри командного диалога.",
+        "Сообщения, файлы и участники — весь контекст внутри диалога.",
     },
     {
       id: "calendar",
@@ -151,6 +143,7 @@
   const params = new URLSearchParams(location.search);
   let current =
     screens.find((s) => s.id === params.get("screen")) || screens[0];
+  let section = ["profile", "audio", "video", "notifications", "appearance", "connection"].includes(params.get("section")) ? params.get("section") : null;
   let theme = params.get("theme") === "dark" ? "dark" : "light";
   let view = ["compare", "phone", "tablet"].includes(params.get("view"))
     ? params.get("view")
@@ -160,7 +153,7 @@
   let portrait = params.get("orientation") === "portrait";
   const $ = (id) => document.getElementById(id);
   const frames = [$("phone-preview"), $("tablet-preview")];
-  const initialPreview = `preview.html?screen=${current.id}&theme=${theme}`;
+  const initialPreview = `preview.html?rev=20261012-chat-header&screen=${current.id}&theme=${theme}${current.id === "settings" && section ? `&section=${section}` : ""}`;
   frames.forEach((frame) => {
     if (frame.getAttribute("src") !== initialPreview)
       frame.src = initialPreview;
@@ -185,14 +178,16 @@
     url.searchParams.set("view", view);
     if (portrait) url.searchParams.set("orientation", "portrait");
     else url.searchParams.delete("orientation");
+    if (current.id === "settings" && section) url.searchParams.set("section", section);
+    else url.searchParams.delete("section");
     history.replaceState(null, "", url);
-    $("open-screen").href = `preview.html?screen=${current.id}&theme=${theme}`;
+    $("open-screen").href = `preview.html?rev=20261012-chat-header&screen=${current.id}&theme=${theme}${current.id === "settings" && section ? `&section=${section}` : ""}`;
   }
   function notifyFrames(except) {
     frames.forEach((frame) => {
       if (frame.contentWindow && frame.contentWindow !== except)
         frame.contentWindow.postMessage(
-          { type: "ms:screen", screen: current.id, theme },
+          { type: "ms:screen", screen: current.id, theme, section },
           "*",
         );
     });
@@ -222,6 +217,7 @@
   function navigate(screen, source) {
     const next = screens.find((s) => s.id === screen);
     if (!next) return;
+    if (current.id !== next.id) section = null;
     current = next;
     renderNavigation();
     updateURL();
@@ -332,7 +328,9 @@
       const nextTheme = ["light", "dark"].includes(event.data.theme)
         ? event.data.theme
         : theme;
-      if (next && (next.id !== current.id || nextTheme !== theme)) {
+      const nextSection = ["profile", "audio", "video", "notifications", "appearance", "connection"].includes(event.data.section) ? event.data.section : null;
+      if (next && (next.id !== current.id || nextTheme !== theme || nextSection !== section)) {
+        section = nextSection;
         current = next;
         theme = nextTheme;
         renderNavigation();

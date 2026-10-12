@@ -14,6 +14,7 @@
       auth: "password",
       stage: 2,
     });
+  M.getOnboardingState = S;
   const logo = () =>
     '<img src="assets/brand-mark.svg" alt="" width="32" height="32"><span>MeetSpace<span class="on-logo-dot">.</span></span>';
   const demo = (text) =>
@@ -55,7 +56,7 @@
 
   register("welcome", "Добро пожаловать", () =>
     frame(
-      `${heading("ЕДИНОЕ ПРОСТРАНСТВО", "Команда ближе.<br><span>Идей больше.</span>", 'MeetSpace — единое пространство<br class="on-desktop-br"> для встреч и общения.')}<div class="on-welcome-art">${visual()}</div><div class="on-choice-stack"><button class="on-choice on-choice-main" data-go="connect"><span class="on-choice-icon">${I("Link")}</span><span><strong>Подключиться к серверу</strong><small>У меня уже есть адрес MeetSpace</small></span>${I("ArrowUpRight")}</button><button class="on-choice" data-go="deploy"><span class="on-choice-icon">${I("Server")}</span><span><strong>Развернуть свой сервер</strong><small>Создать пространство на своём VPS</small></span>${I("ArrowUpRight")}</button></div><div class="on-feature-strip">${marks.map((x) => `<span>${I(x.icon)}${x.label}</span>`).join("")}</div><button class="on-demo-link" data-go="home">Посмотреть интерфейс ${I("ArrowRight")}</button>`,
+      `${heading("ЕДИНОЕ ПРОСТРАНСТВО", "Команда ближе.<br><span>Идей больше.</span>", 'MeetSpace — единое пространство<br class="on-desktop-br"> для встреч и общения.')}<div class="on-welcome-art">${visual()}</div><div class="on-choice-stack"><button class="on-choice on-choice-main" data-go="connect"><span class="on-choice-icon">${I("Link")}</span><span><strong>Подключиться к серверу</strong><small>У меня уже есть адрес MeetSpace</small></span>${I("ArrowUpRight")}</button><button class="on-choice" data-go="deploy"><span class="on-choice-icon">${I("Server")}</span><span><strong>Развернуть свой сервер</strong><small>Создать пространство на своём VPS</small></span>${I("ArrowUpRight")}</button></div><div class="on-feature-strip">${marks.map((x) => `<span>${I(x.icon)}${x.label}</span>`).join("")}</div><button class="on-demo-link" data-go="meetings">Посмотреть интерфейс ${I("ArrowRight")}</button>`,
       { welcome: true },
     ),
   );
@@ -134,7 +135,7 @@
         }
         form.elements.password.value = "";
         M.toast("Демонстрационное пространство открыто");
-        M.go("home");
+        M.go("meetings");
       });
     },
   );

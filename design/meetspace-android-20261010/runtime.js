@@ -2,7 +2,7 @@
 window.MS = {
   screens: {},
   state: {
-    screen: "home",
+    screen: "meetings",
     theme: "light",
     mic: true,
     camera: false,
@@ -29,20 +29,25 @@ window.MS = {
     );
   },
   go(id) {
+    if (["home", "calls"].includes(id)) id = "meetings";
     if (!this.screens[id]) return;
     this.closeModal();
+    if (id === "prejoin") this.applyJoinPreferences?.();
     this.state.screen = id;
     this.render();
   },
   render() {
     document.documentElement.dataset.theme = this.state.theme;
     document.body.dataset.screen = this.state.screen;
-    const screen = this.screens[this.state.screen] || this.screens.home;
+    const screen = this.screens[this.state.screen] || this.screens.meetings;
     document.getElementById("app").innerHTML = screen.render();
     screen.bind?.();
     const url = new URL(location.href);
     url.searchParams.set("screen", this.state.screen);
     url.searchParams.set("theme", this.state.theme);
+    const section = this.accountSectionRoute?.() || null;
+    if (section) url.searchParams.set("section", section);
+    else url.searchParams.delete("section");
     history.replaceState(null, "", url);
     if (window.parent !== window)
       window.parent.postMessage(
@@ -50,6 +55,7 @@ window.MS = {
           type: "ms:navigate",
           screen: this.state.screen,
           theme: this.state.theme,
+          section,
         },
         location.origin === "null" ? "*" : location.origin,
       );
@@ -81,7 +87,7 @@ window.MS = {
     const params = new URLSearchParams(location.search);
     this.state.screen = this.screens[params.get("screen")]
       ? params.get("screen")
-      : "home";
+      : "meetings";
     this.state.theme = params.get("theme") === "dark" ? "dark" : "light";
     document.addEventListener("click", (e) => {
       const target = e.target.closest("button,a");
@@ -128,7 +134,9 @@ window.MS = {
         ? e.data.screen
         : this.state.screen;
       const theme = e.data.theme === "dark" ? "dark" : "light";
-      if (next !== this.state.screen || theme !== this.state.theme) {
+      const sectionChanged = Object.hasOwn(e.data, "section")
+        ? this.setAccountSectionRoute?.(e.data.section) : false;
+      if (next !== this.state.screen || theme !== this.state.theme || sectionChanged) {
         this.closeModal();
         this.state.screen = next;
         this.state.theme = theme;

@@ -130,6 +130,7 @@ export function Dashboard({
 
 function ConferenceDashboard() {
   const [params, setParams] = useSearchParams();
+  const [creating, setCreating] = useState(false);
   const tab: NonNullable<ConferenceFilters["view"]> =
     params.get("view") === "active"
       ? "active"
@@ -187,10 +188,10 @@ function ConferenceDashboard() {
           <h1>Встречи</h1>
           <p>Ваши разговоры, планы и общие результаты.</p>
         </div>
-        <Link className="button button-primary" to="/conferences/new">
+        <Button type="button" onClick={() => setCreating(true)}>
           <Plus size={18} aria-hidden="true" />
           Новая встреча
-        </Link>
+        </Button>
       </section>
       <div className="dashboard-columns">
         <section className="conferences-panel">
@@ -342,10 +343,14 @@ function ConferenceDashboard() {
                         : "Конференции появятся здесь, когда изменится их статус."}
                   </p>
                   {tab === "upcoming" && !search && (
-                    <Link to="/conferences/new" className="text-link">
+                    <button
+                      type="button"
+                      className="text-button text-link"
+                      onClick={() => setCreating(true)}
+                    >
                       <Plus size={16} aria-hidden="true" />
                       Создать конференцию
-                    </Link>
+                    </button>
                   )}
                 </div>
               )
@@ -362,6 +367,7 @@ function ConferenceDashboard() {
           )}
         </section>
       </div>
+      {creating && <CreateConference onClose={() => setCreating(false)} />}
     </div>
   );
 }

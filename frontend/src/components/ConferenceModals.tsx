@@ -105,11 +105,10 @@ export function ShareConference({
 }
 /**
  * CreateConference управляет формой создания встречи, локальным расписанием и залом ожидания.
- *
- *
+ * @args onClose — закрывает форму на текущей странице; без него используется маршрут возврата.
  * @returns JSX-представление компонента для текущих свойств и состояния.
  */
-export function CreateConference() {
+export function CreateConference({ onClose }: { onClose?: () => void }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const client = useQueryClient();
@@ -170,8 +169,9 @@ export function CreateConference() {
    * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
    */
   function close() {
-    if (!mutation.isPending)
-      navigate(params.get("returnTo") === "calendar" ? "/calendar" : "/app");
+    if (mutation.isPending) return;
+    if (onClose) onClose();
+    else navigate(params.get("returnTo") === "calendar" ? "/calendar" : "/app");
   }
   /**
    * submit проверяет поля формы, отправляет изменение и показывает результат либо ошибку.

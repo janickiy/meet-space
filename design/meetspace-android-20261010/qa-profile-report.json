@@ -1,0 +1,1036 @@
+{
+  "date": "2026-10-12",
+  "scope": "Redesigned account settings in the interactive design prototype",
+  "method": "CUA browser UI interactions, read-only DOM layout checks and visual screenshot review; node --check for modified JavaScript and verify.mjs. The full verify.mjs suite was not executed.",
+  "reference": "https://meeting.janickiy.com/app",
+  "layoutChecks": [
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "overview",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": false,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "profile",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "audio",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "video",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "notifications",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "appearance",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "overview",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": false,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "profile",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "audio",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "video",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "notifications",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "appearance",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "overview",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "profile",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "audio",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "video",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "notifications",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "appearance",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "overview",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "profile",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "audio",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "video",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "notifications",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "light",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "appearance",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "overview",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": false,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "profile",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "audio",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "video",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "notifications",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "section": "appearance",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 800,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 360,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "overview",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": false,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "profile",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "audio",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "video",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "notifications",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "section": "appearance",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 844,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "overview",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "profile",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "audio",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "video",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "notifications",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 834,
+        "height": 1194
+      },
+      "section": "appearance",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 1194,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 834,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "overview",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "profile",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "audio",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "video",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "notifications",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "theme": "dark",
+      "viewport": {
+        "width": 1194,
+        "height": 834
+      },
+      "section": "appearance",
+      "contentOverflow": false,
+      "docOverflow": false,
+      "height": 834,
+      "nav": "Встречи,Чаты,Профиль",
+      "navVisible": true,
+      "panel": true,
+      "panelOverflow": false,
+      "sidebar": true,
+      "width": 1194,
+      "pass": true
+    }
+  ],
+  "functionalFlows": [
+    {
+      "port": 8766,
+      "saved": {
+        "disabled": true,
+        "initials": "МТ",
+        "readonly": true,
+        "value": "Мария Тест"
+      },
+      "audio": {
+        "mic": "headset",
+        "mute": true
+      },
+      "video": {
+        "camera": "back",
+        "off": true
+      },
+      "notifications": {
+        "email": true,
+        "push": true,
+        "reminders": false,
+        "saved": true
+      },
+      "appearance": {
+        "menuOverflow": false,
+        "nav": true,
+        "panelOverflow": false,
+        "size": "28px",
+        "theme": "dark"
+      },
+      "pass": true
+    }
+  ],
+  "gallerySync": [
+    {
+      "port": 8766,
+      "phoneTheme": "dark",
+      "tabletTheme": "dark",
+      "tabletSection": "Оформление",
+      "url": "http://127.0.0.1:8766/index.html?screen=settings&view=compare&theme=dark&section=appearance",
+      "pass": true
+    }
+  ],
+  "finalPreviews": [
+    {
+      "port": 8766,
+      "name": "account-phone",
+      "nav": true,
+      "overflow": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "name": "account-profile-phone",
+      "nav": true,
+      "overflow": false,
+      "width": 390,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "name": "account-profile-tablet",
+      "nav": true,
+      "overflow": false,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "name": "account-profile-tablet-dark",
+      "nav": true,
+      "overflow": false,
+      "width": 1194,
+      "pass": true
+    },
+    {
+      "port": 8766,
+      "name": "account-audio-tablet",
+      "nav": true,
+      "overflow": false,
+      "width": 834,
+      "pass": true
+    }
+  ],
+  "largeTextTablet": {
+    "menuOverflow": false,
+    "nav": true,
+    "panelOverflow": false,
+    "sidebarOverflow": false,
+    "size": "28px",
+    "width": 834
+  },
+  "manualPhoneChecks": [
+    {
+      "name": "phone profile validation and save",
+      "pass": true
+    },
+    {
+      "name": "audio select and switch",
+      "pass": true
+    },
+    {
+      "name": "video demo preview",
+      "pass": true
+    },
+    {
+      "name": "notifications save",
+      "pass": true
+    }
+  ],
+  "limitations": [
+    "All profile data, drafts and preferences remain in preview memory until reload. No camera, microphone or notification service is accessed.",
+    "Text size affects account settings; theme affects the entire prototype.",
+    "The browser log includes unassociated MutationObserver errors without a source URL. No MutationObserver calls exist in prototype source; no visible workflow failure was observed."
+  ]
+}
