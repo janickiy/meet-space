@@ -21,7 +21,7 @@ func NewPersonalRepository(db *gorm.DB) *PersonalRepository {
 }
 func (r *PersonalRepository) Account(ctx context.Context, user string) error {
 	var n int64
-	err := r.db.WithContext(ctx).Table("users").Where("id=? AND guest_conference_id IS NULL", user).Count(&n).Error
+	err := r.db.WithContext(ctx).Table("users").Where("id=? AND guest_conference_id IS NULL AND password_hash<>''", user).Count(&n).Error
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (r *PersonalRepository) GetOrCreate(ctx context.Context, user, target strin
 	created := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var n int64
-		if err := tx.Table("users").Where("id IN ? AND guest_conference_id IS NULL", []string{lo, hi}).Count(&n).Error; err != nil {
+		if err := tx.Table("users").Where("id IN ? AND guest_conference_id IS NULL AND password_hash<>''", []string{lo, hi}).Count(&n).Error; err != nil {
 			return err
 		}
 		if n != 2 {
@@ -221,7 +221,7 @@ func (r *PersonalRepository) ConversationType(ctx context.Context, id string) (s
 }
 func (r *PersonalRepository) HasActiveMembership(ctx context.Context, id, user string) (bool, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Table("conversation_members m").Joins("JOIN conversations c ON c.id=m.conversation_id").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND c.deleted_at IS NULL AND c.type IN('direct','group') AND u.guest_conference_id IS NULL", id, user).Count(&count).Error
+	err := r.db.WithContext(ctx).Table("conversation_members m").Joins("JOIN conversations c ON c.id=m.conversation_id").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND c.deleted_at IS NULL AND c.type IN('direct','group') AND u.guest_conference_id IS NULL AND u.password_hash<>''", id, user).Count(&count).Error
 	return count == 1, err
 }
 func (r *PersonalRepository) Search(ctx context.Context, user, query string) ([]personal.Peer, error) {
@@ -231,6 +231,6 @@ func (r *PersonalRepository) Search(ctx context.Context, user, query string) ([]
 	}
 	query = strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(query)
 	peers := []personal.Peer{}
-	err := r.db.WithContext(ctx).Table("users").Select("id,display_name").Where("id<>? AND guest_conference_id IS NULL AND display_name ILIKE ?", user, "%"+query+"%").Order("display_name,id").Limit(20).Scan(&peers).Error
+	err := r.db.WithContext(ctx).Table("users").Select("id,display_name").Where("id<>? AND guest_conference_id IS NULL AND password_hash<>'' AND display_name ILIKE ?", user, "%"+query+"%").Order("display_name,id").Limit(20).Scan(&peers).Error
 	return peers, err
 }

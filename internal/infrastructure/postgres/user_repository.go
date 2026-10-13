@@ -56,7 +56,7 @@ func (r *UserRepository) Create(ctx context.Context, user users.User) (users.Use
 //   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (r *UserRepository) GetByID(ctx context.Context, id string) (users.User, error) {
 	var user users.User
-	err := r.db.WithContext(ctx).Where("id = ?", id).Take(&user).Error
+	err := r.db.WithContext(ctx).Where("id = ? AND password_hash<>''", id).Take(&user).Error
 	return user, mapNotFound(err)
 }
 
@@ -71,13 +71,13 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (users.User, er
 //   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (users.User, error) {
 	var user users.User
-	err := r.db.WithContext(ctx).Where("email = ?", email).Take(&user).Error
+	err := r.db.WithContext(ctx).Where("email = ? AND password_hash<>''", email).Take(&user).Error
 	return user, mapNotFound(err)
 }
 
 // UpdateDisplayName меняет только имя учётной записи из проверенного субъекта JWT.
 func (r *UserRepository) UpdateDisplayName(ctx context.Context, userID, name string) (users.User, error) {
-	result := r.db.WithContext(ctx).Model(&users.User{}).Where("id = ?", userID).Update("display_name", name)
+	result := r.db.WithContext(ctx).Model(&users.User{}).Where("id = ? AND password_hash<>''", userID).Update("display_name", name)
 	if result.Error != nil {
 		return users.User{}, result.Error
 	}

@@ -23,7 +23,7 @@
       group: "workspace",
       title: "Ваш профиль и настройки.",
       description:
-        "Профиль, аудио, видео, уведомления и оформление — привычные настройки в мобильном формате.",
+        "Добавляйте аккаунты, переключайтесь между ними и настраивайте каждый профиль.",
     },
     {
       id: "thread",
@@ -157,9 +157,10 @@
   const params = new URLSearchParams(location.search);
   let current =
     screens.find((s) => s.id === params.get("screen")) || screens[0];
-  let section = ["profile", "audio", "video", "notifications", "appearance", "connection"].includes(params.get("section")) ? params.get("section") : null;
+  let section = ["profile", "audio", "video", "notifications", "appearance", "connection", "accounts", "add-account"].includes(params.get("section")) ? params.get("section") : null;
   let chat = params.get("chat") || "team";
   let personalCall = null;
+  let accountManager = null;
   let theme = params.get("theme") === "dark" ? "dark" : "light";
   let view = ["compare", "phone", "tablet"].includes(params.get("view"))
     ? params.get("view")
@@ -169,7 +170,7 @@
   let portrait = params.get("orientation") === "portrait";
   const $ = (id) => document.getElementById(id);
   const frames = [$("phone-preview"), $("tablet-preview")];
-  const initialPreview = `preview.html?rev=20261012-registration&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "settings" && section ? `&section=${section}` : ""}`;
+  const initialPreview = `preview.html?rev=20261013-accounts&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "settings" && section ? `&section=${section}` : ""}`;
   frames.forEach((frame) => {
     if (frame.getAttribute("src") !== initialPreview)
       frame.src = initialPreview;
@@ -198,13 +199,13 @@
     if (current.id === "settings" && section) url.searchParams.set("section", section);
     else url.searchParams.delete("section");
     history.replaceState(null, "", url);
-    $("open-screen").href = `preview.html?rev=20261012-registration&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "settings" && section ? `&section=${section}` : ""}`;
+    $("open-screen").href = `preview.html?rev=20261013-accounts&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "settings" && section ? `&section=${section}` : ""}`;
   }
   function notifyFrames(except) {
     frames.forEach((frame) => {
       if (frame.contentWindow && frame.contentWindow !== except)
         frame.contentWindow.postMessage(
-          { type: "ms:screen", screen: current.id, theme, section, chat, personalCall },
+          { type: "ms:screen", screen: current.id, theme, section, chat, personalCall, accountManager },
           "*",
         );
     });
@@ -345,12 +346,14 @@
       const nextTheme = ["light", "dark"].includes(event.data.theme)
         ? event.data.theme
         : theme;
-      const nextSection = ["profile", "audio", "video", "notifications", "appearance", "connection"].includes(event.data.section) ? event.data.section : null;
+      const nextSection = ["profile", "audio", "video", "notifications", "appearance", "connection", "accounts", "add-account"].includes(event.data.section) ? event.data.section : null;
       const nextChat = typeof event.data.chat === "string" ? event.data.chat : chat;
       const nextCall = event.data.personalCall || null;
-      if (next && (next.id !== current.id || nextTheme !== theme || nextSection !== section || nextChat !== chat || JSON.stringify(nextCall) !== JSON.stringify(personalCall))) {
+      const nextAccounts = event.data.accountManager || accountManager;
+      if (next && (next.id !== current.id || nextTheme !== theme || nextSection !== section || nextChat !== chat || JSON.stringify(nextCall) !== JSON.stringify(personalCall) || JSON.stringify(nextAccounts) !== JSON.stringify(accountManager))) {
         chat = nextChat;
         personalCall = nextCall;
+        accountManager = nextAccounts;
         section = nextSection;
         current = next;
         theme = nextTheme;

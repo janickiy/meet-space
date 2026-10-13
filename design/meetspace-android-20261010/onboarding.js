@@ -118,7 +118,7 @@
     "Вход в пространство",
     () =>
       frame(
-        `${heading("02 / ВХОД В ПРОСТРАНСТВО", "С возвращением.", "Ваша команда уже здесь.")}<div class="on-server-pill"><span>${I("Server")} ${e(new URL(S().server).hostname)}</span><button data-go="connect">Изменить</button></div><form id="on-login-form" class="on-form" novalidate>${field("Электронная почта", "email", "anna@example.org", "you@company.ru", 'type="email" autocomplete="off" required')}${field("Пароль", "password", "", "Введите demo", 'type="password" autocomplete="off" required')}<p class="on-field-hint">Для просмотра макета введите пароль <strong>demo</strong>.</p>${error}<button type="submit" class="button primary on-full">Войти в MeetSpace ${I("ArrowRight")}</button></form><button class="on-text-link" data-toast="Восстановление доступа показано как сценарий. Обратитесь к администратору вашего сервера.">Не получается войти?</button><div class="on-account-switch"><span>Нет аккаунта?</span><button data-go="register">Создать аккаунт</button></div>${demo("Вход демонстрационный. Данные не отправляются и не сохраняются.")}`,
+        `${heading("02 / ВХОД В ПРОСТРАНСТВО", "С возвращением.", "Ваша команда уже здесь.")}<div class="on-server-pill"><span>${I("Server")} ${e(new URL(S().server).hostname)}</span><button data-go="connect">Изменить</button></div><form id="on-login-form" class="on-form" novalidate>${field("Электронная почта", "email", "anna@example.org", "you@company.ru", 'type="email" autocomplete="off" required')}${field("Пароль", "password", "", "Введите demo", 'type="password" autocomplete="off" required')}<p class="on-field-hint">Для просмотра макета введите пароль <strong>demo</strong>.</p>${error}<button type="submit" class="button primary on-full">Войти в MeetSpace ${I("ArrowRight")}</button></form><button class="on-text-link" data-toast="Восстановление доступа показано как сценарий. Обратитесь к администратору вашего сервера.">Не получается войти?</button><div class="on-account-switch"><span>Нет аккаунта?</span><button data-go="register">Создать аккаунт</button></div>${demo("Вход демонстрационный. Пароль не сохраняется; профиль доступен до обновления страницы.")}`,
         { back: "connect" },
       ),
     () => {
@@ -133,6 +133,7 @@
           showError(form, "Для демонстрации введите demo.");
           return;
         }
+        M.completeAccountAuth?.({ email: form.elements.email.value.trim(), server: S().server });
         form.elements.password.value = "";
         M.toast("Демонстрационное пространство открыто");
         M.go("meetings");
@@ -154,7 +155,7 @@
         <button type="submit" class="button primary on-full">Создать аккаунт ${I("ArrowRight")}</button>
       </form>
       <div class="on-account-switch"><span>Уже есть аккаунт?</span><button data-go="login">Войти</button></div>
-      ${demo("Регистрация демонстрационная. Данные не отправляются и не сохраняются.")}`,
+      ${demo("Регистрация демонстрационная. Пароль не сохраняется; профиль доступен до обновления страницы.")}`,
       { back: "login", backLabel: "Ко входу", account: true },
     ),
     () => {
@@ -188,6 +189,8 @@
         const password = form.elements.password.value;
         if (Array.from(password).length < 8 || Array.from(password).length > 128) return fail("password", "Пароль должен содержать от 8 до 128 символов.");
         if (form.elements.confirm.value !== password) return fail("confirm", "Пароли не совпадают. Повторите пароль.");
+        const accountError = M.completeAccountAuth?.({ name, email: form.elements.email.value, server: S().server }, "register");
+        if (accountError) return fail("email", accountError);
         form.reset();
         M.go("meetings");
         M.toast("Демо: аккаунт создан. Добро пожаловать в MeetSpace!");

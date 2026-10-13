@@ -32,13 +32,13 @@ func (r *FolderRepository) Account(ctx context.Context, actor string) error {
 const folderConversationsSQL = `SELECT c.id, COALESCE(lm.created_at,c.created_at) AS activity_at,
  CASE WHEN c.type='group' THEN c.name ELSE COALESCE(NULLIF(peer.display_name,''),'Пользователь') END AS label
  FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
- JOIN users actor ON actor.id=m.user_id AND actor.guest_conference_id IS NULL
+ JOIN users actor ON actor.id=m.user_id AND actor.guest_conference_id IS NULL AND actor.password_hash<>''
  LEFT JOIN users peer ON c.type='direct' AND peer.id=CASE WHEN c.user_low_id=m.user_id THEN c.user_high_id ELSE c.user_low_id END
  LEFT JOIN conversation_messages lm ON lm.id=c.last_message_id AND lm.sequence>m.history_cleared_through
  WHERE m.user_id=? AND m.left_at IS NULL AND m.hidden_at IS NULL AND c.deleted_at IS NULL AND c.type IN('direct','group')`
 const folderConferencesSQL = `SELECT c.id,COALESCE(c.finished_at,c.scheduled_at,c.created_at) AS activity_at,c.title AS label
  FROM conference_participants p JOIN conferences c ON c.id=p.conference_id
- JOIN users actor ON actor.id=p.user_id AND actor.guest_conference_id IS NULL
+ JOIN users actor ON actor.id=p.user_id AND actor.guest_conference_id IS NULL AND actor.password_hash<>''
  WHERE c.kind='meeting' AND p.user_id=? AND p.admission_state IN('admitted','waiting') AND p.status NOT IN('kicked','rejected')
  AND NOT EXISTS(SELECT 1 FROM conference_chat_preferences cp WHERE cp.conference_id=c.id AND cp.user_id=p.user_id AND cp.left_at IS NOT NULL)`
 const folderEligibleSQL = `WITH eligible_conversations AS (` + folderConversationsSQL + `), eligible_conferences AS (` + folderConferencesSQL + `) `
@@ -95,7 +95,7 @@ func folderView(db *gorm.DB, actor, id string) (folders.Folder, error) {
 // key-share locks held by existing FK-based conversation/member writes.
 func lockFolderActor(tx *gorm.DB, actor string) error {
 	var id string
-	result := tx.Raw(`SELECT id FROM users WHERE id=? AND guest_conference_id IS NULL FOR NO KEY UPDATE`, actor).Scan(&id)
+	result := tx.Raw(`SELECT id FROM users WHERE id=? AND guest_conference_id IS NULL AND password_hash<>'' FOR NO KEY UPDATE`, actor).Scan(&id)
 	if result.Error != nil {
 		return result.Error
 	}

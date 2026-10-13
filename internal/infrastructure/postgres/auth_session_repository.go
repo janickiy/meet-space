@@ -14,6 +14,13 @@ import (
 
 // AuthorizeLegacy preserves still-valid old credentials unless this browser logged out.
 func (r *AuthSessionRepository) AuthorizeLegacy(ctx context.Context, hash, userID string) error {
+	var enabled bool
+	if err := r.db.WithContext(ctx).Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND password_hash<>'')", userID).Scan(&enabled).Error; err != nil {
+		return err
+	}
+	if !enabled {
+		return apperrors.ErrUnauthorized
+	}
 	var legacy authLegacyToken
 	err := r.db.WithContext(ctx).Where("token_hash = ?", hash).Take(&legacy).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -66,6 +73,7 @@ func (r *AuthSessionRepository) Create(ctx context.Context, session users.AuthSe
 func (r *AuthSessionRepository) GetByHash(ctx context.Context, hash string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").
+		Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>''").
 		Joins("JOIN auth_session_tokens ON auth_session_tokens.session_id = auth_sessions.id").
 		Where("auth_session_tokens.token_hash = ?", hash).Take(&session).Error
 	return session, mapNotFound(err)
@@ -73,7 +81,7 @@ func (r *AuthSessionRepository) GetByHash(ctx context.Context, hash string) (use
 
 func (r *AuthSessionRepository) GetByID(ctx context.Context, id string) (users.AuthSession, error) {
 	var session users.AuthSession
-	err := r.db.WithContext(ctx).Where("id = ?", id).Take(&session).Error
+	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>''").Where("auth_sessions.id = ?", id).Take(&session).Error
 	return session, mapNotFound(err)
 }
 

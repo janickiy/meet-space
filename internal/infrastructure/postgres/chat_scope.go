@@ -106,7 +106,7 @@ func authorizeDirect(tx *gorm.DB, user, id string, locked bool) error {
 	// Check membership in a new statement after acquiring the conversation lock.
 	// All group mutations lock this same row before changing member activity.
 	var count int64
-	if err := tx.Table("conversation_members m").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL", id, user).Count(&count).Error; err != nil {
+	if err := tx.Table("conversation_members m").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL AND u.password_hash<>''", id, user).Count(&count).Error; err != nil {
 		return err
 	}
 	if count != 1 {

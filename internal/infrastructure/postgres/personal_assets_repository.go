@@ -43,7 +43,7 @@ func authorizeAsset(tx *gorm.DB, user string, row assetConversation, manage bool
 	}
 	var member struct{ Role string }
 	result := tx.Raw(`SELECT m.role FROM conversation_members m JOIN users u ON u.id=m.user_id
-	 WHERE m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL`, row.ID, user).Scan(&member)
+	 WHERE m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL AND u.password_hash<>''`, row.ID, user).Scan(&member)
 	if result.Error != nil {
 		return result.Error
 	}

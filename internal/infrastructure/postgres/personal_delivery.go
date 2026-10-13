@@ -32,7 +32,7 @@ func (r *PersonalRepository) WithConversationDelivery(ctx context.Context, id, u
 		if err := tx.Raw(`SELECT count(*) FROM conversation_members m
 			JOIN users u ON u.id=m.user_id
 			WHERE m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL
-			AND u.guest_conference_id IS NULL`, id, user).Scan(&count).Error; err != nil {
+			AND u.guest_conference_id IS NULL AND u.password_hash<>''`, id, user).Scan(&count).Error; err != nil {
 			return err
 		}
 		if count != 1 {
@@ -71,7 +71,7 @@ func (r *PersonalRepository) WithConversationMessageDelivery(ctx context.Context
 			FROM conversation_members m JOIN users u ON u.id=m.user_id
 			JOIN conversation_messages x ON x.conversation_id=m.conversation_id
 			WHERE m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL
-			AND m.hidden_at IS NULL AND u.guest_conference_id IS NULL
+			AND m.hidden_at IS NULL AND u.guest_conference_id IS NULL AND u.password_hash<>''
 			AND x.id=? AND x.sequence>m.history_cleared_through`, id, user, messageID).Scan(&state)
 		if result.Error != nil || result.RowsAffected != 1 {
 			return result.Error
@@ -111,7 +111,7 @@ func (r *PersonalRepository) WithDirectActionDelivery(ctx context.Context, id, u
 		}
 		result = tx.Raw(`SELECT m.hidden_at,m.history_cleared_through FROM conversation_members m JOIN users u ON u.id=m.user_id
 			WHERE m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL
-			AND u.guest_conference_id IS NULL`, id, user).Scan(&member)
+			AND u.guest_conference_id IS NULL AND u.password_hash<>''`, id, user).Scan(&member)
 		if result.Error != nil || result.RowsAffected != 1 {
 			return result.Error
 		}

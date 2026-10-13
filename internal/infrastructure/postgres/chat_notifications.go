@@ -13,7 +13,7 @@ func createConversationNotifications(tx *gorm.DB, messageID string) error {
 		 'conversation-message:'||m.id::text,m.created_at
 		FROM conversation_messages m JOIN conversations c ON c.id=m.conversation_id AND c.deleted_at IS NULL
 		JOIN conversation_members member ON member.conversation_id=c.id
-		JOIN users u ON u.id=member.user_id AND u.guest_conference_id IS NULL
+		JOIN users u ON u.id=member.user_id AND u.guest_conference_id IS NULL AND u.password_hash<>''
 		LEFT JOIN conversation_messages reply ON reply.id=m.reply_to_id AND reply.conversation_id=c.id AND reply.deleted_at IS NULL
 		WHERE m.id=? AND m.deleted_at IS NULL AND member.user_id<>m.sender_user_id
 		 AND member.left_at IS NULL AND member.hidden_at IS NULL AND member.notifications_enabled

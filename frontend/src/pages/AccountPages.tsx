@@ -13,9 +13,11 @@ import {
   Video,
   Sun,
   UserRound,
+  UsersRound,
 } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../auth";
+import { AccountManagement } from "../components/AccountManagement";
 import { PRODUCT_NAME } from "../brand";
 import { formatDate } from "../utils";
 import { useConferences } from "../queries";
@@ -39,7 +41,12 @@ export function SettingsPage() {
   const appearance = useAppearance();
   const guest = Boolean(user?.guestConferenceId);
   const tabs = [
-    ...(!guest ? [{ id: "profile", label: "Профиль", Icon: UserRound }] : []),
+    ...(!guest
+      ? [
+          { id: "profile", label: "Профиль", Icon: UserRound },
+          { id: "accounts", label: "Аккаунты", Icon: UsersRound },
+        ]
+      : []),
     { id: "audio", label: "Аудио", Icon: Mic },
     { id: "video", label: "Видео", Icon: Video },
     ...(!guest
@@ -49,6 +56,7 @@ export function SettingsPage() {
   ] as const;
   const [activeSection, setActiveSection] = useState<string>(() => {
     const section = window.location.hash;
+    if (section === "#accounts" && !guest) return "accounts";
     return ["#audio-video", "#audio-settings"].includes(section)
       ? "audio"
       : section === "#video-settings"
@@ -261,6 +269,7 @@ export function SettingsPage() {
             </p>
           </section>
         )}
+        {activeSection === "accounts" && !guest && <AccountManagement />}
         {activeSection === "audio" && <AudioSettings />}
         {activeSection === "video" && <VideoSettings />}
         {activeSection === "notifications" && (

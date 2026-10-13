@@ -138,6 +138,13 @@ export class ApiError extends Error {
   }
 }
 const messages: Record<string, string> = {
+  "browser account limit reached":
+    "Можно подключить до 5 аккаунтов. Сначала выйдите из одного из них.",
+  "incorrect account password": "Неверный пароль текущего аккаунта.",
+  "leave active calls before deleting account":
+    "Сначала завершите звонки и выйдите из конференций на всех устройствах.",
+  "transfer group ownership and close meetings before deleting account":
+    "Сначала передайте владение группами (или удалите их), завершите или отмените созданные встречи.",
   "user is already in a call":
     "Пользователь уже разговаривает. Попробуйте позвонить позже.",
   "call is no longer ringing": "На звонок уже ответили или он завершён.",
@@ -230,6 +237,8 @@ async function request<T>(
      * @returns вычисленное значение: null.
      */ () => null,
   );
+  if (usedToken && version !== identityVersion)
+    throw new ApiError(409, "Аккаунт изменился. Повторите действие.");
   if (!response.ok) {
     if (
       response.status === 401 &&
@@ -570,10 +579,10 @@ export const api = {
       signal,
     }),
   /** Restores an account using its persistent HttpOnly cookie. */
-  refreshSession: (signal?: AbortSignal) =>
+  refreshSession: (signal?: AbortSignal, userId?: string) =>
     request<LoginResponse>("/auth/refresh", {
       method: "POST",
-      body: {},
+      body: userId ? { userId } : {},
       public: true,
       sessionCookie: true,
       recover: false,
@@ -609,11 +618,36 @@ export const api = {
    *
    * @returns Promise с проверенным ответом API; сетевые ошибки и отказ сервера отклоняют Promise.
    */
-  logout: (token: string | null = accessToken) =>
+  logout: (token: string | null = accessToken, userId?: string) =>
     request("/auth/logout", {
       method: "POST",
-      body: {},
+      body: userId ? { userId } : {},
       token,
+      sessionCookie: true,
+      recover: false,
+    }),
+  accounts: (signal?: AbortSignal) =>
+    request<Items<User>>("/auth/accounts/list", {
+      method: "POST",
+      body: {},
+      public: true,
+      sessionCookie: true,
+      recover: false,
+      signal,
+    }),
+  switchAccount: (userId: string, signal?: AbortSignal) =>
+    request<LoginResponse>("/auth/accounts/switch", {
+      method: "POST",
+      body: { userId },
+      public: true,
+      sessionCookie: true,
+      recover: false,
+      signal,
+    }),
+  deleteAccount: (password: string) =>
+    request("/auth/me", {
+      method: "DELETE",
+      body: { password },
       sessionCookie: true,
       recover: false,
     }),

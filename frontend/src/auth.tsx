@@ -1,4 +1,5 @@
 import {
+  Fragment,
   createContext,
   useCallback,
   useContext,
@@ -11,6 +12,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, configureAuth } from "./api";
 import type { User, LoginResponse, Item, Participant } from "./types";
 import {
+  ACCOUNT_CHANGE_KEY,
+  announceAccount,
+  selectedAccountID,
   clearLogoutMarker,
   hasLogoutMarker,
   LOGOUT_KEY,
@@ -26,6 +30,8 @@ interface Auth {
   expired: boolean;
   startupError: boolean;
   login: (email: string, password: string) => Promise<void>;
+  switchAccount: (id: string) => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   updateProfile: (displayName: string) => Promise<User>;
   enterGuest: (
     code: string,
@@ -139,10 +145,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         current.expiresAt > Date.now()
           ? api.establishSession(controller.signal).catch((error: unknown) => {
               if (error instanceof ApiError && error.status === 401)
-                return api.refreshSession(controller.signal);
+                return api.refreshSession(
+                  controller.signal,
+                  current?.user?.id || selectedAccountID(),
+                );
               throw error;
             })
-          : api.refreshSession(controller.signal);
+          : api.refreshSession(
+              controller.signal,
+              current?.user?.id || selectedAccountID(),
+            );
       const pending = response
         .then((result) => applySession(result, expected))
         .catch((error: unknown) => {
@@ -180,7 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (loggedOut.current) {
         clear();
         // Retry an offline logout before ever attempting cookie restoration.
-        await api.logout().catch(() => {});
+        await api.logout(null, selectedAccountID()).catch(() => {});
         return;
       }
       const cached = sessionRef.current;
@@ -194,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (accountRestoreBlocked.current && !result.user.guestConferenceId) {
             loggedOut.current = true;
             clear();
-            await api.logout().catch(() => {});
+            await api.logout(null, selectedAccountID()).catch(() => {});
             return;
           }
           userRef.current = result.user;
@@ -235,7 +247,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const check = () => {
       if (!startupComplete.current) return;
       if (loggedOut.current) {
-        if (hasLogoutMarker()) void api.logout().catch(() => {});
+        if (hasLogoutMarker())
+          void api.logout(null, selectedAccountID()).catch(() => {});
         return;
       }
       const current = sessionRef.current;
@@ -255,6 +268,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === "visible") check();
     };
     const onStorage = (event: StorageEvent) => {
+      if (event.key === ACCOUNT_CHANGE_KEY && event.newValue !== null) {
+        generation.current++;
+        renewalController.current?.abort();
+        identityController.current?.abort();
+        clear();
+        window.location.replace("/app");
+        return;
+      }
       if (event.key !== LOGOUT_KEY || event.newValue === null) return;
       accountRestoreBlocked.current = true;
       loggedOut.current = true;
@@ -344,12 +365,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     renewal.current = null;
     try {
       const result = await api.login(email, password, controller.signal);
-      await acceptSession(result, expected);
+      if (await acceptSession(result, expected))
+        announceAccount(result.user.id);
     } finally {
       if (identityController.current === controller)
         identityController.current = null;
       if (generation.current === expected) setLoading(false);
     }
+  }
+
+  async function switchAccount(id: string) {
+    const expected = ++generation.current;
+    identityController.current?.abort();
+    renewalController.current?.abort();
+    renewal.current = null;
+    const controller = new AbortController();
+    identityController.current = controller;
+    try {
+      const result = await api.switchAccount(id, controller.signal);
+      if (await acceptSession(result, expected))
+        announceAccount(result.user.id);
+    } finally {
+      if (identityController.current === controller)
+        identityController.current = null;
+    }
+  }
+
+  async function deleteAccount(password: string) {
+    await api.deleteAccount(password);
+    // The deletion is already committed. A failed switch must never restore it.
+    try {
+      const remaining = await api.accounts();
+      if (remaining.items[0]) {
+        await switchAccount(remaining.items[0].id);
+        return;
+      }
+    } catch {
+      /* Logout also fences outstanding responses. */
+    }
+    await logout();
+    announceAccount(null);
   }
 
   async function enterGuest(code: string, displayName: string) {
@@ -392,6 +447,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     const token = sessionRef.current?.token ?? null;
+    const id = sessionRef.current?.user?.id;
     accountRestoreBlocked.current = true;
     loggedOut.current = true;
     generation.current++;
@@ -401,7 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     markLogout();
     clear();
     // The tombstone survives a failed request and a browser restart.
-    await api.logout(token).catch(() => {});
+    await api.logout(token, id).catch(() => {});
   }
 
   return (
@@ -413,12 +469,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         startupError,
         login,
         updateProfile,
+        switchAccount,
+        deleteAccount,
         enterGuest,
         logout,
         retry: () => setAttempt((value) => value + 1),
       }}
     >
-      {children}
+      <Fragment key={user?.id || "signed-out"}>{children}</Fragment>
     </Context.Provider>
   );
 }

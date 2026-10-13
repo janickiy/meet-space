@@ -37,7 +37,7 @@ func invitationActor(tx *gorm.DB, actor, conference string, lock bool) (d.Confer
 		return c, err
 	}
 	var permanent int64
-	if err := tx.Model(&users.User{}).Where("id=? AND guest_conference_id IS NULL", actor).Count(&permanent).Error; err != nil {
+	if err := tx.Model(&users.User{}).Where("id=? AND guest_conference_id IS NULL AND password_hash<>''", actor).Count(&permanent).Error; err != nil {
 		return c, err
 	}
 	if permanent == 0 {
@@ -66,7 +66,7 @@ func (r *ConferenceInvitationRepository) SearchInvitationUsers(ctx context.Conte
 		}
 		// Escape LIKE operators: the input is a literal fragment, never a directory wildcard.
 		query = strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(query)
-		return tx.Model(&users.User{}).Select("id,email,display_name").Where("guest_conference_id IS NULL AND (email ILIKE ? OR display_name ILIKE ?)", "%"+query+"%", "%"+query+"%").Order("email,id").Limit(20).Scan(&items).Error
+		return tx.Model(&users.User{}).Select("id,email,display_name").Where("guest_conference_id IS NULL AND password_hash<>'' AND (email ILIKE ? OR display_name ILIKE ?)", "%"+query+"%", "%"+query+"%").Order("email,id").Limit(20).Scan(&items).Error
 	})
 	return items, err
 }
@@ -87,7 +87,7 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 		}
 		var accounts []users.User
 		if len(request.UserIDs) > 0 {
-			if err := tx.Where("id IN ? AND guest_conference_id IS NULL", request.UserIDs).Find(&accounts).Error; err != nil {
+			if err := tx.Where("id IN ? AND guest_conference_id IS NULL AND password_hash<>''", request.UserIDs).Find(&accounts).Error; err != nil {
 				return err
 			}
 			if len(accounts) != len(request.UserIDs) {
@@ -100,7 +100,7 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 		}
 		if len(request.Emails) > 0 {
 			var matches []users.User
-			if err := tx.Where("email IN ? AND guest_conference_id IS NULL", request.Emails).Find(&matches).Error; err != nil {
+			if err := tx.Where("email IN ? AND guest_conference_id IS NULL AND password_hash<>''", request.Emails).Find(&matches).Error; err != nil {
 				return err
 			}
 			for i := range matches {
@@ -221,7 +221,7 @@ func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs
 		}
 		if delivery.Invitation.UserID != nil {
 			var allowed int64
-			if err := tx.Table("conference_participants p").Joins("JOIN users u ON u.id=p.user_id AND u.guest_conference_id IS NULL").Where("p.conference_id=? AND p.user_id=? AND p.status NOT IN ('kicked','rejected') AND p.admission_state IN ('admitted','waiting')", job.ConferenceID, *delivery.Invitation.UserID).
+			if err := tx.Table("conference_participants p").Joins("JOIN users u ON u.id=p.user_id AND u.guest_conference_id IS NULL AND u.password_hash<>''").Where("p.conference_id=? AND p.user_id=? AND p.status NOT IN ('kicked','rejected') AND p.admission_state IN ('admitted','waiting')", job.ConferenceID, *delivery.Invitation.UserID).
 				Where("NOT EXISTS(SELECT 1 FROM conference_chat_preferences cp WHERE cp.conference_id=p.conference_id AND cp.user_id=p.user_id AND (cp.left_at IS NOT NULL OR NOT cp.notifications_enabled))").Count(&allowed).Error; err != nil {
 				return err
 			}

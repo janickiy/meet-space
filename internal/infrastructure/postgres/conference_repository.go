@@ -47,6 +47,10 @@ func (r *ConferenceRepository) Create(ctx context.Context, conference conference
 
 		@return:
 		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+			var account users.User
+			if err := tx.Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id=? AND password_hash<>''", conference.OwnerID).Take(&account).Error; err != nil {
+				return mapNotFound(err)
+			}
 			if err := tx.Create(&conference).Error; err != nil {
 				return err
 			}

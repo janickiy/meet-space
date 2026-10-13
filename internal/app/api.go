@@ -299,6 +299,9 @@ func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 		{Method: "GET", Path: path("/conference-invites/:code"), Scope: "invite_lookup_ip", Limit: 60, Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/login"), Scope: "ip", Limit: limit(cfg.RateLimit.AuthLoginIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/register"), Scope: "ip", Limit: limit(cfg.RateLimit.AuthRegisterIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
+		{Method: "DELETE", Path: path("/auth/me"), Scope: "account_delete_ip", Limit: 5, Window: window, Key: httpmiddleware.ClientIPKey},
+		{Method: "POST", Path: path("/auth/accounts/list"), Scope: "account_list_ip", Limit: 60, Window: window, Key: httpmiddleware.ClientIPKey},
+		{Method: "POST", Path: path("/auth/accounts/switch"), Scope: "account_switch_ip", Limit: 30, Window: window, Key: httpmiddleware.ClientIPKey},
 	}
 
 	return httpmiddleware.RateLimitConfig{

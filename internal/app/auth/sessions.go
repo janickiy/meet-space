@@ -79,7 +79,11 @@ func (h *Handler) sessionCookie(c *gin.Context) string {
 }
 
 func (h *Handler) setSessionCookie(c *gin.Context, raw string) {
-	cookie := &http.Cookie{Name: SessionCookieName, Value: raw, Path: sessionCookiePath,
+	h.setNamedSessionCookie(c, SessionCookieName, raw)
+}
+
+func (h *Handler) setNamedSessionCookie(c *gin.Context, name, raw string) {
+	cookie := &http.Cookie{Name: name, Value: raw, Path: sessionCookiePath,
 		MaxAge: sessionCookieMaxAge, Expires: time.Now().UTC().Add(time.Duration(sessionCookieMaxAge) * time.Second),
 		HttpOnly: true, Secure: h.secureCookie, SameSite: http.SameSiteLaxMode}
 	if raw == "" {
@@ -108,7 +112,10 @@ func (h *Handler) sessionOperation(c *gin.Context, bootstrap bool) {
 		return
 	}
 	c.Header("Cache-Control", "no-store")
-	if !httpresponse.BindJSON(c, &struct{}{}, true) {
+	var request struct {
+		UserID string `json:"userId"`
+	}
+	if !httpresponse.BindJSON(c, &request, true) {
 		return
 	}
 	sessions, ok := h.service.(persistentService)
@@ -119,14 +126,35 @@ func (h *Handler) sessionOperation(c *gin.Context, bootstrap bool) {
 	var response users.LoginResponse
 	var err error
 	if bootstrap {
-		response, err = sessions.Bootstrap(c.Request.Context(), httpmiddleware.UserID(c), h.sessionCookie(c), bearerToken(c))
+		id := httpmiddleware.UserID(c)
+		raw, _ := c.Cookie(accountCookieName(id))
+		if raw == "" {
+			raw = h.sessionCookie(c)
+		}
+		response, err = sessions.Bootstrap(c.Request.Context(), id, raw, bearerToken(c))
 	} else {
-		response, err = sessions.Refresh(c.Request.Context(), h.sessionCookie(c))
+		raw := h.sessionCookie(c)
+		if request.UserID != "" {
+			raw, _ = c.Cookie(accountCookieName(request.UserID))
+			// Existing browsers initially have only the original cookie. Verify its
+			// owner below before migrating it; never restore another identity.
+			if raw == "" {
+				raw = h.sessionCookie(c)
+			}
+		}
+		response, err = sessions.Refresh(c.Request.Context(), raw)
+		if err == nil && request.UserID != "" && response.User.ID != request.UserID {
+			err = apperrors.ErrForbidden
+		}
 	}
 	if err != nil {
 		httpresponse.Fail(c, err)
 		return
 	}
-	h.setSessionCookie(c, response.SessionToken)
+	// A background renewal must not change the active account of other tabs.
+	if bootstrap || request.UserID == "" {
+		h.setSessionCookie(c, response.SessionToken)
+	}
+	h.setNamedSessionCookie(c, accountCookieName(response.User.ID), response.SessionToken)
 	c.JSON(http.StatusOK, response)
 }

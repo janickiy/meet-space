@@ -231,7 +231,7 @@ func (r *NotificationRepository) generateChat(ctx context.Context) error {
 		for _, job := range jobs {
 			ids := []string{}
 			q := tx.Table("conference_participants p").Joins("JOIN chat_messages m ON m.conference_id=p.conference_id AND m.id=? AND m.deleted_at IS NULL", job.MessageID).
-				Joins("JOIN users u ON u.id=p.user_id AND u.guest_conference_id IS NULL").
+				Joins("JOIN users u ON u.id=p.user_id AND u.guest_conference_id IS NULL AND u.password_hash<>''").
 				Where("p.conference_id=? AND p.user_id IS NOT NULL AND p.user_id<>m.sender_user_id AND p.admission_state='admitted' AND p.status IN ('joined','left')", job.ConferenceID).
 				Where("p.created_at<=m.created_at AND (p.admission_decided_at IS NULL OR p.admission_decided_at<=m.created_at)").
 				Where("NOT EXISTS(SELECT 1 FROM conference_chat_preferences cp WHERE cp.conference_id=p.conference_id AND cp.user_id=p.user_id AND (cp.left_at IS NOT NULL OR NOT cp.notifications_enabled))")
@@ -247,7 +247,7 @@ func (r *NotificationRepository) generateChat(ctx context.Context) error {
 					'isReply',COALESCE((SELECT reply.sender_user_id=p.user_id FROM chat_messages reply WHERE reply.id=m.reply_to_id AND reply.conference_id=m.conference_id AND reply.deleted_at IS NULL),FALSE)),
 					'chat:'||m.id::text,m.created_at
 					FROM chat_messages m JOIN conference_participants p ON p.conference_id=m.conference_id
-					JOIN users u ON u.id=p.user_id AND u.guest_conference_id IS NULL
+					JOIN users u ON u.id=p.user_id AND u.guest_conference_id IS NULL AND u.password_hash<>''
 					WHERE m.id=? AND m.deleted_at IS NULL AND p.id IN ? AND p.user_id IS NOT NULL AND p.user_id<>m.sender_user_id
 					AND p.admission_state='admitted' AND p.status IN ('joined','left')
 					AND p.created_at<=m.created_at AND (p.admission_decided_at IS NULL OR p.admission_decided_at<=m.created_at)

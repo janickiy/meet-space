@@ -64,7 +64,7 @@ func (r *CallRepository) Create(ctx context.Context, actor, target, requestID, c
 	created := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var accounts []users.User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id IN ? AND guest_conference_id IS NULL", []string{actor, target}).Order("id").Find(&accounts).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id IN ? AND guest_conference_id IS NULL AND password_hash<>''", []string{actor, target}).Order("id").Find(&accounts).Error; err != nil {
 			return err
 		}
 		if len(accounts) != 2 || actor == target {
@@ -191,7 +191,7 @@ func (r *CallRepository) Change(ctx context.Context, actor, id, action, clientID
 			}
 			if err := tx.Exec(`INSERT INTO conference_participants(id,conference_id,user_id,display_name,role,status,joined_at,admission_state)
     SELECT gen_random_uuid(),?,u.id,COALESCE(NULLIF(u.display_name,''),'Пользователь'),CASE WHEN u.id=? THEN 'owner' ELSE 'participant' END,'joined',?,'admitted'
-    FROM users u WHERE u.id IN (?,?) AND u.guest_conference_id IS NULL`, conference, c.CallerUserID, now, c.CallerUserID, c.CalleeUserID).Error; err != nil {
+    FROM users u WHERE u.id IN (?,?) AND u.guest_conference_id IS NULL AND u.password_hash<>''`, conference, c.CallerUserID, now, c.CallerUserID, c.CalleeUserID).Error; err != nil {
 				return err
 			}
 			if err := tx.Save(&c).Error; err != nil {

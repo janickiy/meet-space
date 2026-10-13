@@ -2,6 +2,30 @@ import type { User } from "./types";
 
 export const SESSION_KEY = "meet.session.v1";
 export const LOGOUT_KEY = "meet.auth.logout.v1";
+export const ACCOUNT_CHANGE_KEY = "meet.auth.account-change.v1";
+// Only a public user ID and nonce are shared across tabs; never credentials.
+export function announceAccount(id: string | null) {
+  try {
+    localStorage.setItem(
+      ACCOUNT_CHANGE_KEY,
+      JSON.stringify({ id, nonce: crypto.randomUUID() }),
+    );
+  } catch {
+    /* Memory still works. */
+  }
+}
+export function selectedAccountID(): string | undefined {
+  try {
+    const value = JSON.parse(
+      localStorage.getItem(ACCOUNT_CHANGE_KEY) || "null",
+    );
+    return typeof value?.id === "string" && /^[0-9a-f-]{36}$/.test(value.id)
+      ? value.id
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 /**
  * Session связывает сохранённый токен, пользователя и сведения клиентской авторизации.
  *

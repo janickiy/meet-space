@@ -3,12 +3,13 @@
   const M = window.MS, I = (name) => M.icon(name), E = (text) => M.escape(text);
   const sections = [
     ["profile", "UserRound", "Профиль", "Имя и данные аккаунта"],
+    ["accounts", "Users", "Аккаунты", "Добавление и переключение"],
     ["audio", "Mic", "Аудио", "Микрофон, динамик и звук"],
     ["video", "Video", "Видео", "Камера и участники"],
     ["notifications", "Bell", "Уведомления", "События и каналы доставки"],
     ["appearance", "Palette", "Оформление", "Тема и размер текста"],
   ];
-  const validSection = (id) => id === "connection" || sections.some(([key]) => key === id);
+  const validSection = (id) => ["connection", "add-account"].includes(id) || sections.some(([key]) => key === id);
   const name = () => M.state.profileName || "Александр Соколов";
   const email = () => M.state.profileEmail || "alex@example.org";
   const notifications = { invitations: true, reminders: true, recording: true, summary: true, sound: true, email: false };
@@ -19,7 +20,7 @@
     notifications: { ...notifications }, notificationDraft: { ...notifications }, notificationSaved: false,
     textSize: 100, connectionDraft: null, connectionOriginal: null, connectionSaved: false,
   };
-  M.profileInitials = () => name().trim().split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join("").toUpperCase();
+  M.profileInitials = () => name().trim().split(/\s+/).filter((part) => /[\p{L}\p{N}]/u.test(part)).slice(0, 2).map((part) => Array.from(part)[0]).join("").toUpperCase();
   M.accountSectionRoute = () => M.state.screen === "settings" && s.open ? s.section : null;
   M.setAccountSectionRoute = (section) => {
     const open = validSection(section), next = open ? section : "profile";
@@ -42,7 +43,7 @@
       <label class="account-field"><span>Email</span><input type="email" value="${E(email())}" readonly aria-describedby="account-email-hint"/><small id="account-email-hint">Адрес используется для входа. Изменение email пока недоступно.</small></label>
       <div class="account-save-row"><button id="account-save-name" class="button primary" ${!s.nameDraft.trim() || s.nameDraft.trim() === name() ? "disabled" : ""}>Сохранить имя</button><span class="account-saved" role="status">${s.profileSaved ? `${I("Check")}Имя сохранено` : ""}</span></div>
     </form>
-    <div class="account-registration">${I("CalendarDays")}<span>Регистрация: 3 окт. 2026 г., 19:17</span></div>`;
+    <div class="account-registration">${I("CalendarDays")}<span>Регистрация: 3 окт. 2026 г., 19:17</span></div>${M.renderAccountDanger?.() || ""}`;
   const audio = () => `${heading("Аудио", "Подготовьте звук к следующей встрече.")}
     <section class="account-section">${select("mic", "Микрофон", [["default", "По умолчанию"], ["device", "Микрофон устройства"], ["headset", "Микрофон гарнитуры"]])}${test("mic", "Проверить микрофон")}${switchRow("autoMute", "Подключаться с выключенным микрофоном")}${switchRow("noise", "Шумоподавление", "Меньше фонового шума во время разговора")}</section>
     <section class="account-section">${select("speaker", "Динамик", [["default", "По умолчанию"], ["device", "Динамик устройства"], ["headset", "Наушники"]])}${test("speaker", "Проверить динамик")}</section>
@@ -90,11 +91,11 @@
         <div class="account-save-row"><button id="account-save-connection" class="button primary" ${error || normalizeConnection(s.connectionDraft) === normalizeConnection(serverAddress()) ? "disabled" : ""}>Сохранить адрес</button><span class="account-saved" role="status">${s.connectionSaved ? `${I("Check")}Адрес сохранён` : ""}</span></div>
       </form>${note("В макете сохраняется только адрес. Подключение к серверу не выполняется.")}`;
   };
-  const panels = { profile, audio, video, notifications: notificationPanel, appearance, connection };
-  const menu = () => `<aside class="account-sidebar" aria-label="Разделы настроек"><div class="account-identity">${portrait()}<div><strong>${E(name())}</strong><span>${E(email())}</span></div></div><p class="account-menu-label">НАСТРОЙКИ АККАУНТА</p><nav class="account-menu" aria-label="Настройки аккаунта">${sections.map(([id, icon, label, hint]) => `<button class="account-menu-item ${s.section === id ? "active" : ""}" data-action="accountSection" data-section="${id}" aria-label="${label}" ${s.section === id ? 'aria-current="page"' : ""}><span class="account-menu-icon">${I(icon)}</span><span><strong>${label}</strong><small>${hint}</small></span>${I("ChevronRight")}</button>`).join("")}</nav><div class="account-sidebar-footer"><button class="account-server ${s.section === "connection" ? "active" : ""}" data-action="accountSection" data-section="connection" aria-label="Подключение" ${s.section === "connection" ? 'aria-current="page"' : ""}>${I("Server")}<span><strong>Подключение</strong><small>${E(new URL(M.state.onboarding?.server || "https://meet.example.org").host)}</small></span>${I("ChevronRight")}</button><button class="account-logout" data-action="logout">${I("LogOut")}Выйти из аккаунта</button><p>MeetSpace · Демо</p></div></aside>`;
+  const panels = { profile, audio, video, notifications: notificationPanel, appearance, connection, accounts: () => M.renderAccounts(), "add-account": () => M.renderAddAccount() };
+  const menu = () => `<aside class="account-sidebar" aria-label="Разделы настроек"><button class="account-identity" data-action="accountSection" data-section="accounts" aria-label="Сменить аккаунт">${portrait()}<div><strong>${E(name())}</strong><span>${E(email())}</span></div>${I("ChevronDown")}</button><p class="account-menu-label">НАСТРОЙКИ АККАУНТА</p><nav class="account-menu" aria-label="Настройки аккаунта">${sections.map(([id, icon, label, hint]) => `<button class="account-menu-item ${(s.section === id || (id === "accounts" && s.section === "add-account")) ? "active" : ""}" data-action="accountSection" data-section="${id}" aria-label="${label}" ${(s.section === id || (id === "accounts" && s.section === "add-account")) ? 'aria-current="page"' : ""}><span class="account-menu-icon">${I(icon)}</span><span><strong>${label}</strong><small>${hint}</small></span>${I("ChevronRight")}</button>`).join("")}</nav><div class="account-sidebar-footer"><button class="account-server ${s.section === "connection" ? "active" : ""}" data-action="accountSection" data-section="connection" aria-label="Подключение" ${s.section === "connection" ? 'aria-current="page"' : ""}>${I("Server")}<span><strong>Подключение</strong><small>${E(new URL(M.state.onboarding?.server || "https://meet.example.org").host)}</small></span>${I("ChevronRight")}</button><button class="account-logout" data-action="logout">${I("LogOut")}Выйти из аккаунта</button><p>MeetSpace · Демо</p></div></aside>`;
   M.screens.settings = {
     title: "Настройки аккаунта", group: "Рабочее пространство",
-    render: () => M.shell(`<div class="account-layout ${s.open ? "detail-open" : ""}" style="--account-scale:${s.textSize / 100}">${menu()}<section class="account-panel" aria-labelledby="account-heading"><button class="account-back" data-action="accountBack">${I("ArrowLeft")}Все настройки</button>${panels[s.section]()}</section></div>`, "settings", "account-content"),
+    render: () => M.shell(`<div class="account-layout ${s.open ? "detail-open" : ""}" style="--account-scale:${s.textSize / 100}">${menu()}<section class="account-panel" aria-labelledby="account-heading"><button class="account-back" data-action="accountBack">${I("ArrowLeft")}${s.section === "add-account" ? "Аккаунты" : "Все настройки"}</button>${panels[s.section]()}</section></div>`, "settings", "account-content"),
     bind: () => {
       const input = document.getElementById("account-name"), form = document.getElementById("account-profile-form");
       const validateName = () => {
@@ -135,6 +136,7 @@
           e.preventDefault(); if (!validateConnection()) return;
           const value = normalizeConnection(s.connectionDraft);
           M.getOnboardingState().server = value;
+          M.updateCurrentAccount?.({ server: value });
           s.connectionDraft = value; s.connectionOriginal = value; s.connectionSaved = true;
           M.render(); document.getElementById("account-server-address")?.focus();
         });
@@ -161,6 +163,7 @@
         M.state.theme = input.value; M.state.themeMode = input.value; M.render();
         document.querySelector(`[name="account-theme"][value="${M.state.theme}"]`)?.focus();
       }));
+      M.bindAccountManager?.();
     },
   };
   const open = (section) => {
@@ -171,7 +174,7 @@
   Object.assign(M.actions, {
     servers: () => open("connection"),
     accountSection: (button) => open(button.dataset.section),
-    accountBack: () => { s.open = false; M.render(); document.querySelector(`[data-section="${s.section}"]`)?.focus(); },
+    accountBack: () => { if (s.section === "add-account") { open("accounts"); return; } s.open = false; M.render(); document.querySelector(`[data-section="${s.section}"]`)?.focus(); },
     editProfile: () => open("profile"), appearance: () => open("appearance"),
     accountCamera: () => { s.preview = !s.preview; M.render(); document.querySelector('[data-action="accountCamera"]')?.focus(); },
     accountTest: (button) => {

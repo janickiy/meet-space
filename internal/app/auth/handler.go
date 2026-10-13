@@ -110,16 +110,13 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 	if h.persistentSessions {
-		// Replacing a sign-in in this browser revokes its previous cookie session.
-		if previous := h.sessionCookie(c); previous != "" {
+		if err := h.preserveSignIn(c, response); err != nil {
 			if sessions, ok := h.service.(persistentService); ok {
-				if err := sessions.Logout(c.Request.Context(), previous, ""); err != nil {
-					httpresponse.Fail(c, err)
-					return
-				}
+				_ = sessions.Logout(c.Request.Context(), response.SessionToken, "")
 			}
+			httpresponse.Fail(c, err)
+			return
 		}
-		h.setSessionCookie(c, response.SessionToken)
 	}
 	c.JSON(http.StatusOK, response)
 }
@@ -161,7 +158,10 @@ func (h *Handler) Logout(c *gin.Context) {
 		return
 	}
 	c.Header("Cache-Control", "no-store")
-	if !httpresponse.BindJSON(c, &struct{}{}, true) {
+	var request struct {
+		UserID string `json:"userId"`
+	}
+	if !httpresponse.BindJSON(c, &request, true) {
 		return
 	}
 	if h.persistentSessions {
@@ -170,11 +170,33 @@ func (h *Handler) Logout(c *gin.Context) {
 			httpresponse.Fail(c, apperrors.ErrUnavailable)
 			return
 		}
-		if err := sessions.Logout(c.Request.Context(), h.sessionCookie(c), bearerToken(c)); err != nil {
+		raw := h.sessionCookie(c)
+		id := request.UserID
+		if id != "" {
+			raw, _ = c.Cookie(accountCookieName(id))
+			if raw == "" {
+				if service, ok := h.service.(accountService); ok {
+					if current, err := service.SessionAccount(c.Request.Context(), h.sessionCookie(c)); err == nil && current.ID == id {
+						raw = h.sessionCookie(c)
+					}
+				}
+			}
+		}
+		if service, ok := h.service.(accountService); ok {
+			if user, err := service.SessionAccount(c.Request.Context(), raw); err == nil {
+				id = user.ID
+			}
+		}
+		if err := sessions.Logout(c.Request.Context(), raw, bearerToken(c)); err != nil {
 			httpresponse.Fail(c, err)
 			return
 		}
-		h.setSessionCookie(c, "")
+		if id != "" {
+			h.setNamedSessionCookie(c, accountCookieName(id), "")
+		}
+		if request.UserID == "" || raw == h.sessionCookie(c) {
+			h.setSessionCookie(c, "")
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }

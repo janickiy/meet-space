@@ -19,12 +19,15 @@ func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conferenc
 	public.POST("/register", auth.Register)
 	public.POST("/login", auth.Login)
 	public.POST("/refresh", auth.Refresh)
+	public.POST("/accounts/list", auth.Accounts)
+	public.POST("/accounts/switch", auth.SwitchAccount)
 	if auth.PersistentSessionsEnabled() {
 		public.POST("/logout", auth.Logout)
 	}
 	protected := public.Group("", authentication)
 	protected.GET("/me", auth.Me)
 	protected.PATCH("/me", auth.UpdateProfile)
+	protected.DELETE("/me", auth.DeleteAccount)
 	protected.POST("/session", auth.Bootstrap)
 	if !auth.PersistentSessionsEnabled() {
 		protected.POST("/logout", auth.Logout)

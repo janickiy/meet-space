@@ -28,7 +28,7 @@ func lockGroup(tx *gorm.DB, actor, id string) (personal.Role, error) {
 		return "", apperrors.ErrForbidden
 	}
 	var member struct{ Role personal.Role }
-	err = tx.Table("conversation_members m").Select("m.role").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL", id, actor).Take(&member).Error
+	err = tx.Table("conversation_members m").Select("m.role").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL AND u.password_hash<>''", id, actor).Take(&member).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", apperrors.ErrForbidden
 	}
@@ -47,11 +47,11 @@ func groupWriteView(tx *gorm.DB, actor, id string, item *personal.Conversation) 
 	return err
 }
 func registeredGroupUsers(tx *gorm.DB, ids []string) error {
-	var count int64
-	if err := tx.Table("users").Where("id IN ? AND guest_conference_id IS NULL", ids).Count(&count).Error; err != nil {
+	var rows []struct{ ID string }
+	if err := tx.Table("users").Select("id").Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id IN ? AND guest_conference_id IS NULL AND password_hash<>''", ids).Order("id").Find(&rows).Error; err != nil {
 		return err
 	}
-	if count != int64(len(ids)) {
+	if len(rows) != len(ids) {
 		return apperrors.New(apperrors.ErrNotFound, "registered account is unavailable")
 	}
 	return nil

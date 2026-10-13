@@ -47,6 +47,7 @@ window.MS = {
     url.searchParams.set("theme", this.state.theme);
     const chat = this.chatRoute?.() || null;
     const personalCall = this.personalCallSnapshot?.() || null;
+    const accountManager = this.accountManagerSnapshot?.() || null;
     if (chat) url.searchParams.set("chat", chat);
     else url.searchParams.delete("chat");
     const section = this.accountSectionRoute?.() || null;
@@ -59,7 +60,7 @@ window.MS = {
           type: "ms:navigate",
           screen: this.state.screen,
           theme: this.state.theme,
-          section, chat, personalCall,
+          section, chat, personalCall, accountManager,
         },
         location.origin === "null" ? "*" : location.origin,
       );
@@ -141,9 +142,10 @@ window.MS = {
       const theme = e.data.theme === "dark" ? "dark" : "light";
       const chatChanged = this.setChatRoute?.(e.data.chat);
       const callChanged = Object.hasOwn(e.data, "personalCall") ? this.setPersonalCallSnapshot?.(e.data.personalCall) : false;
+      const accountsChanged = Object.hasOwn(e.data, "accountManager") ? this.setAccountManagerSnapshot?.(e.data.accountManager) : false;
       const sectionChanged = Object.hasOwn(e.data, "section")
         ? this.setAccountSectionRoute?.(e.data.section) : false;
-      if (next !== this.state.screen || theme !== this.state.theme || sectionChanged || chatChanged || callChanged) {
+      if (next !== this.state.screen || theme !== this.state.theme || sectionChanged || chatChanged || callChanged || accountsChanged) {
         this.closeModal();
         this.state.screen = next;
         this.state.theme = theme;
