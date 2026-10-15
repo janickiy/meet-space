@@ -8,7 +8,6 @@ import {
   Download,
   FileArchive,
   FileAudio,
-  FileImage,
   FileVideo,
   RefreshCw,
 } from "lucide-react";
@@ -28,13 +27,11 @@ import "./recordings.css";
 const materialLabels: Record<string, string> = {
   final_mp4: "Видеозапись (MP4)",
   final_audio: "Аудиозапись",
-  preview_jpg: "Превью записи",
   tracks_archive: "Архив дорожек",
 };
 const materialIcons = {
   final_mp4: FileVideo,
   final_audio: FileAudio,
-  preview_jpg: FileImage,
   tracks_archive: FileArchive,
 };
 
@@ -354,49 +351,40 @@ function RecordingDetailContent({
           </section>
           <section
             className="recording-detail-section recording-detail-materials"
-            aria-labelledby="recording-materials-title"
+            aria-label="Файлы записи"
           >
-            <h2 id="recording-materials-title">Материалы записи</h2>
             {materials.length > 0 ? (
-              <>
-                <ul className="recording-detail-files">
-                  {materials.map((file) => {
-                    const Icon =
-                      materialIcons[
-                        file.fileType as keyof typeof materialIcons
-                      ];
-                    return (
-                      <li
-                        key={`${file.fileType}:${file.index}`}
-                        className="recording-detail-file"
+              <ul className="recording-detail-files">
+                {materials.map((file) => {
+                  const Icon =
+                    materialIcons[file.fileType as keyof typeof materialIcons];
+                  return (
+                    <li
+                      key={`${file.fileType}:${file.index}`}
+                      className="recording-detail-file"
+                    >
+                      <span className="recordings-file-icon">
+                        <Icon size={22} aria-hidden="true" />
+                      </span>
+                      <div className="recording-detail-file-info">
+                        <strong>{materialLabels[file.fileType]}</strong>
+                        <span>{formatRecordingSize(file.sizeBytes)}</span>
+                      </div>
+                      <a
+                        className="recording-detail-download"
+                        href={file.url}
+                        download
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Скачать: ${materialLabels[file.fileType]}`}
                       >
-                        <span className="recordings-file-icon">
-                          <Icon size={22} aria-hidden="true" />
-                        </span>
-                        <div className="recording-detail-file-info">
-                          <strong>{materialLabels[file.fileType]}</strong>
-                          <span>{formatRecordingSize(file.sizeBytes)}</span>
-                        </div>
-                        <a
-                          className="recording-detail-download"
-                          href={file.url}
-                          download
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`Скачать: ${materialLabels[file.fileType]}`}
-                        >
-                          <Download size={18} aria-hidden="true" />
-                          <span>Скачать</span>
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="field-hint recording-detail-download-note">
-                  Если файл открылся в браузере, сохраните его через меню плеера
-                  или браузера.
-                </p>
-              </>
+                        <Download size={18} aria-hidden="true" />
+                        <span>Скачать</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
             ) : (
               <p className="field-hint">Доступных материалов пока нет.</p>
             )}

@@ -437,6 +437,8 @@ export interface ChatMessage {
   attachments: ChatAttachment[];
   /** Personal bookmark, projected only into the acting member's REST reads. */
   important?: boolean;
+  /** Shared pin in a personal or group conversation, visible to its members. */
+  pinned?: boolean;
   /** Серверная запись истории звонка; направление определяется текущим пользователем. */
   call?: DirectCallHistory;
 }

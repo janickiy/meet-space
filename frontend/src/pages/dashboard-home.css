@@ -1,4 +1,4 @@
-/* Главная: лозунг и четыре действия, затем реальные встречи пользователя. */
+/* Главная: заголовок в общей типографике продукта и четыре быстрых действия. */
 .dashboard-home {
   max-width: 1120px;
   margin-inline: auto;
@@ -13,25 +13,43 @@
 }
 .home-intro h1 {
   margin: 0;
-  font-family:
-    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
-  font-size: calc(clamp(36px, 4vw, 58px) * var(--text-scale));
-  line-height: 1.12;
-  font-weight: 400;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: calc(clamp(28px, 3vw, 42px) * var(--text-scale));
+  line-height: 1.2;
+  font-weight: 700;
   letter-spacing: -0.035em;
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
-.home-intro h1 em {
+.home-intro-brand {
+  display: inline-block;
+  max-width: 100%;
+  margin-bottom: 16px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
   color: var(--primary);
-  font-weight: 400;
+  background: var(--primary-soft);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  vertical-align: top;
+}
+.home-intro-title {
+  display: block;
+}
+.home-intro-title > span {
+  color: var(--primary);
 }
 .home-intro p {
-  margin: 22px 0 0;
+  max-width: 540px;
+  margin: 14px auto 0;
   color: var(--muted);
   font-size: var(--text-base);
-  line-height: 1.7;
+  line-height: 1.6;
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 .home-action-grid {
   position: relative;

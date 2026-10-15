@@ -205,7 +205,11 @@ export function resetDirectConversationHistory(
   userId: string,
 ) {
   purgePersonalConversationSearch(client, id, userId);
-  for (const key of ["personal-chat", "personal-chat-read"]) {
+  for (const key of [
+    "personal-chat",
+    "personal-chat-read",
+    "personal-chat-pins",
+  ]) {
     void client.cancelQueries({ queryKey: [key, id, userId] });
     client.removeQueries({ queryKey: [key, id, userId] });
   }

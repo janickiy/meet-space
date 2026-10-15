@@ -338,15 +338,7 @@ export function SettingsPage() {
                   ))}
                 </select>
               </label>
-              <div className="appearance-text-example">
-                <strong>Удобный размер для важных разговоров</strong>
-                <p>Все ваши встречи и сообщения — в одном месте.</p>
-              </div>
             </section>
-            <p className="field-hint">
-              Оформление применяется сразу и сохраняется для вашего аккаунта в
-              этом браузере.
-            </p>
             {appearance.persistenceError && (
               <p role="status">
                 Браузер не разрешил сохранить настройки. Оформление действует до

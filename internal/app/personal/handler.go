@@ -23,6 +23,8 @@ type Repository interface {
 	SetDirectPreferences(context.Context, string, string, bool) (personal.Conversation, error)
 	ClearDirectHistory(context.Context, string, string) (personal.Conversation, error)
 	HideDirectConversation(context.Context, string, string) (int64, error)
+	ConversationPins(context.Context, string, string, string, int) (chat.MessagePage, error)
+	SetConversationPin(context.Context, string, string, string, bool) (string, error)
 }
 type Handler struct {
 	Repo     Repository

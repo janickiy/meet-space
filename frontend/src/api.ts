@@ -1143,6 +1143,16 @@ export const api = {
       `/conversations/${encodeURIComponent(id)}`,
       { signal },
     ),
+  personalChatPins: (id: string, signal?: AbortSignal) =>
+    request<CursorItems<ChatMessage>>(
+      `/conversations/${encodeURIComponent(id)}/pins?limit=50`,
+      { signal },
+    ),
+  setPersonalChatPin: (id: string, messageId: string, pinned: boolean) =>
+    request(
+      `/conversations/${encodeURIComponent(id)}/pins/${encodeURIComponent(messageId)}`,
+      { method: pinned ? "PUT" : "DELETE" },
+    ),
   /** Читает присутствие только собеседника доступной личной переписки, не всей директории пользователей.
    * @args id — идентификатор диалога; signal — отмена запроса при закрытии окна или смене аккаунта.
    * @return Подтверждённые идентификаторы и статус; отказ доступа или сбой сервиса отклоняет Promise.

@@ -287,22 +287,6 @@
 .appearance-text-size {
   max-width: none;
 }
-.appearance-text-example {
-  margin-top: 24px;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-soft);
-}
-.appearance-text-example strong {
-  font-size: calc(14px * var(--text-scale));
-}
-.appearance-text-example p {
-  margin: 8px 0 0;
-  font-size: calc(12px * var(--text-scale));
-  color: var(--muted);
-  line-height: 1.5;
-}
 .account-dialog-panel .preferences-fieldset {
   padding: 0 0 20px;
   margin: 0;

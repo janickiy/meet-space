@@ -1,0 +1,351 @@
+/* Чат встречи: направление сообщений не меняет транспорт и права участников. */
+.conference-thread.chat-panel {
+  --meeting-chat-canvas: color-mix(
+    in srgb,
+    var(--primary-soft) 22%,
+    var(--canvas)
+  );
+  --meeting-chat-own: color-mix(
+    in srgb,
+    var(--primary-soft) 80%,
+    var(--surface)
+  );
+}
+
+.conference-thread.chat-panel .chat-messages {
+  gap: 12px;
+  padding-block: 16px;
+  background: var(--meeting-chat-canvas);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  scroll-padding-block: 16px;
+}
+
+.conference-thread.chat-panel .chat-message,
+.conference-stage-rail .conference-thread.chat-panel .chat-message {
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+}
+
+.conference-thread.chat-panel .chat-message-own {
+  flex-direction: row-reverse;
+}
+
+.conference-thread.chat-panel .chat-message-avatar,
+.conference-thread.chat-panel
+  .chat-message:not(.chat-message-own)
+  .chat-message-avatar,
+.conference-stage-rail .conference-thread.chat-panel .chat-message-avatar {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 2px;
+  border-radius: 50%;
+  font-size: min(calc(10px * var(--text-scale)), 14px);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.conference-thread .chat-message-own > .chat-message-avatar {
+  display: none;
+}
+
+.conference-thread .chat-message-content {
+  flex: 0 1 auto;
+  max-width: min(78%, calc(100% - 72px), 560px);
+}
+
+.conference-thread .chat-message-own .chat-message-content {
+  max-width: min(86%, calc(100% - 38px), 560px);
+}
+
+.conference-thread .chat-message header {
+  margin: 0 10px 5px;
+}
+
+.conference-thread.chat-panel .chat-message header strong {
+  color: var(--primary);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.conference-thread .chat-message-own header,
+.conference-thread .chat-message header time,
+.conference-thread .chat-message-self,
+.conference-thread .chat-message header .chat-message-edited {
+  display: none;
+}
+
+.conference-thread .chat-message-bubble {
+  position: relative;
+  min-width: 64px;
+  padding: 10px 12px 7px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 16px 16px 16px 4px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(40 20 46 / 4%);
+}
+
+.conference-thread .chat-message-own .chat-message-bubble {
+  border-color: color-mix(in srgb, var(--primary) 10%, transparent);
+  border-radius: 16px 16px 4px 16px;
+  background: var(--meeting-chat-own);
+}
+
+.conference-thread.chat-panel .chat-text,
+.conference-stage-rail .conference-thread.chat-panel .chat-text {
+  font-size: calc(14px * var(--text-scale));
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.conference-thread .chat-message-footer,
+.conference-thread .chat-message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: calc(10px * var(--text-scale));
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.conference-thread .chat-message-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.conference-thread .chat-message-footer svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.conference-thread .chat-message-tools {
+  align-self: center;
+  margin: 0;
+}
+
+.conference-thread .chat-message-tools > .item-actions > .icon-button {
+  width: 32px;
+  min-width: 32px;
+  min-height: 44px;
+  border-radius: 10px;
+}
+
+.conference-thread .chat-message-tools > .item-actions > .icon-button:hover,
+.conference-thread
+  .chat-message-tools
+  > .item-actions
+  > .icon-button[aria-expanded="true"] {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.conference-thread.chat-panel .chat-message-focused,
+.conference-thread.chat-panel .chat-message-focused:focus {
+  outline: 0;
+}
+
+.conference-thread .chat-message-focused .chat-message-bubble {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.conference-thread.chat-panel .chat-message blockquote {
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border-left: 3px solid var(--primary);
+  border-radius: 3px 8px 8px 3px;
+  background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface));
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.45;
+}
+
+.conference-thread.chat-panel .chat-message-own blockquote {
+  background: color-mix(in srgb, var(--primary) 7%, var(--meeting-chat-own));
+}
+
+.conference-thread.chat-panel .chat-attachment {
+  width: 100%;
+  max-width: 360px;
+  margin: 0 0 6px;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+.conference-thread .chat-text + .chat-attachment {
+  margin-top: 8px;
+}
+
+.conference-thread.chat-panel .chat-file-icon {
+  width: 28px;
+  height: 36px;
+  flex-basis: 28px;
+  border-radius: 7px;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.conference-thread .chat-file-copy strong {
+  font-size: calc(12px * var(--text-scale));
+  overflow-wrap: anywhere;
+}
+
+.conference-thread .chat-file-copy small {
+  font-size: calc(10px * var(--text-scale));
+}
+
+.conference-thread.chat-panel .chat-day-label,
+.conference-stage-rail .conference-thread.chat-panel .chat-day-label {
+  justify-content: center;
+  margin: 0 0 4px;
+  padding: 0 12px;
+}
+
+.conference-thread .chat-day-label::before,
+.conference-thread .chat-day-label::after {
+  display: none;
+}
+
+.conference-thread.chat-panel .chat-day-label > span {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--surface);
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 500;
+}
+
+.conference-thread.chat-panel .chat-composer {
+  position: relative;
+  padding: 10px 12px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* В узкой боковой панели поле занимает всю ширину, действия — строку ниже. */
+.conference-thread.chat-panel .chat-compose-row,
+.conference-stage-rail .conference-thread.chat-panel .chat-compose-row {
+  grid-template-columns: 44px 44px minmax(0, 1fr) 44px;
+  grid-template-rows: auto 44px;
+  align-items: end;
+  gap: 2px;
+  min-height: 0;
+  padding: 6px;
+  border-color: var(--border);
+  border-radius: 16px;
+  background: var(--meeting-chat-canvas);
+}
+
+.conference-thread .chat-compose-row:focus-within {
+  border-color: var(--primary);
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.conference-thread.chat-panel .chat-compose-field {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.conference-thread.chat-panel .chat-compose-field textarea,
+.conference-stage-rail
+  .conference-thread.chat-panel
+  .chat-compose-field
+  textarea {
+  display: block;
+  min-height: max(44px, calc(22px * var(--text-scale) + 16px));
+  max-height: 120px;
+  padding: 8px;
+  font-size: calc(14px * var(--text-scale));
+  line-height: calc(22px * var(--text-scale));
+  background: transparent;
+}
+
+.conference-stage-rail
+  .conference-thread.chat-panel
+  .chat-compose-field
+  textarea:placeholder-shown {
+  max-height: 120px;
+}
+
+.conference-thread.chat-panel .chat-compose-row .emoji-picker {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: end;
+}
+
+.conference-thread.chat-panel .chat-send-button.button,
+.conference-thread.chat-panel .chat-uploads-compact > .button {
+  grid-row: 2;
+}
+
+.conference-thread.chat-panel .chat-send-button.button {
+  border-radius: 12px;
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.conference-thread.chat-panel .chat-send-button.button:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.conference-thread .chat-compose-keyhint,
+.conference-thread .chat-compose-caption {
+  display: none;
+}
+
+.conference-thread .chat-reply {
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 4px 10px 10px 4px;
+  font-size: calc(12px * var(--text-scale));
+}
+
+.conference-thread .messaging-empty {
+  padding: 28px 20px;
+}
+
+:root[data-theme="dark"] .conference-thread.chat-panel {
+  --meeting-chat-canvas: var(--canvas);
+  --meeting-chat-own: color-mix(
+    in srgb,
+    var(--primary-soft) 86%,
+    var(--surface)
+  );
+}
+
+@media (max-width: 760px) {
+  .conference-thread.chat-panel .chat-compose-field textarea,
+  .conference-stage-rail
+    .conference-thread.chat-panel
+    .chat-compose-field
+    textarea {
+    font-size: max(16px, calc(14px * var(--text-scale)));
+  }
+}
+
+@media (max-height: 500px) {
+  .conference-thread.chat-panel .chat-composer {
+    padding-block: 6px;
+  }
+
+  .conference-thread.chat-panel .chat-compose-field textarea,
+  .conference-stage-rail
+    .conference-thread.chat-panel
+    .chat-compose-field
+    textarea {
+    max-height: 64px;
+  }
+}

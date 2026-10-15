@@ -455,6 +455,12 @@ export function PersonalPage() {
                     focusMessageId={messageFocus?.id}
                     focusRequest={messageFocus?.request}
                     onLatest={() => setMessageFocus(undefined)}
+                    onFocusMessage={(messageId) =>
+                      setMessageFocus((old) => ({
+                        id: messageId,
+                        request: (old?.request || 0) + 1,
+                      }))
+                    }
                     composerPlaceholder={
                       selected.type === "group"
                         ? "Напишите в группу…"

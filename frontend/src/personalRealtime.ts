@@ -73,6 +73,7 @@ export function revokePersonalConversation(
   for (const key of [
     "personal-chat",
     "personal-chat-read",
+    "personal-chat-pins",
     "personal-detail",
     "personal-peer-presence",
     "group-members",
@@ -148,6 +149,7 @@ export function acceptPersonalEvent(
       "message.deleted",
       "conversation.updated",
       "conversation.read.updated",
+      "conversation.pins.updated",
       "conversation.member.added",
       "conversation.member.updated",
       "conversation.member.removed",
@@ -272,6 +274,7 @@ export function usePersonalRealtime(userId?: string) {
           });
           void client.invalidateQueries({ queryKey: ["personal-chat"] });
           void client.invalidateQueries({ queryKey: ["personal-chat-read"] });
+          void client.resetQueries({ queryKey: ["personal-chat-pins"] });
           // Reconnect can follow missed deletion or membership events; discard stale snippets first.
           void client.resetQueries({
             queryKey: ["personal-chat-search"],
@@ -296,6 +299,15 @@ export function usePersonalRealtime(userId?: string) {
           const event = acceptPersonalEvent(data, seen);
           if (!event) return;
           const id = event.data.conversationId!;
+          if (event.type === "conversation.pins.updated") {
+            void client.resetQueries({
+              queryKey: ["personal-chat-pins", id, userId],
+            });
+            void client.invalidateQueries({
+              queryKey: ["personal-chat", id, userId],
+            });
+            return;
+          }
           if (event.type === "conversation.hidden") {
             rememberDirectConversationHistoryCutoff(
               client,
@@ -394,6 +406,10 @@ export function usePersonalRealtime(userId?: string) {
           else if (event.type === "message.created")
             void client.invalidateQueries({
               queryKey: ["personal-chat-search", id, userId],
+            });
+          if (["message.updated", "message.deleted"].includes(event.type))
+            void client.resetQueries({
+              queryKey: ["personal-chat-pins", id, userId],
             });
           if (
             event.type === "message.created" &&

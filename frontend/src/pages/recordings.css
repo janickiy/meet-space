@@ -614,12 +614,6 @@
   border-radius: 10px;
   background: var(--surface);
 }
-.recording-detail-download-note {
-  color: var(--muted);
-  font-size: calc(11px * var(--text-scale));
-  line-height: 1.6;
-  margin: 16px 0 0;
-}
 
 @media (max-width: 1100px) {
   .recordings-selection {

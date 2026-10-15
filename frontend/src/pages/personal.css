@@ -177,37 +177,6 @@
   z-index: 10;
   width: min(320px, calc(100vw - 40px));
 }
-.personal-user-info {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 12px;
-}
-.personal-user-info h3 {
-  margin: 0;
-  font-size: calc(21px * var(--text-scale));
-  letter-spacing: -0.025em;
-  overflow-wrap: anywhere;
-  text-align: center;
-}
-.personal-user-info dl {
-  align-self: stretch;
-  margin: 12px 0 0;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
-.personal-user-info dt {
-  color: var(--muted, #778499);
-  font-size: calc(12px * var(--text-scale));
-  margin-bottom: 6px;
-}
-.personal-user-info dd {
-  margin: 0 0 16px;
-  font-size: calc(13px * var(--text-scale));
-}
-.personal-user-id {
-  overflow-wrap: anywhere;
-}
 .personal-confirm-actions {
   display: flex;
   justify-content: flex-end;
@@ -508,7 +477,11 @@
   background: #173f3b;
 }
 .personal-header-copy strong {
+  display: block;
+  overflow: hidden;
   font-size: calc(16px * var(--text-scale));
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .personal-header-copy small {
   font-size: calc(12px * var(--text-scale));
@@ -517,6 +490,11 @@
 .personal-header-copy .personal-peer-status-online {
   color: var(--success);
   font-weight: 500;
+}
+@media (max-width: 767px) {
+  [data-large-text="true"] .personal-header .personal-avatar {
+    display: none;
+  }
 }
 .personal-thread .chat-messages {
   padding-top: 20px;
@@ -528,32 +506,6 @@
 .personal-placeholder > small {
   margin-top: 36px;
   font-size: calc(12px * var(--text-scale));
-}
-.personal-user-id {
-  padding: 12px;
-  background: var(--surface-soft);
-  border-radius: 8px;
-}
-.personal-user-info > p {
-  margin: 0;
-  color: var(--muted);
-  font-size: calc(13px * var(--text-scale));
-}
-.personal-user-info > .personal-user-presence {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-}
-.personal-user-info > .personal-user-presence-online {
-  color: var(--success);
-}
-.personal-user-presence-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: currentColor;
 }
 .personal-reconnect {
   display: flex;
@@ -587,7 +539,6 @@
   line-height: 1.65;
   color: var(--muted);
 }
-.modal.personal-info-modal,
 .modal.personal-confirm-modal {
   width: min(560px, calc(100vw - 32px));
   max-width: 560px;
@@ -638,7 +589,6 @@
   .personal-thread .chat-compose-caption {
     display: none;
   }
-  .modal-backdrop .modal.personal-info-modal,
   .modal-backdrop .modal.group-modal,
   .modal-backdrop .modal.folder-candidate-modal,
   .modal-backdrop

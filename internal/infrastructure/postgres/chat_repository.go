@@ -117,6 +117,9 @@ func (r *ChatRepository) decorateMessages(tx *gorm.DB, items []chat.Message, cut
 		if err := decorateCallHistory(tx, items, ids); err != nil {
 			return err
 		}
+		if err := decorateConversationPins(tx, items, ids); err != nil {
+			return err
+		}
 	}
 	var attachments []chat.Attachment
 	if err := r.attachments(tx).Where("message_id IN ? AND status='attached'", ids).Order("created_at,id").Find(&attachments).Error; err != nil {
@@ -394,6 +397,11 @@ func (r *ChatRepository) Delete(ctx context.Context, userID, conferenceID, id st
 		}
 		if message.DeletedAt == nil {
 			if err := r.messages(tx).Where("id=?", id).Updates(map[string]any{"text": "", "deleted_at": gorm.Expr("clock_timestamp()"), "updated_at": gorm.Expr("clock_timestamp()"), "version": gorm.Expr("version+1")}).Error; err != nil {
+				return err
+			}
+		}
+		if r.direct {
+			if err := tx.Exec("DELETE FROM conversation_message_pins WHERE conversation_id=? AND message_id=?", conferenceID, id).Error; err != nil {
 				return err
 			}
 		}

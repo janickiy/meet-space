@@ -61,6 +61,7 @@ type Message struct {
 	DeletedAt          *time.Time    `json:"deletedAt"`
 	Attachments        []Attachment  `json:"attachments" gorm:"-"`
 	Important          bool          `json:"important,omitempty" gorm:"-"`
+	Pinned             bool          `json:"pinned,omitempty" gorm:"-"`
 	CallID             *string       `json:"-" gorm:"->;-:migration"`
 	Call               *CallHistory  `json:"call,omitempty" gorm:"-"`
 }

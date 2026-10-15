@@ -7,11 +7,14 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import {
+  Check,
   Download,
   FileText,
   MessageCircle,
   Paperclip,
   Pencil,
+  Pin,
+  PinOff,
   Reply,
   SendHorizontal,
   Star,
@@ -20,6 +23,7 @@ import {
 } from "lucide-react";
 import { api, ApiError, errorMessage, type ChatTransport } from "../api";
 import { useAuth } from "../auth";
+import { useAppearance } from "../appearance";
 import { mergeChatPages, formatBytes } from "../collaboration";
 import {
   chatDayKey,
@@ -40,7 +44,10 @@ import { ItemActions, type ItemAction } from "./ItemActions";
 import { Button, ErrorNotice, Modal } from "./ui";
 import { MessagingSkeleton } from "./MessagingSkeleton";
 import { CallHistoryMessage } from "./CallHistoryMessage";
+import { PersonalChatPins, usePersonalChatPins } from "./PersonalChatPins";
 import "./chat-design.css";
+import "./personal-messenger.css";
+import "./conference-messenger.css";
 
 function isAccessDenied(error: unknown) {
   return error instanceof ApiError && [403, 404].includes(error.status);
@@ -94,6 +101,7 @@ export function MessageThread({
   onLatest,
   visible = true,
   focusRequest = 0,
+  onFocusMessage,
 }: {
   scopeId: string;
   transport: ChatTransport;
@@ -110,10 +118,12 @@ export function MessageThread({
   visible?: boolean;
   /** Repeated selection can revisit the same message without discarding the draft. */
   focusRequest?: number;
+  onFocusMessage?: (messageId: string) => void;
 }) {
   const historyKey = personal ? "personal-chat" : "chat";
   const readKey = personal ? "personal-chat-read" : "chat-read";
   const { user } = useAuth();
+  const { textSize } = useAppearance();
   const mayBookmark = !personal && !!user && !user.guestConferenceId;
   const focused = focusMessageId || undefined;
   const client = useQueryClient();
@@ -215,6 +225,8 @@ export function MessageThread({
   }, [accessDenied, onAccessDenied]);
   const historyUnavailable =
     isAccessDenied(query.error) || isAccessDenied(read.error);
+  const pins = usePersonalChatPins(scopeId, personal && !historyUnavailable);
+  const pinnedIds = new Set(pins.items.map((message) => message.id));
   const messages = historyUnavailable
     ? []
     : mergeChatPages(query.data?.pages || []);
@@ -249,6 +261,13 @@ export function MessageThread({
         queryKey: ["personal-summary", user?.id],
       });
     }
+  };
+  const invalidateChangedMessage = () => {
+    invalidate();
+    if (personal)
+      void client.resetQueries({
+        queryKey: ["personal-chat-pins", scopeId, user?.id],
+      });
   };
   const send = useMutation({
     mutationFn: (body: {
@@ -297,17 +316,17 @@ export function MessageThread({
       transport.editMessage(scopeId, editing!.id, editText.trim()),
     onSuccess: () => {
       setEditing(null);
-      invalidate();
+      invalidateChangedMessage();
     },
-    onError: invalidate,
+    onError: invalidateChangedMessage,
   });
   const remove = useMutation({
     mutationFn: () => transport.deleteMessage(scopeId, deleting!.id),
     onSuccess: () => {
       setDeleting(null);
-      invalidate();
+      invalidateChangedMessage();
     },
-    onError: invalidate,
+    onError: invalidateChangedMessage,
   });
   const bookmark = useMutation({
     mutationFn: (value: { messageId: string; important: boolean }) =>
@@ -333,14 +352,25 @@ export function MessageThread({
   useEffect(() => {
     const element = composer.current;
     if (!element || !visible) return;
-    element.style.height = "auto";
-    element.style.height = `${Math.max(24, Math.min(120, element.scrollHeight))}px`;
+    const resize = () => {
+      element.style.height = "auto";
+      element.style.height = `${Math.max(24, Math.min(120, element.scrollHeight))}px`;
+    };
+    resize();
     if (pendingCaret.current !== null) {
       element.focus();
       element.setSelectionRange(pendingCaret.current, pendingCaret.current);
       pendingCaret.current = null;
     }
-  }, [text, open, readOnly, visible]);
+    let width = element.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (element.clientWidth === width) return;
+      width = element.clientWidth;
+      resize();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [text, open, readOnly, visible, textSize]);
 
   useEffect(() => {
     initialScroll.current = false;
@@ -693,6 +723,11 @@ export function MessageThread({
             </div>
           ))}
           <footer className="chat-message-meta">
+            {!personal && (
+              <time dateTime={pending.createdAt}>
+                {chatTime(pending.createdAt)}
+              </time>
+            )}
             <span role="status">
               {pending.state === "sending" ? "Отправляется…" : "Не отправлено"}
             </span>
@@ -704,7 +739,7 @@ export function MessageThread({
   if (accessDenied) return <ErrorNotice error={query.error || read.error} />;
   return (
     <section
-      className={`content-card chat-panel ${personal ? "personal-thread" : ""}`}
+      className={`content-card chat-panel ${personal ? "personal-thread" : "conference-thread"}`}
       aria-label={personal ? "Личная переписка" : "Чат конференции"}
     >
       <div className="section-heading chat-panel-heading" hidden={personal}>
@@ -726,6 +761,29 @@ export function MessageThread({
         </Button>
       </div>
       <div className="chat-panel-body" hidden={!open}>
+        {personal && onFocusMessage && (
+          <PersonalChatPins
+            items={pins.items}
+            onSelect={onFocusMessage}
+            onUnpin={
+              readOnly
+                ? undefined
+                : (messageId) =>
+                    pins.mutation.mutate({ messageId, pinned: false })
+            }
+            busy={pins.mutation.isPending}
+            error={pins.mutation.error || pins.query.error}
+            loading={pins.query.isPending}
+          />
+        )}
+        {personal && (
+          <>
+            <span className="sr-only" role="status">
+              {pins.announcement}
+            </span>
+            <ErrorNotice error={pins.mutation.error || pins.query.error} />
+          </>
+        )}
         {focused && onLatest && (
           <Button variant="outline" onClick={onLatest}>
             К последним сообщениям
@@ -785,6 +843,7 @@ export function MessageThread({
             )}
             {messages.map((message, index) => {
               const own = message.senderId === user?.id;
+              const pinned = personal && pinnedIds.has(message.id);
               const day = chatDayKey(message.createdAt);
               return (
                 <Fragment key={message.id}>
@@ -796,7 +855,7 @@ export function MessageThread({
                       </div>
                     )}
                   <article
-                    className={`chat-message ${own ? "chat-message-own" : ""} ${message.id === focused ? "chat-message-focused" : ""}`}
+                    className={`chat-message ${own ? "chat-message-own" : ""} ${pinned ? "chat-message-pinned" : ""} ${message.id === focused ? "chat-message-focused" : ""}`}
                     data-testid={`chat-message-${message.id}`}
                     tabIndex={message.id === focused ? -1 : undefined}
                     aria-current={message.id === focused ? "true" : undefined}
@@ -829,12 +888,36 @@ export function MessageThread({
                       <div className="chat-message-bubble">
                         {message.replyPreview && (
                           <blockquote>
-                            <strong>{message.replyPreview.senderName}</strong>
-                            <span>
-                              {message.replyPreview.deleted
-                                ? "Сообщение удалено"
-                                : message.replyPreview.text || "Вложение"}
-                            </span>
+                            {personal && onFocusMessage ? (
+                              <button
+                                type="button"
+                                className="chat-reply-jump"
+                                onClick={() =>
+                                  onFocusMessage(message.replyPreview!.id)
+                                }
+                                aria-label={`Перейти к сообщению от ${message.replyPreview.senderName}`}
+                              >
+                                <strong>
+                                  {message.replyPreview.senderName}
+                                </strong>
+                                <span>
+                                  {message.replyPreview.deleted
+                                    ? "Сообщение удалено"
+                                    : message.replyPreview.text || "Вложение"}
+                                </span>
+                              </button>
+                            ) : (
+                              <>
+                                <strong>
+                                  {message.replyPreview.senderName}
+                                </strong>
+                                <span>
+                                  {message.replyPreview.deleted
+                                    ? "Сообщение удалено"
+                                    : message.replyPreview.text || "Вложение"}
+                                </span>
+                              </>
+                            )}
                           </blockquote>
                         )}
                         {message.call && !message.deletedAt && (
@@ -895,6 +978,29 @@ export function MessageThread({
                               )}
                             </div>
                           ))}
+                        <footer className="chat-message-footer">
+                          {pinned && (
+                            <span title="Закреплено">
+                              <Pin size={12} aria-hidden="true" />
+                              <span className="sr-only">Закреплено</span>
+                            </span>
+                          )}
+                          {message.version > 1 &&
+                            !message.deletedAt &&
+                            !message.call && <span>изменено</span>}
+                          <time
+                            dateTime={message.createdAt}
+                            title={formatDate(message.createdAt)}
+                          >
+                            {chatTime(message.createdAt)}
+                          </time>
+                          {own && !message.deletedAt && (
+                            <span title="Отправлено">
+                              <Check size={14} aria-hidden="true" />
+                              <span className="sr-only">Отправлено</span>
+                            </span>
+                          )}
+                        </footer>
                       </div>
                     </div>
                     {!message.deletedAt &&
@@ -905,6 +1011,29 @@ export function MessageThread({
                             label={`Действия с сообщением: ${message.senderName}, ${chatTime(message.createdAt)}`}
                             actions={
                               [
+                                ...(personal && !readOnly
+                                  ? [
+                                      {
+                                        label: pinned
+                                          ? "Открепить"
+                                          : "Закрепить",
+                                        icon: pinned ? (
+                                          <PinOff size={16} />
+                                        ) : (
+                                          <Pin size={16} />
+                                        ),
+                                        disabled:
+                                          pins.mutation.isPending ||
+                                          pins.query.isPending ||
+                                          pins.query.isError,
+                                        run: () =>
+                                          pins.mutation.mutate({
+                                            messageId: message.id,
+                                            pinned: !pinned,
+                                          }),
+                                      },
+                                    ]
+                                  : []),
                                 ...(mayBookmark
                                   ? [
                                       {
@@ -1054,7 +1183,7 @@ export function MessageThread({
                   aria-label="Сообщение"
                   id={`chat-text-${scopeId}`}
                   value={text}
-                  rows={2}
+                  rows={1}
                   placeholder={composerPlaceholder}
                   disabled={send.isPending}
                   onSelect={rememberSelection}
@@ -1095,7 +1224,7 @@ export function MessageThread({
               </Button>
             </div>
             <p className="chat-compose-caption" aria-hidden="true">
-              Shift + Enter — новая строка
+              {personal && "Enter — отправить · "}Shift + Enter — новая строка
             </p>
             <p className="sr-only">
               Enter — отправить, Shift + Enter — новая строка. Если связь

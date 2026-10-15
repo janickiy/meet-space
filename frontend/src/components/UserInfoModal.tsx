@@ -3,6 +3,7 @@ import type { PersonalPeer } from "../types";
 import { initials } from "../utils";
 import { DirectCallButton } from "./DirectCallButton";
 import { Button, Modal } from "./ui";
+import "./user-info-modal.css";
 
 /** Общая карточка пользователя для личной переписки и списка участников группы. */
 export function UserInfoModal({
@@ -38,35 +39,39 @@ export function UserInfoModal({
       onClose={onClose}
       returnFocus={returnFocus}
     >
-      <div className="personal-user-info">
-        <span className="personal-avatar group-avatar-large" aria-hidden="true">
+      <div className="personal-info-profile">
+        <span className="personal-info-avatar" aria-hidden="true">
           {initials(person.displayName)}
         </span>
-        <h3>{person.displayName}</h3>
-        <p>{subtitle}</p>
-        <p
-          className={`personal-user-presence${online === true ? " personal-user-presence-online" : ""}`}
-          role="status"
-          aria-live="polite"
-        >
-          <span className="personal-user-presence-dot" aria-hidden="true" />
-          {statusText}
-        </p>
-        <dl>
-          <dt>Имя</dt>
-          <dd>{person.displayName}</dd>
-          <dt>Идентификатор пользователя</dt>
-          <dd className="personal-user-id">{person.id}</dd>
-        </dl>
+        <div className="personal-info-identity">
+          <h3>{person.displayName}</h3>
+          <p
+            className={`personal-info-presence${!presencePending && online === true ? " personal-info-presence-online" : ""}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span aria-hidden="true" />
+            {statusText}
+          </p>
+          <p className="personal-info-subtitle">{subtitle}</p>
+        </div>
       </div>
-      <div className="personal-confirm-actions">
+      <dl className="personal-info-details">
+        <div>
+          <dt>Идентификатор пользователя</dt>
+          <dd>{person.id}</dd>
+        </div>
+      </dl>
+      <div className="personal-info-actions">
         {actions}
-        <DirectCallButton
-          userId={person.id}
-          name={person.displayName}
-          label
-          onStart={onCallStart}
-        />
+        <div className="personal-info-call">
+          <DirectCallButton
+            userId={person.id}
+            name={person.displayName}
+            label
+            onStart={onCallStart}
+          />
+        </div>
         <Button variant="outline" onClick={onClose}>
           Закрыть
         </Button>

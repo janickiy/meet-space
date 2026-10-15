@@ -380,7 +380,18 @@ function HomeDashboard({ create = false }: { create?: boolean }) {
     <div className="dashboard-page dashboard-home">
       <section className="home-launchpad" aria-labelledby="home-slogan">
         <div className="home-intro">
-          <h1 id="home-slogan">MeetSpace - чаты и видео звонки</h1>
+          <h1 id="home-slogan">
+            <span className="home-intro-brand">MeetSpace</span>
+            <span className="home-intro-title">
+              Чаты и{" "}
+              <span>
+                видео
+                <wbr />
+                звонки
+              </span>
+            </span>
+          </h1>
+          <p>Одно пространство для общения и совместной работы.</p>
         </div>
         <div className="home-action-grid" aria-label="Быстрые действия">
           <Link className="home-action-card" to="/conferences/new">

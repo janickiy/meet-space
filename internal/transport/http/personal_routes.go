@@ -18,7 +18,8 @@ func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *ch
 		{"GET", "/conversations/:id/members", "group_members", 120}, {"POST", "/conversations/:id/members", "group_add", 30},
 		{"DELETE", "/conversations/:id/members/:userId", "group_remove", 30}, {"PATCH", "/conversations/:id/members/:userId", "group_role", 30},
 		{"POST", "/conversations/:id/leave", "group_leave", 30}, {"POST", "/conversations/:id/ownership", "group_ownership", 20},
-		{"PATCH", "/conversations/:id/preferences", "direct_preferences", 30}, {"POST", "/conversations/:id/clear-history", "direct_clear", 20}, {"POST", "/conversations/:id/hide", "direct_hide", 20}} {
+		{"PATCH", "/conversations/:id/preferences", "direct_preferences", 30}, {"POST", "/conversations/:id/clear-history", "direct_clear", 20}, {"POST", "/conversations/:id/hide", "direct_hide", 20},
+		{"GET", "/conversations/:id/pins", "personal_pins", 60}, {"PUT", "/conversations/:id/pins/:messageId", "personal_pin_update", 30}, {"DELETE", "/conversations/:id/pins/:messageId", "personal_pin_update", 30}} {
 		rules = append(rules, httpmiddleware.Rule{Method: v.Method, Path: APIV1Prefix + v.Path, Scope: v.Scope, Limit: v.Limit, Window: time.Minute, Key: httpmiddleware.UserID})
 	}
 	private := func(c *gin.Context) {
@@ -36,6 +37,9 @@ func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *ch
 	g.PATCH("/conversations/:id/preferences", h.SetDirectPreferences)
 	g.POST("/conversations/:id/clear-history", h.ClearDirectHistory)
 	g.POST("/conversations/:id/hide", h.HideDirectConversation)
+	g.GET("/conversations/:id/pins", h.Pins)
+	g.PUT("/conversations/:id/pins/:messageId", h.SetPin(true))
+	g.DELETE("/conversations/:id/pins/:messageId", h.SetPin(false))
 	g.PATCH("/conversations/:id", h.UpdateGroup)
 	g.DELETE("/conversations/:id", h.DeleteGroup)
 	g.GET("/conversations/:id/members", h.GroupMembers)
