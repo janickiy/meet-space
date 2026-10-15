@@ -2,6 +2,7 @@ package recordings
 
 import (
 	"context"
+	"time"
 
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	"github.com/janickiy/meet-space/internal/domain/realtime"
@@ -15,6 +16,11 @@ type Repository interface {
 	Stop(context.Context, string, string, string) (records.Record, error)
 	Accessible(context.Context, string, string, string) (records.Record, error)
 	List(context.Context, string, string, int, int) ([]records.Record, error)
+	Delete(context.Context, string, string, string, func(context.Context, records.Record) error) (records.Record, error)
+}
+
+type Storage interface {
+	RemoveRecording(context.Context, records.Record) error
 }
 
 // Reader loads recording cards after the repository has checked access.
@@ -32,13 +38,29 @@ type Events interface {
 // Service handles authorized recording requests and reads. It owns no polling
 // goroutine, queue connection or distributed lock.
 type Service struct {
-	repo   Repository
-	reader Reader
-	events Events
+	repo    Repository
+	reader  Reader
+	events  Events
+	storage Storage
 }
 
-func NewConferenceService(repo Repository, reader Reader, events Events) *Service {
-	return &Service{repo: repo, reader: reader, events: events}
+func NewConferenceService(repo Repository, reader Reader, events Events, storage Storage) *Service {
+	return &Service{repo: repo, reader: reader, events: events, storage: storage}
+}
+
+// Delete removes artifacts only after authorization and publishes after commit.
+func (s *Service) Delete(ctx context.Context, userID, conferenceID, recordID string) error {
+	operation, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	record, err := s.repo.Delete(operation, userID, conferenceID, recordID, s.storage.RemoveRecording)
+	if err != nil {
+		if operation.Err() == context.DeadlineExceeded {
+			return apperrors.New(apperrors.ErrTimeout, "recording deletion timed out")
+		}
+		return err
+	}
+	publish(s.events, ctx, record, "recording.deleted")
+	return nil
 }
 
 // Start commits a recording request; the dispatcher delivers its durable command.

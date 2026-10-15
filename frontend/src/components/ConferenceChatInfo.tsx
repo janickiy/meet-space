@@ -7,6 +7,7 @@ import {
   type SubmitEvent,
 } from "react";
 import { Link, useNavigate } from "react-router";
+import { conferenceLink } from "../conferenceNavigation";
 import {
   onlineManager,
   useInfiniteQuery,
@@ -189,8 +190,10 @@ export function ConferenceChatInfoModal({
                   "Чат участников встречи. Переписка доступна в конференции."}
               </p>
               <p>Создана {formatDate(conference.createdAt)}</p>
-              <Link className="text-link" to={`/meetings/${conference.id}`}>
-                Ссылка на видеовстречу
+              <Link className="text-link" to={conferenceLink(conference)}>
+                {["finished", "cancelled"].includes(conference.status)
+                  ? "Завершённые встречи"
+                  : "Ссылка на видеовстречу"}
               </Link>
               <p>{info.participantCount} участн.</p>
             </div>

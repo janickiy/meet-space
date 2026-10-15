@@ -39,22 +39,25 @@ func (r *RecordRepository) ExpireNextRecording(ctx context.Context, attempted []
 			return err
 		}
 		id = record.ID
-		if err := remove(ctx, record); err != nil {
-			return err
-		}
-		if err := tx.Where("record_id = ?", record.ID).Delete(&records.RecordFile{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("record_id = ?", record.ID).Delete(&records.RecordSegment{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&records.Record{}).Where("id = ?", record.ID).Updates(map[string]any{
-			"deleted_at": gorm.Expr("clock_timestamp()"), "storage_object_key": nil,
-			"preview_object_key": nil, "size_bytes": nil,
-		}).Error; err != nil {
-			return err
-		}
-		return nil
+		return removeRecordingArtifacts(ctx, tx, record, remove)
 	})
 	return id, err
+}
+
+// The caller holds the record row lock. Storage removal is idempotent so a
+// partial failure or a failed commit can safely be retried by either delete path.
+func removeRecordingArtifacts(ctx context.Context, tx *gorm.DB, record records.Record, remove func(context.Context, records.Record) error) error {
+	if err := remove(ctx, record); err != nil {
+		return err
+	}
+	if err := tx.Where("record_id = ?", record.ID).Delete(&records.RecordFile{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("record_id = ?", record.ID).Delete(&records.RecordSegment{}).Error; err != nil {
+		return err
+	}
+	return tx.Model(&records.Record{}).Where("id = ?", record.ID).Updates(map[string]any{
+		"deleted_at": gorm.Expr("clock_timestamp()"), "storage_object_key": nil,
+		"preview_object_key": nil, "size_bytes": nil,
+	}).Error
 }

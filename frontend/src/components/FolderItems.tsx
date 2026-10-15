@@ -7,6 +7,7 @@ import {
 import { CalendarDays } from "lucide-react";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
+import { conferenceLink } from "../conferenceNavigation";
 import { chatTime } from "../chatPresentation";
 import {
   folderAccessDenied,
@@ -37,7 +38,7 @@ export function folderItemTarget(entry: FolderItem): FolderTarget {
 export function folderItemHref(entry: FolderItem) {
   return entry.type === "conversation"
     ? `/personal/${entry.item.id}`
-    : `/${["finished", "cancelled"].includes(entry.item.status) ? "history" : "meetings"}/${entry.item.id}`;
+    : conferenceLink(entry.item);
 }
 export function FolderItemLabel({ entry }: { entry: FolderItem }) {
   const { user } = useAuth();

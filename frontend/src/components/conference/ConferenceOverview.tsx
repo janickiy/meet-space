@@ -9,9 +9,9 @@ import { ConferenceInviteContent } from "../ConferenceInvitations";
 import { EditSchedule } from "../ConferenceModals";
 import { Brand, Button, ErrorNotice, Modal } from "../ui";
 import { ConferenceDetails } from "./ConferenceDetails";
-import { ConferenceParticipants } from "./ConferenceParticipants";
 import { ConferenceHistorySummary } from "./ConferenceHistorySummary";
 import type { ConferenceViewProps } from "./types";
+import { PAST_CONFERENCES_PATH } from "../../conferenceNavigation";
 import "./conference-overview.css";
 
 /**
@@ -112,10 +112,10 @@ export function ConferenceOverview(props: ConferenceViewProps) {
       <div className="conference-history-chat">
         <Link
           className="back-link"
-          to={user?.guestConferenceId ? "/" : `/history/${id}`}
+          to={user?.guestConferenceId ? "/" : PAST_CONFERENCES_PATH}
         >
           <ArrowLeft size={17} />
-          {user?.guestConferenceId ? "На главную" : "К материалам встречи"}
+          {user?.guestConferenceId ? "На главную" : "К завершённым встречам"}
         </Link>
         <section className="page-heading">
           <div>
@@ -223,25 +223,7 @@ export function ConferenceOverview(props: ConferenceViewProps) {
             userId={user.id}
           />
         )}
-      {admitted && membership && !activeMeeting && (
-        <ChatPanel
-          key={`${id}:${focusMessageId || "latest"}`}
-          conferenceId={id}
-          membership={membership}
-          focusMessageId={focusMessageId}
-          onLatest={latestMessages}
-          readOnly={
-            conference.status !== "active" || membership.status !== "joined"
-          }
-          readOnlyReason={
-            closed
-              ? undefined
-              : "Присоединитесь к активной встрече, чтобы отправлять сообщения."
-          }
-        />
-      )}
       <ConferenceHistorySummary {...props} />
-      <ConferenceParticipants {...props} />
       {editingSchedule && (
         <EditSchedule
           conference={conference}

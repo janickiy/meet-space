@@ -5,9 +5,7 @@ import {
   ArrowLeft,
   CalendarDays,
   ChevronRight,
-  Clapperboard,
   Moon,
-  Search,
   Palette,
   Mic,
   Video,
@@ -15,13 +13,11 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { Link } from "react-router";
 import { useAuth } from "../auth";
 import { AccountManagement } from "../components/AccountManagement";
 import { PRODUCT_NAME } from "../brand";
 import { formatDate } from "../utils";
-import { useConferences } from "../queries";
-import { Button, ErrorNotice, Loading } from "../components/ui";
+import { Button, ErrorNotice } from "../components/ui";
 import { IntegrationsSettings } from "../components/IntegrationsSettings";
 import { AudioSettings, VideoSettings } from "../components/DeviceSettings";
 import { TEXT_SIZE_OPTIONS, useAppearance } from "../appearance";
@@ -357,111 +353,5 @@ export function SettingsPage() {
         )}
       </div>
     </div>
-  );
-}
-
-/** Читает историю из общего серверного списка без дополнительных запросов для каждой строки.
- * @return Список доступных завершённых встреч с локальным поиском по загруженным страницам.
- */
-export function HistoryPage() {
-  const query = useConferences({ view: "past" });
-  const [search, setSearch] = useState("");
-  const conferences = query.data?.pages.flatMap((page) => page.items) || [];
-  const visible = conferences.filter((item) =>
-    item.title
-      .toLocaleLowerCase("ru-RU")
-      .includes(search.trim().toLocaleLowerCase("ru-RU")),
-  );
-  return (
-    <>
-      <section className="page-heading">
-        <div>
-          <h1>История встреч</h1>
-          <p>Завершённые встречи, записи и материалы — в одном месте.</p>
-        </div>
-      </section>
-      <section
-        className="content-card history-library"
-        aria-labelledby="history-list-heading"
-      >
-        <div className="history-library-toolbar">
-          <h2 id="history-list-heading">Завершённые встречи</h2>
-          <label className="history-search">
-            <Search size={17} aria-hidden="true" />
-            <input
-              type="search"
-              aria-label="Поиск по загруженным встречам"
-              placeholder="Поиск по названию"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-        </div>
-        <p className="field-hint">
-          Откройте встречу, чтобы увидеть доступные записи, расшифровку, итоги и
-          аналитику.
-          {search && query.hasNextPage
-            ? " Поиск выполняется по загруженным встречам; загрузите следующие страницы, чтобы расширить результат."
-            : ""}
-        </p>
-        <ErrorNotice error={query.error} />
-        {query.isPending ? (
-          <Loading />
-        ) : (
-          <div className="history-library-list">
-            {visible.map((item) => (
-              <Link
-                className="history-library-row"
-                key={item.id}
-                to={`/history/${item.id}`}
-              >
-                <span className="history-row-art" aria-hidden="true">
-                  <Clapperboard size={24} />
-                </span>
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>
-                    {formatDate(item.finishedAt || item.createdAt)}
-                    {item.startedAt && item.finishedAt
-                      ? ` · ${Math.max(0, Math.round((Date.parse(item.finishedAt) - Date.parse(item.startedAt)) / 60000))} мин`
-                      : ""}
-                  </p>
-                </div>
-                <span className="history-row-open">
-                  Открыть историю <ChevronRight size={16} aria-hidden="true" />
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
-        {!query.isPending && !query.isError && !visible.length && (
-          <div className="history-empty">
-            <Clapperboard size={32} aria-hidden="true" />
-            <h3>
-              {search ? "Совпадений не найдено" : "Завершённых встреч пока нет"}
-            </h3>
-            <p className="muted">
-              {search
-                ? "Измените запрос или загрузите ещё встречи."
-                : "После встречи здесь появится её история и доступные материалы."}
-            </p>
-          </div>
-        )}
-        <div className="history-library-footer">
-          {query.hasNextPage && (
-            <Button
-              variant="outline"
-              busy={query.isFetchingNextPage}
-              onClick={() => void query.fetchNextPage()}
-            >
-              Ещё встречи
-            </Button>
-          )}
-          <Link className="text-link" to="/meetings?view=past">
-            Вся история встреч
-          </Link>
-        </div>
-      </section>
-    </>
   );
 }

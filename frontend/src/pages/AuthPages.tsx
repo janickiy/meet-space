@@ -120,12 +120,12 @@ export function AuthPage({ register = false }: { register?: boolean }) {
           <AuthTeamVisual />
           <div className="auth-business-story-copy">
             <span className="auth-story-kicker">
-              ДЕЛОВОЕ ОБЩЕНИЕ. ЕДИНОЕ ПРОСТРАНСТВО.
+              <Video size={16} aria-hidden="true" /> НА СВЯЗИ С КОМАНДОЙ
             </span>
             <h2>
               Рабочие встречи.
               <br />
-              Настоящее общение.
+              <span>Настоящее общение.</span>
             </h2>
             <p className="auth-story-description">
               Обсуждайте проекты с коллегами, проводите видеовстречи и
@@ -150,9 +150,20 @@ export function AuthPage({ register = false }: { register?: boolean }) {
           tabIndex={-1}
           aria-labelledby="auth-heading-title"
         >
-          <p className="auth-tagline">
-            {register ? "СОЗДАНИЕ УЧЁТНОЙ ЗАПИСИ" : "ВАШЕ РАБОЧЕЕ ПРОСТРАНСТВО"}
-          </p>
+          <nav className="auth-mode-switch" aria-label="Вход и регистрация">
+            <Link
+              to={`/login${nextQuery}`}
+              aria-current={!register ? "page" : undefined}
+            >
+              Вход
+            </Link>
+            <Link
+              to={`/register${nextQuery}`}
+              aria-current={register ? "page" : undefined}
+            >
+              Создать аккаунт
+            </Link>
+          </nav>
           <div className="auth-heading">
             <h1 id="auth-heading-title">
               {register ? "Создайте аккаунт" : `Вход в ${PRODUCT_NAME}`}

@@ -364,6 +364,20 @@
   color: var(--muted);
   line-height: 1.5;
 }
+.recordings-menu-popup > .recordings-delete-action {
+  color: var(--danger);
+}
+.recordings-delete-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.recordings-delete-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
 .recordings-copy-notice,
 .recordings-copy-fallback {
   position: absolute;

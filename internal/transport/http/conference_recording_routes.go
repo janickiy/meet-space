@@ -16,5 +16,6 @@ func RegisterConferenceRecordingRoutes(router gin.IRouter, handler *recordingsap
 	routes.POST("/:id/recordings", handler.Start)
 	routes.GET("/:id/recordings", handler.List)
 	routes.GET("/:id/recordings/:recordingId", handler.Read)
+	routes.DELETE("/:id/recordings/:recordingId", handler.Delete)
 	routes.POST("/:id/recordings/:recordingId/stop", handler.Stop)
 }

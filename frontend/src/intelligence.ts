@@ -1,4 +1,5 @@
 import type { Notification, SearchResult } from "./types";
+import { PAST_CONFERENCES_PATH } from "./conferenceNavigation";
 
 /**
  * Форматирует смещение записи, не принимая отрицательные и бесконечные значения.
@@ -17,24 +18,12 @@ export function recordingTime(milliseconds: number): string {
 /**
  * Строит внутреннюю ссылку без вставки текста результата в адрес или HTML.
  * @args result — разрешённый сервером результат поиска.
- * @return Маршрут истории с выбранной записью и проверенным временем.
+ * @return Список завершённых встреч для материалов либо ссылка на текущую встречу.
  */
 export function searchResultLink(result: SearchResult): string {
-  const params = new URLSearchParams();
-  if (result.recordingId) {
-    params.set("recording", result.recordingId);
-    params.set("tab", result.type === "summary" ? "summary" : "transcript");
-    params.set("section", result.type === "summary" ? "summary" : "transcript");
-    if (
-      typeof result.startMs === "number" &&
-      Number.isFinite(result.startMs) &&
-      result.startMs >= 0
-    )
-      params.set("t", String(result.startMs));
-    if (result.segmentId) params.set("segment", result.segmentId);
-  }
-  const base = result.recordingId ? "/history" : "/conferences";
-  return `${base}/${encodeURIComponent(result.conferenceId)}${params.size ? `?${params}` : ""}`;
+  return result.recordingId || ["transcript", "summary"].includes(result.type)
+    ? PAST_CONFERENCES_PATH
+    : `/conferences/${encodeURIComponent(result.conferenceId)}`;
 }
 
 /**
@@ -57,24 +46,12 @@ export function notificationLink(notification: Notification): string {
     return `/meetings/${encodeURIComponent(notification.payload.conferenceId)}?${params}`;
   }
   if (!notification.payload.conferenceId) return "/notifications";
-  const link = searchResultLink({
-    type:
-      notification.type.includes("summary") || notification.payload.summaryId
-        ? "summary"
-        : "transcript",
-    conferenceId: notification.payload.conferenceId,
-    conferenceTitle: "",
-    recordingId: notification.payload.recordingId,
-    snippet: "",
-    rank: 0,
-  });
   if (
-    notification.type.includes("recording") &&
-    notification.payload.recordingId
-  ) {
-    const url = new URL(link, "https://local.invalid");
-    url.searchParams.set("section", "recording");
-    return `${url.pathname}${url.search}`;
-  }
-  return link;
+    notification.payload.recordingId ||
+    notification.payload.transcriptId ||
+    notification.payload.summaryId ||
+    ["conference.finished", "conference.cancelled"].includes(notification.type)
+  )
+    return PAST_CONFERENCES_PATH;
+  return `/conferences/${encodeURIComponent(notification.payload.conferenceId)}`;
 }
