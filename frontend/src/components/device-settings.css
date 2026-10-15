@@ -191,8 +191,8 @@
   margin: 12px 0;
 }
 .device-camera-preview {
+  width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: 320px;
   overflow: hidden;
   border-radius: 10px;
   background: #242127;

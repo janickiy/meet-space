@@ -146,7 +146,7 @@ export function ConferenceChatInfoModal({
   return (
     <Modal
       title={selectedMember ? "О пользователе" : titles[view]}
-      className="conference-chat-info-modal"
+      className={`conference-chat-info-modal${selectedMember ? " conference-chat-profile-modal" : ""}`}
       returnFocus={returnFocus}
       onClose={() => {
         if (!busy) {
@@ -742,27 +742,29 @@ function ConferenceChatUserProfile({
         </Button>
       )}
       {canMessage && (
-        <DirectCallButton
-          userId={member.userId!}
-          name={member.displayName}
-          label
-          onStart={onNavigate}
-        />
-      )}
-      {canMessage && (
-        <Button
-          className="conference-chat-user-message"
-          variant="outline"
-          busy={direct.isPending}
-          onClick={() => {
-            if (directPending.current) return;
-            directPending.current = true;
-            direct.mutate();
-          }}
+        <div
+          className="conference-chat-user-actions"
+          role="group"
+          aria-label="Действия с пользователем"
         >
-          <MessageCircle size={25} aria-hidden="true" />
-          Сообщение
-        </Button>
+          <DirectCallButton
+            userId={member.userId!}
+            name={member.displayName}
+            label
+            onStart={onNavigate}
+          />
+          <Button
+            busy={direct.isPending}
+            onClick={() => {
+              if (directPending.current) return;
+              directPending.current = true;
+              direct.mutate();
+            }}
+          >
+            <MessageCircle size={22} aria-hidden="true" />
+            Сообщение
+          </Button>
+        </div>
       )}
     </div>
   );

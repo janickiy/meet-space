@@ -5,7 +5,7 @@
     var(--primary-soft) 24%,
     var(--canvas)
   );
-  --messenger-own: color-mix(in srgb, var(--primary-soft) 82%, var(--surface));
+  --messenger-own: var(--success-soft);
   background: var(--messenger-canvas);
 }
 
@@ -73,7 +73,7 @@
 }
 
 .personal-thread .chat-message-own .chat-message-bubble {
-  border-color: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--success) 12%, transparent);
   border-radius: 17px 17px 5px 17px;
   background: var(--messenger-own);
 }
@@ -155,7 +155,14 @@
 }
 
 .personal-thread.chat-panel .chat-message-own blockquote {
-  background: color-mix(in srgb, var(--primary) 7%, var(--messenger-own));
+  background: color-mix(in srgb, var(--success) 7%, var(--messenger-own));
+}
+
+.personal-thread
+  .chat-message-own
+  .call-history-message:not(.call-history-missed) {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 7%, var(--messenger-own));
 }
 
 .personal-thread .chat-reply-jump {
@@ -453,7 +460,6 @@
 
 :root[data-theme="dark"] .personal-thread.chat-panel {
   --messenger-canvas: var(--canvas);
-  --messenger-own: color-mix(in srgb, var(--primary-soft) 86%, var(--surface));
 }
 
 :root[data-theme="dark"]
