@@ -142,38 +142,19 @@ release automation; редизайн не разворачивает новый 
 ```sh
 npm run lint
 npm run typecheck
-npm test
-npm run test:a11y
-npm run test:e2e
-npm run test:e2e:all
-bash scripts/test-csp-config.sh
+npm run build
 ```
 
-Обычная Chromium suite содержит test-only API fixtures и сохраняет screenshots
-в `test-results/ui`. `calendar-dashboard`, `conference-layout`,
-`history-analytics-visual` покрывают новые экраны. Production-код фикстуры не
-импортирует. Live SFU проверяется `TestStageFourBrowserControls` с явными
-локальными PostgreSQL/Redis test variables; тест создаёт отдельную БД и namespace,
-после выхода проверяет отсутствие SFU ресурсов. Opt-in Docker suites нельзя
-считать пройденными только потому, что они skipped в обычном запуске.
+Автоматические unit/a11y/e2e-сценарии, их фикстуры и CSP test script удалены.
+Сборка и lint не заменяют ручную проверку интерфейса: пройти изменённые страницы
+на desktop/mobile, проверить keyboard/focus, светлую/тёмную тему и масштаб текста.
+В согласованном окружении с существующими аккаунтами проверить API/WS, устройства,
+медиа и доступ к материалам. Новые данные создавать только с явным согласованием,
+а не автоматически при публикации. CSP сверить с фактической конфигурацией proxy;
+проверить блокировки в браузере без ослабления политики безопасности.
 
-Новый `playwright.live-smoke.config.ts` проверяет production-сборку на уже
-запущенной **изолированной** локальной репетиции `https://localhost:25482`
-(API `127.0.0.1:28085`), не на основном Compose. После сборки, из `frontend/`:
-
-```sh
-MEET_FRONTEND_LIVE_SMOKE=true MEET_FRONTEND_DIST="$PWD/dist" \
-  npx playwright test -c playwright.live-smoke.config.ts
-```
-
-Тест накладывает только HTML/assets на origin в отдельном browser context;
-API/WS остаются настоящими, deployment не выполняется. Для Chromium выдано
-разрешение local-network-access только этому тестовому origin. Создаются
-синтетические аккаунты, встреча, сообщения, PDF и MP4; встреча закрывается в
-cleanup, данные сохраняются для диагностики. Тест не меняет Docker/env, не
-перезапускает сервисы и не удаляет пользовательские данные. Нужен работающий
-recorder pipeline и доступная локальная HTTPS/storage конфигурация.
-
-Фактические результаты и браузерные ограничения конкретной проверки указаны
-в [итоговом отчёте](FRONTEND_INTEGRATION_REPORT.md). Build target Chrome120 /
+Проверки health/version, безопасность и откат описаны в
+[процессе выпуска](RELEASE_PROCESS.md). Исторические результаты и браузерные
+ограничения прежней проверки сохранены в [отчёте](FRONTEND_INTEGRATION_REPORT.md)
+и не подтверждают новый артефакт. Build target Chrome120 /
 Firefox120 / Safari17 — цель компиляции, а не доказательство тестирования устройств.

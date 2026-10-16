@@ -44,7 +44,8 @@
    образы, выполняет drain перед заменой, ждёт нулевую активность и readiness
    последовательно для каждого приложения. Миграции не запускаются.
 4. Проверить `/version`, `/version.json`, health, auth, WS/media, доступ к ранее
-   созданным файлам и очереди. Smoke production не создаёт тестовую конференцию.
+   созданным файлам и очереди вручную по [процессу выпуска](RELEASE_PROCESS.md#проверка-и-продвижение).
+   Тестовые аккаунты и synthetic-конференции автоматически не создаются.
 5. Зафиксировать начало/конец, простой и результаты. Возвращать нагрузку только
    после решения оператора и наблюдения, описанного в [runbook](operations/README.md).
 
@@ -54,7 +55,8 @@
 PREVIOUS_MANIFEST=/srv/meet/releases/v1.2.2/release.json
 bash scripts/release/release.sh validate --environment staging --project recorder-staging --env-file /srv/meet/config/staging.env --manifest "$PREVIOUS_MANIFEST"
 bash scripts/release/release.sh rollback --environment staging --project recorder-staging --env-file /srv/meet/config/staging.env --manifest "$PREVIOUS_MANIFEST"
-bash scripts/release/smoke.sh --environment staging --project recorder-staging --env-file /srv/meet/config/staging.env --manifest "$PREVIOUS_MANIFEST" --base-url https://meet-staging.example.org --binary /srv/meet/tools/release-smoke --exercise
+curl --fail --silent --show-error https://meet-staging.example.org/version
+curl --fail --silent --show-error https://meet-staging.example.org/version.json
 ```
 
 Production дополнительно требует approval, привязанный к **возвращаемой** версии:
@@ -63,8 +65,15 @@ Production дополнительно требует approval, привязан�
 export RELEASE_PRODUCTION_APPROVAL=v1.2.2
 bash scripts/release/release.sh rollback --environment production --project recorder-production --env-file /srv/meet/config/production.env --manifest /srv/meet/releases/v1.2.2/release.json --evidence /srv/meet/evidence/rollback-to-v1.2.2.json
 unset RELEASE_PRODUCTION_APPROVAL
-bash scripts/release/smoke.sh --environment production --project recorder-production --env-file /srv/meet/config/production.env --manifest /srv/meet/releases/v1.2.2/release.json --base-url https://meet.example.org --binary /srv/meet/tools/release-smoke
+curl --fail --silent --show-error https://meet.example.org/version
+curl --fail --silent --show-error https://meet.example.org/version.json
 ```
+
+GET-ответы сверить с точными version/commit возвращаемого манифеста; сами по себе
+они не подтверждают готовность. Через закрытый доступ проверить health/readiness
+каждого изменённого сервиса, отсутствие drain, очереди и метрики. Вход и доступ
+к материалам проверить согласованным существующим аккаунтом без автоматического
+создания пользователей/встреч. Не снимать write freeze до завершения этих проверок.
 
 Evidence содержит версию, commit и SHA-256 **предыдущего** manifest;
 `migrationCompatible`, `backupVerified`, `rollbackReady`,

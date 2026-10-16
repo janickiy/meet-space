@@ -11,7 +11,7 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 )
 
-// InternalErrorMessage is shared with legacy responses that retain their status.
+// InternalErrorMessage is the safe public message for unexpected server errors.
 const InternalErrorMessage = "internal server error"
 
 // Fail сопоставляет прикладную ошибку с HTTP-статусом и безопасным JSON-ответом.

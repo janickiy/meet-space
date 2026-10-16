@@ -7,6 +7,8 @@
 release-artifacts/
 secrets/
 .DS_Store
+__pycache__/
+*.py[cod]
 
 dockers/postgres/data/
 dockers/api/tmp/

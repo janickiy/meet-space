@@ -17,8 +17,7 @@ RUN printf '%s' "$BUILD_VERSION" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$'
     && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
       -ldflags "-s -w -X github.com/janickiy/meet-space/internal/buildinfo.Version=$BUILD_VERSION -X github.com/janickiy/meet-space/internal/buildinfo.Commit=$BUILD_COMMIT -X github.com/janickiy/meet-space/internal/buildinfo.BuildTime=$BUILD_TIME" \
       -o /bin/recorder-migrate ./cmd/main \
-    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w" -o /bin/object-backup ./tools/object-backup \
-    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w" -o /bin/release-smoke ./tools/release-smoke
+    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w" -o /bin/object-backup ./tools/object-backup
 
 FROM alpine:3.22 AS runtime
 
@@ -28,7 +27,6 @@ WORKDIR /app
 COPY --from=build /bin/go-recorder /app/go-recorder
 COPY --from=build /bin/recorder-migrate /app/recorder-migrate
 COPY --from=build /bin/object-backup /app/object-backup
-COPY --from=build /bin/release-smoke /app/release-smoke
 COPY database/migrations /app/database/migrations
 
 USER app

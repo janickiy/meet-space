@@ -109,7 +109,7 @@ func RunAPI() error {
 		return err
 	}
 	defer commandPublisher.Close()
-	service := recorder.NewService(repository, commandPublisher, s3Client, conferenceLock)
+	service := recorder.NewService(repository, s3Client)
 	sqlDB.SetMaxOpenConns(cfg.Operations.DBMaxOpen)
 	sqlDB.SetMaxIdleConns(cfg.Operations.DBMaxIdle)
 	sqlDB.SetConnMaxLifetime(cfg.Operations.DBLifetime)

@@ -228,9 +228,9 @@ updated_at triggers; UNIQUE email/invite/(conference_id,user_id); один owner
 Обязательный FK на новую conferences сломал бы старые записи/record.start.
 Поэтому FK/backfill не добавлен. RabbitMQ-команды и внутренний worker pipeline
 сохранены, но публичные recorder endpoints `/api/v1/records*` и `/api/records*`
-теперь закрыты ответом `410 Gone` для всех клиентов. У прежних записей нет надёжной
+удалены из маршрутизатора и возвращают `404`. У прежних записей нет надёжной
 модели владельца; добавление одной JWT-проверки не решало бы проблему доступа к
-чужим данным. Debug-список артефактов также закрыт. Действующий API записи встречи
+чужим данным. Debug-список артефактов также удалён. Действующий API записи встречи
 и ограничения совместимости описаны в [API.md](API.md).
 
 Для действующих встреч используйте `/api/v1/conferences/{id}/recordings*` с
@@ -244,24 +244,21 @@ nullable canonical FK для legacy/unmatched записей, backfill толь�
 ## Проверки
 
 ```bash
-go test ./...
+go build ./...
 go vet ./...
-go test -race ./...
-RECORDER_STAGE1_TEST_POSTGRES_DSN='postgres://go_recorder:go_recorder_pass@127.0.0.1:5433/go_recorder?sslmode=disable' \
-  go test -race ./tests/integration -run TestStageOnePostgres -count=3 -v
 ```
 
-PostgreSQL-тест требует локальный URL и CREATE DATABASE permission: создаёт собственную
-базу `go_recorder_stage1_<random uuid>` и удаляет только её после теста. Не трогает
-таблицы основной базы. Проверяет весь сценарий, роли, null dates владельца,
-idempotent join, rejoin той же membership, SQL rollback/UNIQUE/FK/NULL, collision retry,
-параллельные start/start, finish/cancel и join/finish, отсутствие hash в ответах/SQL logs,
-и прежний record.conference_id. Без переменной окружения suite пропускается.
+Постоянные Go, frontend и integration-тесты удалены по решению владельца проекта.
+Успешные build/vet подтверждают сборку и статический анализ, но не корректность
+авторизации, SQL-транзакций или жизненного цикла встречи.
 
-Обычные unit tests проверяют валидацию регистрации, JWT (включая expiration и
-подмену алгоритма), соль/hash, генерацию invite, auth/rate-limit middleware,
-ошибки и lifecycle. Отдельного lint-инструмента в репозитории нет; CI использует
-`go test` и сборку binaries, дополнительно проверяется `go vet`.
+После установки пакета вручную сверить `/version` с манифестом и через закрытый
+адрес проверить `/health/live` и `/health/ready`. С согласованными существующими
+аккаунтами проверить вход, `/auth/me`, права организатора/участника и отказ
+постороннему пользователю; изменяющие действия выполнять только на разрешённых
+ресурсах. Не создавать тестовые аккаунты/БД автоматически. Сохранять фактический
+результат и ограничения проверки, не токены и пароли. Полный процесс выпуска:
+[RELEASE_PROCESS.md](RELEASE_PROCESS.md).
 
 Следующий этап — отдельно согласованные WebSocket/signaling и ParticipantSession.
 Перед его реализацией определить права co_host, присутствие/мультивкладки,

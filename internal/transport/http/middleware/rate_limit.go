@@ -1,11 +1,7 @@
 package httpmiddleware
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,8 +12,6 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	"github.com/janickiy/meet-space/internal/domain/ratelimit"
 )
-
-const parsedBodyKey = "rate_limit_json_body"
 
 // Limiter задаёт контракт зависимого компонента Limiter в проверке HTTP-авторизации и ограничений запросов; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
 //   - Allow: операция Allow с контрактом, описанным у метода.
@@ -136,86 +130,6 @@ func RateLimit(limiter Limiter, cfg RateLimitConfig) gin.HandlerFunc {
 // @return IP клиента.
 func ClientIPKey(c *gin.Context) string {
 	return c.ClientIP()
-}
-
-// PathParamKey возвращает значение параметра пути.
-// @args
-// - name: имя параметра route.
-// @return функцию построения key.
-func PathParamKey(name string) KeyFunc {
-	// Вложенный обработчик выполняет выделенный шаг обработки в проверке HTTP-авторизации и ограничений запросов, используя состояние окружающей функции.
-	//
-	// @args
-	//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-	//
-	// @return:
-	//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-	return func(c *gin.Context) string {
-		return c.Param(name)
-	}
-}
-
-// JSONFieldKey возвращает поле тела JSON и восстанавливает тело для последующего обработчика.
-// @args
-// - field: имя JSON-поля.
-// @return функцию построения key.
-func JSONFieldKey(field string) KeyFunc {
-	// Вложенный обработчик выполняет выделенный шаг обработки в проверке HTTP-авторизации и ограничений запросов, используя состояние окружающей функции.
-	//
-	// @args
-	//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-	//
-	// @return:
-	//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-	return func(c *gin.Context) string {
-		payload, ok := parsedJSONBody(c)
-		if !ok {
-			return ""
-		}
-		value, ok := payload[field]
-		if !ok {
-			return ""
-		}
-
-		return strings.TrimSpace(fmt.Sprint(value))
-	}
-}
-
-// parsedJSONBody разбирает и кеширует JSON-тело для извлечения ключа лимита, сохраняя тело для следующего обработчика.
-//
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-//
-// @return:
-//   - результат 1 (map[string]any): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (bool): признак выполнения проверяемого условия или изменения состояния.
-func parsedJSONBody(c *gin.Context) (map[string]any, bool) {
-	if cached, ok := c.Get(parsedBodyKey); ok {
-		payload, ok := cached.(map[string]any)
-		return payload, ok
-	}
-	if c.Request == nil || c.Request.Body == nil {
-		return nil, false
-	}
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		c.Request.Body = io.NopCloser(bytes.NewReader(nil))
-		c.Set(parsedBodyKey, map[string]any{})
-		return nil, false
-	}
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	if len(bytes.TrimSpace(body)) == 0 {
-		c.Set(parsedBodyKey, map[string]any{})
-		return nil, false
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		c.Set(parsedBodyKey, map[string]any{})
-		return nil, false
-	}
-	c.Set(parsedBodyKey, payload)
-
-	return payload, true
 }
 
 // redisRateLimitKey строит изолированный ключ ограничения частоты из правила и идентичности.

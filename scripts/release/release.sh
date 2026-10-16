@@ -76,7 +76,7 @@ deploy_apps() {
   observability_services=(prometheus)
   if [[ "$RELEASE_LAYOUT" == classic ]]; then observability_services+=(grafana); fi
   compose --profile observability up -d --no-build --no-deps "${observability_services[@]}"
-  printf 'Release %s deployed to %s; run smoke and record the observation window.\n' "$RELEASE_VERSION" "$RELEASE_PROJECT"
+  printf 'Release %s deployed to %s; record the observation window.\n' "$RELEASE_VERSION" "$RELEASE_PROJECT"
 }
 
 case "$action" in

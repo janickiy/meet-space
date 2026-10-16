@@ -37,7 +37,6 @@ meet space включает веб-интерфейс, конференции, S
 │   ├── infrastructure/
 │   │   ├── postgres/         # DB repo + migrator
 │   │   ├── rabbitmq/         # RabbitMQ publisher/consumer команд записи
-│   │   ├── worker/           # внутренний HTTP-клиент API -> worker для WebRTC SDP
 │   │   └── storage/          # S3/MinIO storage clients
 │   └── transport/
 │       └── http/             # Gin HTTP routes
@@ -117,16 +116,12 @@ Value: {recordId}
 TTL: RECORD_LOCK_TTL, по умолчанию 6h
 ```
 
-API ставит lock перед созданием записи. Если для этого `conferenceId` уже есть активная запись, повторный `POST /api/v1/records/start` вернет `409 Conflict`:
-
-```json
-{
-  "status": "failed",
-  "message": "recording already started for conferenceId"
-}
-```
-
-Lock снимает worker после фактической остановки WebRTC/FFmpeg, перед финализацией файлов, либо после ошибки подготовки/приёма потока. Публикация `record.stop` сама по себе lock не снимает. Повторный `end` для готовой/ошибочной записи ничего не меняет; в состоянии `stopping` команду можно отправить повторно после ошибки публикации. TTL остаётся аварийным ограничением и пока не продлевается автоматически.
+Запись создаётся через авторизованный `POST /api/v1/conferences/{id}/recordings`.
+Команды доставляются worker-у через постоянный outbox; Redis lock защищает
+обработку записи. Остановка запрашивается через
+`POST /api/v1/conferences/{id}/recordings/{recordingId}/stop`.
+Публикация `record.stop` сама по себе lock не снимает: ресурсы освобождаются
+при фактической остановке обработки. Подробнее — в [контракте записи](docs/conference-recording.md).
 
 Redis rate limit:
 
@@ -136,14 +131,6 @@ RATE_LIMIT_WINDOW=1m
 RATE_LIMIT_DEFAULT_RPM=240
 RATE_LIMIT_AUTH_LOGIN_IP_RPM=10
 RATE_LIMIT_AUTH_REGISTER_IP_RPM=5
-RATE_LIMIT_RECORD_START_CONFERENCE_RPM=12
-RATE_LIMIT_RECORD_START_IP_RPM=40
-RATE_LIMIT_RECORD_END_RECORD_RPM=40
-RATE_LIMIT_RECORD_END_IP_RPM=120
-RATE_LIMIT_WEBRTC_OFFER_RECORD_RPM=40
-RATE_LIMIT_WEBRTC_OFFER_IP_RPM=120
-RATE_LIMIT_RECORD_LIST_IP_RPM=240
-RATE_LIMIT_RECORD_READ_IP_RPM=480
 ```
 
 Rate limit работает через Redis sliding window и проверяется до вызова handler-а. Если лимит исчерпан, API возвращает `429 Too Many Requests`:
@@ -263,7 +250,6 @@ make up
 Для автономного локального запуска без отдельного gateway в `.env` используй:
 
 ```env
-WORKER_INTERNAL_URL=http://worker:8090
 MINIO_PUBLIC_ENDPOINT=http://localhost:9000
 ```
 
@@ -274,8 +260,8 @@ MINIO_PUBLIC_ENDPOINT=http://localhost:9000
 сертификатов, которые нужно сохранить). Доверие к локальному CA в систему автоматически не добавляется.
 
 Для проверки встречи откройте [локальный интерфейс Meetrix](http://localhost:5173).
-Тестовая страница WebRTC smoke удалена. Старый адрес `/debug/webrtc-smoke`
-возвращает только `410 Gone` и не предоставляет обход авторизации.
+Тестовая страница WebRTC smoke и её HTTP-заглушка удалены; прежний маршрут
+не зарегистрирован в API.
 Для HTTPS-страницы нужно настроить доверие к локальному сертификату.
 
 Пересборка API и worker:
@@ -345,9 +331,9 @@ http://127.0.0.1:18080/api/v1/conferences/{id}/recordings
 не должны публиковаться через пользовательский proxy. Клиентский frontend
 использует только авторизованные маршруты конференционной записи.
 
-Оба прежних префикса `/api/v1/records*`, `/api/records*` и debug-список завершённых
-записей закрыты без возможности включения через env. Существующие
-данные не удаляются; прежний HTTP-контракт намеренно несовместим с текущим выпуском.
+Прежние публичные маршруты записи и отладочные страницы удалены из
+маршрутизатора. Неизвестный маршрут возвращает `404 Not Found`;
+восстановить старый API через env нельзя. Существующие данные не удаляются.
 
 ## Проверка
 
@@ -376,24 +362,19 @@ docker compose ps minio
 docker compose exec -T postgres psql -U go_recorder -d go_recorder -c 'select count(*) from record;'
 ```
 
-Запуск записи из контейнера API:
+Запуск записи из контейнера API с учётными данными участника, имеющего право
+управлять записью этой конференции:
 
 ```bash
 docker compose exec -T api wget -qO- \
+  --header 'Authorization: Bearer <access-token>' \
   --header 'Content-Type: application/json' \
-  --post-data '{"conferenceId":"11111111-1111-1111-1111-111111111111","quality":"720p","qualityMode":"auto","minQuality":"360p","segmentDurationSec":5}' \
-  http://127.0.0.1:8085/api/v1/records/start
+  --post-data '{"mode":"composite","segmentDurationSec":5}' \
+  'http://127.0.0.1:8085/api/v1/conferences/<conference-id>/recordings'
 ```
 
-Ответ `POST /api/v1/records/start`:
-
-```json
-{
-  "recordId": "uuid",
-  "status": "starting",
-  "message": "Record job accepted"
-}
-```
+Успешный запрос возвращает `202 Accepted` и карточку записи в поле `item`.
+Идентификатор `item.uuid` используется для чтения и остановки записи.
 
 Сегменты записи должны лежать в локальном volume worker-а:
 
@@ -401,7 +382,8 @@ docker compose exec -T api wget -qO- \
 dockers/storage/data/records/{recordId}/
 ```
 
-При вызове `POST /api/v1/records/end` API переводит запись в `stopping` и публикует `record.stop` в RabbitMQ. Worker получает команду из очереди и выполняет post-processing:
+После запроса остановки через API конференции запись переходит в `stopping`.
+Диспетчер доставляет `record.stop` через RabbitMQ, а worker выполняет post-processing:
 
 - сканирует непустые `segment_*.*` в `/storage/records/{recordId}`;
 - создает `concat.txt`;
@@ -419,32 +401,9 @@ records/{recordId}/final.mp4
 records/{recordId}/preview.jpg
 ```
 
-Если вызвать `POST /api/v1/records/end` до появления сегментов или если FFmpeg не смог собрать итоговый файл, запись переводится в `failed`.
-
-### Post-processing smoke
-
-Сценарий проверки MinIO/post-processing:
-
-1. Пересобери и перезапусти сервисы:
-
-```bash
-docker compose build api worker
-docker compose up -d --remove-orphans
-```
-
-3. Запусти запись через `POST /api/v1/records/start`.
-4. Убедись, что в `dockers/storage/data/records/{recordId}/` появились сегменты `segment_*`.
-5. Вызови `POST /api/v1/records/end` с телом:
-
-```json
-{
-  "recordId": "{recordId}",
-  "reason": "client_stop"
-}
-```
-
-6. Проверь статус записи: успешный сценарий должен дать `ready`.
-7. Проверь MinIO bucket `recordings`: должны появиться `final.mp4` и `preview.jpg`.
+Если финализация не смогла создать пригодный итоговый файл, запись переходит
+в `failed`. Состояние и доступные артефакты проверяются через авторизованный
+`GET /api/v1/conferences/{id}/recordings/{recordingId}`.
 
 Временные файлы записи создаются локально и очищаются после успешной загрузки артефактов в MinIO:
 
@@ -534,20 +493,8 @@ localhost:2345
 dlv connect localhost:2345
 ```
 
-Пример CLI-сессии:
-
-```bash
-(dlv) break internal/app/records/start_handler.go:14
-(dlv) continue
-```
-
-После этого вызови endpoint:
-
-```bash
-curl -X POST http://localhost:8085/api/v1/records/start \
-  -H 'Content-Type: application/json' \
-  -d '{"conferenceId":"11111111-1111-4111-8111-111111111111","qualityMode":"auto","segmentDurationSec":5}'
-```
+Поставь breakpoint в методе `Start` файла `internal/app/recordings/handler.go`,
+продолжи выполнение и запусти запись через интерфейс авторизованного участника.
 
 ### Debug worker
 
@@ -606,9 +553,6 @@ make debug-stop
 7. Нажми Debug и вызови нужный HTTP endpoint.
 
 
-Переменные коллекции:
-
-```text
-baseUrl = http://localhost:8085
-recordId = UUID записи после /api/v1/records/start
-```
+Актуальная [Postman-коллекция MeetSpace](docs/postman/meetspace/MeetSpace.postman_collection.json)
+содержит описания рабочих endpoints и их переменных. Закрытые legacy-запросы
+из неё удалены.

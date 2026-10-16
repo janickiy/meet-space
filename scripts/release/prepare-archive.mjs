@@ -62,7 +62,7 @@ for (const service of Object.keys(manifest.images)) for (const suffix of ['scan'
 // отдельную проверяемую контрольную сумму: подмена происхождения образов запрещена.
 const files = ['docker-compose.production.yml','docker-compose.hardened.yml','docker-compose.shared-host.yml','docker-compose.release-local.yml',
   'docker-compose.release-local-grafana.yml','docker-compose.release-local-hardened.yml','dockers/production/nginx.conf',
-  ...['common.sh','release.sh','backup.sh','restore-check.sh','smoke.sh'].map(n => `scripts/release/${n}`),
+  ...['common.sh','release.sh','backup.sh','restore-check.sh'].map(n => `scripts/release/${n}`),
   'dockers/production/nginx-external-tls.conf','dockers/production/routes.conf','dockers/turn/entrypoint.sh','dockers/turn/turnserver.conf',
   'dockers/observability/prometheus.yml','dockers/observability/alerts.yml'];
 const checksums = [];

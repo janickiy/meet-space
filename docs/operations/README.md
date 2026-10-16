@@ -277,31 +277,22 @@ Restore drill создаёт отдельные БД/bucket и сохраняе�
 запускает предыдущие immutable images на совместимой текущей схеме, без DB down
 и без пересборки старого commit. Несовместимость схемы требует отдельного решения.
 
-## Повторяемые тесты
+## Ручная проверка после выпуска
 
-Изолированный стенд: `make stage6-up`; он не использует volumes работающего dev
-проекта. `docker-compose.integration.yml` имеет заведомо test-only credentials и порты
-15433/16380/15682/19000/18085/18090/18091, SFU 50020. `make stage6-failure` проверяет
-точный Compose project label перед остановками. Не менять prefix на production.
-`make stage6-load` — HTTP и synthetic SFU; `make stage6-soak` — 30m opt-in.
-WS/reconnect и два full recorder конвейера включаются `RECORDER_WS_LOAD=true` и
-`RECORDER_RECORDING_LOAD=true` с явными локальными integration env.
+Автоматизированные stage6/load/soak/TURN-сценарии и их тестовый Compose удалены.
+Старые локальные результаты ниже сохранены как исторический baseline, не как
+действующие команды или подтверждение нового артефакта.
 
-TURN test выполняется в сети `recorder-stage6_default` с
-`RECORDER_TEST_TURN_HOST=coturn:3478`,
-`RECORDER_TEST_TURN_SECRET` равным тестовому shared secret:
-`go test -v ./internal/infrastructure/sfu -run '^TestStageSixForcedTURN$'`.
-Не печатать настоящий shared secret и не использовать его вместо test-only ключа.
-Browser profile требует локальные dev сертификаты; доверие Node задаётся
-`NODE_EXTRA_CA_CERTS`, не глобальным отключением TLS проверки.
-При browser cleanup обязательно задать `COMPOSE_PROJECT_NAME=recorder-stage6`,
-`COMPOSE_FILE` к тестовому Compose и локальный MinIO public endpoint; иначе
-защитный marker check откажет в очистке. Тестовые записи не удалять по широкому
-prefix из рабочего проекта.
+Сверить `/version` и `/version.json` с выбранным манифестом; через закрытый доступ
+проверить health/readiness, drain и очереди каждого изменённого сервиса.
+С согласованными существующими аккаунтами проверить вход, WS/reconnect и доступ
+к материалам. Медиа и TURN/TURNS проверить отдельно на целевых сетях с согласия
+участников. Новые встречи/записи не создаются автоматически при публикации.
+Сохранить реальные результаты и ограничения; health/version не доказывают
+успешность RTP, FFmpeg или playback. Пользовательские данные и volumes не удалять.
 
-Актуальные CI jobs и gates описаны в [RELEASE_PROCESS](../RELEASE_PROCESS.md).
-Heavy SFU/30m soak — manual/scheduled. Полный Docker/TURN/recording acceptance
-требует изолированных зависимостей, а внешний TURNS/WAN — реального стенда.
+Актуальные CI jobs, security/backup/rollback gates и ручные проверки описаны в
+[RELEASE_PROCESS](../RELEASE_PROCESS.md) и [чеклисте](RELEASE_CHECKLIST.md).
 
 ## Предлагаемые SLI/SLO и окно наблюдения
 

@@ -1,57 +1,5 @@
 package records
 
-import "time"
-
-// Response представляет единый внешний ответ со статусом и сообщением.
-// @params
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - Message: сообщение чата или безопасный текст ответа согласно указанному типу.
-type Response struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
-// StartRequest передаёт параметры запуска задачи записи.
-// @params
-//   - ConferenceID: идентификатор конференции, ограничивающий область операции.
-//   - RequestedBy: значение RequestedBy типа *string, используемое согласно назначению этой операции.
-//   - Quality: поддерживаемый профиль качества видео.
-//   - QualityMode: значение QualityMode типа string, используемое согласно назначению этой операции.
-//   - MinQuality: значение MinQuality типа string, используемое согласно назначению этой операции.
-//   - SegmentDurationSec: плановая длительность сегмента записи в секундах.
-type StartRequest struct {
-	ConferenceID       string  `json:"conferenceId"`
-	RequestedBy        *string `json:"requestedBy"`
-	Quality            string  `json:"quality"`
-	QualityMode        string  `json:"qualityMode"`
-	MinQuality         string  `json:"minQuality"`
-	SegmentDurationSec int     `json:"segmentDurationSec"`
-}
-
-// StartResponse возвращает идентификатор созданной записи и настройки её WebRTC-входа.
-// @params
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - Message: сообщение чата или безопасный текст ответа согласно указанному типу.
-//   - RecordID: внешний UUID задачи записи.
-//   - ConferenceID: идентификатор конференции, ограничивающий область операции.
-//   - WebRTC: значение WebRTC типа WebRTCInfo, используемое согласно назначению этой операции.
-type StartResponse struct {
-	Status       string     `json:"status"`
-	Message      string     `json:"message"`
-	RecordID     string     `json:"recordId"`
-	ConferenceID string     `json:"conferenceId"`
-	WebRTC       WebRTCInfo `json:"webrtc"`
-}
-
-// EndRequest передаёт идентификатор записи и причину остановки.
-// @params
-//   - RecordID: внешний UUID задачи записи.
-//   - Reason: причина завершения, отказа или изменения состояния.
-type EndRequest struct {
-	RecordID string `json:"recordId"`
-	Reason   string `json:"reason"`
-}
-
 // Command задаёт согласованное представление данных «Command» для управлении задачами записи и её артефактами.
 // @params
 //   - Type: значение Type типа string, используемое согласно назначению этой операции.
@@ -63,23 +11,6 @@ type Command struct {
 	RecordID           string `json:"recordId"`
 	Reason             string `json:"reason,omitempty"`
 	SegmentDurationSec int    `json:"segmentDurationSec,omitempty"`
-}
-
-// WebRTCInfo возвращает адрес обмена SDP, ICE-серверы и профиль видеозахвата записи.
-// @params
-//   - OfferURL: значение OfferURL типа string, используемое согласно назначению этой операции.
-//   - ICEServers: набор значений ICEServers для последовательной или пакетной обработки.
-//   - Video: значение Video типа VideoSettings, используемое согласно назначению этой операции.
-type WebRTCInfo struct {
-	OfferURL   string        `json:"offerUrl"`
-	ICEServers []ICEServer   `json:"iceServers"`
-	Video      VideoSettings `json:"video"`
-}
-
-// ICEServer описывает адреса и при необходимости учётные данные одного ICE-сервера.
-//   - URLs: набор значений URLs для последовательной или пакетной обработки.
-type ICEServer struct {
-	URLs []string `json:"urls"`
 }
 
 // WebRTCOfferRequest передаёт SDP-предложение клиента при установке входа записи.
@@ -142,38 +73,4 @@ type RecordSegmentView struct {
 	RecordSegment
 	Bucket string `json:"bucket,omitempty"`
 	URL    string `json:"url,omitempty"`
-}
-
-// ConferenceRecordSummary собирает количество и краткие карточки записей одной конференции.
-// @params
-//   - ConferenceID: идентификатор конференции, ограничивающий область операции.
-//   - RecordsCount: значение RecordsCount типа int64, используемое согласно назначению этой операции.
-//   - Records: набор задач записи или их карточек.
-type ConferenceRecordSummary struct {
-	ConferenceID string                 `json:"conferenceId"`
-	RecordsCount int64                  `json:"recordsCount"`
-	Records      []ConferenceRecordItem `json:"records"`
-}
-
-// ConferenceRecordItem передаёт краткие метаданные записи и ссылки на итоговый файл и превью.
-// @params
-//   - RecordID: внешний UUID задачи записи.
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - FinalURL: значение FinalURL типа string, используемое согласно назначению этой операции.
-//   - PreviewURL: значение PreviewURL типа string, используемое согласно назначению этой операции.
-//   - DurationSec: длительность в секундах.
-//   - StartedAt: момент начала обработки или записи.
-//   - StoppedAt: временная отметка StoppedAt; указатель допускает отсутствие значения.
-//   - EndedAt: время завершения записи или физической сессии.
-//   - CreatedAt: время создания значения.
-type ConferenceRecordItem struct {
-	RecordID    string     `json:"recordId"`
-	Status      string     `json:"status"`
-	FinalURL    string     `json:"finalUrl,omitempty"`
-	PreviewURL  string     `json:"previewUrl,omitempty"`
-	DurationSec *int       `json:"durationSec,omitempty"`
-	StartedAt   *time.Time `json:"startedAt,omitempty"`
-	StoppedAt   *time.Time `json:"stoppedAt,omitempty"`
-	EndedAt     *time.Time `json:"endedAt,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
 }

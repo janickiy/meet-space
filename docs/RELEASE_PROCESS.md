@@ -1,7 +1,7 @@
 # Выпуск неизменяемых артефактов
 
 Цепочка выпуска: исходники → validate/security → сборка →
-scan/SBOM/package → staging → smoke/наблюдение → решение оператора → production →
+scan/SBOM/package → staging → ручная проверка/наблюдение → решение оператора → production →
 проверка либо откат. Реальный staging пока отсутствует; соответствующие evidence
 остаются неподтверждёнными. Локальные результаты не переводят их в `true`.
 
@@ -85,9 +85,8 @@ MinIO, PostgreSQL, Redis, RabbitMQ, Coturn, proxy, Prometheus и Grafana; нов
 источник автоматически доверенным.
 
 Операторские бинарники тоже готовятся заранее в CI/на build-host и проверяются
-для архитектуры машины запуска. Например `go build -trimpath -o
-/absolute/artifacts/bin/release-smoke ./tools/release-smoke`; выполняйте это до
-release, не при аварийном rollback. Образы включают служебные migration/backup
+для архитектуры машины запуска, а не собираются при аварийном rollback.
+Образы включают служебные migration/backup
 бинарники. При переносе local archive сначала сверяют `SHA256SUMS`, затем
 загружают архив Docker; во время инцидента старый commit не пересобирают.
 
@@ -130,18 +129,33 @@ MinIO, проверку dashboards, откат на прежний пакет и
 [backup-restore.md](operations/backup-restore.md); команды deploy —
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
-Smoke использует заранее проверенный бинарник и отдельный non-admin аккаунт:
+Автоматический synthetic smoke удалён; его учётные данные больше не требуются.
+После установки пакета оператор выполняет проверки без создания служебных
+пользователей и встреч:
+
+1. Сверить публичные `/version` и `/version.json` с точными version/commit выбранного
+   манифеста. Проверить HTTP-ответ главной страницы и загрузку её ресурсов.
+2. Через закрытый доступ проверить `/health/live` и `/health/ready` каждого
+   изменённого сервиса; готовность должна быть подтверждена, drain — выключен.
+   Проверить очереди, БД/Redis/MinIO и отсутствие роста ошибок в метриках/логах.
+   Внутренние health, metrics и operations не открывать в публичном proxy.
+3. С согласованным существующим non-admin аккаунтом вручную проверить вход,
+   `auth/me`, capabilities, ICE config, запрет admin и изменённые экраны.
+   JWT, cookies и пароли в evidence и shared-файлы не сохранять.
+4. С согласия участников проверить WS/media, forced relay/TURNS и доступ к
+   ранее созданным записям/материалам. Новые встречи или записи создавать только
+   как отдельную явно согласованную проверку функционала, не автоматически при выпуске.
+5. Записать фактические версии, результаты, время и ограничения в evidence.
+   Успешные health/version не подтверждают реальный RTP, TURN, FFmpeg, файлы,
+   waiting room или полный browser UX; эти возможности проверяются отдельно.
+
+Пример безопасных публичных GET-проверок (сопоставление с манифестом обязательно):
 
 ```bash
-bash scripts/release/smoke.sh --environment staging --project recorder-staging --env-file /srv/meet/config/staging.env --manifest /srv/meet/releases/v1.2.3/release.json --base-url https://meet-staging.example.org --binary /srv/meet/tools/release-smoke --exercise
+curl --fail --silent --show-error https://meet-staging.example.org/version
+curl --fail --silent --show-error https://meet-staging.example.org/version.json
+curl --fail --silent --show-error --output /dev/null https://meet-staging.example.org/
 ```
-
-`SMOKE_EMAIL`/`SMOKE_PASSWORD` поступают из защищённого окружения. `--exercise`
-создаёт отдельную встречу, проверяет join/WS snapshot и завершает участие/отменяет
-встречу; записи тестового сценария сохраняются для адресного осмотра. Production
-smoke запрещает `--exercise` и не создаёт конференцию. Проверка включает версии,
-frontend HTTP, login, auth/me, capabilities, ICE config и запрет admin; она сама
-не проверяет реальный RTP, TURN, FFmpeg, файлы, waiting room и полный browser UX.
 
 ## Approval production
 
@@ -169,6 +183,9 @@ frontend HTTP, login, auth/me, capabilities, ICE config и запрет admin; �
 Этот пример намеренно не проходит gate. Для deploy/migrate/drain/resume нужны
 первые шесть подтверждений совместимости/backup/rollback/staging/media/security;
 для rollback вместо трёх последних проверяется `applicationRollbackCompatible`.
+Имена `stagingSmokePassed` и `mediaSmokePassed` сохранены в формате evidence;
+они означают документированные ручные проверки staging и медиа, а не запуск
+удалённого тестового инструмента. Непроведённые проверки остаются `false`.
 `approvedBy` и `evidenceReferences` обязательны. Commit и hash манифеста должны
 совпасть побайтно. Скрипт проверяет структуру утверждений, не истинность подписанта
 и не подлинность стороннего отчёта; проверка evidence — ответственность оператора.

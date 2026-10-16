@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	"github.com/janickiy/meet-space/internal/domain/records"
 	"github.com/janickiy/meet-space/internal/infrastructure/ffmpeg"
 	localstorage "github.com/janickiy/meet-space/internal/infrastructure/storage/local"
@@ -18,142 +17,9 @@ import (
 	webrtcingest "github.com/janickiy/meet-space/internal/infrastructure/webrtc"
 )
 
-// apiRepository задаёт контракт зависимого компонента apiRepository в управлении задачами записи и её артефактами; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - Create: операция создание с контрактом, описанным у метода.
-//   - FindByUUID: поиск записи по UUID с контрактом, описанным у метода.
-//   - MarkStopping: перевод записи в состояние остановки с контрактом, описанным у метода.
-//   - MarkFailed: перевод записи в состояние ошибки с контрактом, описанным у метода.
-//   - ListDetails: операция список Details с контрактом, описанным у метода.
-//   - ListSummaryDetailsByConferenceIDs: получение кратких сведений о записях по идентификаторам конференций с контрактом, описанным у метода.
-//   - FindDetailsByUUID: получение подробных сведений о записи по UUID с контрактом, описанным у метода.
-type apiRepository interface {
-	// Create создаёт новое состояние задач записи и связанных артефактов по переданным параметрам.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - record (records.Record): задача записи с её сохранённым состоянием.
-	//
-	// @return:
-	//   - результат 1 (records.Record): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	Create(ctx context.Context, record records.Record) (records.Record, error)
-	// FindByUUID читает задачу записи по её внешнему UUID.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - recordUUID (string): идентификатор связанного ресурса, заданного параметром recordUUID.
-	//
-	// @return:
-	//   - результат 1 (records.Record): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	FindByUUID(ctx context.Context, recordUUID string) (records.Record, error)
-	// MarkStopping условно переводит задачу записи в состояние «Stopping», соблюдая ограничения жизненного цикла.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - recordUUID (string): идентификатор связанного ресурса, заданного параметром recordUUID.
-	//   - reason (string): причина завершения, отказа или изменения состояния.
-	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	MarkStopping(ctx context.Context, recordUUID string, reason string) error
-	// MarkFailed условно переводит задачу записи в состояние «Failed», соблюдая ограничения жизненного цикла.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - recordUUID (string): идентификатор связанного ресурса, заданного параметром recordUUID.
-	//   - cause (error): значение cause типа error, используемое согласно назначению этой операции.
-	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	MarkFailed(ctx context.Context, recordUUID string, cause error) error
-	// ListDetails читает записи вместе со связанными артефактами и событиями.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - limit (int): максимальное число элементов страницы или порции обработки.
-	//   - offset (int): число элементов, пропускаемых перед началом страницы.
-	//
-	// @return:
-	//   - результат 1 ([]records.RecordDetails): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	ListDetails(ctx context.Context, limit int, offset int) ([]records.RecordDetails, error)
-	// ListSummaryDetailsByConferenceIDs пакетно читает краткие сведения записей нескольких конференций без запроса для каждой записи.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - conferenceIDs ([]string): идентификаторы конференций для пакетной выборки.
-	//   - status (string): состояние ресурса, ответа или фильтра выборки.
-	//
-	// @return:
-	//   - результат 1 ([]records.RecordDetails): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	ListSummaryDetailsByConferenceIDs(ctx context.Context, conferenceIDs []string, status string) ([]records.RecordDetails, error)
-	// FindDetailsByUUID читает задачу записи и связанные сведения по её UUID.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - recordUUID (string): идентификатор связанного ресурса, заданного параметром recordUUID.
-	//
-	// @return:
-	//   - результат 1 (records.RecordDetails): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	FindDetailsByUUID(ctx context.Context, recordUUID string) (records.RecordDetails, error)
-}
-
-// workerCommander задаёт контракт зависимого компонента workerCommander в управлении задачами записи и её артефактами; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - StartRecord: операция запуск запись с контрактом, описанным у метода.
-//   - StopRecord: операция остановка запись с контрактом, описанным у метода.
-type workerCommander interface {
-	// StartRecord передаёт команду начала записи выбранному транспорту воркера.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - recordID (string): внешний UUID задачи записи.
-	//   - segmentDurationSec (int): плановая длительность сегмента записи в секундах.
-	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	StartRecord(ctx context.Context, recordID string, segmentDurationSec int) error
-	// StopRecord передаёт команду остановки записи выбранному транспорту воркера.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - recordID (string): внешний UUID задачи записи.
-	//   - reason (string): причина завершения, отказа или изменения состояния.
-	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	StopRecord(ctx context.Context, recordID string, reason string) error
-}
-
-// conferenceLocker задаёт контракт зависимого компонента conferenceLocker в управлении задачами записи и её артефактами; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - Acquire: операция захват с контрактом, описанным у метода.
-//   - Release: операция освобождение с контрактом, описанным у метода.
-type conferenceLocker interface {
-	// Acquire пытается занять блокировку ресурса на ограниченный срок без замены действующего владельца.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-	//   - recordID (string): внешний UUID задачи записи.
-	//
-	// @return:
-	//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	Acquire(ctx context.Context, conferenceID string, recordID string) (bool, error)
-	// Release освобождает ресурс только при совпадении сохранённого владельца или токена.
-	//
-	// @args
-	//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-	//   - recordID (string): внешний UUID задачи записи.
-	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-	Release(ctx context.Context, conferenceID string, recordID string) error
+// cardRepository читает метаданные записи после проверки доступа в сценарии конференции.
+type cardRepository interface {
+	FindDetailsByUUID(context.Context, string) (records.RecordDetails, error)
 }
 
 // workerRepository задаёт контракт зависимого компонента workerRepository в управлении задачами записи и её артефактами; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
@@ -230,16 +96,10 @@ type mediaIngest interface {
 	HandleOffer(context.Context, string, records.WebRTCOfferRequest) (records.WebRTCAnswerResponse, error)
 }
 
-// Service объединяет зависимости прикладного сценария и координирует его операции.
-//   - repository: хранилище постоянных данных прикладного сценария.
-//   - workerCommander: транспорт команды API к воркеру записи.
-//   - conferenceLocker: Redis-блокировка одной активной записи на встречу.
-//   - s3: клиент приватного объектного хранилища MinIO/S3.
+// Service формирует карточки уже авторизованных записей конференций.
 type Service struct {
-	repository       apiRepository
-	workerCommander  workerCommander
-	conferenceLocker conferenceLocker
-	s3               *s3storage.Client
+	repository cardRepository
+	s3         *s3storage.Client
 }
 
 // WorkerService обрабатывает команды записи, входящие медиа, финализацию и загрузку артефактов.
@@ -301,20 +161,9 @@ type recordCommandLock struct {
 	refs int
 }
 
-// NewService создаёт прикладной сервис API.
-// @args
-// - repository: repository записей.
-// - workerCommander: транспорт команд recorder-worker; используется издатель RabbitMQ.
-// - s3: MinIO/S3-клиент для генерации ссылок на артефакты.
-// - conferenceLocker: блокировка Redis, запрещающая параллельную запись одной конференции.
-// @return Service.
-func NewService(repository apiRepository, workerCommander workerCommander, s3 *s3storage.Client, conferenceLocker conferenceLocker) *Service {
-	return &Service{
-		repository:       repository,
-		workerCommander:  workerCommander,
-		conferenceLocker: conferenceLocker,
-		s3:               s3,
-	}
+// NewService создаёт читатель карточек для защищённого API записей конференций.
+func NewService(repository cardRepository, s3 *s3storage.Client) *Service {
+	return &Service{repository: repository, s3: s3}
 }
 
 // NewWorkerService создаёт прикладной сервис записывающего воркера.
@@ -335,223 +184,6 @@ func NewWorkerService(repository workerRepository, postProcessor *ffmpeg.PostPro
 		workerID:         workerID,
 		conferenceLocker: locker,
 	}
-}
-
-// Start создаёт запись и публикует команду подготовки приёма WebRTC в RabbitMQ.
-// @args
-// - ctx: контекст HTTP-запроса.
-// - request: параметры записи.
-// @return response с recordId или ошибку.
-func (s *Service) Start(ctx context.Context, request records.StartRequest) (records.StartResponse, error) {
-	if guard, ok := s.repository.(interface {
-		LegacyConferenceAllowed(context.Context, string) error
-	}); ok {
-		if err := guard.LegacyConferenceAllowed(ctx, request.ConferenceID); err != nil {
-			return records.StartResponse{}, err
-		}
-	}
-	request = records.NormalizeStartRequest(request)
-	if request.SegmentDurationSec <= 0 {
-		request.SegmentDurationSec = 5
-	}
-	videoSettings := records.VideoSettingsForQuality(request.Quality)
-	recordID := uuid.NewString()
-	locked, err := s.acquireConferenceLock(ctx, request.ConferenceID, recordID)
-	if err != nil {
-		return records.StartResponse{}, err
-	}
-	if !locked {
-		return records.StartResponse{}, records.ErrConferenceAlreadyRecording
-	}
-	releaseLock := true
-	defer /* Вложенный обработчик выполняет выделенный шаг обработки в управлении задачами записи и её артефактами, используя состояние окружающей функции.
-
-	 */func() {
-		if releaseLock {
-			_ = s.releaseConferenceLock(context.Background(), request.ConferenceID, recordID)
-		}
-	}()
-
-	record, err := s.repository.Create(ctx, records.Record{
-		UUID:               recordID,
-		ConferenceID:       request.ConferenceID,
-		RequestedBy:        request.RequestedBy,
-		SourceType:         "browser",
-		TransportType:      "webrtc",
-		Status:             records.StatusStarting,
-		QualityMode:        request.QualityMode,
-		SegmentDurationSec: request.SegmentDurationSec,
-		NeedPreview:        true,
-	})
-	if err != nil {
-		return records.StartResponse{}, err
-	}
-
-	if err := s.workerCommander.StartRecord(ctx, record.UUID, request.SegmentDurationSec); err != nil {
-		_ = s.repository.MarkFailed(ctx, record.UUID, err)
-		return records.StartResponse{}, err
-	}
-	releaseLock = false
-
-	return records.StartResponse{
-		Status:       record.Status,
-		Message:      "Record job accepted",
-		RecordID:     record.UUID,
-		ConferenceID: record.ConferenceID,
-		WebRTC: records.WebRTCInfo{
-			OfferURL: "/api/v1/records/" + record.UUID + "/webrtc/offer",
-			ICEServers: []records.ICEServer{
-				{URLs: []string{"stun:stun.l.google.com:19302"}},
-			},
-			Video: videoSettings,
-		},
-	}, nil
-}
-
-// Stop помечает запись stopping и публикует в RabbitMQ команду завершения.
-// @args
-// - ctx: контекст HTTP-запроса.
-// - request: recordId и reason.
-// @return ошибку БД или публикации RabbitMQ-команды.
-func (s *Service) Stop(ctx context.Context, request records.EndRequest) error {
-	record, err := s.repository.FindByUUID(ctx, request.RecordID)
-	if err != nil {
-		return err
-	}
-	if records.IsComposite(record) {
-		return apperrors.ErrNotFound
-	}
-	if records.IsTerminalStatus(record.Status) || record.Status == records.StatusFinalizing || record.Status == records.StatusUploading {
-		return nil
-	}
-	if record.Status != records.StatusStopping {
-		if err := s.repository.MarkStopping(ctx, request.RecordID, request.Reason); err != nil {
-			if errors.Is(err, records.ErrRecordStateChanged) {
-				return nil
-			}
-			return err
-		}
-	}
-	// Повтор в состоянии stopping заново публикует команду после прежнего сбоя публикации.
-	// Только воркер знает, когда медиа действительно остановлены и можно освободить блокировку.
-	return s.workerCommander.StopRecord(ctx, request.RecordID, request.Reason)
-}
-
-// List возвращает список записей с файлами из MinIO и метаданными сегментов.
-// @args
-// - ctx: контекст HTTP-запроса.
-// - limit: количество.
-// - offset: смещение.
-// @return список карточек записей или ошибку БД/MinIO.
-func (s *Service) List(ctx context.Context, limit int, offset int) ([]records.RecordCard, error) {
-	details, err := s.repository.ListDetails(ctx, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]records.RecordCard, 0, len(details))
-	for _, item := range details {
-		if records.IsComposite(item.Record) {
-			continue
-		}
-		card, err := s.recordCard(ctx, item)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, card)
-	}
-
-	return result, nil
-}
-
-// CountByConference возвращает количество записей и краткие карточки записей для каждой переданной конференции.
-// @args
-// - ctx: контекст HTTP-запроса.
-// - conferenceIDs: список UUID конференций.
-// - status: optional фильтр по статусу записи.
-// @return список conferenceId + recordsCount + records[] или ошибку БД/MinIO.
-func (s *Service) CountByConference(ctx context.Context, conferenceIDs []string, status string) ([]records.ConferenceRecordSummary, error) {
-	details, err := s.repository.ListSummaryDetailsByConferenceIDs(ctx, conferenceIDs, status)
-	if err != nil {
-		return nil, err
-	}
-
-	summaryIndexesByConference := make(map[string]int, len(conferenceIDs))
-	result := make([]records.ConferenceRecordSummary, 0, len(conferenceIDs))
-	for _, conferenceID := range conferenceIDs {
-		if _, exists := summaryIndexesByConference[conferenceID]; exists {
-			continue
-		}
-		summary := records.ConferenceRecordSummary{
-			ConferenceID: conferenceID,
-			Records:      []records.ConferenceRecordItem{},
-		}
-		result = append(result, summary)
-		summaryIndexesByConference[conferenceID] = len(result) - 1
-	}
-
-	for _, item := range details {
-		if records.IsComposite(item.Record) {
-			continue
-		}
-		index, ok := summaryIndexesByConference[item.Record.ConferenceID]
-		if !ok {
-			continue
-		}
-		card, err := s.conferenceRecordItem(ctx, item)
-		if err != nil {
-			return nil, err
-		}
-		summary := &result[index]
-		summary.Records = append(summary.Records, card)
-		summary.RecordsCount = int64(len(summary.Records))
-	}
-
-	return result, nil
-}
-
-// Read возвращает карточку записи по UUID.
-// @args
-// - ctx: контекст HTTP-запроса.
-// - uuid: UUID записи.
-// @return карточку записи или ошибку БД/MinIO.
-func (s *Service) Read(ctx context.Context, uuid string) (records.RecordCard, error) {
-	details, err := s.repository.FindDetailsByUUID(ctx, uuid)
-	if err != nil {
-		return records.RecordCard{}, err
-	}
-	if records.IsComposite(details.Record) {
-		return records.RecordCard{}, apperrors.ErrNotFound
-	}
-
-	return s.recordCard(ctx, details)
-}
-
-// acquireConferenceLock ставит lock на активную запись конференции.
-// @args
-// - ctx: контекст операции.
-// - conferenceID: UUID конференции.
-// - recordID: UUID создаваемой записи.
-// @return true, если блокировка получена.
-func (s *Service) acquireConferenceLock(ctx context.Context, conferenceID string, recordID string) (bool, error) {
-	if s.conferenceLocker == nil {
-		return true, nil
-	}
-
-	return s.conferenceLocker.Acquire(ctx, conferenceID, recordID)
-}
-
-// releaseConferenceLock снимает lock активной записи конференции.
-// @args
-// - ctx: контекст операции.
-// - conferenceID: UUID конференции.
-// - recordID: UUID записи-владельца lock-а.
-// @return ошибку Redis.
-func (s *Service) releaseConferenceLock(ctx context.Context, conferenceID string, recordID string) error {
-	if s.conferenceLocker == nil {
-		return nil
-	}
-
-	return s.conferenceLocker.Release(ctx, conferenceID, recordID)
 }
 
 // HandleCommand исполняет внутреннюю команду worker-а.
@@ -834,40 +466,6 @@ func (s *Service) recordCard(ctx context.Context, details records.RecordDetails)
 	}
 
 	return card, nil
-}
-
-// conferenceRecordItem формирует краткую карточку записи для маршрута count-by-conference.
-// @args
-// - details: запись с итоговым файлом и превью, без событий и сегментов.
-// @return recordId, ссылки на final/preview и временные поля записи.
-func (s *Service) conferenceRecordItem(ctx context.Context, details records.RecordDetails) (records.ConferenceRecordItem, error) {
-	record := details.Record
-	result := records.ConferenceRecordItem{
-		RecordID:    record.UUID,
-		Status:      record.Status,
-		DurationSec: record.DurationSec,
-		StartedAt:   record.StartedAt,
-		StoppedAt:   record.StoppedAt,
-		EndedAt:     record.EndedAt,
-		CreatedAt:   record.CreatedAt,
-	}
-	for _, file := range details.Files {
-		if file.FileType != records.FileTypeFinalMP4 && file.FileType != records.FileTypeFinalAudio && file.FileType != records.FileTypePreviewJPG {
-			continue
-		}
-		url, err := s.presignedURL(ctx, file.ObjectKey)
-		if err != nil {
-			return records.ConferenceRecordItem{}, err
-		}
-		switch file.FileType {
-		case records.FileTypeFinalMP4, records.FileTypeFinalAudio:
-			result.FinalURL = url
-		case records.FileTypePreviewJPG:
-			result.PreviewURL = url
-		}
-	}
-
-	return result, nil
 }
 
 // presignedURL формирует временную ссылку на приватный артефакт записи.

@@ -113,17 +113,9 @@ func Load() (Config, error) {
 		RateLimitEnabled:   envBool("RATE_LIMIT_ENABLED", true),
 		RateLimitWindow:    envDuration("RATE_LIMIT_WINDOW", time.Minute),
 		RateLimit: RateLimitConfig{
-			DefaultRPM:               envInt("RATE_LIMIT_DEFAULT_RPM", 240),
-			AuthLoginIPRPM:           envInt("RATE_LIMIT_AUTH_LOGIN_IP_RPM", 10),
-			AuthRegisterIPRPM:        envInt("RATE_LIMIT_AUTH_REGISTER_IP_RPM", 5),
-			RecordStartConferenceRPM: envInt("RATE_LIMIT_RECORD_START_CONFERENCE_RPM", 12),
-			RecordStartIPRPM:         envInt("RATE_LIMIT_RECORD_START_IP_RPM", 40),
-			RecordEndRecordRPM:       envInt("RATE_LIMIT_RECORD_END_RECORD_RPM", 40),
-			RecordEndIPRPM:           envInt("RATE_LIMIT_RECORD_END_IP_RPM", 120),
-			WebRTCOfferRecordRPM:     envInt("RATE_LIMIT_WEBRTC_OFFER_RECORD_RPM", 40),
-			WebRTCOfferIPRPM:         envInt("RATE_LIMIT_WEBRTC_OFFER_IP_RPM", 120),
-			RecordListIPRPM:          envInt("RATE_LIMIT_RECORD_LIST_IP_RPM", 240),
-			RecordReadIPRPM:          envInt("RATE_LIMIT_RECORD_READ_IP_RPM", 480),
+			DefaultRPM:        envInt("RATE_LIMIT_DEFAULT_RPM", 240),
+			AuthLoginIPRPM:    envInt("RATE_LIMIT_AUTH_LOGIN_IP_RPM", 10),
+			AuthRegisterIPRPM: envInt("RATE_LIMIT_AUTH_REGISTER_IP_RPM", 5),
 		},
 		MinIOEndpoint:     env("MINIO_ENDPOINT", "minio:9000"),
 		MinIOAccessKey:    env("MINIO_ROOT_USER", "go_recorder"),
@@ -161,26 +153,10 @@ func Load() (Config, error) {
 //   - DefaultRPM: значение DefaultRPM типа int, используемое согласно назначению этой операции.
 //   - AuthLoginIPRPM: значение AuthLoginIPRPM типа int, используемое согласно назначению этой операции.
 //   - AuthRegisterIPRPM: значение AuthRegisterIPRPM типа int, используемое согласно назначению этой операции.
-//   - RecordStartConferenceRPM: значение RecordStartConferenceRPM типа int, используемое согласно назначению этой операции.
-//   - RecordStartIPRPM: значение RecordStartIPRPM типа int, используемое согласно назначению этой операции.
-//   - RecordEndRecordRPM: значение RecordEndRecordRPM типа int, используемое согласно назначению этой операции.
-//   - RecordEndIPRPM: значение RecordEndIPRPM типа int, используемое согласно назначению этой операции.
-//   - WebRTCOfferRecordRPM: значение WebRTCOfferRecordRPM типа int, используемое согласно назначению этой операции.
-//   - WebRTCOfferIPRPM: значение WebRTCOfferIPRPM типа int, используемое согласно назначению этой операции.
-//   - RecordListIPRPM: значение RecordListIPRPM типа int, используемое согласно назначению этой операции.
-//   - RecordReadIPRPM: значение RecordReadIPRPM типа int, используемое согласно назначению этой операции.
 type RateLimitConfig struct {
-	DefaultRPM               int
-	AuthLoginIPRPM           int
-	AuthRegisterIPRPM        int
-	RecordStartConferenceRPM int
-	RecordStartIPRPM         int
-	RecordEndRecordRPM       int
-	RecordEndIPRPM           int
-	WebRTCOfferRecordRPM     int
-	WebRTCOfferIPRPM         int
-	RecordListIPRPM          int
-	RecordReadIPRPM          int
+	DefaultRPM        int
+	AuthLoginIPRPM    int
+	AuthRegisterIPRPM int
 }
 
 // IsLocal проверяет, что приложение запущено в локальном окружении.

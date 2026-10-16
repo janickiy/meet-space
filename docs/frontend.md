@@ -170,11 +170,10 @@ URL, содержимое чата/расшифровок, SDP, Authorization, c
 Адаптер не хранит очередь на диске, не повторяет неудачные запросы и не использует
 сторонний SDK. Это ограниченная диагностика ошибок, а не аналитика действий.
 
-Проверка версии и обезличивания транспорта в обоих браузерах:
-
-```sh
-VITE_CLIENT_TELEMETRY_ENABLED=true npx playwright test e2e/release-observability.spec.ts
-```
+Версию и обезличивание транспорта проверяют вручную на согласованном стенде:
+сверить `/version.json` с артефактом и при явно включённой телеметрии убедиться,
+что запрос не содержит Referer, Authorization, Cookie и пользовательские данные.
+Включение флага не доказывает успешную доставку и не требуется для обычного выпуска.
 
 ## Проверки и ограничения
 
@@ -182,20 +181,15 @@ VITE_CLIENT_TELEMETRY_ENABLED=true npx playwright test e2e/release-observability
 cd frontend
 npm run typecheck
 npm run lint
-sh scripts/test-csp-config.sh
-npm run test
-npm run test:a11y
 npm run build
-npm run test:e2e
 ```
 
-Vitest проверяет ключевые API/компонентные сценарии. Playwright из
-`frontend/e2e/` в основном перехватывает API: прохождение таких тестов не
-доказывает реальные PostgreSQL, SFU, TURN и запись. Опциональный
-`TestFrontendPostgres` в `tests/integration` поднимает временную БД, реальные
-handlers и Vite; его запускают только с явными test env, см. прежний сценарий в
-исходнике теста. Отдельные Stage 3–8 браузерные и Docker-прогоны требуют
-проверки с реальными сервисами. Для release используйте
+Автоматические frontend/Go/e2e-тесты и CSP test script удалены. TypeScript,
+lint и сборка не доказывают корректность API, PostgreSQL, SFU, TURN или записи.
+Изменённые сценарии проверяют вручную с реальными сервисами и согласованными
+существующими аккаунтами; тестовые пользователи/БД автоматически не создаются.
+Проверить фактическую CSP без ослабления ограничений и записать результаты
+health/version отдельно от функциональных проверок. Для release используйте
 [чеклист этапа 9](operations/RELEASE_CHECKLIST.md).
 
 Реализованы skip link, навигация по вкладкам, focus trap для мобильного меню и
