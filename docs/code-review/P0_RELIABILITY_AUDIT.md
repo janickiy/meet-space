@@ -1,8 +1,185 @@
 # P0-аудит надёжности и жизненного цикла ресурсов
 
-## Повторный аудит — 10 октября 2026
+## Повторный аудит — 16 октября 2026
 
-Это актуальный результат выполнения `CODE_REVIEW_AND_OPTIMIZATION.md`. Материалы от 6 октября ниже сохранены **как история**, их восемь исправлений и замеры не считаются новыми результатами. База текущего аудита: `a0781257debba3f911ee180067cc0fad5bb06204`. Проверялось рабочее дерево поверх этого commit; существовавшие до начала изменения интерфейса, брендинга и deployment-документации сохранены без вмешательства.
+### 1. Executive summary
+
+Выполнен новый локальный P0-аудит по `CODE_REVIEW_AND_OPTIMIZATION.md`. Подтверждена и исправлена **одна группа P0 High с двумя воспроизводимыми сценариями**: менеджер приёма записи терял владение ещё останавливающейся сессией, а повторный `Shutdown` не ожидал уже начатую очистку. Это ошибка завершения и учёта ресурсов, **не доказательство бесконечного накопления, OOM или происшествия на production**.
+
+Изменены только `internal/infrastructure/webrtc/manager.go` и `shutdown.go`. Публичные legacy API не возвращались. Новых P0-дефектов в проверенных WS, современном SFU, RabbitMQ и FFmpeg-компонентах не подтверждено. Интерфейс, схема данных, зависимости и архитектура не менялись. Удалённый сервер и существующие Docker-сервисы не обновлялись.
+
+Новые логи, временные Go overlays и профили: `tmp/p0-audit-20261016.QMCosi/`. Это ignored локальные evidence-файлы, не восстановленные постоянные тесты проекта. Исторические отчёты ниже **не являются результатом этого прогона**. Измерения и ограничения: [P0_BEFORE_AFTER.md](P0_BEFORE_AFTER.md).
+
+### 2. Initial baseline и audit-first
+
+- Go `go1.26.9 darwin/arm64`, CGO=1; macOS 27.0.1 (26A434). Host FFmpeg 9.0.2; отдельный Linux/amd64 workload — FFmpeg 6.1.2 под эмуляцией на ARM, не performance benchmark.
+- Исходный HEAD: `2f0fcdbde60aa31b442caabe48e17f7246936349` плюс уже согласованные изменения очистки. Снимок diff сохранён до новых правок; SHA-256: `6b54d1547a5625f4b03cb39906d8473214357848a291f9d5a484f3fb1706b926`.
+- Во время аудита эти исходные изменения были сохранены внешним commit `4f12fbce44a95053ab03c50bce2a0d46ae26391f`. Diff `2f0fcdb..4f12fbc` имеет **тот же SHA-256**: исходный код аудита не изменился. Новый P0 diff отделён от прежней очистки.
+- До production-правок запущены `go test ./...`, `go test -race ./...`, `go vet ./...`, staticcheck v0.7.0, существующий frontend lint, architecture audit и govulncheck v1.8.0. Логи `baseline-*.log` не перезаписывались.
+- Стандартные Go test/race завершились успешно, но выдали **`[no test files]`**: это проверка сборки, не runtime-регрессия. Реальные сценарии выполнены отдельно через временные overlays/изолированные fixtures.
+- Исходный staticcheck **FAIL**: `composite.newSourceWriter` и `sfu.validateOffer` — два U1000 после удаления тестов. Они не объявлены P0 и не удалялись в рамках этого аудита. Исходный gate поэтому не полностью зелёный.
+
+### 3. Critical findings: P0-20261016-01
+
+**Severity: P0 High.** Внутренний recording ingest, не удалённые публичные endpoints.
+
+| Сценарий | Lifecycle и причина | Новое доказательство |
+|---|---|---|
+| Stop одновременно с drain/Shutdown | `Manager.Stop` удалял сессию из `sessions` **до** `session.stop`, ожидания первого сегмента и `SegmentProcess.Stop/Wait`. `Active`/admission/Shutdown больше не видели живой процесс. | `TestShutdownJoinsAlreadyStoppingRecorder`: настоящий управляемый child ещё жив, `Active=0`, `Shutdown` вернулся за **5.959 µs**. `media/detached-stop-before.log` — FAIL. |
+| Второй Shutdown во время первого | Первый вызов опустошал `sessions`, второй получал пустой список и независимо сообщал успех, пока child первого ещё завершался. | `TestConcurrentShutdownWaitsForSameRecorderCleanup`: второй вызов вернулся за **51.917 µs**, child ещё жив. `media/repeat-shutdown-before.log` — FAIL. |
+
+Минимальное исправление: Stop сначала закрывает приём новых offers для сессии, сохраняет её в registry до окончания остановки и удаляет только тот же указатель. Shutdown использует общий `shutdownDone`, защищённый manager mutex; повторные вызовы ждут ту же очистку со своим контекстом. Новый общий mutex не вводился; сетевые операции и ожидание процесса не выполняются под manager mutex.
+
+Риск: освобождение admission slot теперь происходит позже — после остановки, как и должно быть. Повторный Shutdown может ждать реальную очистку вместо прежнего ложного успеха. `Active()` после начала Shutdown по-прежнему может быть нулём: закрытый manager уже не принимает записи, а критерием завершения служат общий done и `SegmentProcess.Done` **после Wait**, не один счётчик.
+
+### 4. Goroutine findings
+
+Инвентаризация `go`, `WaitGroup.Go`, timers и resource-open points сохранена в `lifecycle-startpoints-full.txt` и `resource-openpoints.txt`. Основные владельцы:
+
+| Owner | Start → stop / join |
+|---|---|
+| Conference WS | reservation/register → read + один writer → close socket → Unregister (5 s) → join writer |
+| Account WS | run + reader + Redis reader → cancel/socket/PubSub close → join детей → release lease/reservation |
+| Hub | receive, recoverable receive, janitor → cancel/PubSub close → единый shutdown join |
+| SFU peer / track / subscription | manager admission → peer context → track/subscription context → close PC/sender/receiver → wait owned loops |
+| Legacy ingest | session context → RTP, PLI, startup и process monitor → cancel/PC.Close/Stop/Wait; исправлено удержание owner при Stop/Shutdown |
+| Composite recorder | bounded task admission → capture + lease renewal → cancel/close input → join capture/renewal → release task/lease |
+| Captions / providers | bounded conference/track slots → decoder, forwarding, event reader → close inputs/provider → cancel/join |
+| Product jobs / AI chunks | фиксированные worker pools / semaphore → context deadline → wait workers; результаты завершения имеют отдельный короткий deadline |
+| App background tasks | retention, chat/assets/calls/notifications/control/dispatcher/runtime samplers → app context + stopped tickers |
+
+У фоновых app samplers нет отдельного общего join barrier перед возвратом bootstrap: они отменяются app context и прекращаются при выходе процесса. Повторяемая утечка в работающем сервисе здесь не подтверждена; это follow-up по строгому bootstrap/shutdown, а не заявленный P0-fix.
+
+### 5. Pion/WebRTC cleanup
+
+Новые прогоны **до и после исправления**: по 100 real-Pion/UDP lifecycle с 2/3/5 участниками, audio/video RTP delivery и 10 пересозданиями endpoint; отдельно по 100 camera/mic/screen churn. После leave: Rooms/MediaPeers/tracks/subscriptions/connections/room-closure gates = 0, goroutines=2, FD=6. Исходный и финальный современный SFU-код одинаков: это regression, не заявленная оптимизация SFU.
+
+Проверены partial SDP/ICE failure, capacity/negotiation, late offers, duplicate Stop, admission при остановке, concurrent Shutdown и first-deadline → retry. `PC.Close`, sender/receiver stop и peer wait выполняются вне registry lock. Постоянные ошибки чтения RTP/RTCP завершают loops; PLI coalesces, subscription queues ограничены.
+
+### 6. WebSocket findings
+
+Свежий race workload: 1020 conference + 1020 account WS, 600 параллельных reconnect, 100 failed upgrade, shutdown и Redis recovery — PASS. Дополнительный non-race workload: **2020 + 2020** соединений. 20 временных regression cases проверяют single writer, queue overflow, heartbeat receipt-time, wrong/missing pong, expiry/revocation, origins/admission и guarded private/group delivery.
+
+После циклов WS registry/reservations и Redis namespace keys = 0; G=11 для conference и G=17 для account после прогрева. FD стабилизируются на 12/15. Account содержит шесть ожидаемых goroutines постоянных HTTP ticket connections. Репозиторий в основном WS stress заменён in-memory адаптером: его нулевой счётчик нельзя выдавать за SQL ParticipantSessions.
+
+Отдельный прогон проверяет **настоящий PostgreSQL 16.14 + Redis 8**, текущие репозитории и все 35 миграций: 1020 conference WS циклов под race, 2020 циклов с профилированием, 300 параллельных reconnect и ошибки upgrade/PubSub — PASS. На каждом checkpoint connected ParticipantSessions = 0, WS/Redis keys = 0, SQL pool in-use = 0; G=13 после прогрева и нагрузки. В профилированном прогоне FD стабилизировались на 14 после увеличения idle SQL pool с двух до четырёх соединений. Итоговые 3443 строки `participant_sessions` корректно отключены и являются историей, а не активными ресурсами. После завершения процессов соединений приложения с БД не осталось. Evidence: `realtime/sql/report.md`; отсутствие optional pgvector и durable auth-session repository в этом fixture отмечено явно.
+
+Дополнительно SSE: 220 последовательных подключений, доставка `notification.read`, четыре одновременных потока, отказ пятому и повторный drain — PASS под race. После фаз G=3, streams/users/Redis subscriptions=0. Heap имеет небольшой положительный хвост; это не объявлено «нулевой утечкой памяти».
+
+### 7. FFmpeg findings
+
+Проверены все четыре launch families: `runBounded`, `SegmentRecorder.Start`, `LiveAudio.Decode`, `Composer.Compose`. Все используют CommandContext/equivalent cancellation, один Wait owner, bounded diagnostics и закрываемые pipes. Stop: graceful → TERM → KILL fallback; подтверждено реальным TERM-resistant child, reaped за ~3 s. Reader завершение при тихом stdout EOF освобождает Decode без следующего RTP.
+
+Фактические component сценарии: 17 MP4 finalizations с audio/video и ffprobe; 8 segment process stop/cancel (**без входящего RTP**, не восемь полных записей); malformed input, missing executable, deadlines; 6 decoder cancellations + 6 Opus EOF; 8 transcription extractions; 12 compositor successes + 22 error/timeout; 200 publication rollback cases; 101 MinIO SDK AccessDenied PUT. В Linux дополнительно пять `/dev/full` ошибок. Child FFmpeg/ffprobe после остановки = 0.
+
+Publication rollback здесь моделирует repository/storage; SDK fault fixture использует настоящий MinIO SDK, но локальный HTTP fault server, не MinIO daemon. Нулевые temp files в component snapshots измерены **после очистки принадлежащих fixture файлов**, не доказывают полный production DB→worker cleanup. Failed durable chunks намеренно сохраняются для recovery.
+
+Дополнительно полный recording regression на отдельных PostgreSQL, Redis, RabbitMQ и MinIO прошёл под race за **19.323 s**. Три синтетических участника Pion, audio/video, screen share и moderation дали готовую запись H264/AAC 640×360: 11.221328 s, 1 063 712 байт, два артефакта MinIO; finalization — 433.697583 ms. Проверены lease-expiry recovery, forced egress failure, auto-stop при завершении конференции и stale-lease fencing. Это один основной acceptance со сценариями восстановления/ошибок, не 100 полных записей. Fixture использует `KeepLocal=true`; автоматическое удаление при `KeepLocal=false` проверено по коду, но не измерено этим прогоном. Host sampler пропустил дочерние процессы: его нулевой peak не используется как доказательство reaping, для этого служат отдельные Linux/component проверки.
+
+### 8. Race findings
+
+Новых data races в выполненных runtime workloads не обнаружено. Media/SFU/ingest/controller regressions, FFmpeg/compositor/recorder/S3, WS/Rabbit, SSE, pprof/job/provider checks запускались с `-race`. P0-01 — ошибка lifecycle ordering, которая может быть data-race-free; чистый detector не заменяет проверку инвариантов.
+
+Targeted Stop/Shutdown regressions: четыре сценария ×10 — **40 PASS под race**, включая первый deadline и повторное ожидание. Независимый reviewer повторил четыре сценария ×3 с race — PASS. Lock-order `manager.mu → session.mu` проверен: обратные пути освобождают session lock до доступа к manager.
+
+### 9. Queue / backpressure
+
+| Очередь | Предел и policy |
+|---|---|
+| WS critical / control | configured default64 / 8; overflow → disconnect, не тихая потеря signaling |
+| WS recoverable / Hub low | 8 / 128; допускается drop только восстанавливаемых/ephemeral событий |
+| Account WS / pong | configured default64 / 1; slow client closes, pong coalesces |
+| SFU event / media subscription | 128 / configured128; signaling failure triggers cleanup; RTP overflow drops under explicit policy |
+| Media failed-peer cleanup | 128; overflow cancels worker, не создаёт безлимитные goroutines |
+| Composite | 4 chunks / 512 frames, source limits; backlog → explicit recording failure с recovery data |
+| Captions / provider events | configured bounded slots/track queue; provider32; overflow timeout/degraded/close |
+| SSE | 32 queued events, 256 total streams, 4/user; finite write deadline |
+| Upload / job pools | chat4, assets2 uploads/8 streams; fixed job pools; semaphore-bound AI calls |
+
+Durable Rabbit command queue не имеет application max-length/TTL: длительный дисбаланс producer/consumer и broker disk-full **not measured**. Это операционный follow-up; realtime in-memory queues не оставлены без известных пределов.
+
+### 10. Timers / contexts
+
+Tickers heartbeat/janitor/renewal/maintenance останавливаются владельцами; retry timers ограничены backoff. Go1.26 reclaimable `time.After` в конечных shutdown/stop waits не сам по себе leak. SFU peer context создаётся отдельно от короткого HTTP join request и **явно отменяется** owner, track/subscription наследуют peer context. Сервисные finish/lease-release используют WithoutCancel с новым коротким timeout, не бесконечный Background I/O.
+
+### 11. FD / files / HTTP
+
+Проверены socket/PC/UDP, process pipes, source/checksum/ZIP files, object readers, outbound response bodies. JSON/provider HTTP clients имеют timeout и Body.Close; streaming tap/capture ограничен контекстом/lease и закрывается consumer, а не коротким общим Client.Timeout. PostgreSQL pool закрывается установленным bootstrap defer, но `RunWorker` устанавливает его после части initialization steps: ранние ошибки остаются предметом отдельного P1 follow-up, не общей гарантией cleanup. Redis failed Ping закрывает client; partial ICE setup закрывает уже созданный UDP/TCP listener. Производственные FD/RSS под нагрузкой **not measured**: рабочий сервер не нагружался.
+
+### 12. Redis / RabbitMQ
+
+Redis Subscribe при ошибке acknowledgement закрывает PubSub; reconnect не создаёт новый бессрочный worker на каждую попытку; TTL и generation/owner checks ограничивают presence/media leases. Rabbit serial consume + QoS1, finite handshake/RPC/confirm/ack/nack cancellation, connection close прерывает blocked writes. Fresh race: 50 publisher/consumer cycles + три reconnect + blocked-I/O cases — PASS; G=2, active command=0, в конце audit queues=0 сообщений/0 consumers, соединений нет.
+
+Только отдельные audit-owned containers и synthetic data; их exact IDs и cleanup сохранены в evidence. Существующие сервисы и данные не затронуты.
+
+### 13. Implemented fixes
+
+1. `Manager.Stop`: stop fence, registry ownership до завершения, pointer-checked deferred removal.
+2. `Manager.Shutdown`: один completion channel на менеджер, ожидание общей очистки всеми вызовами с индивидуальной отменой.
+
+Обе правки составляют P0-20261016-01. Других production-изменений для «чистоты кода» не делалось. Минимальные reproduce/after overlays остаются в ignored `media/overlay`, исходные before logs сохранены.
+
+### 14. Before / After
+
+Подробные таблицы — [P0_BEFORE_AFTER.md](P0_BEFORE_AFTER.md). Для бага сравнивается **одинаковый error path до/после кода**; для неизменённых WS/FFmpeg — **warmup → workload**, не performance improvement. SFU после 100 leave возвращается к G2/FD6/нулевым активным объектам; Linux FFmpeg — G2/FD10/child0. Небольшие positive heap tails раскрыты вместе с профилями.
+
+### 15. Pprof
+
+Существующий `Runtime.Profiling` выключен при `PPROF_PORT=0`, слушает только `127.0.0.1`, ограничивает seconds до60 и отменяется с context. Heap/allocs/goroutine/mutex/block/CPU endpoints, bind failure и shutdown проверены **новыми** temporary overlay tests ×3 под race. Ничего не публиковалось на production.
+
+Heap/allocs/goroutine и mutex/block профили сохранены по checkpoints WS/SFU; FFmpeg — heap/allocs/goroutine. Goroutine diffs не показывают растущие loops. Короткие idle CPU профили основного WS/media прогона не дали samples; отдельный SQL-прогон дал 10 ms за 1.01 s (0.99%), в janitor и allocation profiler, без наблюдаемого busy-loop. Exact MemStats heap и sampled pprof могут различаться; zero sampled delta не объявляется zero retained bytes. Отдельные FFmpeg idle CPU/mutex/block **not measured**; накопленные mutex/block ожидания не равны latency/deadlock.
+
+### 16. Stress results
+
+Свежие результаты перечислены в §5–7,12; команды и детальные отчёты:
+
+- `tmp/p0-audit-20261016.QMCosi/media/review.txt` и `media/overlay.json`;
+- `tmp/p0-audit-20261016.QMCosi/realtime/report.md` и `realtime/audit_test.go`;
+- `tmp/p0-audit-20261016.QMCosi/realtime/sql/report.md` и `realtime/sql/sql_audit_test.go`;
+- `tmp/p0-audit-20261016.QMCosi/recording/review.md` и `recording/overlay.json`;
+- `auxiliary/race.log`, `auxiliary/sse-race.log`, `auxiliary/overlay.json`.
+
+Ранее возникшая noexec ошибка Linux fixture сохранена в `recording/linux-actual-ffmpeg.log`; финальный private tmpfs исправлен, `linux-amd64-final.log` PASS. Это ошибка тестовой среды, не скрытая production-регрессия.
+
+### 17. Regression gates
+
+| Gate | До | После |
+|---|---|---|
+| `go test ./...`, `go test -race ./...` | PASS, no test files | PASS, no test files |
+| Реальные temporary runtime/race suites | Отдельные baseline workloads | PASS; подробности выше |
+| `go vet ./...` | PASS | PASS |
+| staticcheck v0.7.0 | FAIL: два U1000 | Те же два U1000; новых нет |
+| frontend lint / build | lint PASS | lint + TypeScript + Vite PASS |
+| govulncheck v1.8.0 | 0 called/imported vulnerabilities | То же; 1 unused module-only finding |
+| Go build / module integrity | Дополнительные финальные gates | `go build ./...`, `go mod verify` PASS |
+| gofmt / diff whitespace | Без новых правок | PASS |
+
+`tools/architecture-audit` выполнен, отчёт сохранён; сложность не использовалась как повод для P1-рефакторинга.
+
+### 18. Remaining P0 blockers / coverage boundaries
+
+В выполненных сценариях не осталось подтверждённого неисправленного P0. **Это не полный production sign-off:** настоящий browser/WAN/TURN, camera devices, многодневный soak, production RSS/FD и максимальная ёмкость не проверены. Первичный WS stress использует repository fixture; отдельные реальные SQL и full-stack recording прогоны описаны в §6–7 и измерениях. Они не заменяют 100 полных записей, проверку `KeepLocal=false` и завершение всего приложения по OS signal под нагрузкой — эти сценарии **not measured**.
+
+Общий static gate остаётся красным из-за исходных двух U1000. Постоянных regression tests нет по предыдущему запросу пользователя: обычный CI test/race не воспроизводит новые scenarios без сохранённых overlays. Эти ограничения нельзя скрывать общим «всё проверено».
+
+### 19. P1 follow-up — не выполнялся
+
+- Удалить/обосновать два test-only helper U1000 отдельно от P0.
+- Durable Rabbit backlog/disk policy и длительный broker outage/capacity soak.
+- Более длинный post-warmup heap soak; проверить реальные SQL delivery locks под нагрузкой, сохранив revocation guarantee.
+- Явный Close/Wait для service-owned HTTP transports/background samplers и единый bootstrap cleanup; текущий процессный выход не выдаётся за доказанную утечку работающего сервиса.
+- Recovery/retention для локальных failed chunks и неиспользуемый `S3.ListCompletedRecords`; без удаления восстанавливаемых данных.
+- Выбрать будущую CI-стратегию regression checks после удаления постоянных тестов.
+
+### 20. Files changed
+
+Текущий аудит изменил четыре versioned файла: `internal/infrastructure/webrtc/manager.go`, `internal/infrastructure/webrtc/shutdown.go`, этот отчёт и `P0_BEFORE_AFTER.md`. Temporary harnesses/evidence находятся только под `tmp/p0-audit-20261016.QMCosi/`; UI/API контракты/БД не изменены. Commit/push/deployment этим аудитом не выполнялись. P1 автоматически не запускался.
+
+---
+
+## Исторический аудит — 10 октября 2026
+
+Это исторический результат выполнения `CODE_REVIEW_AND_OPTIMIZATION.md` на 10 октября. Материалы от 6 октября ниже также сохранены **как история**. База того аудита: `a0781257debba3f911ee180067cc0fad5bb06204`. Проверялось рабочее дерево поверх этого commit; существовавшие до начала изменения интерфейса, брендинга и deployment-документации сохранены без вмешательства.
 
 ### 1. Executive summary
 

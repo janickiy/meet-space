@@ -1,6 +1,159 @@
 # P0: доказательства и измерения до/после
 
-## Актуальные измерения — 10 октября 2026
+## Актуальные измерения — 16 октября 2026
+
+База: исходное рабочее дерево `2f0fcdb` с согласованной очисткой, затем тот же код сохранён во внешнем checkpoint `4f12fbce44a95053ab03c50bce2a0d46ae26391f`. Соответствие подтверждено SHA-256 исходного diff, см. [аудит](P0_RELIABILITY_AUDIT.md). Go 1.26.9; macOS 27.0.1 arm64; отдельный Linux/amd64 FFmpeg workload под эмуляцией. Evidence: `tmp/p0-audit-20261016.QMCosi/`; никакие числа от 6/10 октября не переиспользованы как новые.
+
+### 1. Подтверждённое исправление и одинаковое воспроизведение
+
+**P0-20261016-01, High:** преждевременная потеря владения останавливающейся записью. До/после исходный код двух функций подставлялся через Go overlay из точного checkpoint; рабочее дерево не откатывалось.
+
+| Path | До | Причина / исправление | После |
+|---|---|---|---|
+| Stop → concurrent Shutdown | Shutdown вернулся за 5.959 µs, Active=0, настоящий child жив | Stop удалял registry entry до stop/Wait; теперь entry удерживается с stop fence и pointer-checked removal | Возврат только после child Done/Wait; типичный immediate-helper join ~1 ms |
+| Admission during Stop | MaxSessions=1 допускает вторую сессию, пока первая останавливается | Преждевременное освобождение слота; удержание entry до cleanup | Вторая Prepare отклоняется до завершения; duplicate Stop безопасен |
+| Concurrent Shutdown | Второй вызов возвращается за 51.917 µs с живым child первого | У каждого вызова собственная пустая wait group; теперь общий shutdownDone | Второй ждёт реальный выход delayed child (~0.5 s, зависит от планирования) |
+| First deadline → retry Shutdown | Повтор после дедлайна сообщает успех до cleanup | Потерян completion owner; общий done не зависит от первого caller deadline | Deadline возвращается caller; следующий вызов дожидается той же очистки |
+
+`media/stop-shutdown-all-before.log`: **4/4 FAIL**. `media/stop-shutdown-all-after.log`: **40/40 PASS под race**, 22.565 s. Расширенная media regression: 65 top-level tests PASS. Независимый reviewer повторил четыре сценария ×3 под race: PASS за 7.551 s; этот отдельный результат сохранён только в выводе инструмента, не в evidence-файле.
+
+Риск: admission slot освобождается позже и repeat Shutdown действительно ждёт. Это исправление correctness, **не ускорение shutdown**. Новых endpoint/API/DB изменений нет. `Active=0` внутри глобального Shutdown сам по себе не доказывает завершение; проверяются общий done и child Done после Wait. Helper использует реальный процесс, но не кодеки FFmpeg; проверка настоящего FFmpeg приведена отдельно.
+
+### 2. Основной WebSocket workload: warmup → post-load
+
+Текущие production HTTP/WS/JWT/Redis; два API/Hub, изолированный Redis, in-memory conference/account repository. По 20 прогревочных + 8×250 циклов каждого вида. Эти столбцы — **фазы неизменённого кода**, не до/после оптимизации. На checkpoint: cooldown 300 ms и два GC; heap/RSS в байтах.
+
+| Metric | Conference warm | Conference 2000 | Account warm | Account 2000 |
+|---|---:|---:|---:|---:|
+| Goroutines |11|11|17|17|
+| Heap after GC |2458656|2699328|2612168|2758176|
+| RSS |31358976|37421056|38174720|40288256|
+| Open FDs |11|12|14|15|
+| Active WS / registry / reservations |0|0|0|0|
+| In-memory sessions |0|0|0|0|
+| Redis keys / presence subscribers |0|0|0|0|
+
+FD conference=12 с раунда 3, account=15 с раунда 2, далее стабильны. Account warmup добавляет шесть ожидаемых goroutines постоянных HTTP ticket connections. Основная race-серия отдельно: 2040 циклов, 600 параллельных reconnect, 100 failed upgrades и Redis fault/recovery — PASS. Расширенная серия из 4040 циклов — PASS. 20 WS overflow/auth/heartbeat/expiry tests — PASS под race.
+
+Heap round 4→8: conference 2655760→2699328 (**+43568 B**), account 2718976→2758176 (**+39200 B**). Pprof показывает runtime structures/Redis buffers/context sampling, не растущую популяцию WS run/read/write; goroutine diff=0. Это положительный хвост, не «идеально плоская память». Более длинный soak остаётся follow-up. SQL ParticipantSessions в этой таблице **not measured**; отдельный реальный SQL-прогон приведён ниже и не смешивается с этими метриками.
+
+SSE отдельно: 220 циклов, четыре удерживаемых потока/drain и отказ пятому с 429 — PASS под race. Warm/end G=3→3, streams/users/subscriptions=0→0, heap 1558816→1621080 B. SSE RSS/FD **not measured**; короткий прогон не устанавливает асимптотическую границу heap.
+
+#### Отдельный WS-прогон с настоящими SQL-сессиями
+
+PostgreSQL 16.14 и Redis 8 в новых локальных контейнерах; все 35 текущих миграций применены, повторный запуск миграций успешен. Используются production User/Conference/SessionRepository, conference service и настоящие JWT. Два HTTP/WS hub находятся в одном Go-процессе. Результаты: 1020 циклов под race — PASS за 12.562 s; 2020 циклов с профилированием — PASS за 25.614 s; 300 параллельных reconnect, shutdown, PubSub failure/recovery и 100 failed upgrades — PASS под race за 3.594 s.
+
+| Metric | Race warm | Race end (1020) | Profiled warm | Profiled end (2020) |
+|---|---:|---:|---:|---:|
+| Goroutines |13|13|13|13|
+| Open FDs |13|13|12|14|
+| Heap after GC, bytes |3213488|3431960|3116776|3626576|
+| RSS, bytes |95436800|118013952|50872320|59244544|
+| SQL pool open / idle |3 / 3|3 / 3|2 / 2|4 / 4|
+| SQL pool in-use |0|0|0|0|
+| Connected ParticipantSessions |0|0|0|0|
+| Active WS / Redis keys |0 / 0|0 / 0|0 / 0|0 / 0|
+
+FD=14 стабильны с первого раунда профилированной серии: прирост на два соответствует дополнительным idle SQL connections. Heap round 4→8: 3595784→3626576 B (**+30792 B**, с промежуточным снижением). Pprof показывает runtime allocations и bounded pgx LRU caches; goroutine diff=0. Idle CPU — 10 ms за 1.01 s (0.99%), janitor и allocation profiler, без наблюдаемого busy-loop.
+
+После всех сценариев 3443 исторические строки `participant_sessions` корректно отключены: disconnected_at заполнен, некорректных media flags нет. После выхода Go-процессов соединений приложения с БД не осталось. Это не удаление истории и не изменение retention. Optional pgvector отсутствовал в образе; durable auth-session repository не устанавливался в этом fixture, его revocation отдельно покрыта transport tests. Подробности и команды: `realtime/sql/report.md`.
+
+### 3. SFU и источники: до/после regression
+
+По 100 циклов реального Pion/UDP до и после, 2/3/5 участников, audio/video каждому подписчику, 10 endpoint recreations. Современный SFU не изменялся: сравнение проверяет regression, не экономию памяти после legacy-ingest fix. Три прогревочных комнаты; GC / cooldown 250 ms / GC.
+
+| Metric | До | После |
+|---|---:|---:|
+| Idle goroutines / FDs |2 /6|2 /6|
+| Warm heap |838816|863816|
+| Post25 heap |1057512|1079448|
+| Post50 heap |1140720|1113856|
+| Post75 heap |1119736|1119008|
+| Post100 heap |1115416|1162264|
+| Post100 goroutines / FDs |2 /6|2 /6|
+| Post100 Rooms / MediaPeers / tracks / subscriptions |0 /0 /0 /0|0 /0 /0 /0|
+| Post100 RSS |39501824|39731200|
+| Idle-after-load CPU seconds / wall seconds |0.003648 /2.019121|0.003037 /2.016567|
+
+100 циклов camera/mic/screen churn, затем 30 s обычного RTP для заполнения bounded NACK caches:
+
+| Metric | До | После |
+|---|---:|---:|
+| Active100 G / FDs |116 /22|117 /22|
+| Active steady25s heap |10708488|10771464|
+| Active steady30s heap |10715688|10763312|
+| After leave G / FDs |2 /6|2 /6|
+| After leave heap / RSS |860744 /50823168|891856 /51462144|
+| After leave Rooms / peers / tracks / subscriptions |0 /0 /0 /0|0 /0 /0 /0|
+
+Connection registry, roomClosures, egress и audio taps тоже пусты. Post-100 sampled heap разница включает runtime/thread allocation; ~47 KB exact до/после не объявлены регрессией или выигрышем. Late heap колеблется, а не растёт на каждом цикле. FD на macOS включают одинаковый краткоживущий pipe наблюдателя `lsof`.
+
+### 4. FFmpeg / файловые ресурсы
+
+Свежая сборка текущего кода Linux/amd64, реальный FFmpeg 6.1.2, отдельный контейнер без сети. Два GC и 100 ms cooldown. FD/RSS/children измерены через `/proc`; нулевые temp files — **после собственной очистки fixture**, не acceptance cleanup production worker.
+
+| Phase | Goroutines | Heap bytes | RSS bytes | FDs | FFmpeg/ffprobe children | Temp files / bytes |
+|---|---:|---:|---:|---:|---:|---:|
+| Idle |2|1274088|58925056|10|0|0 /0|
+| Warmup: 2 finalizations |2|1297352|53571584|10|0|0 /0|
+| Round1 +5 |2|1315216|53407744|10|0|0 /0|
+| Round2 +5 |2|1315216|54362112|10|0|0 /0|
+| Round3 +5 |2|1315328|54751232|10|0|0 /0|
+| Segment lifecycle complete |2|1314512|55730176|10|0|0 /0|
+| Transcription complete |2|1315184|54640640|10|0|0 /0|
+
+Повторяемая finalization нагрузка: 17 реальных AV outputs; отдельные stop/cancel/error/timeout/Opus/transcription/compositor сценарии описаны в аудите §7 и `recording/review.md`. Пять Linux disk-full paths завершаются с ошибкой и reaped child. TERM-resistant child reaped за 3.003 s. Stdout/stderr flood ограничен 65536 байтами. MinIO SDK fault: 101 PUT AccessDenied, G=6→6; это реальный SDK + HTTP fixture, не 101 полная запись.
+
+Heap warm→round 3: +17976 B (почти всё в раунде 1, затем +112 B), sampled heap diff=0 и goroutine diff=0. Sampling не отменяет точные MemStats. Host component FD/RSS **not measured** (Linux-счётчики недоступны на macOS); отдельные idle CPU/mutex/block **not measured**, остальные профили сохранены.
+
+### 5. Полный recording regression и broker
+
+`recording/fullstack-race.log`: **PASS за 19.323 s**, настоящие PostgreSQL 17, Redis 8, RabbitMQ 4.2.9 и MinIO в новых контейнерах. Текущие migrations, production repositories/commands/leases/SFU/composer/S3. Три синтетических участника Pion, screen start/stop, participant changes и moderation; FFmpeg 9.0.2.
+
+- Primary recording: terminal ready, H264/AAC 640×360, 11.221328 s, 1063712 байт, два MinIO artifacts; finalization 433.697583 ms. Декодированы 45 frames при 4 fps и 11.35 s mixed audio.
+- Lease-expiry recovery: ready, 2 s closed segment. Forced egress 409: failed и изолирован от media room. Conference finish: auto-stop/ready, 2.421 s. Stale lease fencing PASS.
+- SFU recording output освобождён. `KeepLocal=true` нужен fixture для проверки chunk/output; автоматическая production-очистка `KeepLocal=false` **source-reviewed, not measured** этим acceptance.
+- Combined process CPU 4.029719 s; peak RSS 630374400 байт — in-process test с race, **не production capacity**. Логовый peakFFmpegChildren=0 не подтверждает отсутствие child: sampler не обнаружил их на хосте; этот peak **not measured reliably**. Доказательство reaping берётся из специальных Linux/component сценариев, не этой цифры.
+- Это один main success плюс recovery/failed/auto-stop acceptance; 100 full-stack recordings **not measured**. Повторяемость процесса отдельно проверена таблицей §4.
+
+Rabbit, отдельный race-прогон: 50 publisher/consumer lifecycles, три reconnect и blocked publish/confirm/QoS/consume/ack/nack/handshake. G=2 на checkpoints, active commands=0; после аудита messages/consumers/connections=0. Это не exactly-once гарантия. Контейнеры аудита с синтетическими данными удалены по exact IDs; рабочие контейнеры и данные не менялись.
+
+### 6. Сводка обязательных метрик
+
+| Metric | Before | After |
+|---|---:|---:|
+| Idle goroutines, media regression |2|2|
+| Post-WS goroutines, conference/account warm→2000 |11 /17|11 /17|
+| Post-media goroutines, 100 cycles |2|2|
+| Heap after GC, media100 |1115416B|1162264B|
+| Open FDs, media100 |6|6|
+| Active Rooms / MediaPeers after leave |0 /0|0 /0|
+| Connected SQL ParticipantSessions, warm→2020 |0|0|
+| Active WS after load |0|0|
+| FFmpeg after component stop |0|0|
+| Component temp after fixture cleanup |0 files / 0 B|0 files / 0 B|
+| Stop/Shutdown regression |4 FAIL|40 PASS-race|
+| Race detector, standard / runtime fixtures |no tests / initial pass|no tests / focused PASS|
+
+Приведены явно подписанные **разные процессы/scopes**, числа нельзя складывать. Для неизменённых WS/FFmpeg before/after означает warmup/post-workload; для P0 repro — разные версии двух функций. Production baseline, WAN/TURN/browser devices, многодневные queues и max capacity **not measured**: аудит не создавал нагрузку на рабочую установку.
+
+### 7. Pprof, воспроизведение и gates
+
+Runtime profiling по умолчанию выключен, listener только локальный; heap/allocs/goroutine/mutex/block/CPU endpoints и shutdown проверены временными tests ×3 под race. WS/SFU checkpoint profiles с GC/cooldown, heap/goroutine diff, idle CPU 1–2 s; FFmpeg heap/allocs/goroutine. Новые retained SFU/WS loops не выявлены; короткие CPU profiles с нулём samples не заменяют long soak. SQL-прогон дал ненулевые 10 ms idle samples, описанные в §2. Before/after исправления воспроизводится:
+
+```sh
+go test -race -overlay tmp/p0-audit-20261016.QMCosi/media/overlay-before.json ./internal/infrastructure/webrtc -run 'Test(ShutdownJoinsAlreadyStoppingRecorder|StoppingRecorderRetainsAdmissionSlotAndDuplicateStop|ConcurrentShutdownWaitsForSameRecorderCleanup|ShutdownDeadlineDoesNotCompleteSharedCleanup)' -count=1 -v
+go test -race -overlay tmp/p0-audit-20261016.QMCosi/media/overlay.json ./internal/infrastructure/webrtc -run 'Test(ShutdownJoinsAlreadyStoppingRecorder|StoppingRecorderRetainsAdmissionSlotAndDuplicateStop|ConcurrentShutdownWaitsForSameRecorderCleanup|ShutdownDeadlineDoesNotCompleteSharedCleanup)' -count=10 -v
+go test -race -overlay tmp/p0-audit-20261016.QMCosi/auxiliary/overlay.json ./internal/operations ./internal/usecase/jobs ./internal/usecase/captions ./internal/infrastructure/liveproviders ./internal/infrastructure/providers ./internal/infrastructure/contentproviders -count=3
+```
+
+Первая команда должна падать на исходном коде. Overlays используют absolute workspace paths; не добавляют файлы в product tree. Описания workloads и доступные команды находятся в `media/review.txt`, `realtime/report.md`, `realtime/sql/report.md`, `recording/review.md`; новые Docker fixtures создаются отдельно с новыми портами. Для full-stack recording нужен отдельный disposable stack и явные файлы `go test -race tmp/p0-audit-20261016.QMCosi/recording/fullstack/*.go -run 'TestStageFourCompositeRecording|TestStageFourRecorderLeaseFencing' -v -count=1 -timeout=2m`: путь пакета `./tmp/.../fullstack` не подходит из-за вложенного `tmp/go.mod`. Полная автоматизация создания окружения этим аудитом не добавлялась. Исторические test commands ниже относятся к старой структуре и не являются текущими инструкциями.
+
+Финальные Go build/vet/mod verify, frontend lint/build, gofmt и diff check — PASS. Стандартные go test/race — PASS **без test files**, runtime checks выполнены отдельно. govulncheck: 0 called / 0 imported vulnerabilities, 1 unused module advisory. Staticcheck исходно и окончательно FAIL: ровно два U1000 (`newSourceWriter`, `validateOffer`); их cleanup вне P0.
+
+---
+
+## Исторические измерения — 10 октября 2026
 
 База: `a0781257debba3f911ee180067cc0fad5bb06204`; исходный Go1.26.6, финальный Go1.26.9. [Описание аудита и владельцев ресурсов](P0_RELIABILITY_AUDIT.md). Все новые evidence находятся в `tmp/p0-audit-20261010/`, сохраняются локально и не включены в Git. Раздел от6 октября внизу — **исторический**, его числа не переиспользованы как свежие.
 

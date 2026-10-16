@@ -70,10 +70,11 @@ type Manager struct {
 	onStarted func(context.Context, string)
 	onFailed  func(context.Context, string, error)
 
-	mu          sync.Mutex
-	sessions    map[string]*session
-	closed      bool
-	maxSessions int
+	mu           sync.Mutex
+	sessions     map[string]*session
+	closed       bool
+	maxSessions  int
+	shutdownDone chan struct{}
 }
 
 // Active возвращает число сессий записи, которые требуют завершения перед обновлением.
@@ -246,12 +247,23 @@ func (m *Manager) Stop(recordID string) error {
 	m.mu.Lock()
 	s, ok := m.sessions[recordID]
 	if ok {
-		delete(m.sessions, recordID)
+		// Keep the session owned until its transport and process have stopped:
+		// Shutdown and the admission limit must also see draining recordings.
+		s.mu.Lock()
+		s.stopRequested = true
+		s.mu.Unlock()
 	}
 	m.mu.Unlock()
 	if !ok {
 		return ErrNoMedia
 	}
+	defer func() {
+		m.mu.Lock()
+		if m.sessions[recordID] == s {
+			delete(m.sessions, recordID)
+		}
+		m.mu.Unlock()
+	}()
 
 	return s.stop()
 }

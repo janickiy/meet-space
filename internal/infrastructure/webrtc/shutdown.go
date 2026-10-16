@@ -12,6 +12,17 @@ import (
 // Возвращает ошибку дедлайна, если процессы не успели завершиться.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()
+	if done := m.shutdownDone; done != nil {
+		m.mu.Unlock()
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	done := make(chan struct{})
+	m.shutdownDone = done
 	m.closed = true
 	sessions := make([]*session, 0, len(m.sessions))
 	for _, s := range m.sessions {
@@ -52,7 +63,6 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	if m.iceTCP != nil {
 		_ = m.iceTCP.Close()
 	}
-	done := make(chan struct{})
 	go func() { wg.Wait(); close(done) }()
 	select {
 	case <-done:
