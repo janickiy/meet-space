@@ -239,8 +239,6 @@ func NewManager(options Options) (*Manager, error) {
 	settings := pion.SettingEngine{LoggerFactory: loggerFactory}
 	settings.SetICETimeouts(o.ICEDisconnectedTimeout, o.ICEFailedTimeout, o.ICEKeepaliveInterval)
 	m := &Manager{opts: o, rooms: map[string]*room{}, peers: map[string]*peer{}, connections: map[string]*peer{}, roomClosures: map[string]chan struct{}{}, closed: make(chan struct{})}
-	// Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-	//
 	cleanup := func() {
 		if m.udp != nil {
 			_ = m.udp.Close()
@@ -341,11 +339,17 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 	p := &peer{id: uuid.NewString(), binding: binding, manager: m, pc: pc, ctx: ctxPeer, cancel: cancel,
 		publications: map[string]*publishedTrack{}, subscriptions: map[string]*subscription{}, receivers: map[string]*receiver{},
 		events: make(chan outboundEvent, 128), notify: make(chan struct{}, 1)}
+	registered := false
+	defer func() {
+		if !registered {
+			// Before registration Join owns the peer; all rejection paths release
+			// it through the same lifecycle owner, outside manager/room locks.
+			p.close()
+		}
+	}()
 	m.mu.Lock()
 	if old := m.connections[binding.ConnectionID]; old != nil {
 		m.mu.Unlock()
-		cancel()
-		_ = pc.Close()
 		if sameBinding(old.binding, binding) {
 			return old.view(), nil
 		}
@@ -353,16 +357,12 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 	}
 	if m.closing || ctx.Err() != nil || m.roomClosures[binding.ConferenceID] != nil {
 		m.mu.Unlock()
-		cancel()
-		_ = pc.Close()
 		return media.PeerView{}, media.ErrUnavailable
 	}
 	r := m.rooms[binding.ConferenceID]
 	if r == nil {
 		if len(m.rooms) >= m.opts.MaxRooms {
 			m.mu.Unlock()
-			cancel()
-			_ = pc.Close()
 			return media.PeerView{}, media.ErrLimit
 		}
 		r = newRoom(binding.ConferenceID)
@@ -372,15 +372,11 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 	if r.policies[binding.ParticipantID].Kicked {
 		r.mu.Unlock()
 		m.mu.Unlock()
-		cancel()
-		_ = pc.Close()
 		return media.PeerView{}, media.ErrPolicy
 	}
 	if len(r.peers) >= m.opts.MaxPeers {
 		r.mu.Unlock()
 		m.mu.Unlock()
-		cancel()
-		_ = pc.Close()
 		return media.PeerView{}, media.ErrLimit
 	}
 	p.room = r
@@ -389,6 +385,7 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 	m.peers[p.id] = p
 	m.connections[binding.ConnectionID] = p
 	m.total.Add(1)
+	registered = true // The manager now owns Leave/Shutdown and peer.close.
 	// Настраиваем обработчики и запускаем фоновые задачи после регистрации под защитой от Shutdown.
 	p.install()
 	m.mu.Unlock()
@@ -401,7 +398,7 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 //
 // @args
 //   - a (media.Binding): значение a типа media.Binding, используемое согласно назначению этой операции.
-//   - b (media.Binding): контекст измерения производительности теста.
+//   - b (media.Binding): серверная идентичность второго медиа-подключения.
 //
 // @return:
 //   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
@@ -488,7 +485,7 @@ func (m *Manager) Leave(_ context.Context, id string) error {
 // Синхронизирует доступ к разделяемому состоянию блокировкой.
 //
 // @args
-//   - p (*peer): байты, переданные по контракту io.Writer.
+//   - p (*peer): физическое WebRTC-подключение участника.
 func (m *Manager) detachLocked(p *peer) {
 	m.closeWG.Add(1)
 	p.mu.Lock()
@@ -510,7 +507,7 @@ func (m *Manager) detachLocked(p *peer) {
 // finishDetached освобождает отсоединённые медиа-ресурсы вне блокировок менеджера.
 //
 // @args
-//   - p (*peer): байты, переданные по контракту io.Writer.
+//   - p (*peer): физическое WebRTC-подключение участника.
 func (m *Manager) finishDetached(p *peer) {
 	defer m.closeWG.Done()
 	p.close()
@@ -581,19 +578,12 @@ func (m *Manager) CloseConference(ctx context.Context, id string) error {
 		m.detachLocked(p)
 	}
 	m.mu.Unlock()
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-	Синхронизирует доступ к разделяемому состоянию блокировкой.
-
-	*/func() {
+	go func() {
 		defer m.closeWG.Done()
 		var wg sync.WaitGroup
 		for _, p := range peers {
 			wg.Add(1)
-			go /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-			@args
-			  - p (*peer): байты, переданные по контракту io.Writer.
-			*/func(p *peer) { defer wg.Done(); m.finishDetached(p) }(p)
+			go func(p *peer) { defer wg.Done(); m.finishDetached(p) }(p)
 		}
 		wg.Wait()
 		m.mu.Lock()
@@ -613,48 +603,43 @@ func (m *Manager) CloseConference(ctx context.Context, id string) error {
 // @return:
 //   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func (m *Manager) Shutdown(ctx context.Context) error {
-	m.shutdownOnce.Do( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-		Синхронизирует доступ к разделяемому состоянию блокировкой.
-
-		*/func() {
-			m.mu.Lock()
-			m.closing = true
-			for _, r := range m.rooms {
-				r.mu.Lock()
-				for _, e := range r.egresses {
-					e.fail(media.ErrUnavailable)
-				}
-				r.egresses = map[string]*egress{}
-				if len(r.peers) == 0 {
-					delete(m.rooms, r.id)
-				}
-				r.mu.Unlock()
+	m.shutdownOnce.Do(func() {
+		m.mu.Lock()
+		m.closing = true
+		for _, r := range m.rooms {
+			r.mu.Lock()
+			for _, e := range r.egresses {
+				e.fail(media.ErrUnavailable)
 			}
-			peers := make([]*peer, 0, len(m.peers))
-			for _, p := range m.peers {
-				peers = append(peers, p)
+			r.egresses = map[string]*egress{}
+			if len(r.peers) == 0 {
+				delete(m.rooms, r.id)
 			}
+			r.mu.Unlock()
+		}
+		peers := make([]*peer, 0, len(m.peers))
+		for _, p := range m.peers {
+			peers = append(peers, p)
+		}
+		for _, p := range peers {
+			m.detachLocked(p)
+		}
+		m.mu.Unlock()
+		go func() {
 			for _, p := range peers {
-				m.detachLocked(p)
+				go m.finishDetached(p)
 			}
-			m.mu.Unlock()
-			go /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-			 */func() {
-				for _, p := range peers {
-					go m.finishDetached(p)
-				}
-				m.closeWG.Done()
-				m.closeWG.Wait()
-				if m.udp != nil {
-					_ = m.udp.Close()
-				}
-				if m.tcp != nil {
-					_ = m.tcp.Close()
-				}
-				close(m.closed)
-			}()
-		})
+			m.closeWG.Done()
+			m.closeWG.Wait()
+			if m.udp != nil {
+				_ = m.udp.Close()
+			}
+			if m.tcp != nil {
+				_ = m.tcp.Close()
+			}
+			close(m.closed)
+		}()
+	})
 	return waitClosed(ctx, m.closed)
 }
 
@@ -749,7 +734,7 @@ func (m *Manager) HasConference(id string) bool {
 // log записывает ограниченную диагностику компонента с указанными параметрами.
 //
 // @args
-//   - p (*peer): байты, переданные по контракту io.Writer.
+//   - p (*peer): физическое WebRTC-подключение участника.
 //   - event (string): конверт входящего или публикуемого события.
 //   - fields ([]any): набор значений fields для последовательной или пакетной обработки.
 func (m *Manager) log(p *peer, event string, fields []any) {

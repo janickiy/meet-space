@@ -1,0 +1,43 @@
+package media
+
+import (
+	"errors"
+	"fmt"
+	"testing"
+)
+
+func TestP2MediaErrorCodeContracts(t *testing.T) {
+	// Explicit wire values protect compatibility independently of the catalogue.
+	cases := []struct {
+		err  error
+		code string
+	}{
+		{ErrUnavailable, "media_unavailable"}, {ErrInvalid, "invalid_media_signal"},
+		{ErrUnauthorized, "media_unauthorized"}, {ErrOwnership, "media_ownership_lost"},
+		{ErrLimit, "media_limit_exceeded"}, {ErrPeerNotFound, "media_peer_not_found"},
+		{ErrNegotiation, "media_negotiation_conflict"}, {ErrScreenConflict, "screen_sharing_conflict"},
+		{ErrPolicy, "media_policy_blocked"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.code, func(t *testing.T) {
+			for _, err := range []error{tc.err, fmt.Errorf("private transport details: %w", tc.err)} {
+				if got := ErrorCode(err); got != tc.code {
+					t.Fatalf("code=%q want=%q", got, tc.code)
+				}
+			}
+			if got := ErrorFromCode(tc.code); !errors.Is(got, tc.err) {
+				t.Fatalf("decoded=%v want=%v", got, tc.err)
+			}
+		})
+	}
+	for _, err := range []error{nil, errors.New("media_policy_blocked"), errors.New("SQL private details")} {
+		if got := ErrorCode(err); got != "media_unavailable" {
+			t.Fatalf("untyped error leaked: %q", got)
+		}
+	}
+	for _, raw := range []string{"", "media_unavailable: private reason", "invalid input", "SQL private details"} {
+		if got := ErrorFromCode(raw); !errors.Is(got, ErrUnavailable) {
+			t.Fatalf("unknown code decoded: %v", got)
+		}
+	}
+}

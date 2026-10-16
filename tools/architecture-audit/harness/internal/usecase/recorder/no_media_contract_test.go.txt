@@ -1,0 +1,109 @@
+package recorder
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+
+	"github.com/janickiy/meet-space/internal/domain/records"
+	ingestadapter "github.com/janickiy/meet-space/internal/infrastructure/webrtc"
+)
+
+type p2NoMediaRepository struct {
+	workerRepository
+	record                             records.Record
+	eventErr, finalizingErr, failedErr error
+	finalizing, failed                 int
+	cause                              error
+}
+
+func (r *p2NoMediaRepository) FindByUUID(context.Context, string) (records.Record, error) {
+	return r.record, nil
+}
+func (r *p2NoMediaRepository) AddEvent(context.Context, string, string, string, string, string, string) error {
+	return r.eventErr
+}
+func (r *p2NoMediaRepository) MarkFinalizing(context.Context, string) error {
+	r.finalizing++
+	return r.finalizingErr
+}
+func (r *p2NoMediaRepository) MarkFailed(_ context.Context, _ string, cause error) error {
+	r.failed++
+	r.cause = cause
+	return r.failedErr
+}
+
+type p2NoMediaIngest struct {
+	mediaIngest
+	err               error
+	prepared, stopped int
+}
+
+func (i *p2NoMediaIngest) Prepare(string, int) error { i.prepared++; return nil }
+func (i *p2NoMediaIngest) Stop(string) error         { i.stopped++; return i.err }
+
+// The application tolerates only the no-media sentinel, including wrapped
+// instances; an unrelated adapter error with the same message is a failure.
+func TestP2NoMediaStopContract(t *testing.T) {
+	marker := errors.New("stop before finalizer")
+	for _, tc := range []struct {
+		name    string
+		err     error
+		allowed bool
+	}{
+		{"nil", nil, true}, {"sentinel", ingestadapter.ErrNoMedia, true},
+		{"wrapped", fmt.Errorf("adapter: %w", ingestadapter.ErrNoMedia), true},
+		{"same text", errors.New(ingestadapter.ErrNoMedia.Error()), false},
+		{"failure", errors.New("transport failure"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &p2NoMediaRepository{record: records.Record{UUID: "record", Status: records.StatusStopping}, finalizingErr: marker, failedErr: marker}
+			ingest := &p2NoMediaIngest{err: tc.err}
+			service := NewWorkerService(repo, nil, ingest, nil, t.TempDir(), "worker", nil)
+			err := service.handleStop(context.Background(), records.Command{RecordID: "record"})
+			if !errors.Is(err, marker) || ingest.stopped != 1 {
+				t.Fatalf("err=%v stops=%d", err, ingest.stopped)
+			}
+			if tc.allowed {
+				if repo.finalizing != 1 || repo.failed != 0 {
+					t.Fatalf("accepted sentinel: finalize=%d fail=%d", repo.finalizing, repo.failed)
+				}
+			} else if repo.finalizing != 0 || repo.failed != 1 || !errors.Is(repo.cause, tc.err) {
+				t.Fatalf("failure branch: finalize=%d fail=%d cause=%v", repo.finalizing, repo.failed, repo.cause)
+			}
+		})
+	}
+}
+
+func TestP2NoMediaPrepareRollbackContract(t *testing.T) {
+	root := errors.New("event commit failed")
+	failure := errors.New("transport stop failed")
+	for _, tc := range []struct {
+		name   string
+		err    error
+		joined bool
+	}{
+		{"nil", nil, false}, {"sentinel", ingestadapter.ErrNoMedia, false},
+		{"wrapped", fmt.Errorf("adapter: %w", ingestadapter.ErrNoMedia), false}, {"failure", failure, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &p2NoMediaRepository{record: records.Record{UUID: "record", Status: records.StatusStarting}, eventErr: root}
+			ingest := &p2NoMediaIngest{err: tc.err}
+			service := NewWorkerService(repo, nil, ingest, nil, t.TempDir(), "worker", nil)
+			err := service.handleStart(context.Background(), records.Command{RecordID: "record"})
+			if !errors.Is(err, root) || errors.Is(err, failure) != tc.joined || ingest.prepared != 1 || ingest.stopped != 1 {
+				t.Fatalf("err=%v prepare=%d stop=%d", err, ingest.prepared, ingest.stopped)
+			}
+		})
+	}
+}
+
+func TestP2NoMediaAdapterCompatibility(t *testing.T) {
+	if records.ErrNoMedia != ingestadapter.ErrNoMedia {
+		t.Fatal("legacy adapter sentinel identity changed")
+	}
+	if !errors.Is(fmt.Errorf("ingest: %w", ingestadapter.ErrNoMedia), records.ErrNoMedia) {
+		t.Fatal("wrapped legacy error lost domain identity")
+	}
+}

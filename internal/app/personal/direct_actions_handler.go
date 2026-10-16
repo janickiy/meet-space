@@ -4,22 +4,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/janickiy/meet-space/internal/app/httpresponse"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
-	"github.com/janickiy/meet-space/internal/domain/chat"
 	"github.com/janickiy/meet-space/internal/domain/personal"
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
-
-// directActionID проверяет идентификатор из маршрута до обращения в хранилище.
-// @args: c — текущий запрос.
-// @return: нормализованный UUID и признак успешной проверки.
-func directActionID(c *gin.Context) (string, bool) {
-	id, err := chat.UUID(c.Param("id"))
-	if err != nil {
-		httpresponse.Fail(c, err)
-		return "", false
-	}
-	return id, true
-}
 
 // publishDirectAction синхронизирует настройку между вкладками только её владельца.
 // @args: c — запрос; kind — тип события; id — переписка; item — персональная проекция;
@@ -42,7 +29,7 @@ func (h *Handler) publishDirectAction(c *gin.Context, kind, id string, item *per
 // SetDirectPreferences принимает явное разрешение уведомлений для личного чата.
 // @args: c — авторизованный запрос с notificationsEnabled.
 func (h *Handler) SetDirectPreferences(c *gin.Context) {
-	id, ok := directActionID(c)
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
@@ -68,7 +55,7 @@ func (h *Handler) SetDirectPreferences(c *gin.Context) {
 // ClearDirectHistory удаляет доступ к прежней истории только у текущего пользователя.
 // @args: c — авторизованный запрос с идентификатором личного чата.
 func (h *Handler) ClearDirectHistory(c *gin.Context) {
-	id, ok := directActionID(c)
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
@@ -84,7 +71,7 @@ func (h *Handler) ClearDirectHistory(c *gin.Context) {
 // HideDirectConversation скрывает чат у текущего пользователя, не изменяя данные собеседника.
 // @args: c — авторизованный запрос с идентификатором личного чата.
 func (h *Handler) HideDirectConversation(c *gin.Context) {
-	id, ok := directActionID(c)
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}

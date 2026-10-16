@@ -1,0 +1,176 @@
+package ffmpeg
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"sort"
+	"sync"
+	"syscall"
+	"testing"
+	"time"
+)
+
+func auditTempSize(root string) (int64, int) {
+	var bytes int64
+	files := 0
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err == nil && !entry.IsDir() {
+			if info, err := entry.Info(); err == nil {
+				bytes += info.Size()
+				files++
+			}
+		}
+		return nil
+	})
+	return bytes, files
+}
+
+func TestP1FinalizationProfile(t *testing.T) {
+	if os.Getenv("RECORDER_P1_FINALIZATION") != "true" || runtime.GOOS != "linux" {
+		t.Skip("isolated Linux FFmpeg workload required")
+	}
+	binary := os.Getenv("RECORDER_TEST_FFMPEG")
+	if binary == "" {
+		binary = "ffmpeg"
+	}
+	dir := os.Getenv("RECORDER_P1_PROFILE_DIR")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	records := []string{filepath.Join(root, "recording-1"), filepath.Join(root, "recording-2")}
+	for _, path := range records {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		cmd := exec.CommandContext(ctx, binary, "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=10", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "4", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "1", "-g", "20", "-c:a", "aac", "-f", "segment", "-segment_time", "2", "-reset_timestamps", "1", filepath.Join(path, "segment_%06d.mp4"))
+		output, err := cmd.CombinedOutput()
+		cancel()
+		if err != nil {
+			t.Fatalf("fixture encoding: %v %s", err, output)
+		}
+	}
+	processor := NewPostProcessor(binary)
+	for _, path := range records {
+		if _, err := processor.FinalizeComposite(context.Background(), path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	var childBefore, childAfter syscall.Rusage
+	_ = syscall.Getrusage(syscall.RUSAGE_CHILDREN, &childBefore)
+	ioBefore, _ := os.ReadFile("/proc/self/io")
+	bytesBefore, filesBefore := auditTempSize(root)
+	runtime.SetBlockProfileRate(1)
+	old := runtime.SetMutexProfileFraction(1)
+	defer runtime.SetBlockProfileRate(0)
+	defer runtime.SetMutexProfileFraction(old)
+	for _, kind := range []string{"heap", "allocs"} {
+		file, err := os.Create(filepath.Join(dir, kind+"-before.pprof"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = pprof.Lookup(kind).WriteTo(file, 0)
+		_ = file.Close()
+	}
+	cpu, err := os.Create(filepath.Join(dir, "cpu.pprof"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = pprof.StartCPUProfile(cpu); err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	sampled := make(chan struct{})
+	var peakBytes int64
+	var peakFiles int
+	go func() {
+		defer close(sampled)
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			n, count := auditTempSize(root)
+			peakBytes = max(peakBytes, n)
+			peakFiles = max(peakFiles, count)
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	started := time.Now()
+	latencies := []float64{}
+	for cycle := 0; cycle < 6; cycle++ {
+		var wg sync.WaitGroup
+		errors := make(chan error, 2)
+		times := make(chan float64, 2)
+		for _, path := range records {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				op, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				start := time.Now()
+				result, err := processor.FinalizeComposite(op, path)
+				if err == nil && (result.DurationSec != 4 || result.FinalSizeBytes < 1024 || result.PreviewSizeBytes == 0) {
+					t.Errorf("final artifact invalid: %+v", result)
+				}
+				errors <- err
+				times <- float64(time.Since(start)) / float64(time.Millisecond)
+			}()
+		}
+		wg.Wait()
+		close(errors)
+		close(times)
+		for err := range errors {
+			if err != nil {
+				t.Error(err)
+			}
+		}
+		for elapsed := range times {
+			latencies = append(latencies, elapsed)
+		}
+	}
+	elapsed := time.Since(started)
+	pprof.StopCPUProfile()
+	_ = cpu.Close()
+	close(stop)
+	<-sampled
+	_ = syscall.Getrusage(syscall.RUSAGE_CHILDREN, &childAfter)
+	runtime.GC()
+	runtime.ReadMemStats(&after)
+	ioAfter, _ := os.ReadFile("/proc/self/io")
+	bytesAfter, filesAfter := auditTempSize(root)
+	sort.Float64s(latencies)
+	seconds := func(r syscall.Rusage) float64 {
+		return float64(r.Utime.Sec+r.Stime.Sec) + float64(r.Utime.Usec+r.Stime.Usec)/1e6
+	}
+	report := map[string]any{"scope": "two concurrent composite finalizers; existing encoded durable segments; excludes SFU, capture, SQL, upload and encoder fixture creation", "pipelines": 2, "samples": len(latencies), "segmentSeconds": 2, "inputSecondsPerRecording": 4, "width": 640, "height": 360, "fps": 10, "wallSeconds": elapsed.Seconds(), "finalizationP50ms": latencies[len(latencies)/2], "finalizationMaxMs": latencies[len(latencies)-1], "ffmpegAndFfprobeCPUSeconds": seconds(childAfter) - seconds(childBefore), "heapBefore": before.HeapAlloc, "heapAfterGC": after.HeapAlloc, "allocatedBytes": after.TotalAlloc - before.TotalAlloc, "tempBytesBefore": bytesBefore, "tempBytesAfter": bytesAfter, "tempPeakBytes": peakBytes, "filesBefore": filesBefore, "filesAfter": filesAfter, "peakFiles": peakFiles, "parentIOBefore": string(ioBefore), "parentIOAfter": string(ioAfter)}
+	data, _ := json.MarshalIndent(report, "", "  ")
+	if err = os.WriteFile(filepath.Join(dir, "metrics.json"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(data))
+	for _, kind := range []string{"heap", "allocs", "mutex", "block", "goroutine"} {
+		file, err := os.Create(filepath.Join(dir, kind+".pprof"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = pprof.Lookup(kind).WriteTo(file, 0)
+		_ = file.Close()
+	}
+	for _, path := range records {
+		if _, err = os.Stat(filepath.Join(path, "segment_000000.mp4")); err != nil {
+			t.Fatal("durable recovery segment removed")
+		}
+	}
+}

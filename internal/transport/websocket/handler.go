@@ -750,10 +750,8 @@ func (c *client) read() {
 }
 
 // failure формирует безопасное событие ошибки протокола для клиента.
-//
-// @args
-//   - replyTo (string): идентификатор исходного запроса или сообщения, на которое даётся ответ.
-//   - code (string): код приглашения или машинный код результата.
+// В payload передаётся только машинный code; replyTo добавляется, если его длина
+// не превышает 36 байт. Диагностические сообщения в событие не включаются.
 func (c *client) failure(replyTo, code string) {
 	event := domain.Event("error", c.session.ConferenceID, map[string]string{"code": code})
 	if len(replyTo) <= 36 {
@@ -763,13 +761,6 @@ func (c *client) failure(replyTo, code string) {
 }
 
 // strictJSON строго разбирает JSON-пакет и отвергает неизвестные поля и лишние данные.
-//
-// @args
-//   - raw ([]byte): исходные байты JSON, пакета или сериализованного значения.
-//   - value (any): значение для проверки, нормализации или преобразования.
-//
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func strictJSON(raw []byte, value any) error {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()

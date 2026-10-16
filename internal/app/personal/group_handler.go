@@ -2,13 +2,13 @@ package personalapp
 
 import (
 	"context"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/janickiy/meet-space/internal/app/httpresponse"
 	"github.com/janickiy/meet-space/internal/domain/chat"
 	"github.com/janickiy/meet-space/internal/domain/personal"
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
+	personalusecase "github.com/janickiy/meet-space/internal/usecase/personal"
 )
 
 type GroupRepository interface {
@@ -22,18 +22,7 @@ type GroupRepository interface {
 	LeaveGroup(context.Context, string, string) error
 	DeleteGroup(context.Context, string, string) ([]string, error)
 }
-type GroupPresence interface {
-	Online(context.Context, []string) (map[string]bool, error)
-}
 
-func groupParameter(c *gin.Context, name string) (string, bool) {
-	id, err := chat.UUID(c.Param(name))
-	if err != nil {
-		httpresponse.Fail(c, err)
-		return "", false
-	}
-	return id, true
-}
 func groupResult(c *gin.Context, item personal.Conversation) {
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
@@ -72,7 +61,7 @@ func (h *Handler) CreateGroup(c *gin.Context) {
 	c.JSON(status, gin.H{"status": "success", "item": item})
 }
 func (h *Handler) UpdateGroup(c *gin.Context) {
-	id, ok := groupParameter(c, "id")
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
@@ -89,39 +78,19 @@ func (h *Handler) UpdateGroup(c *gin.Context) {
 	groupResult(c, item)
 }
 func (h *Handler) GroupMembers(c *gin.Context) {
-	id, ok := groupParameter(c, "id")
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
-	items, err := h.Repo.GroupMembers(c.Request.Context(), middleware.UserID(c), id)
+	items, err := personalusecase.ReadGroupMembers(c.Request.Context(), h.Repo, h.Presence, middleware.UserID(c), id)
 	if err != nil {
 		httpresponse.Fail(c, err)
 		return
 	}
-	if h.Presence != nil && len(items) > 0 {
-		ids := make([]string, 0, len(items))
-		for _, member := range items {
-			ids = append(ids, member.ID)
-		}
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
-		online, presenceErr := h.Presence.Online(ctx, ids)
-		cancel()
-		if err := c.Request.Context().Err(); err != nil {
-			httpresponse.Fail(c, err)
-			return
-		}
-		if presenceErr == nil {
-			for i := range items {
-				if value, known := online[items[i].ID]; known {
-					items[i].Online = &value
-				}
-			}
-		}
-	}
 	c.JSON(200, gin.H{"status": "success", "items": items})
 }
 func (h *Handler) AddGroupMembers(c *gin.Context) {
-	id, ok := groupParameter(c, "id")
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
@@ -142,11 +111,11 @@ func (h *Handler) AddGroupMembers(c *gin.Context) {
 	groupResult(c, item)
 }
 func (h *Handler) RemoveGroupMember(c *gin.Context) {
-	id, ok := groupParameter(c, "id")
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
-	target, ok := groupParameter(c, "userId")
+	target, ok := uuidParameter(c, "userId")
 	if !ok {
 		return
 	}
@@ -161,11 +130,11 @@ func (h *Handler) RemoveGroupMember(c *gin.Context) {
 	groupResult(c, item)
 }
 func (h *Handler) ChangeGroupRole(c *gin.Context) {
-	id, ok := groupParameter(c, "id")
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
-	target, ok := groupParameter(c, "userId")
+	target, ok := uuidParameter(c, "userId")
 	if !ok {
 		return
 	}
@@ -184,7 +153,7 @@ func (h *Handler) ChangeGroupRole(c *gin.Context) {
 	groupResult(c, item)
 }
 func (h *Handler) TransferGroupOwnership(c *gin.Context) {
-	id, ok := groupParameter(c, "id")
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
@@ -210,7 +179,7 @@ func (h *Handler) TransferGroupOwnership(c *gin.Context) {
 	groupResult(c, item)
 }
 func (h *Handler) LeaveGroup(c *gin.Context) {
-	id, ok := groupParameter(c, "id")
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
@@ -227,7 +196,7 @@ func (h *Handler) LeaveGroup(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success"})
 }
 func (h *Handler) DeleteGroup(c *gin.Context) {
-	id, ok := groupParameter(c, "id")
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}

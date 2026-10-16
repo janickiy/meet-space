@@ -1,5 +1,104 @@
 # P1: измерения до и после
 
+## Повторный аудит — 16 октября 2026
+
+Baseline `a604c0d49ce5651f481fe0c0a144e5a049759ff4`, clean tree; Go 1.26.9, Apple M5/10 CPU/24 GiB, macOS 27.0.1 arm64. Измерения и ограничения: [P1_PERFORMANCE_AUDIT.md](P1_PERFORMANCE_AUDIT.md). Старые отчёты ниже — история. Evidence `tmp/p1-audit-20261016/`; воспроизведение [tools/performance-audit](../../tools/performance-audit/README.md).
+
+### Обязательные метрики
+
+| Метрика | До / текущий baseline | После / интерпретация |
+| --- | --- | --- |
+| RTP egress160, allocs/op |0 без sinks;1 alloc/176 B при1/2 sinks | SFU не изменён; не новая экономия |
+| RTP egress1200, allocs/op |0 без sinks;1 alloc/1280 B при1/2 sinks | SFU не изменён |
+| RTP allocations/s,10 peers |199,545malloc/s;26.296 MB/s | server+clients; повторный after not measured, path не менялся |
+| RTP CPU,10 peers /~5 s |3.745899 CPU s | server-only not measured; path не менялся |
+| RTP CPU,10×2 rooms /~5 s |8.152907 CPU s | включает clients, не production capacity |
+| Mutex wait/block,10×2delta |230.01 ms /7908.96 aggregate goroutine s | code unchanged;99.99% block select, warmup-spanning waits; не request latency |
+| Exact lock hold/frequency | not measured | pprof не даёт распределения; per-packet timers не добавлены |
+| Redis reconnect recovery |104.122–107.421 ms,5 faults | CLIENT KILL своего Pub/Sub при здоровом Redis; код не менялся |
+| Redis round trips | Missing500=1batch/500 commands; Online1/20/100=1batch/1Lua | batch уже существовал; long outage/herd not measured |
+| Rabbit recovery | publisher4.983–5.786 ms; consumer1.008–1.016 s |3consumerfaults, возможна redelivery; код не менялся |
+| Rabbit throughput |≈2874serial confirmedcommands/s | command throughput, не FFmpeg jobs/s; confirms сохранены |
+| DB pool wait,group chat32×5 |133 waits/1.089 aggregate s,111mswall |131 waits/1.214 s,122mswall;unchanged path,0 errors;no gain claimed |
+| SQL/recordings1,20 |7,7 |7,7; batch reads уже были |
+| SQL/history page |6 |6 |
+| SQL/group create2/20/100 |5/23/103 |**4/4/4** |
+| DB p95 group create20,30 requests |7.447 ms |4.142 ms; formal paired bench ниже |
+| DB p95 group create100,30 requests |41.611 ms |14.557 ms; formal paired bench ниже |
+| DB p95 recordings20 |3.818 ms |4.158 ms; unchanged, не regression inference |
+| DB p95 notifications20 |130.741 ms |132.621 ms; remaining JIT bottleneck |
+| Recording temp bytes |1,964,672 B/8 files before=peak=after | код не менялся, durable recovery inputs остаются |
+| FinalizeComposite |p50 84.723 ms/max88.874 ms,12 samples | повторный comparative after not measured; метод не менялся |
+| FFmpeg+ffprobe CPU |1.122311childCPU s,2concurrentfinalizers×6 rounds | parent pprof0 samples; не CPU всего recorder |
+| Logical read/write chars |33,855,916 /11,793,607 B deltas | proc I/O+tmpfs/cache; не physicaldisk bytes |
+| Disk iowait /capture→MinIO→DB latency | not measured | нет attributing block-device/full-pipeline load в этом стенде |
+
+### Принятая оптимизация: batch group memberships
+
+**Bottleneck:** последовательные INSERT после общей account-validation query. **Evidence:**103 SQL на100 members. **Change:**один bounded GORM batch в прежней транзакции; constraints/defaults/roles/idempotency прежние. **Before/after:**6 samples по30операций/size, порядок alternating, каждый sub-benchmark на fresh migrated disposable DB. `benchstat` x/perf `v0.0.0-20261009192801-be2c69fb417e`; baseline full source заменяется overlay, working tree не откатывается.
+
+| Group members | Median time до→после | Значимость | B/op до→после | allocs/op до→после |
+| --- | --- | --- | --- | --- |
+|2 |2.010→1.899 ms |p=.065,n=6; gain не подтверждён |41.36→44.31KiB,+7.12% |374.5→382,+2.00% |
+|20 |6.893→2.851 ms |**−58.64%,p=.002,n=6** |81.40→75.60KiB,−7.13% |988.5→625,−36.77% |
+|100 |29.945→8.852 ms |**−70.44%,p=.002,n=6** |282.7→293.7KiB,+3.89% |3667→1845,−49.70% |
+
+100 members требуют немного больше временных байтов из-за batch construction, но вдвое меньше allocation objects и значительно меньше сетевых SQL. CPU этой короткой операции отдельно **not measured**. Сохранены positive membership/owner проверки и rollback после injected BEFORE INSERT failure; тесты под race. Ускорение не переносится на двух участников, чтение чатов или весь сайт.
+
+### Media baseline (код не менялся)
+
+5 s window после22 s warmup, настоящие Pion transports в общем server+client процессе. MB десятичные. Все internal queue drops=0; отдельный network-loss accounting not measured. Cleanup каждого сценария G3/FD6, maps0. Сравнение с историческими host measurements некорректно.
+
+| Scenario | Process CPU s | Malloc/s | Alloc MB/s | Forwarded packets/sample | Cleanup live heap MB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| idle | 0.0049 | 3 | 0.000 | 0 | 0.358 |
+| 2_peers | 0.3813 | 8,918 | 1.060 | 946 | 0.502 |
+| 5_peers | 1.3322 | 46,591 | 6.474 | 10020 | 0.714 |
+| 10_peers | 3.7459 | 199,545 | 26.296 | 45000 | 1.129 |
+| 5_peers_2_rooms | 2.3688 | 92,821 | 12.896 | 20008 | 1.117 |
+| 10_peers_2_rooms | 8.1529 | 396,522 | 52.316 | 90000 | 1.661 |
+| 5_peers_screen_recording_audio_tap | 2.0339 | 87,631 | 5.717 | 7820 | 1.849 |
+
+10×2 active384.02 MB heap против1.661 MB после cleanup:≈93.8% sampled retained bytes в bounded Pion retransmission packet factory. High RSS774 MB не равен retained live heap. Alloc-space sampled delta283.98 MB включает pprof/checkpoint overhead; runtime TotalAlloc delta261.60 MB — другой счётчик.
+
+### SQL/read workload:100 samples после5warmups
+
+Все SQL снимались на exact production read path. p50/p95/p99 в ms; Go bytes/op baseline. Read paths **не оптимизировались**: колебания до/после — измерения shared-host runs, не causal benefit новой membership вставки. Requests не включают TLS/auth verification/MinIO presigning. Replies/attachments empty в fixture, heavy-content case not measured.
+
+| Workload | SQL до/после | До p50/p95/p99 ms | После p50/p95/p99 ms | Baseline Go bytes/op |
+| --- | ---: | ---: | ---: | ---: |
+| personal_list_20 | 2 / 2 | 14.097 / 15.266 / 18.313 | 14.422 / 19.196 / 21.788 | 91,300 |
+| personal_unread_groups_20 | 2 / 2 | 12.839 / 16.201 / 16.596 | 12.839 / 14.274 / 16.313 | 99,855 |
+| group_chat_20 | 10 / 10 | 3.272 / 4.958 / 18.223 | 2.659 / 3.907 / 4.043 | 127,514 |
+| direct_chat_20 | 10 / 10 | 2.636 / 3.536 / 4.028 | 2.556 / 3.903 / 4.641 | 127,102 |
+| group_members_20 | 3 / 3 | 1.115 / 1.197 / 1.311 | 1.081 / 1.341 / 2.291 | 29,366 |
+| recordings_http_20 | 7 / 7 | 3.451 / 5.202 / 7.017 | 3.399 / 6.031 / 8.390 | 1,983,586 |
+| recordings_1 | 7 / 7 | 1.421 / 1.725 / 2.704 | 1.568 / 1.796 / 2.948 | 145,693 |
+| recordings_20 | 7 / 7 | 2.867 / 3.818 / 7.149 | 2.873 / 4.158 / 6.342 | 1,252,734 |
+| meetings_20 | 1 / 1 | 0.475 / 0.519 / 0.579 | 0.489 / 0.547 / 0.658 | 58,552 |
+| history | 6 / 6 | 1.774 / 2.835 / 3.225 | 1.997 / 3.027 / 3.787 | 83,218 |
+| participants_20 | 4 / 4 | 0.893 / 1.711 / 2.697 | 0.900 / 2.019 / 3.377 | 67,571 |
+| chat_20 | 8 / 8 | 1.980 / 3.237 / 4.565 | 2.000 / 3.101 / 3.382 | 123,567 |
+| notifications_20 | 2 / 2 | 118.377 / 130.741 / 138.155 | 118.752 / 132.621 / 148.076 | 76,202 |
+| transcript_20 | 5 / 5 | 1.202 / 1.450 / 3.286 | 1.281 / 1.558 / 2.450 | 54,670 |
+| summary | 4 / 4 | 0.906 / 1.831 / 2.704 | 0.909 / 1.201 / 1.602 | 41,673 |
+| analytics | 4 / 4 | 0.960 / 1.167 / 2.260 | 0.974 / 1.645 / 2.512 | 56,093 |
+| admin | 3 / 3 | 4.132 / 4.588 / 5.549 | 4.131 / 5.000 / 5.654 | 26,277 |
+
+Набор:1000 meetings,20 users,20kparticipants/recordings,40kfiles,400ksegments,200kevents,50kconference messages,20knotifications/transcripts/summaries,400ktranscriptsegments;1000 groups×20 members+19 direct,50,950 personal messages. SQL count не включает BEGIN/COMMIT; auth middleware fixture содержит готовую identity. Групповой write fixture отдельно содержит100registeredaccounts.
+
+Pool workload — `group_chat_20`,32×5 requests: peak20 open/20 inuse,final10 open/0 inuse/10 idle,0 errors. GroupMembers read отдельный contention run: wall201.592→196.245 ms,135 waits в обеих ветках,2.022→1.896 aggregate waiter s; FOR UPDATE не снимался. Большие unchanged read p99 и колебания не скрыты,100 requests недостаточно для production tail SLA.
+
+### Recording / lifecycle / evidence boundaries
+
+Два concurrent composite finalizers на existing4-second640×36010fps H264/AAC sources;2-secondsegments,6rounds12 samples, encoding fixture до timer. Finalize wall0.510 s/childCPU1.122311 s, p50method84.723 ms, max88.874 ms. Temp1,964,672 B/8 files стабильно, heapafterGC1.482→1.485 MB. Это **не** SFU/capture/SQL/upload end-to-end. Короткий parent CPU profile без samples; physical disk/iowait not measured.
+
+P0 actual regressions: SQL/Redis/2Hub WS1020 lifecycles, WebRTC25 fullcycles+25sourcechurn, AMQP blockedsocket cancellation×3 под race — PASS. LinuxFFmpeg lifecycle17 starts/14 finalizations/15 cancel-timeouts/6 expectedfailures/6 decoders — PASS, итогG2/FD7/0 child/0temp. Ordinary go test/race/vet/build/modverify/frontend lint/gofmt — PASS; staticcheck — **2preexistingU1000**, govuln —0 symbol/package findings/1 module-only advisory. Это не многодневная/production certification.
+
+Оригинальный DB dataset без personal conversations сохранён в `data-initial-*`. Первый expanded run пересёкся с SFU regression, сохранён в `data-overlapped-*` и исключён из таблиц. Окончательные DB runs sequential; formal group benchmark был отдельным alternating run. Остаточный user-host noise нельзя исключить. Все raw profiles/logs и source hashes находятся в ignored `tmp/`; portable tools versioned. Cleanup собственных fixtures записан отдельно, пользовательские сервисы не перезапускались.
+
+---
+
 ## Повторный аудит — 10 октября 2026
 
 Текущий baseline: `a0781257debba3f911ee180067cc0fad5bb06204` плюс исходные P0/security/UI working-tree изменения. Go1.26.9, Apple M5 Pro18CPU/48GiB, macOS arm64; recording в Linux arm64 Docker VM10CPU. Результаты 6 октября ниже — **исторические**, не before для этой работы. Методика/контракты: [P1_PERFORMANCE_AUDIT.md](P1_PERFORMANCE_AUDIT.md).

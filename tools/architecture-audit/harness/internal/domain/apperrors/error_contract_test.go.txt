@@ -1,0 +1,57 @@
+package apperrors
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+)
+
+type p2Diagnostic struct{ operation string }
+
+func (e *p2Diagnostic) Error() string { return "private diagnostic: " + e.operation }
+
+func TestP2ApplicationErrorContracts(t *testing.T) {
+	cases := []struct {
+		kind     error
+		category Category
+	}{
+		{ErrInvalidInput, Validation}, {ErrUnauthorized, Unauthenticated},
+		{ErrForbidden, Forbidden}, {ErrNotFound, NotFound},
+		{ErrConflict, Conflict}, {ErrRateLimited, RateLimited},
+		{ErrUnavailable, Unavailable}, {ErrTimeout, Timeout}, {ErrInternal, Internal},
+	}
+	for _, tc := range cases {
+		t.Run(tc.kind.Error(), func(t *testing.T) {
+			cause := &p2Diagnostic{operation: "database"}
+			wrapped := Wrap(tc.kind, cause, "public message")
+			for _, err := range []error{tc.kind, New(tc.kind, "public message"), wrapped, fmt.Errorf("boundary: %w", wrapped)} {
+				if got := Classify(err); got != tc.category {
+					t.Fatalf("Classify(%T) = %v, want %v", err, got, tc.category)
+				}
+				if !errors.Is(err, tc.kind) {
+					t.Fatalf("category lost: %v", err)
+				}
+			}
+			if wrapped.Error() != "public message" || !errors.Is(wrapped, cause) {
+				t.Fatalf("public message/root cause contract lost: %v", wrapped)
+			}
+			var diagnostic *p2Diagnostic
+			if !errors.As(wrapped, &diagnostic) || diagnostic != cause {
+				t.Fatal("typed diagnostic cause lost")
+			}
+			if got := errors.Unwrap(New(tc.kind, "public message")); got != tc.kind {
+				t.Fatalf("New unwrap = %v, want %v", got, tc.kind)
+			}
+		})
+	}
+	// A lower-level category must not override the explicit owning operation.
+	if got := Classify(Wrap(ErrForbidden, ErrNotFound, "denied")); got != Forbidden {
+		t.Fatalf("cause overrode category: %v", got)
+	}
+	for _, raw := range []error{nil, context.DeadlineExceeded, context.Canceled, errors.New("SQL private details")} {
+		if got := Classify(raw); got != Internal {
+			t.Fatalf("raw %v classified as %v", raw, got)
+		}
+	}
+}

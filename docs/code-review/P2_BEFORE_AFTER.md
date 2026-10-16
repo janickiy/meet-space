@@ -1,6 +1,209 @@
 # P2 — результаты архитектурного аудита и рефакторинга
 
-## Текущий проход — 2026-10-10
+## Текущий проход — 2026-10-16
+
+Задание: `CODE_REVIEW_AND_OPTIMIZATION_P2.md`. Исходный HEAD `a604c0d49ce5651f481fe0c0a144e5a049759ff4` плюс существующие staged P1-изменения. P1 batch INSERT и его harness сохранены; исходные и итоговые SHA256 `group_repository.go` совпадают. Применён локальный P2; production deployment не выполнялся. Ниже новые результаты, исторические отчёты сохранены отдельно.
+
+### 1. Executive summary
+
+Изменения ограничены четырьмя ответственностями: доменный результат отсутствия медиа; получение списка участников с presence; жизненный цикл SSE; очистка отклонённого Pion peer. Удалены два доказанно неиспользуемых wrapper. Нет изменений UI, feature scope, DB schema, маршрутов и RTP forwarding. Начальный audit сохранён до production edits: `tmp/p2-audit-20261016/audit-before-edits.md`, SHA256 `b1585bbcd27b75757fc8665f0ffb2aaab35270f3be40b220ddeee0417d144765`.
+
+### 2. Architecture inventory
+
+[Карта 74 пакетов](P2_PACKAGE_INVENTORY.md) содержит ответственность, владельца состояния, inbound/outbound internal imports и число public declarations. Полный AST inventory до/после: `tmp/p2-audit-20261016/inventory-{before,after}.json`; воспроизведение `go run ./tools/architecture-audit`.
+
+Membership, realtime session, MediaPeer и Recording lifecycle остаются разными сущностями. API root собирает зависимости; media worker владеет Pion; recording worker — capture/finalization/storage; product/live workers — своими delivery/STT/jobs. Package count не увеличился.
+
+### 3. Coupling findings
+
+Удалена реальная обратная зависимость `usecase/recorder → infrastructure/webrtc`: импорт требовался только для `ErrNoMedia`. Authoritative sentinel теперь `domain/records.ErrNoMedia`; старое имя адаптера — alias с той же identity и текстом. Оставшиеся четыре recorder→infra зависимости соответствуют concrete orchestration adapters (composite/ffmpeg/local/S3). Их механическое оборачивание не улучшило бы ownership.
+
+Domain→HTTP/Pion/app imports не обнаружены; `domain/records → gorm.io/datatypes` остаётся осознанным долгом. Публичные business handlers `internal/app/*` не импортируют FFmpeg/Pion. Внутренний `transport/mediaworker` использует Pion DTO (`ICECandidateInit`) на границе своего engine. Для остальных imports см. inventory.
+
+### 4. Large service/function findings
+
+Notifications Handler объединял CRUD и SSE resources. Теперь HTTP-фасад содержит service + private `eventStreams`, владеющий admission counters, subscriptions, token/session checks и drain. Шаги `authorize`, `serve`, `pump`, `active`, `visible` выделены по ответственности. Public constructor/methods и exported Subscriber/Verifier/Limiter неизменны; новых interfaces нет.
+
+Наибольшие функции проекта не переписаны ради размера: `Composer.Capture`326 LOC/71 branches, mediaworker.command276/58; они требуют отдельного доказанного сценария refactor. Большие managers остаются sfu.Manager 22 fields / 19 public methods, realtime.Hub 18/19, integrations.Service 6/16, CompositeService 11/6. У recorder уже есть отдельный artifact publication owner; его повторное извлечение не понадобилось.
+
+### 5. Duplication findings
+
+Пять ручных `cancel(); pc.Close()` веток rejected Join заменены единым вызовом существующего `peer.close`. Дублированный `app/personal.GroupPresence` удалён, используется `usecase/personal.PresenceReader`.
+
+Не объединены разные правила: group presence — optional enrichment (`online:null` при неизвестном статусе), direct peer presence — Unavailable при неизвестном ответе. UUID normalization/canonical validation, pagination limits/messages и normal-stop/failure cleanup тоже различаются намеренно. Backend membership/admission/record permissions остаются authoritative; frontend не становится источником разрешений.
+
+### 6. Error-handling changes
+
+Девять категорий Validation/Unauthenticated/Forbidden/NotFound/Conflict/RateLimited/Unavailable/Timeout/Internal уже реализованы. Их не переписывали. Добавлены opt-in contracts на category/cause/errors.Is/As, HTTP status и safe message, media internal code, WS code/replyTo. В `apperrors.Classify` и публичном HTTP mapper raw context deadline/cancel остаётся Internal до явной классификации владельцем операции; outer Kind не подменяется вложенной причиной.
+
+`ErrNoMedia` перенесён на доменную границу. Проверены nil/sentinel/wrapped sentinel, одноимённая посторонняя ошибка, prepare rollback и сохранение исходной причины. Mapper не получает нового logging; terminal diagnostics принадлежат operation/worker. Внутренний media-worker сохраняет иной контракт: неизвестная ошибка, включая raw context error, → HTTP400 / `media_unavailable`, typed `ErrUnavailable` → HTTP503. Старые trusted worker text400 также остаются отдельным совместимым контрактом.
+
+### 7. Cleanup/lifecycle ownership
+
+- До регистрации `Join` владеет peer и гарантирует deferred `peer.close` на всех rejection paths; после регистрации владение передаётся Manager Leave/Shutdown. Закрытие происходит вне manager/room locks и до `closeWG.Done`.
+- `eventStreams` владеет SSE. Порядок выхода сохранён: ticker stop → reset write deadline → subscription close → cancel stream context → per-user release → global decrement.
+- Сохранены существующие sync.Once/WaitGroup owners для peer/subscription/egress/manager; composite lease cancellation, renewal wait/release; token-scoped rollback публикации артефактов. Recovery-сегменты не удаляются как «мусор».
+
+### 8. State/event changes
+
+State machine и wire event names не менялись. Recording transitions остаются guarded repository operations, membership не заменена socket state. Durable Rabbit start/stop и ephemeral WS/SSE events различаются по гарантии доставки и остаются отдельными. Calls state/actions отмечены в долге; массовая замена строк типов не выполнялась.
+
+### 9. Repository/interface changes
+
+Добавлен только operation-sized `GroupMemberReader` с одним требуемым методом. Существующий repository структурно удовлетворяет ему; новых constructors, runtime state, mocks в production и дополнительных DTO нет. SQL authorization/locking не менялись.
+
+Email/Calendar/STT/AI/Embedding interfaces сохранены. Personal repository 20 и integrations repository 22 методов — кандидаты на будущий bounded split, когда появится конкретная usecase boundary и её regression coverage.
+
+### 10. Config/DI/global-state findings
+
+Subsystem typed config и явная сборка в app сохранены. Нет DI framework, новых env defaults, mutable global или common/utils package. Operations runtime atomic singleton не изменён без evidence lifecycle failure. SSE state теперь имеет отдельного владельца внутри существующего пакета, а не новый глобальный сервис.
+
+### 11. Dead code removed
+
+Удалены только приватные `composite.newSourceWriter` и `sfu.validateOffer`: staticcheck U1000, отсутствие callers в production и сохранённых harness, успешные compile/race/runtime gates. Всего 35 строк с комментариями. Активные `newSourceWriterState`/`validateSourceOffer`, legacy worker routes, recovery и retention сохранены.
+
+### 12. Refactor batches
+
+| Batch | Изменение / причина | Проверка после batch | Риск и контроль |
+|---|---|---|---|
+| A | ErrNoMedia domain owner; contract tests для существующих mappers | 6 packages race×3 + отдельный no-media alias/rollback race×3 | identity/text сохранены; одинаковый текст иной ошибки не считается sentinel |
+| B/E | Один PresenceReader, authorized GroupMembers usecase; HTTP parse→call→map | 13 исходных HTTP cases и usecase contracts; normal/race×3 | optional group и fail-closed direct семантики проверены отдельно |
+| C | CRUD facade + private SSE owner | реальный Redis normal/race×3, тот же before-compatible harness | headers, 256 global / 4 per user / 12 per minute, 5s bounds,8 KiB guard, ACL/session rechecks unchanged |
+| D | Rejected Join → peer.close owner | actual Pion normal/race×3; max rooms/peers/kicked, concurrent close | регистрация передаёт ownership, cleanup вне locks, shutdown waits |
+| F | Два unused wrappers | SFU normal/race×3; composite race compile; staticcheck | удалены только wrappers, активные реализации сохранены |
+
+Diff review выполнен по каждому scope. Отдельный независимый review сравнил production изменения с `source-before`; новых дефектов не обнаружил. Большого commit/staging/reset не выполняли.
+
+### 13. Before/After architecture metrics
+
+| Метрика | До | После |
+|---|---:|---:|
+| Production internal packages | 74 | 74 |
+| Функции/методы (AST) | 1425 | 1430 |
+| Internal import edges | 286 | 285 |
+| Recorder concrete infra imports | 5 | 4 |
+| Public declarations (не HTTP endpoints) | 1525 | 1527 |
+| Notifications Handler поля | 9 (CRUD+SSE) | 2 (фасад); SSE owner 9 |
+| SSE entrypoint LOC/branches | 139/28 | facade 1/0; крупнейший шаг pump 57/14 |
+| GroupMembers handler LOC/branches | 32/8 | 12/2; usecase 26/7 |
+| SFU Join LOC/branches | 89/14 | 88/15 |
+| Rejected Join manual cleanup blocks | 5 | 1 owned cleanup |
+| Дубли PresenceReader/GroupPresence | 2 | 1 |
+| Дубли HTTP/media error catalogue | централизованы | централизованы + contract coverage |
+| Крупнейшая функция проекта | Capture 326/71 | Capture 326/71 |
+| SFU Manager public methods | 19 | 19 |
+| Staticcheck unused functions | 2 | 0 |
+
+Branch nodes включают closures, это не cyclomatic complexity. У Join добавилась ветка defer guard; цель — надёжное владение ресурсом, не минимизация LOC. Новых функций больше из-за meaningful extraction; число пакетов не выросло.
+
+### 14. Test/race results
+
+До production edits сохранены audit и исходные source snapshots, выполнены baseline checks, real WS/SFU/AMQP/FFmpeg/key repository/API smoke. P2 characterization на исходном коде: 9 packages race×3 PASS; новые usecase/alias cases добавлены после переноса границы.
+
+После всех правок: `go test -count=1 ./...`, `go test -race -count=1 ./...`, `go vet ./...`, staticcheck — PASS. Opt-in P2: **18 top-level tests в 10 packages, normal×3 и race×3 PASS** с реальным Redis, без skipped Redis scenarios. Исходные characterization cases сохранены; отдельные дополнительные tests проверяют новые domain/usecase boundaries. В no-media template добавлен alias test; hashes каждой версии сохранены в results JSON.
+
+Тесты находятся в `tools/architecture-audit/harness/*.go.txt`, запускаются через `check.py` overlay; обычный `go test ./...` сам по себе их не включает. Доказательства: `contracts-before-final/`, `contracts-final/`, `batch-a[-final]/`, `batch-be/`, `batch-c/`, `batch-d/`, `batch-f/` в `tmp/p2-audit-20261016/`.
+
+Финальные `govulncheck`, frontend Prettier и `go vet` с overlay контрактных tests — PASS. Vulncheck: **0 достижимых и 0 уязвимостей в импортируемых packages**; остаётся 1 advisory только в требуемом модуле, затронутый package не импортируется. Baseline staticcheck имел два U1000, после F — ни одного. Это не означает отсутствие неизвестных уязвимостей.
+
+Три временных audit-контейнера, их anonymous volumes и сеть удалены штатным runner после проверки ID/labels. Все 11 существовавших до аудита контейнеров остались запущены (`before/cleanup.json`, `preexisting_not_running_at_cleanup: []`). Логи/JSON/pprof сохранены в ignored `tmp/p2-audit-20261016/`; сборочные test binaries удалены после завершения сравнения. Production credentials/data не использовались.
+
+### 15. P1 performance regression results
+
+**Методика.** Apple M5, Go1.26.9 darwin/arm64, один host и собственные PostgreSQL/Redis/Rabbit fixtures. Сохранённые before/after binaries построены из разных source snapshots с одинаковыми harness SHA256. Timed workloads запускались последовательно, отдельно от build/race/static проверок. P1 group INSERT существовал до P2; его SHA256 одинаков в обоих прогонах.
+
+**RTP microbenchmarks:** 6×300ms на вариант, 160/1200 bytes, 0/1/2 sinks; время изменилось от −1,23% до +1,26%, geomean −0,17%. Allocations точь-в-точь прежние: без sinks 0 B/0 alloc; audio176 B/1 alloc, video1280 B/1 alloc, в том числе при двух sinks. RTP forwarding не менялся. SSE rejected-request benchmark: 2,530→2,491µs, p=0,240; 52 alloc/op без изменений. SSE замер включает создание HTTP fixture, это не throughput активных SSE.
+
+**Полный первый media smoke**, 22s warmup + 5s measurement, реальные Pion clients и server в одном процессе. CPU ниже — process CPU, включая clients/SRTP/NACK. Числа forwarded packets за 5s нельзя трактовать как production capacity:
+
+| Сценарий | Packets до→после | CPU seconds до→после |
+|---|---:|---:|
+| `10_peers` | 38,106→33,390 | 4.565→4.225 |
+| `10_peers_2_rooms` | 90,000→77,686 | 7.864→6.669 |
+| `2_peers` | 1,000→1,000 | 0.348→0.329 |
+| `5_peers` | 10,000→10,000 | 1.543→1.466 |
+| `5_peers_2_rooms` | 20,000→19,996 | 2.746→3.061 |
+| `5_peers_screen_recording_audio_tap` | 11,000→11,000 | 1.165→1.371 |
+| `idle` | 0→0 | 0.005→0.004 |
+
+Первый прогон показал разброс при 10 peers и хвосты DB latency; это потребовало **контрольного ABBA** (before, after, after, before), а не объявления всех timing gates зелёными. Оба сохранённых бинарника прогнаны ещё дважды, с тем же warmup/measurement:
+
+| Сценарий | Before 1 / Before 2 | After 1 / After 2 | Вывод |
+|---|---|---|---|
+| 10 peers × 2 rooms, packets/5s | 81 853 / 90 000 | 82 404 / 76 507 | диапазоны пересекаются, но среднее after ниже на 7,5%; результат недостаточно устойчив для строгого performance sign-off |
+| 10 peers × 2 rooms, CPU seconds | 6,686 / 6,015 | 6,908 / 4,892 | CPU и delivered packets меняются вместе; lower CPU не объявляется ускорением |
+| 5 peers + screen + recording/audio tap, packets | 11 000 / 11 000 | 11 000 / 11 000 | та же передача данных |
+| 5 peers + screen + recording/audio tap, CPU seconds | 1,407 / 1,315 | 1,457 / 1,436 | after выше примерно на 6,3% по среднему двух повторов; при неизменном packet path причинная связь с P2 не установлена |
+
+Во всех исходных и контрольных media прогонах application packet/recording/audio-tap drops = 0. После cleanup rooms/peers/tracks/subscriptions/recording outputs/audio taps = 0. Разброс host-level нагрузки нельзя использовать как доказательство отсутствия регрессии на предельной ёмкости: **10-peer throughput gate остаётся inconclusive**, нужна отдельная стабильная нагрузочная среда. Для обязательного 2–5-peer smoke и RTP allocation gate регрессия не обнаружена; per-packet production code не изменён, новых interfaces/reflection/allocations в нём нет.
+
+**DB/key API.** 17 read paths, 100 samples/path, один fixture dataset: 1000 conferences, 20 000 recordings, 400 000 segments, 1000 groups. SQL counts одинаковы. Первый group-chat p50 вырос 2,527→5,184ms, p95 3,244→12,557ms; повтор ABBA этого замедления не воспроизвёл:
+
+| Path | SQL/op | p50 до (2 повтора), ms | p50 после (2 повтора), ms | p95 до / после, ms |
+|---|---:|---|---|---|
+| `personal_list_20` | 2 | 13.757 / 14.259 | 13.776 / 14.477 | 15.093, 15.975 / 16.920, 16.380 |
+| `personal_unread_groups_20` | 2 | 12.528 / 12.732 | 12.567 / 13.024 | 13.484, 13.299 / 13.059, 14.641 |
+| `group_chat_20` | 10 | 2.548 / 2.614 | 2.537 / 2.591 | 3.804, 3.210 / 3.777, 3.259 |
+| `direct_chat_20` | 10 | 2.464 / 2.478 | 2.447 / 2.464 | 3.790, 3.584 / 3.254, 3.100 |
+| `group_members_20` | 3 | 1.059 / 1.055 | 1.060 / 1.063 | 1.233, 1.110 / 1.360, 1.180 |
+| `recordings_http_20` | 7 | 3.286 / 3.358 | 3.344 / 3.340 | 5.607, 6.213 / 5.361, 4.548 |
+
+Чтения измеряют repository/usecase; `recordings_http_20` — in-process Gin HTTP, без authentication/TLS/storage signing. Group creation 2/20/100 members остаётся 4SQL/op, roles и atomic rollback проходят. Нельзя экстраполировать эти локальные задержки на внешний сайт.
+
+**P0 lifecycle:** 25 полных SFU циклов + 25 source-churn/reconnect, 1020 WS connect/disconnect/reconnect с двумя hubs, Redis registry repair/prune failure, AMQP normal/race×3 — PASS. В SFU после shutdown: 2 goroutines/6 FD и нулевые room/peer/track/subscription counters в обоих вариантах. После WS rounds: 14 goroutines/15 FD, local sessions/Redis session keys=0 в обоих вариантах. Pion EOF/unhandled-SSRC diagnostics во время намеренного teardown встречаются и до, и после; suite проходит, но лог не объявляется свободным от diagnostic messages.
+
+**Recording:** реальные FFmpeg lifecycle tests — PASS. Два параллельных composite finalizers, 12 samples, уже закодированные 4s 640×36010fps H264/AAC segments: p50 84,670→90,175ms (+6,5%); max85,979→91,245ms; child CPU1,125→1,208s; Go allocations8 643 808→8 656 896 bytes (+0,15%). Файлов8→8, temp size стабилен внутри каждого прогона; тесты process cancellation/reap проходят. Это finalization+probe, **не полный SFU→capture→SQL→upload pipeline**. Изменений FFmpeg execution в P2 нет; production recording SLO этим коротким тестом не доказывается.
+
+Evidence: `rtp-benchstat.txt`, `sse-benchstat.txt`, `before/`, `after/`, `paired-repeat/` под `tmp/p2-audit-20261016/`. Результат: correctness/lifecycle/allocations PASS; DB regression из первого прогона не воспроизвелась; strict high-load media performance gate имеет указанное ограничение, а не безусловный PASS.
+
+### 16. Public API compatibility
+
+HTTP paths/status/body fields, group role checks, cancellation/degradation, `online:null`, WS code/replyTo и SSE payloads/headers/allowlist сохранены. SSE global/per-user/rate limits, token expiry, persistent session reauthorization и visibility checks сохранены. Recording modes/statuses, Rabbit commands, locks/outbox, retry/retention и media policies неизменны.
+
+Internal Go API additions: `records.ErrNoMedia`, `personal.GroupMemberReader`, `ReadGroupMembers`; внутренний дублирующий `GroupPresence` заменён existing PresenceReader. Legacy `webrtc.ErrNoMedia` alias сохранён. Migrations/frontend/deployment config не менялись. P2 не заявляет новых bug fixes с изменением внешнего поведения.
+
+### 17. Remaining P2 debt
+
+1. `mediaworker.command` и `Composer.Capture` остаются крупными. Следующий refactor — отдельная операция с characterization tests, а не механическое дробление.
+2. `domain/records` содержит ORM datatypes; перенос требует проверки JSON/GORM round-trip и реальной пользы границы.
+3. Direct call transitions/actions строковые и живут в transactional repository. Typed transition policy можно извлечь после отдельного crossed-call/multi-device/idempotence suite; права/lease нельзя менять попутно.
+4. Personal/integrations repositories широкие. Пока это purposeful boundaries; split без нового сценария лишь добавит ceremony.
+5. Legacy trusted worker HTTP 400 содержит diagnostic text. Полная унификация требует review старого ingest API; публичные современные mappers уже sanitise Internal.
+6. SSE Subscriber возвращает concrete Redis PubSub; его контракт сохранён. Реальные Redis tests дают lifecycle coverage без добавления интерфейса только ради mock.
+7. P1 findings (notifications JIT/query shape, full recording metadata projection, manifest bounds) не являются архитектурными исправлениями этого прохода. Нужны отдельные измерения/совместимость.
+
+### 18. P3 follow-up
+
+Только по следующему отдельному запросу: устаревшие автоматически сгенерированные комментарии, неточные описания параметров, consistency naming/imports и cleanup документации. P3 не выполнялся. Legacy/recovery не удалять без reachability evidence.
+
+### 19. Files changed (этот P2, отдельно от staged P1)
+
+Production, 11 файлов:
+
+- `internal/domain/records/errors.go`
+- `internal/infrastructure/webrtc/manager.go`
+- `internal/usecase/recorder/service.go`
+- `internal/app/personal/group_handler.go`
+- `internal/app/personal/handler.go`
+- `internal/usecase/personal/group_members.go` (новый)
+- `internal/app/notifications/handler.go`
+- `internal/app/notifications/events.go` (новый)
+- `internal/infrastructure/sfu/manager.go`
+- `internal/infrastructure/sfu/peer.go`
+- `internal/infrastructure/composite/capture.go`
+
+Документы/инструменты:
+
+- `docs/code-review/P2_ARCHITECTURE_AUDIT.md`
+- `docs/code-review/P2_BEFORE_AFTER.md`
+- `docs/code-review/P2_PACKAGE_INVENTORY.md`
+- `tools/architecture-audit/README.md`, `check.py`
+- 10 opt-in test templates под `tools/architecture-audit/harness/`: app/httpresponse, app/notifications, app/personal, domain/apperrors, domain/media, infrastructure/sfu, transport/mediaworker, transport/websocket, usecase/personal, usecase/recorder.
+
+
+---
+
+## Исторический проход — 2026-10-10
 
 Статус: **A–F завершены; correctness, race, static и representative performance gates прошли.** Все четыре режима записи проверены с реальными FFmpeg/MinIO; существенной измеренной регрессии нет. Исторические результаты 6 октября сохранены отдельно. Baseline: HEAD `a0781257debba3f911ee180067cc0fad5bb06204` **плюс существовавшие P0/P1/UI изменения**, не чистый checkout. Новые правки не закоммичены и не выложены на сервер. P3 не начат.
 

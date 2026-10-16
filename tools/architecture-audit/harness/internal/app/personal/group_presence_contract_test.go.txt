@@ -1,0 +1,171 @@
+package personalapp
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	"github.com/janickiy/meet-space/internal/domain/personal"
+)
+
+// Embedding makes unexpected repository use fail immediately; the operation
+// under characterization may only read the authorized membership projection.
+type p2MemberRepository struct {
+	Repository
+	read func(context.Context, string, string) ([]personal.Member, error)
+}
+
+func (r p2MemberRepository) GroupMembers(ctx context.Context, actor, id string) ([]personal.Member, error) {
+	return r.read(ctx, actor, id)
+}
+
+type p2GroupPresence func(context.Context, []string) (map[string]bool, error)
+
+func (f p2GroupPresence) Online(ctx context.Context, ids []string) (map[string]bool, error) {
+	return f(ctx, ids)
+}
+
+func TestP2GroupMembersHTTPContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const actor = "b8c7ab87-491a-4eec-952a-e0481c85500b"
+	const group = "1a414d7a-d722-4bb6-8b4a-350614c32909"
+	cases := []struct {
+		name             string
+		path             string
+		members          []personal.Member
+		repoError        error
+		nilPresence      bool
+		statuses         map[string]bool
+		presenceError    error
+		cancelInPresence bool
+		cancelBefore     bool
+		wantStatus       int
+		wantMessage      string
+		wantOnline       []any
+	}{
+		{name: "known true false and unknown", members: []personal.Member{{ID: "one", Role: personal.Owner}, {ID: "two", Role: personal.Admin}, {ID: "three", Role: personal.MemberRole}}, statuses: map[string]bool{"one": true, "two": false, "unrelated": true}, wantStatus: 200, wantOnline: []any{true, false, nil}},
+		{name: "provider failure degrades", members: []personal.Member{{ID: "one"}}, statuses: map[string]bool{"one": true}, presenceError: errors.New("private redis details"), wantStatus: 200, wantOnline: []any{nil}},
+		{name: "timeout degrades", members: []personal.Member{{ID: "one"}}, presenceError: context.DeadlineExceeded, wantStatus: 200, wantOnline: []any{nil}},
+		{name: "unknown response remains null", members: []personal.Member{{ID: "one"}}, wantStatus: 200, wantOnline: []any{nil}},
+		{name: "nil provider skips lookup", members: []personal.Member{{ID: "one"}}, nilPresence: true, wantStatus: 200, wantOnline: []any{nil}},
+		{name: "empty members skip lookup", members: []personal.Member{}, wantStatus: 200, wantOnline: []any{}},
+		{name: "nil members preserve null array", wantStatus: 200},
+		{name: "authorization precedes presence", members: []personal.Member{{ID: "one"}}, repoError: apperrors.ErrForbidden, wantStatus: 403, wantMessage: "access denied"},
+		{name: "repository failure sanitized", repoError: errors.New("private database details"), wantStatus: 500, wantMessage: "internal server error"},
+		{name: "invalid UUID stops before reads", path: "invalid", wantStatus: 422, wantMessage: "a non-zero UUID is required"},
+		{name: "request cancellation after lookup is internal", members: []personal.Member{{ID: "one"}}, cancelInPresence: true, statuses: map[string]bool{"one": true}, wantStatus: 500, wantMessage: "internal server error"},
+		// These characterize existing behavior; the refactor must not add checks
+		// when the optional presence lookup is skipped.
+		{name: "cancelled request nil provider", members: []personal.Member{{ID: "one"}}, cancelBefore: true, nilPresence: true, wantStatus: 200, wantOnline: []any{nil}},
+		{name: "cancelled request empty members", members: []personal.Member{}, cancelBefore: true, wantStatus: 200, wantOnline: []any{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if tc.cancelBefore {
+				cancel()
+			}
+			calls := []string{}
+			members := append([]personal.Member(nil), tc.members...)
+			if tc.members != nil && len(members) == 0 {
+				members = []personal.Member{}
+			}
+			repo := p2MemberRepository{read: func(got context.Context, gotActor, id string) ([]personal.Member, error) {
+				calls = append(calls, "members")
+				if got != ctx || gotActor != actor || id != group {
+					t.Fatalf("unexpected authorization arguments: %s %s", gotActor, id)
+				}
+				return members, tc.repoError
+			}}
+			var operation context.Context
+			presence := p2GroupPresence(func(got context.Context, ids []string) (map[string]bool, error) {
+				calls = append(calls, "presence")
+				operation = got
+				want := make([]string, 0, len(members))
+				for _, member := range members {
+					want = append(want, member.ID)
+				}
+				if !reflect.DeepEqual(ids, want) {
+					t.Fatalf("presence ids=%v want=%v", ids, want)
+				}
+				deadline, ok := got.Deadline()
+				remaining := time.Until(deadline)
+				if !ok || remaining <= 0 || remaining > 2*time.Second {
+					t.Fatalf("presence deadline=%v remaining=%v", deadline, remaining)
+				}
+				if tc.cancelInPresence {
+					cancel()
+				}
+				return tc.statuses, tc.presenceError
+			})
+			h := &Handler{Repo: repo, Presence: presence}
+			if tc.nilPresence {
+				h.Presence = nil
+			}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			path := tc.path
+			if path == "" {
+				path = group
+			}
+			c.Request = httptest.NewRequest(http.MethodGet, "/groups/"+path+"/members", nil).WithContext(ctx)
+			c.Params = gin.Params{{Key: "id", Value: path}}
+			c.Set("authenticated_user_id", actor)
+			h.GroupMembers(c)
+			if w.Code != tc.wantStatus {
+				t.Fatalf("HTTP %d, want %d; %s", w.Code, tc.wantStatus, w.Body.String())
+			}
+			var body map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantStatus != 200 {
+				if len(body) != 2 || body["status"] != "failed" || body["message"] != tc.wantMessage {
+					t.Fatalf("error body=%s", w.Body.String())
+				}
+			} else {
+				if len(body) != 2 || body["status"] != "success" {
+					t.Fatalf("success body=%s", w.Body.String())
+				}
+				if tc.members == nil {
+					if body["items"] != nil {
+						t.Fatalf("nil members changed: %s", w.Body.String())
+					}
+				} else {
+					items, ok := body["items"].([]any)
+					if !ok || len(items) != len(tc.members) {
+						t.Fatalf("member count changed: %s", w.Body.String())
+					}
+					for i, raw := range items {
+						item := raw.(map[string]any)
+						online, present := item["online"]
+						if !present || online != tc.wantOnline[i] || item["id"] != tc.members[i].ID || item["role"] != string(tc.members[i].Role) {
+							t.Fatalf("member %d=%v", i, item)
+						}
+					}
+				}
+			}
+			wantCalls := []string{}
+			if tc.path == "" {
+				wantCalls = append(wantCalls, "members")
+				if tc.repoError == nil && !tc.nilPresence && len(members) > 0 {
+					wantCalls = append(wantCalls, "presence")
+				}
+			}
+			if !reflect.DeepEqual(calls, wantCalls) {
+				t.Fatalf("calls=%v want=%v", calls, wantCalls)
+			}
+			if operation != nil && operation.Err() != context.Canceled {
+				t.Fatalf("presence context leaked: %v", operation.Err())
+			}
+		})
+	}
+}

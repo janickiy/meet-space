@@ -164,7 +164,7 @@ func (e *egress) enqueueLocked(frame media.EgressFrame) {
 // Синхронизирует доступ к разделяемому состоянию блокировкой.
 //
 // @args
-//   - t (*publishedTrack): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
+//   - t (*publishedTrack): публикация медиаисточника, передаваемая подписчикам.
 func (e *egress) addTrack(t *publishedTrack) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -181,7 +181,7 @@ func (e *egress) addTrack(t *publishedTrack) {
 // Синхронизирует доступ к разделяемому состоянию блокировкой.
 //
 // @args
-//   - t (*publishedTrack): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
+//   - t (*publishedTrack): публикация медиаисточника, передаваемая подписчикам.
 func (e *egress) endTrack(t *publishedTrack) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -196,9 +196,9 @@ func (e *egress) endTrack(t *publishedTrack) {
 // Синхронизирует доступ к разделяемому состоянию блокировкой.
 //
 // @args
-//   - t (*publishedTrack): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
+//   - t (*publishedTrack): публикация медиаисточника, передаваемая подписчикам.
 //   - raw ([]byte): исходные байты JSON, пакета или сериализованного значения.
-//   - at (int64): однозначное время планируемой операции; nil означает отсутствие значения, если это допускает тип.
+//   - at (int64): серверное время получения RTP-пакета в наносекундах Unix.
 func (e *egress) packet(t *publishedTrack, raw []byte, at int64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -226,22 +226,19 @@ func (e *egress) fail(err error) {
 // Close закрывает принадлежащие компоненту ресурсы и завершает связанный жизненный цикл.
 // Синхронизирует доступ к разделяемому состоянию блокировкой.
 func (e *egress) Close() {
-	e.closeOnce.Do( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-		Синхронизирует доступ к разделяемому состоянию блокировкой.
-
-		*/func() {
-			e.fail(nil)
-			e.manager.mu.Lock()
-			e.room.mu.Lock()
-			if e.room.egresses[e.id] == e {
-				delete(e.room.egresses, e.id)
-			}
-			if len(e.room.peers) == 0 && len(e.room.egresses) == 0 && e.manager.rooms[e.room.id] == e.room {
-				delete(e.manager.rooms, e.room.id)
-			}
-			e.room.mu.Unlock()
-			e.manager.mu.Unlock()
-		})
+	e.closeOnce.Do(func() {
+		e.fail(nil)
+		e.manager.mu.Lock()
+		e.room.mu.Lock()
+		if e.room.egresses[e.id] == e {
+			delete(e.room.egresses, e.id)
+		}
+		if len(e.room.peers) == 0 && len(e.room.egresses) == 0 && e.manager.rooms[e.room.id] == e.room {
+			delete(e.manager.rooms, e.room.id)
+		}
+		e.room.mu.Unlock()
+		e.manager.mu.Unlock()
+	})
 }
 
 // Keyframes запрашивает ключевые кадры для источников текущей подписки записи.
@@ -266,7 +263,7 @@ func (e *egress) Ping() {
 // Синхронизирует доступ к разделяемому состоянию блокировкой.
 //
 // @args
-//   - t (*publishedTrack): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
+//   - t (*publishedTrack): публикация медиаисточника, передаваемая подписчикам.
 //   - packet (*rtp.Packet): закодированный RTP- или управляющий пакет.
 func (m *Manager) recordPacket(t *publishedTrack, packet *rtp.Packet) {
 	t.publisher.room.mu.Lock()

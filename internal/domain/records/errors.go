@@ -7,3 +7,7 @@ var ErrConferenceAlreadyRecording = errors.New("recording already started for co
 
 // ErrRecordStateChanged обозначает устаревшее обновление состояния или нарушение порядка переходов.
 var ErrRecordStateChanged = errors.New("record status no longer allows this transition")
+
+// ErrNoMedia means an ingest attempt stopped before producing media. Recording
+// orchestration recognizes this outcome independently of the ingest adapter.
+var ErrNoMedia = errors.New("record media was not produced")

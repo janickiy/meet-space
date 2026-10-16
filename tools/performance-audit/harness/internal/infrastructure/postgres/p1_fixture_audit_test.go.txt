@@ -1,0 +1,50 @@
+package postgres_test
+
+import (
+	"github.com/google/uuid"
+	pg "github.com/janickiy/meet-space/internal/infrastructure/postgres"
+	"gorm.io/gorm"
+	"net/url"
+	"os"
+	"strings"
+	"testing"
+)
+
+// This harness refuses every endpoint except its own disposable loopback DB.
+func stageOneDatabase(t testing.TB) *gorm.DB {
+	t.Helper()
+	dsn := os.Getenv("RECORDER_STAGE1_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("isolated audit database required")
+	}
+	parsed, err := url.Parse(dsn)
+	if err != nil || parsed.Hostname() != "127.0.0.1" || parsed.Path != "/p1audit" {
+		t.Fatal("dedicated local audit database required")
+	}
+	admin, err := pg.Connect(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, _ := admin.DB()
+	t.Cleanup(func() { _ = pool.Close() })
+	name := "p1_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if err = admin.Exec("CREATE DATABASE " + name).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := admin.Exec("DROP DATABASE " + name + " WITH (FORCE)").Error; err != nil {
+			t.Error(err)
+		}
+	})
+	parsed.Path = "/" + name
+	db, err := pg.Connect(parsed.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, _ := db.DB()
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err = pg.RunMigrations(db, os.Getenv("RECORDER_AUDIT_MIGRATIONS")); err != nil {
+		t.Fatal(err)
+	}
+	return db
+}

@@ -13,7 +13,7 @@ import (
 
 // Pins lists shared pins using the current member's visible message history.
 func (h *Handler) Pins(c *gin.Context) {
-	id, ok := directActionID(c)
+	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
 	}
@@ -38,7 +38,7 @@ func (h *Handler) Pins(c *gin.Context) {
 // The event contains no message ID, text or preview from another member's history.
 func (h *Handler) SetPin(pinned bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id, ok := directActionID(c)
+		id, ok := uuidParameter(c, "id")
 		if !ok {
 			return
 		}

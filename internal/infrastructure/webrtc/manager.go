@@ -22,8 +22,8 @@ import (
 	pionwebrtc "github.com/pion/webrtc/v4"
 )
 
-// ErrNoMedia означает, что WebRTC-сессия не успела создать media-процесс.
-var ErrNoMedia = errors.New("record media was not produced")
+// ErrNoMedia is retained for compatibility with legacy ingest callers.
+var ErrNoMedia = records.ErrNoMedia
 
 // Options собирает зависимости и настройки создания компонента.
 // @params

@@ -1,0 +1,94 @@
+package personal
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	domain "github.com/janickiy/meet-space/internal/domain/personal"
+)
+
+const (
+	p2PresencePeer         = "1f864798-71d3-42d7-b27a-3d69e62bc357"
+	p2PresenceActor        = "93ec9069-06f6-4924-8e5c-d7866478e716"
+	p2PresenceConversation = "a45b8407-7c38-45ca-b751-bacbb0874306"
+)
+
+type p2PresenceMembership struct{ err error }
+
+func (r p2PresenceMembership) Get(_ context.Context, actor, id string) (domain.Conversation, error) {
+	return domain.Conversation{ID: id, Type: "direct", Peer: &domain.Peer{ID: p2PresencePeer}}, r.err
+}
+func (r p2PresenceMembership) GroupMembers(_ context.Context, actor, id string) ([]domain.Member, error) {
+	return []domain.Member{{ID: p2PresencePeer, Role: domain.MemberRole}}, r.err
+}
+
+type p2PresenceProvider func(context.Context, []string) (map[string]bool, error)
+
+func (f p2PresenceProvider) Online(ctx context.Context, ids []string) (map[string]bool, error) {
+	return f(ctx, ids)
+}
+
+// One provider contract serves both operations, but their failure policies are
+// intentionally different: membership remains usable while peer state cannot
+// truthfully claim that an unavailable presence result means offline.
+func TestP2PresenceDegradationBoundaries(t *testing.T) {
+	cases := []struct {
+		name          string
+		statuses      map[string]bool
+		providerError error
+		known         bool
+		online        bool
+	}{
+		{name: "online", statuses: map[string]bool{p2PresencePeer: true}, known: true, online: true},
+		{name: "offline", statuses: map[string]bool{p2PresencePeer: false}, known: true},
+		{name: "unknown"},
+		{name: "provider failure", providerError: errors.New("private redis diagnostic")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			provider := p2PresenceProvider(func(_ context.Context, ids []string) (map[string]bool, error) {
+				calls++
+				if len(ids) != 1 || ids[0] != p2PresencePeer {
+					t.Fatalf("unexpected ids: %v", ids)
+				}
+				return tc.statuses, tc.providerError
+			})
+			members, err := ReadGroupMembers(context.Background(), p2PresenceMembership{}, provider, p2PresenceActor, p2PresenceConversation)
+			if err != nil || len(members) != 1 {
+				t.Fatalf("membership unavailable: %v %v", members, err)
+			}
+			if tc.known {
+				if members[0].Online == nil || *members[0].Online != tc.online {
+					t.Fatalf("group status=%v", members[0].Online)
+				}
+			} else if members[0].Online != nil {
+				t.Fatal("unknown group member became offline")
+			}
+			peer, err := ReadPeerPresence(context.Background(), p2PresenceMembership{}, provider, p2PresenceActor, p2PresenceConversation)
+			if tc.known {
+				if err != nil || peer.Online != tc.online || peer.PeerID != p2PresencePeer {
+					t.Fatalf("peer=%+v error=%v", peer, err)
+				}
+			} else if !errors.Is(err, apperrors.ErrUnavailable) {
+				t.Fatalf("unknown peer state=%+v error=%v", peer, err)
+			}
+			if calls != 2 {
+				t.Fatalf("provider calls=%d", calls)
+			}
+		})
+	}
+	denied := p2PresenceMembership{err: apperrors.ErrForbidden}
+	provider := p2PresenceProvider(func(context.Context, []string) (map[string]bool, error) {
+		t.Fatal("presence read before authorization")
+		return nil, nil
+	})
+	if _, err := ReadGroupMembers(context.Background(), denied, provider, p2PresenceActor, p2PresenceConversation); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatalf("group denial=%v", err)
+	}
+	if _, err := ReadPeerPresence(context.Background(), denied, provider, p2PresenceActor, p2PresenceConversation); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatalf("peer denial=%v", err)
+	}
+}

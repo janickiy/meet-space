@@ -14,7 +14,6 @@ import (
 	"github.com/janickiy/meet-space/internal/infrastructure/ffmpeg"
 	localstorage "github.com/janickiy/meet-space/internal/infrastructure/storage/local"
 	s3storage "github.com/janickiy/meet-space/internal/infrastructure/storage/s3"
-	webrtcingest "github.com/janickiy/meet-space/internal/infrastructure/webrtc"
 )
 
 // cardRepository читает метаданные записи после проверки доступа в сценарии конференции.
@@ -293,7 +292,7 @@ func (s *WorkerService) handleStart(ctx context.Context, command records.Command
 		// Roll back the local allocation before returning that error so an
 		// unstarted recording cannot permanently occupy an ingest slot.
 		if s.ingest != nil {
-			if stopErr := s.ingest.Stop(command.RecordID); stopErr != nil && !errors.Is(stopErr, webrtcingest.ErrNoMedia) {
+			if stopErr := s.ingest.Stop(command.RecordID); stopErr != nil && !errors.Is(stopErr, records.ErrNoMedia) {
 				return errors.Join(err, stopErr)
 			}
 		}
@@ -337,7 +336,7 @@ func (s *WorkerService) handleStop(ctx context.Context, command records.Command)
 		return releaseRecordLock(ctx, s.conferenceLocker, record)
 	}
 	if s.ingest != nil {
-		if err := s.ingest.Stop(command.RecordID); err != nil && !errors.Is(err, webrtcingest.ErrNoMedia) {
+		if err := s.ingest.Stop(command.RecordID); err != nil && !errors.Is(err, records.ErrNoMedia) {
 			return s.failWorkerRecord(ctx, command.RecordID, "record.ingest.stop.failed", err)
 		}
 	}

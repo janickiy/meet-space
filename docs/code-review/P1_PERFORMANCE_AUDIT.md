@@ -1,5 +1,168 @@
 # P1: производительность и эффективность
 
+## Повторный аудит — 16 октября 2026
+
+### 1. Executive summary
+
+Проведён новый измеримый P1-аудит текущего кода: RTP/ownership, locks/channels, Redis, RabbitMQ, PostgreSQL, temporary storage и FFmpeg. Принята **одна production-оптимизация**: пакетная вставка участников при создании группы. Для 20 участников latency benchmark снизилась на **58.64%**, для 100 — на **70.44%** (по 6 samples, p=.002). SQL на создание группы: 23→4 и 103→4 соответственно. Роли, валидация аккаунтов, транзакция и идемпотентность сохранены.
+
+Аудит завершён с явно указанными ограничениями. P0 lifecycle smoke и race проходят. Общий staticcheck остаётся красным из-за двух **существовавших до правки** U1000; это не полный зелёный quality gate. Результаты старых аудитов ниже — история, не baseline этого прохода. Деплой не выполнялся; P2 не реализовывался.
+
+### 2. Baseline environment
+
+- Исходный commit `a604c0d49ce5651f481fe0c0a144e5a049759ff4`, working tree был чистым. Go 1.26.9 darwin/arm64, macOS 27.0.1, Apple M5, 10 logical CPU, 24 GiB RAM. GOMAXPROCS=10, GOGC не менялся.
+- Docker 29.4.2, Linux arm64 VM: 10 CPU, 16,748,032,000 B RAM, kernel6.12.76-linuxkit. PostgreSQL 17.10, Redis 7-alpine, RabbitMQ 4.2.9-management; сохранены точные image IDs. FFmpeg 6.1.2 в существующем образе `go-recorder-worker`, ID `sha256:d37e4a93b60ce872d856eb2accfcf9626a082a14a28e36eb80881a70ff54660d`.
+- Собственные disposable PostgreSQL/Redis/RabbitMQ: отдельная сеть, случайные credentials, только loopback ports. Ни данные, ни настройки production не использовались. 11 исходных контейнеров пользователя продолжали работать; это shared host, а не изолированная лаборатория.
+- До изменений: uncached `go test`, `go test -race`, vet, frontend Prettier — PASS. Постоянных Go tests в дереве нет: пустой зелёный `go test` **не заменяет** реальные opt-in проверки ниже. Staticcheck 0.7.0 — два U1000; govulncheck 1.8.0 — 0 symbol/package findings, одна module-only `GO-2026-5932` для неимпортируемого OpenPGP в x/crypto. Это не утверждение об отсутствии уязвимостей всех транзитивных зависимостей.
+
+Ignored evidence: `tmp/p1-audit-20261016/` (profiles, SQL/plans, JSON metrics, logs, before source snapshot, overlays, source hashes). Проверка переносимых инструментов: `tmp/p1-repro-20261016/`. Точные команды и безопасное удаление стенда: [tools/performance-audit/README.md](../../tools/performance-audit/README.md). Бинарники baseline/after используют один harness, исходная группа подставляется через Go overlay без отката working tree.
+
+### 3. CPU/heap/alloc profiles
+
+Сняты CPU, heap, allocs, mutex, block и goroutine checkpoints для idle; 2/5/10 peers; двух комнат по5/10; screen+recording/audio egress; DB/read+JSON, Redis reconciliation и двух concurrent composite finalizers. `profile-summary/` содержит разобранные pprof tops. Отдельный pprof установлен во временную папку: текущий Go toolchain не включает `go tool pprof`.
+
+Media — настоящие Pion ICE/DTLS/SRTP/UDP клиенты и сервер в одном процессе, payload160/1200 B, 50RTP/source/s; 22 s warmup, около5 s sample. Это encoded synthetic packets, не browser camera encode/WAN и не server-only capacity. Pion NACK history прогревается до ограниченного размера1024.
+
+В 10×2 rooms: CPU8.1529 s за5.0004 s wall; runtime mallocs396,522/s,52.316 MB/s. CPU samples7.76 s: raw syscall60.44%, pthread wait8.76%; alloc-space delta283.98 MB, Pion ReadRTP78.44% cumulative. Часть расходов принадлежит тестовым receiving clients. Active heap384.02 MB; sampled heap93.80% в bounded retransmission packet factory. После cleanup live heap1.661 MB, G3/FD6, все maps пусты. RSS774.34 MB сохраняет allocator high-water и сам по себе не доказывает утечку.
+
+DB profile3.24 s содержит290 ms Go CPU samples, alloc-space delta74.75 MB: `relatedByRecordIDs`42% cumulative, JSON9.44 MB cumulative. Серверный PostgreSQL CPU сюда не входит. Recording parent CPU profile за0.51 s имеет0 samples; CPU дочерних FFmpeg/ffprobe измерен отдельно через RUSAGE_CHILDREN — отсутствие Go samples не означает отсутствия работы.
+
+### 4. RTP allocation/copy findings
+
+Путь: `TrackRemote.ReadRTP → Manager.receive → bounded subscription queue → subscription.forward → TrackLocalStaticRTP.WriteRTP → NACK/SRTP/UDP`. Собственного N-кратного payload clone перед subscribers нет. `receive` создаёт snapshot указателей на subscriptions, не payload. `recordPacket` snapshot-ит указатели на sinks и один раз marshal-ит RTP для всех recording/audio consumers.
+
+Targeted egress benchmark: без sinks0 alloc/op; при1 и2 sinks одинаково1 alloc/op —176 B для payload160,1280 B для payload1200. Для1200 B median около218ns/op с одним sink и251ns/op с двумя. Шесть samples по300 ms; это цена enqueue/marshal, **не полный forwarding latency**. SDK receive allocations доминируют; новый sync.Pool, reusable shared packet или custom RTP stack не обоснованы.
+
+Expensive debug formatting и SQL/Redis на каждый пакет в inspected hot path не обнаружены. Per-packet counters — атомарные; high-cardinality packet labels не добавлялись. Сжатие уже кодированного RTP не включалось.
+
+### 5. Buffer ownership и Audio/STT
+
+| Участок | Ownership / основание |
+| --- | --- |
+| Pion ReadRTP | Packet-owned allocation, payload живёт дольше receive iteration |
+| Header extensions | Producer изменяет до fan-out; дальше packet immutable |
+| Subscriber queue | Shared immutable packet; async consumers исключают немедленный reuse |
+| Pion WriteRTP | Pooled shallow header copy меняет SSRC/PT, payload не переписывается |
+| NACK/RTX | Bounded copies per subscriber нужны для повторной передачи |
+| Recording + audio egress | Один immutable marshaled buffer разделён consumers; нельзя вернуть его в pool до завершения обоих |
+| PCM decoder | Отдельный FFmpeg/worker, не RTP goroutine; reusable PCM buffer допустим только на синхронном callback |
+
+Subscriber queues default128/max4096, recording2048/max8192, audio taps≤256. Overflow неблокирующий; drop/cancel guards сохранены. Opus/STT decode не возвращён в SFU. Provider STT throughput/worker saturation **not measured**: synthetic egress вычитывается без внешнего STT, реальные decoders проверены отдельно на lifecycle.
+
+### 6. Lock contention и channels
+
+10×2 media delta: aggregate mutex delay230.01 ms, из него readRTCP179.67 ms, forward18.07 ms; room/registry snapshot не доминирует. Block delta7908.96 aggregate goroutine-seconds,99.99% в select. Сумма concurrent goroutine waits может включать завершившиеся ожидания, начавшиеся во время warmup; это **не** latency запроса и не CPU. Per-lock hold/frequency **not measured**: pprof не даёт этого распределения, per-packet instrumentation ради недоказанного hotspot не вносилась.
+
+Registry/room snapshot locks отпускаются до fan-out/marshal; блокирующий channel send не добавлялся. Peer SDP barriers, Pion channel ownership и WS delivery authorization fences нельзя снимать механически. Rabbit publisher mutex упорядочивает общий channel и confirm. В DB `GroupMembers` использует `lockGroup`/FOR UPDATE даже на read:32×5 readers дают201.6 ms wall/2.022 aggregate pool-wait seconds; after196.2 ms/1.896 s. Этот path не менялся, ускорение не заявляется; безопасное ослабление требует отдельных revocation/concurrency контрактов. Mutex→RWMutex, sharding и замена channels не делались.
+
+### 7. Redis reconnect/efficiency
+
+Go-redis 9.19.0 владеет pool/command retries: max retries2, timeout3 s, randomized SDK backoff8–512 ms. Hub использует один acknowledged Pub/Sub recovery loop100 ms→2 s, дублирующего worker нет. Hub jitter отсутствует; prolonged outage/multi-replica herd **not measured**.
+
+Пять CLIENT KILL своей subscription при здоровом Redis: recovery readiness+доставка104.122–107.421 ms. Missing500:1 pipeline request/500 commands,≈0.946–0.988 ms/op,167256 B/op,2521 alloc/op. Online1/20/100:1 request/1Lua command, single observations303.8/310.3/449.1 µs; чтение не продлевает TTL. Reconciliation использует real Redis + synthetic Stale repository; SQL этого сценария не включён. Никаких per-RTP keys/TTL writes. Production Redis не менялся.
+
+### 8. RabbitMQ reconnect/prefetch/throughput
+
+Confirmed serial publish345.944–431.742 µs/op,≈2874 commands/s по median; parallel341.393–358.875 µs/op. Go allocations65/op,≈2875 B/op. Publisher reconnect4.983–5.786 ms; consumer3 fault recovery1.008–1.016 s до первой наблюдаемой доставки (возможна redelivery). Это не FFmpeg jobs/s и не длительный outage SLA.
+
+Connection/channel переиспользуются, confirms сохранены, manual ack/nack и quarantine≤65536 B. QoS/prefetch1 заново применяется после reconnect и соответствует sequential FFmpeg handler. Queue содержит команды/ссылки, не media/transcript blobs. Consumer retry фиксированный1 s без jitter; sustained outage/multi-worker herd остаётся отдельной P1-проверкой. Новых broker optimizations нет.
+
+### 9. PostgreSQL pool
+
+Текущие MaxOpen20/MaxIdle10, lifetime30min, MaxIdleTime unset; connect timeout5 s, statement timeout10 s (DB_QUERY_TIMEOUT1 s..1min), lock timeout5 s. На disposable PG max_connections100. Конкурентный group-chat read32 clients×5: peak20 open/20 in-use; final10 open/0 in-use/10 idle,0 errors. До133 waits/1.089 aggregate s/111 ms wall, после131 waits/1.214 s/122 ms; p95 47.498→55.963 ms. Read path не изменён; не объявляется выигрыш или доказанная регрессия.
+
+Production compose содержит4 DB-процесса: API, worker, product-worker, live-worker. Media-worker использует Redis без PostgreSQL. После Connect четыре DB-процесса применяют Operations config (default DB_MAX_OPEN=20, DB_MAX_IDLE=10, DB_CONNECTION_LIFETIME=30m). Сумма default pools4×20=80 оставляет20 из PG100 до учёта миграций/диагностики и других клиентов; shared-host override PG60 уже ниже этой верхней суммы. Это статически подтверждённый конфигурационный риск, **не воспроизведённый production outage**. Одновременная saturation всех реплик/ролей **not measured**. Увеличивать pool до100 либо менять лимиты без этого эксперимента не обосновано.
+
+### 10. N+1/query findings
+
+Read page query counts не растут per row в изученных batch loaders: recordings1/20=7/7, history6, participants20=4, conference chat20=8, personal list20=2, personal unread group20=2, group/direct chat20=10, group members20=3, notifications20=2, transcript20=5, summary4, analytics4, admin3. Полные p50/p95/p99 и SQL находятся в [P1_BEFORE_AFTER.md](P1_BEFORE_AFTER.md) и evidence. Для replies/attachments fixture пустой: сохранённые10/8 query counts не являются измерением heavy attachments/reply fan-out; source audit показывает batched loads.
+
+Обнаружен write N+1: group CreateGroup2/20/100 участников =5/23/103 SQL. Все аккаунты уже проверены одной блокирующей выборкой, но membership INSERT выполнялся отдельно на каждого. Исправлено одним bounded INSERT, теперь4 SQL для каждого размера. Read exact unread count и ACL predicates не менялись.
+
+Recordings20 всё ещё загружает full segment/event metadata:≈1.253 MB/op repository и≈1.984 MB/op Gin+JSON. Более лёгкая projection требует проверки API-клиентов и DTO-контракта, поэтому поля не удалялись ради bench. Постоянный round-trip count не означает постоянный PostgreSQL CPU: personal list сканирует50,950 messages для latest/unread aggregation.
+
+### 11. EXPLAIN/index changes
+
+Сохранены exact emitted SQL + EXPLAIN(ANALYZE,BUFFERS) всех17 read workloads. Recording20 использует существующие cursor/relation indexes: largest measured relation plan≈0.068 ms; in-memory sorts25–65KiB, disk spill не наблюдался. Group/direct chat применяют существующий cursor index; scans маленьких/пустых fixtures не повод для нового индекса. Personal list top-N sort36KiB и seq scan50,950 messages: first plan8.527 ms, unread aggregate12.214 ms. Personal unread group EXISTS уже был реализован до этого аудита; не приписывается новой правке.
+
+Наиболее медленный read — notifications20: p50≈118 ms, p95≈131 ms. Unread-count EXPLAIN128.368 ms, JIT127.906 ms,53 functions; дорогие estimates из `id::text = payload`/OR приводят к JIT даже при fixture non-chat types и never-executed subplans. Это измеренная проблема; chat.message-heavy distributions/invalid payload/ACL revocation regressions **not measured**. Без них безопасная indexable UUID/rewrite стратегия пока не доказана. Глобально JIT не выключался; индексы и миграции не добавлялись. Следующий P1 эксперимент должен сравнить это точечно, сохраняя mute/leave/clear/delete правила.
+
+### 12. Temp-file/disk I/O
+
+| Поток | Create/write/consume/cleanup |
+| --- | --- |
+| Composite sources/chunks | Per-record directory, RTP source files + JSON manifests, durable fsync, compose consumes; retained on recoverable failure, cleanup после успешной публикации |
+| Final MP4/preview | Per-record intermediates, validate/preview/checksum, streamed upload; recovery artifacts не удаляются для экономии I/O |
+| Individual tracks ZIP | Per-record archive, io.Copy/LimitReader+context; нет whole-media ReadAll |
+| STT extraction | Private job tempdir, MinIO stream → bounded io.Copy/LimitReader file → FFmpeg decode; once cleanup, нет media→fullRAM→disk |
+| Checksums/uploads | SHA256 io.Copy и потоковый storage API |
+
+Manifest ReadFile читает metadata, не video. Hard byte/count bound для recovery manifest Glob/ReadFile не найден: при очень долгой/повреждённой записи возможен отдельный memory/work spike, это оставшаяся проверка. Большие avatar/attachment ReadAll ограничены соответствующими ingress limits; этот аудит их не меняет.
+
+Два concurrent finalizers,6 rounds/12 samples: existing4s640×36010fps H264/AAC,2ssegments; fixture encoding исключён. FinalizeComposite p50 **84.723 ms**, max88.874 ms; wall0.510 s. FFmpeg+ffprobe child CPU1.122311 s. Temp before/peak/after **1,964,672 B /8 files**, стабильно; durable recovery segments ожидаемо остаются. Go heap послеGC1.482→1.485 MB, total allocated8.621 MB. `/proc/self/io`: logical rchar delta33,855,916 B, wchar delta11,793,607 B; file cache/tmpfs/children делают эти числа непригодными для физической дисковой пропускной способности. Physical I/O wait **not measured**: shared Docker VM, контейнерный tmpfs, нет attributing block-device instrumentation.
+
+Preview извлекает один кадр; duplicate final-file probe уже устранён до baseline. Segment duration/codecs/passes не менялись. Полный SFU→capture→finalize→MinIO→DB concurrent pipeline **not measured**; этот fixture измеряет метод финализации и process lifecycle, не end-to-end recording capacity.
+
+### 13. Optimizations implemented
+
+**Bottleneck → evidence:** sequential membership INSERT, линейные5/23/103queries; baseline snapshot и6pairedsamples. **Change:** normalize/validate и account locks прежние; подготовить≤100 rows и один `tx.Table("conversation_members").Create(&members)` в прежней транзакции. **Before→after:**20members6.893→2.851 ms;100members29.945→8.852 ms. **CPU/memory/latency:** меньше round trips/Go objects;100 members allocs3667→1845, B/op282.7→293.7KiB (+3.89%). Separate group CPU savings **not measured** — нет изолированного CPU profile этого короткого метода. **Risk:** bounded temporary batch и GORM generation; ограничения/owner/rollback проверены. **Regression:**100 members, ровно1owner, retry, invalid user/oversize, injected DB failure leaves no partial group/members, всё под race.
+
+Для2 members time2.010→1.899 ms,p=.065 — значимый выигрыш не подтверждён; B/op+7.12%,allocs+2%. Небольшой bounded memory tradeoff принят ради измеренного крупного выигрыша на20/100 members и простой реализации. Никакого sharding/pooling/cache/serialization/compression redesign.
+
+### 14. Before/After metrics
+
+См. [обязательную таблицу](P1_BEFORE_AFTER.md). Единственное causal before/after — membership batch. SFU/Redis/Rabbit/FFmpeg/pools/read SQL не изменялись: их результаты — baseline текущего кода, не новая оптимизация. Старые audit numbers не используются. Expanded DB run, пересёкшийся с lifecycle load, сохранён как `data-overlapped-*` и исключён из таблиц; окончательные `data-before/after` выполнены последовательно. Shared host noise сохраняется, поэтому unchanged read p95 колебания не названы выигрышем.
+
+### 15. Bench/load results
+
+- Media7scenarios PASS; internal queues dropped0. Forwarded packets за sample:10peers45,000;10×2=90,000. Отдельный expected-sender/sequence/network-loss audit **not measured**, zero queue drops не равен zero loss.
+- DB17 read paths×100 samples после5warmups,32×5 concurrency, exact query plans;1000 meetings,20 users/20kparticipants,20krecordings,40kfiles,400ksegments,200kevents,50kconference messages,20knotifications/transcripts/summaries,400ktranscriptsegments;1000 groups×20 members+19 direct,50,950 personal messages. Requests local, noTLS/auth/provider/upload.
+- Group benchmark6alternatingbefore/after ×30ops ×2/20/100 members; fresh DB per sub-benchmark, benchstat p=.002 on20/100. Redis3benchmark samples,500-route reconciliation; Rabbit3 samples+3 faults; egress6 samples. Не оценивается production SLA/p99 по этим коротким samples.
+- Portable `prepare`, actual WS/WebRTC/AMQP lifecycle и Linux FFmpeg wrapper проверены на тех же собственных fixtures. `.go.txt` templates не входят в обычный Go build; runner создаёт временный overlay.
+
+### 16. P0 regression и gates
+
+| Проверка | Результат текущего прохода |
+| --- | --- |
+| go test -count=1 ./... / go test -race -count=1 ./... | PASS, постоянных Go tests нет; обязательные actual regressions ниже |
+| go vet / go build ./... / go mod verify | PASS |
+| frontend Prettier / gofmt / diff whitespace | PASS |
+| staticcheck | FAIL: прежние U1000 `composite/capture.go:490 newSourceWriter`, `sfu/peer.go:716 validateOffer`; новых diagnostics нет |
+| govulncheck |0 symbol/package findings,1 module-only advisory; зависимости не менялись |
+| Real SQL+Redis+2Hub WebSocket, race | PASS:20 warm+4×250=1020 lifecycles, subscription recovery и transient Prune; final14 goroutines,14 FD,0 localWS/namespacekeys/connectedSQLsessions |
+| Real Pion lifecycle+source churn, race | PASS:25 fullcycles+25 replacements; after cleanupG2/FD6,0 room/peer/track/subscription; no race report |
+| Group contracts, race | PASS: roles/bounds/idempotency/rejection/transaction rollback |
+| AMQP blocked writes/RPC/handshake/Close, race ×3 | PASS; contexts/Close unblock sockets |
+| Actual FFmpeg processes, Linux | PASS:17 segmentstarts,14 finalizations,15 cancellations/timeouts,6 expectedinput/disk failures,6 livedecoders; finalG2/FD7,0 child/0 tempfile/0 tempbyte; CGO0, не race binary |
+
+WebRTC race-log содержит Pion teardown EOF/unhandled SSRC сообщения после остановки source; assertions/cleanup и race проходят. Они сохранены, не скрыты. Многодневная стабильность, WAN/browser/Android timestamp interoperability и production load **not measured** в этом P1. Новая UI/recording startup задача не подменяется синтетическим аудитом.
+
+Финальный group contract исправлен, чтобы invalid-user fixture не изменял исходный список аккаунтов. Проверяется текст именно injected INSERT-trigger error, затем отсутствие частично созданных metadata/members и роли всех 100 участников. Три повторения под race: PASS (`tmp/p1-audit-20261016/final-group-contract-race.log`). Предыдущая версия могла завершиться до INSERT; её старый PASS сам по себе не используется как доказательство rollback. На latency benchmark это не влияет: он не запускает этот контракт и использует собственные fresh fixtures.
+
+### 17. Remaining P1 bottlenecks
+
+1. **Notifications/JIT:** измеренные≈118 ms median, JIT127.9 ms в plan; отдельный indexable predicate experiment + invalid/muted/left/cleared/deleted fixtures, без global JIT toggle.
+2. **Pool budget:**4×20 potentialconnections против PG100/override60; media-worker не имеет DB pool; нужна simultaneousrole/replica load и измеренный budget, затем configuration tuning.
+3. **Personal read cost:** latest/unread aggregate по50,950 messages и GroupMembers FOR UPDATE serialization; current race-safe ACL fences сохранить, сравнивать только с security/regression contracts.
+4. **Recording list:**≈2 MB/request Go allocations с full nested metadata; lightweight projection после consumer-contract verification, не удаление полей молча.
+5. **Reconnect herd:** fixed Rabbit retry1 s/Hub no jitter; multi-replica prolonged outage не измерен. Текущие singlefault recovery timings нельзя расширять до такого SLA.
+6. **Long recovery/temp growth:** metadata Glob/ReadFile без hard cardinality/byte cap; failed durable artifact retention/storage pressure требует operational test. Recovery chunks не удалять только ради красивого heap/disk графика.
+7. **Static gate:** два старых U1000 оставлены, поскольку naming/dead-code cleanup явно вне P1 scope. Это открытый gate, не «всё зелёное».
+
+### 18. P2 follow-up
+
+Отдельно, без реализации: договориться о compact recording DTO/пагинации nested artifacts; собрать end-to-end multi-room capture/MinIO stop→ready capacity; production topology connection budget; длительный multi-worker outage/backlog и bounded recovery retention. Sharding, custom RTP stack, новый cache или замена брокера не предлагаются без следующего измерения. Автоматического перехода к P2 нет.
+
+### 19. Files changed и cleanup
+
+- `internal/infrastructure/postgres/group_repository.go` — один batch INSERT вместо N inserts.
+- `docs/code-review/P1_PERFORMANCE_AUDIT.md`, `P1_BEFORE_AFTER.md` — текущие evidence/limitations; предыдущие аудиты сохранены ниже как история.
+- `tools/performance-audit/run.py`, `README.md`, `harness/**/*.go.txt` — opt-in load/bench/query/profile/lifecycle reproduction, без permanent Go tests и без обращения к пользовательским сервисам.
+
+Cleanup receipt сохранён в `tmp/p1-audit-20261016/cleanup.json`; собственные контейнеры, их anonymous volumes и отдельная сеть удалены, состояние11 preexistingcontainers проверено. Приложение не публиковалось на удалённый хост.
+
+---
+
 ## Повторный аудит — 10 октября 2026
 
 Этот раздел описывает **текущий** P1 после P0. Отчёт 6 октября ниже сохранён как история: его другое оборудование, Go и прежние оптимизации не используются в качестве сегодняшнего baseline. Сводные числа и ограничения сравнения находятся в [P1_BEFORE_AFTER.md](P1_BEFORE_AFTER.md).

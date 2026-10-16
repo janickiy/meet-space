@@ -86,14 +86,24 @@ func (r *PersonalRepository) CreateGroup(ctx context.Context, actor string, requ
 			id = prior.ID
 			return groupWriteView(tx, actor, id, &item)
 		}
-		for _, user := range ids {
+		members := make([]struct {
+			ConversationID string
+			UserID         string
+			Role           personal.Role
+		}, len(ids))
+		for i, user := range ids {
 			role := personal.MemberRole
 			if user == actor {
 				role = personal.Owner
 			}
-			if err := tx.Exec(`INSERT INTO conversation_members(conversation_id,user_id,role) VALUES(?,?,?)`, id, user, role).Error; err != nil {
-				return err
-			}
+			members[i].ConversationID = id
+			members[i].UserID = user
+			members[i].Role = role
+		}
+		// All accounts are already locked and validated. One bounded insert keeps
+		// creation atomic without a database round trip for every participant.
+		if err := tx.Table("conversation_members").Create(&members).Error; err != nil {
+			return err
 		}
 		return groupWriteView(tx, actor, id, &item)
 	})

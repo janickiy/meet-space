@@ -15,10 +15,7 @@ import (
 const InternalErrorMessage = "internal server error"
 
 // Fail сопоставляет прикладную ошибку с HTTP-статусом и безопасным JSON-ответом.
-//
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-//   - err (error): ошибка, которую необходимо классифицировать, сохранить или вернуть клиенту.
+// Для Internal всегда используется общий текст без диагностической причины.
 func Fail(c *gin.Context, err error) {
 	status, message := http.StatusInternalServerError, InternalErrorMessage
 	switch apperrors.Classify(err) {
@@ -46,15 +43,9 @@ func Fail(c *gin.Context, err error) {
 	c.AbortWithStatusJSON(status, gin.H{"status": "failed", "message": message})
 }
 
-// BindJSON строго разбирает JSON-тело HTTP-запроса и сообщает безопасную ошибку формата.
-//
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-//   - target (any): целевой объект, участник или состояние операции.
-//   - optional (bool): логический признак optional, управляющий соответствующей веткой обработки.
-//
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// BindJSON декодирует одно JSON-значение в target с лимитом тела 32 КиБ,
+// запрещая неизвестные поля и данные после значения. optional разрешает пустое
+// тело. При false ответ 400 уже записан и обработка запроса прервана.
 func BindJSON(c *gin.Context, target any, optional bool) bool {
 	if c.Request.Body == nil {
 		c.Request.Body = http.NoBody
@@ -76,15 +67,9 @@ func BindJSON(c *gin.Context, target any, optional bool) bool {
 	return false
 }
 
-// Pagination разбирает предел и смещение страницы из URL и проверяет допустимые границы.
-//
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-//
-// @return:
-//   - результат 1 (int): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (int): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 3 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Pagination возвращает limit, offset и признак успешного разбора query-параметров.
+// По умолчанию limit=20 и offset=0; допустимы limit от 1 до 100 и offset >= 0.
+// При false ответ с ошибкой валидации уже записан.
 func Pagination(c *gin.Context) (int, int, bool) {
 	limit, offset := 20, 0
 	var err error

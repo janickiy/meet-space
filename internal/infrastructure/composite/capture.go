@@ -477,20 +477,6 @@ const sourceJitterWindow = 200 * time.Millisecond
 // Keep enough frames between periodic keyframes without relaxing the byte cap.
 const maxPrerollFrames = 4096
 
-// newSourceWriter создаёт запись элементарного потока для одного источника медиа.
-//
-// @args
-//   - dir (string): значение dir типа string, используемое согласно назначению этой операции.
-//   - index (int): значение index типа int, используемое согласно назначению этой операции.
-//   - track (media.EgressTrack): медиа-дорожка, которую обрабатывает или подписывает компонент.
-//
-// @return:
-//   - результат 1 (*sourceWriter): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-func newSourceWriter(dir string, index int, track media.EgressTrack) (*sourceWriter, error) {
-	return newSourceWriterState(dir, index, track, nil)
-}
-
 // newSourceWriterState инициализирует состояние кодирования и сборки фрагментов одного источника.
 //
 // @args

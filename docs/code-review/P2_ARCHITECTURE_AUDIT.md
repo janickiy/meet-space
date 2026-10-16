@@ -1,6 +1,68 @@
 # P2 — Architecture audit
 
-## Текущий аудит — 2026-10-10 (до изменений)
+## Текущий аудит — 2026-10-16 (зафиксирован до изменений production-кода)
+
+Задание: `CODE_REVIEW_AND_OPTIMIZATION_P2.md`. Исходная версия: HEAD `a604c0d49ce5651f481fe0c0a144e5a049759ff4` плюс staged P1 (batch INSERT участников группы и opt-in performance harness). Эти изменения сохраняются. Исторические отчёты ниже не являются результатами нынешнего запуска. Удалённый хост не изменяется.
+
+### Исходное состояние и baseline
+
+- Новая карта всех **74 packages**: [P2_PACKAGE_INVENTORY.md](P2_PACKAGE_INVENTORY.md). AST: 1425 функций/методов; полные imports/public declarations/struct fields сохранены в `tmp/p2-audit-20261016/inventory-before.json`.
+- `go test -count=1 ./...`, `go test -race -count=1 ./...`, `go vet ./...`, frontend Prettier — PASS. В исходном дереве нет постоянных Go tests; эти результаты проверяют сборку, а runtime evidence даёт opt-in harness.
+- Staticcheck v0.7.0: два U1000, `composite.newSourceWriter`, `sfu.validateOffer`. Поиск по production и сохранённым harness находит только объявления. Vulncheck v1.8.0: 0 reachable/imported-package vulnerabilities, 1 module-only advisory в неиспользуемом пакете. Первый sandbox-запуск не имел DNS; повтор с network access успешен.
+- До production edits завершены WS+Redis+Postgres, Pion (2–5 peers, reconnect/source churn/screen), AMQP race и реальный FFmpeg на собственных временных контейнерах. Исходное дополнение baseline и итоговые результаты приведены ниже.
+
+### Evidence и границы ответственности
+
+`ConferenceParticipant` — durable membership; `ParticipantSession`/connection в realtime — подключение; SFU `peer` — Pion transport и связанные goroutines; `Record` — durable recording lifecycle. Их идентификаторы и процессы не объединяем.
+
+Нет domain→app/usecase/transport/infrastructure imports. Публичные business handlers `internal/app/*` не импортируют Pion/FFmpeg; внутренний `transport/mediaworker` использует Pion DTO на своей engine boundary. Единственный domain→ORM тип — `records`→`gorm.io/datatypes`. Пять concrete usecase→infrastructure зависимостей ограничены recorder: четыре orchestration adapters (composite, ffmpeg, local, s3), а legacy webrtc импортирован только ради sentinel. Последняя связь устраняется batch A, остальные сохраняются.
+
+Крупные функции: `Composer.Capture` **326 LOC/71 AST branch nodes**, `mediaworker.Handler.command` **276/58**, `RunAPI` **207/23**, `IntegrationRepository.Fanout` **151/36**, `notifications.Handler.Events` **139/28**, `CallRepository.Change` **118/29**. Branch nodes — if/for/range/case/comm (с closures), не cyclomatic complexity. Capture/command координируют несколько стадий, но большой rewrite перед recording/media lifecycle не обоснован. SSE имеет отдельно выделяемую и проверяемую ответственность.
+
+Managers: `sfu.Manager` 22 поля/19 public methods; realtime.Hub 18/19; integrations.Service 6/16 (repository22); CompositeService11/6; personal.Handler3/20 (repository20). Notifications.Handler9/4 объединяет stateless List/Read и потоковое состояние SSE: counters, subscription, expiry/session guards, drain. Это выбранный bounded split.
+
+### План последовательных batches A–F
+
+| Batch | Решение до кода | Доказательство / compatibility gate |
+|---|---|---|
+| A error taxonomy/mapping | Сохранить действующие 9 категорий; вернуть opt-in контрактные tests | `apperrors.Classify` outer Kind, errors.Is/As + cause; raw deadline остаётся Internal; HTTP/WS schema/status/code unchanged |
+| B duplicated policies | Убрать дублированный GroupPresence contract, использовать существующий PresenceReader | Политики group/peer presence различны: group optional enrichment, peer fail-closed. Их не сливать. Backend membership/record permissions уже имеют владельца |
+| C service split | Отделить private eventStreams owner от notifications Handler, без нового public API | Handler fields9 → service+streams; NewHandler/Events/BeginDrain/headers/limits unchanged; before/after SSE contracts |
+| D cleanup ownership | Reject-Join cleanup передать существующему идемпотентному peer.close; SSE subscriptions/counters оставить у stream owner | Пять cancel()+pc.Close() rejection branches; закрывать вне room/manager locks; registration transfers ownership; реальный Pion race |
+| E thin handlers/usecases | Вынести authorized GroupMembers read + bounded presence projection в usecase/personal | HTTP оставляет parse/call/map; exact online:null/offline semantics, auth-before-presence, 2s timeout, cancellation compatibility |
+| F dead code | Удалить только newSourceWriter и validateOffer wrappers | U1000 и отсутствие callers; оставить legacy worker/recovery/retention paths; compile/staticcheck/SFU/recording regression |
+
+Каждый изменяемый runtime contract сначала характеризуется tests на исходном коде. Отдельные batches проверяются tests/race и relevant integration, затем diff review. Никаких migrations, новых маршрутов, UI, конфигурации deployment или RTP hot path abstractions.
+
+### Дополнение baseline перед первой production-правкой
+
+Все четыре smoke suites до изменений завершены успешно: `before/p0-ws.log`, `p0-sfu.log`, `p0-rabbit.log`, `sfu.log`, `db-after.log`, `recording.log`. Это новые результаты 16 октября, не исторический прогон. Before-compatible P2 contracts (8 packages) с race и реальным изолированным Redis — PASS. Дополнительно добавлен контракт legacy worker prepare rollback/no-media stop; его проверка выполняется перед batch A.
+
+Дополнение batch A: usecase/recorder импортирует concrete infrastructure/webrtc **только** ради `ErrNoMedia` (две errors.Is проверки). Перенести sentinel к domain/records, оставить adapter `ErrNoMedia` alias с той же identity/message. Это убирает реальную обратную зависимость без удаления legacy ingest. Reproduction: nil/sentinel/wrapped sentinel продолжают finalization, одноимённая посторонняя ошибка — failure; prepare rollback сохраняет root cause. Из пяти usecase→infra импортов станет четыре.
+
+### Остальные audit findings (не превращаем в speculative rewrite)
+
+- Ошибки: typed app errors и media error-code catalogue уже единые; HTTP Internal sanitized. WS error payload code+replyTo остаётся без добавления полей. Legacy trusted worker text400 — прежний совместимый контракт, остаётся долгом до отдельного e2e старого ingest.
+- Logging owner: operation/worker логирует terminal failure; mapper формирует ответ. Не добавляем повторное логирование ошибки в каждый слой.
+- UUID/pagination: различаются normalization/canonical requirement, limits и safe text. Механическое объединение изменит API; сохранены. Redis key builder и Rabbit publisher уже владеют своими правилами. Local/storage signing принадлежит adapters.
+- Cleanup: существующие peer.close/subscription/egress.Close, manager shutdown, composite lease cancellation/wait/release и artifact publication.Close владеют ресурсами. Legacy normal stop сначала draining FFmpeg, failure сначала cancel; разные последовательности намеренны.
+- States/events: guarded recording transitions/repository transactions authoritative; durable Rabbit commands и ephemeral WS events не объединять. Новые calls используют raw string states/actions в одном repository; typed transition extraction требует отдельного race/idempotency contract suite, отмечен P2 debt.
+- Transactions: PostgreSQL row locks и atomic outbox сохраняются. Application publish выполняется после успешного repository return/commit; Redis realtime — ускорение, не durable source. Нет нового generic retry. Redis SDK и Hub recovery имеют разные ownership; Rabbit канал/confirm сериализуются намеренно.
+- Interfaces: сохранить provider Email/Calendar/STT/AI/Embedding, boundary repository/testing contracts. Giant integrations.Repository22 и personal.Repository20 отмечены, но дробить без реальных usecase потребностей не нужно.
+- Config/DI: явные constructors, subsystem configs, centralized env parsing; broad root Config допустим в composition root. operations atomic singleton не меняется без доказанной lifecycle проблемы. Mutable counters извлекаются только у SSE, где ownership конкретен.
+- Utils: нового common package нет; будущие helpers принадлежат владельцу операции. Ненужного разрастания интерфейсов/DTO и массового переименования не планируется.
+- P3 отдельно: устаревшие автоматически сгенерированные комментарии, naming/import cleanup. Не выполняется автоматически.
+
+### Завершение текущего прохода
+
+Production batches A–F выполнены и проверены. [Отчёт до/после](P2_BEFORE_AFTER.md) содержит 19 итоговых разделов, список 11 production файлов, методы измерений и ограничения. Начальный audit сохранён до production edits отдельно: `tmp/p2-audit-20261016/audit-before-edits.md`, SHA256 `b1585bbcd27b75757fc8665f0ffb2aaab35270f3be40b220ddeee0417d144765`. Приведённые выше уточнения и этот итог добавлены позднее; snapshot не изменялся.
+
+- Contracts: 18 top-level tests / 10 packages, normal×3 и race×3 с настоящим Redis — PASS. Полные go test/race/vet, staticcheck, govulncheck, frontend lint и vet overlay — PASS; 1 module-only advisory вне импортируемых packages сохранён в отчёте.
+- Runtime: WS1020 циклов, SFU25 lifecycle +25 source-churn, AMQP и настоящий FFmpeg — PASS. Остаточные session/room/peer/subscription counters нулевые. RTP allocation counts прежние.
+- Performance: DB задержки после контрольного ABBA сопоставимы, queries неизменны. Обязательный media smoke 2–5 peers проходит. **Строгий throughput gate для 10 peers inconclusive:** среднее двух after контролей на7,5% ниже before при значительном разбросе обоих вариантов. Это явно отмечено как ограничение DoD12, без утверждения о полностью доказанной производительности под высокой нагрузкой. Packet path не менялся; profiles сохранены.
+- Три созданных этим аудитом контейнера и их сеть/volumes удалены; все 11 прежних контейнеров остались запущены. Generated test binaries удалены, evidence/logs/profiles сохранены. Удалённый хост не обновлялся, P3 не начат.
+
+## Исторический аудит — 2026-10-10 (до изменений)
 
 Запрос: `CODE_REVIEW_AND_OPTIMIZATION_P2.md`. HEAD `a0781257debba3f911ee180067cc0fad5bb06204`, поверх существующих незакоммиченных P0/P1/UI-изменений. Они сохранены; это не чистый HEAD benchmark. Старый аудит 6 октября ниже — исторический, его результаты не выдаются за новые.
 

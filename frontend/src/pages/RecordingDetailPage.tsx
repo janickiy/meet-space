@@ -6,7 +6,6 @@ import {
   CalendarDays,
   Clock3,
   Download,
-  FileArchive,
   FileAudio,
   FileVideo,
   RefreshCw,
@@ -23,17 +22,6 @@ import {
   safeRecordingUrl,
 } from "../recordingPresentation";
 import "./recordings.css";
-
-const materialLabels: Record<string, string> = {
-  final_mp4: "Видеозапись (MP4)",
-  final_audio: "Аудиозапись",
-  tracks_archive: "Архив дорожек",
-};
-const materialIcons = {
-  final_mp4: FileVideo,
-  final_audio: FileAudio,
-  tracks_archive: FileArchive,
-};
 
 /** RecordingDetailPage открывает приватную запись только в контексте указанной встречи.
  * Идентификатор записи сам по себе не даёт права доступа: все материалы подтверждает API.
@@ -219,14 +207,6 @@ function RecordingDetailContent({
   const previewUrl = safeRecordingUrl(recordingPreviewFile(item)?.url);
   const playable = item.status === "ready" && !!mediaUrl;
   const audioOnly = media?.fileType === "final_audio";
-  const materials = (item.status === "ready" ? item.files : []).flatMap(
-    (file, index) => {
-      const url = safeRecordingUrl(file.url);
-      return url && Object.hasOwn(materialLabels, file.fileType)
-        ? [{ ...file, url, index }]
-        : [];
-    },
-  );
   const meetingHistory =
     history.isSuccess && history.data.item.conference.id === conferenceId
       ? history.data.item
@@ -348,46 +328,6 @@ function RecordingDetailContent({
                 </div>
               )}
             </dl>
-          </section>
-          <section
-            className="recording-detail-section recording-detail-materials"
-            aria-label="Файлы записи"
-          >
-            {materials.length > 0 ? (
-              <ul className="recording-detail-files">
-                {materials.map((file) => {
-                  const Icon =
-                    materialIcons[file.fileType as keyof typeof materialIcons];
-                  return (
-                    <li
-                      key={`${file.fileType}:${file.index}`}
-                      className="recording-detail-file"
-                    >
-                      <span className="recordings-file-icon">
-                        <Icon size={22} aria-hidden="true" />
-                      </span>
-                      <div className="recording-detail-file-info">
-                        <strong>{materialLabels[file.fileType]}</strong>
-                        <span>{formatRecordingSize(file.sizeBytes)}</span>
-                      </div>
-                      <a
-                        className="recording-detail-download"
-                        href={file.url}
-                        download
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label={`Скачать: ${materialLabels[file.fileType]}`}
-                      >
-                        <Download size={18} aria-hidden="true" />
-                        <span>Скачать</span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="field-hint">Доступных материалов пока нет.</p>
-            )}
           </section>
         </aside>
       </div>

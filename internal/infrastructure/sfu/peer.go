@@ -116,9 +116,7 @@ func (p *peer) start(fn func()) bool {
 		return false
 	}
 	p.wg.Add(1)
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-	 */func() { defer p.wg.Done(); fn() }()
+	go func() { defer p.wg.Done(); fn() }()
 	return true
 }
 
@@ -127,94 +125,72 @@ func (p *peer) start(fn func()) bool {
 func (p *peer) install() {
 	p.start(p.emitLoop)
 	p.start(p.negotiationNotifications)
-	p.pc.OnTrack( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-		@args
-		  - t (*pion.TrackRemote): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
-		  - r (*pion.RTPReceiver): запрос либо состояние ресурса согласно указанному типу.
-		*/func(t *pion.TrackRemote, r *pion.RTPReceiver) {
-			p.start( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-				 */func() { p.manager.receive(p, t, r) })
-		})
-	p.pc.OnICECandidate( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-		@args
-		  - candidate (*pion.ICECandidate): проверенный кандидат ICE для WebRTC-соединения.
-		*/func(candidate *pion.ICECandidate) {
-			var value *pion.ICECandidateInit
-			if candidate != nil {
-				c := candidate.ToJSON()
-				value = &c
-			}
-			p.emit("media.ice", map[string]any{"mediaPeerId": p.id, "candidate": value})
-		})
-	p.pc.OnConnectionStateChange( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-		@args
-		  - state (pion.PeerConnectionState): значение state типа pion.PeerConnectionState, используемое согласно назначению этой операции.
-		*/func(state pion.PeerConnectionState) {
-			p.manager.log(p, "peer_connection_state", []any{"state", state.String()})
-			p.emit("media.state", map[string]string{"mediaPeerId": p.id, "state": state.String()})
-			if state == pion.PeerConnectionStateConnected {
-				p.classifyTransport()
-			}
-			if state == pion.PeerConnectionStateFailed {
-				p.markFailure()
-				p.stopAsync()
-			}
-		})
-	p.pc.OnICEConnectionStateChange( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-		@args
-		  - state (pion.ICEConnectionState): значение state типа pion.ICEConnectionState, используемое согласно назначению этой операции.
-		*/func(state pion.ICEConnectionState) {
-			p.manager.log(p, "ice_state", []any{"state", state.String()})
-		})
-	p.start( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-		Синхронизирует доступ к разделяемому состоянию блокировкой.
-
-		*/func() {
-			ticker := time.NewTicker(100 * time.Millisecond)
-			defer ticker.Stop()
-			created := time.Now()
-			var disconnectedAt time.Time
-			for {
-				select {
-				case <-p.ctx.Done():
-					return
-				case <-ticker.C:
-					p.mu.Lock()
-					pendingReadyAt := p.pendingReadyAt
-					p.mu.Unlock()
-					if !pendingReadyAt.IsZero() && time.Since(pendingReadyAt) >= p.manager.opts.NegotiationTimeout {
-						p.markFailure()
-						p.stopAsync()
-						return
-					}
-					state := p.pc.ConnectionState()
-					if state == pion.PeerConnectionStateConnected {
-						disconnectedAt = time.Time{}
-						continue
-					}
-					if state == pion.PeerConnectionStateDisconnected {
-						if disconnectedAt.IsZero() {
-							disconnectedAt = time.Now()
-						}
-						if time.Since(disconnectedAt) < p.manager.opts.ICEDisconnectedTimeout {
-							continue
-						}
-					} else if state != pion.PeerConnectionStateFailed && time.Since(created) < p.manager.opts.NegotiationTimeout {
-						continue
-					}
-					if state != pion.PeerConnectionStateClosed {
-						p.markFailure()
-					}
+	p.pc.OnTrack(func(t *pion.TrackRemote, r *pion.RTPReceiver) {
+		p.start(func() { p.manager.receive(p, t, r) })
+	})
+	p.pc.OnICECandidate(func(candidate *pion.ICECandidate) {
+		var value *pion.ICECandidateInit
+		if candidate != nil {
+			c := candidate.ToJSON()
+			value = &c
+		}
+		p.emit("media.ice", map[string]any{"mediaPeerId": p.id, "candidate": value})
+	})
+	p.pc.OnConnectionStateChange(func(state pion.PeerConnectionState) {
+		p.manager.log(p, "peer_connection_state", []any{"state", state.String()})
+		p.emit("media.state", map[string]string{"mediaPeerId": p.id, "state": state.String()})
+		if state == pion.PeerConnectionStateConnected {
+			p.classifyTransport()
+		}
+		if state == pion.PeerConnectionStateFailed {
+			p.markFailure()
+			p.stopAsync()
+		}
+	})
+	p.pc.OnICEConnectionStateChange(func(state pion.ICEConnectionState) {
+		p.manager.log(p, "ice_state", []any{"state", state.String()})
+	})
+	p.start(func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		created := time.Now()
+		var disconnectedAt time.Time
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-ticker.C:
+				p.mu.Lock()
+				pendingReadyAt := p.pendingReadyAt
+				p.mu.Unlock()
+				if !pendingReadyAt.IsZero() && time.Since(pendingReadyAt) >= p.manager.opts.NegotiationTimeout {
+					p.markFailure()
 					p.stopAsync()
 					return
 				}
+				state := p.pc.ConnectionState()
+				if state == pion.PeerConnectionStateConnected {
+					disconnectedAt = time.Time{}
+					continue
+				}
+				if state == pion.PeerConnectionStateDisconnected {
+					if disconnectedAt.IsZero() {
+						disconnectedAt = time.Now()
+					}
+					if time.Since(disconnectedAt) < p.manager.opts.ICEDisconnectedTimeout {
+						continue
+					}
+				} else if state != pion.PeerConnectionStateFailed && time.Since(created) < p.manager.opts.NegotiationTimeout {
+					continue
+				}
+				if state != pion.PeerConnectionStateClosed {
+					p.markFailure()
+				}
+				p.stopAsync()
+				return
 			}
-		})
+		}
+	})
 }
 
 // markFailure отмечает сбой физического подключения ровно один раз. Аргументов
@@ -271,9 +247,7 @@ func (p *peer) emit(kind string, data any) {
 // stopAsync запускает остановку пира без блокировки вызывающего обработчика.
 func (p *peer) stopAsync() {
 	if p.stopRequested.CompareAndSwap(false, true) {
-		go /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-
-		 */func() { _ = p.manager.Leave(context.Background(), p.id) }()
+		go func() { _ = p.manager.Leave(context.Background(), p.id) }()
 	}
 }
 
@@ -345,33 +319,30 @@ func (p *peer) negotiationNotifications() {
 // close закрывает принадлежащие компоненту ресурсы и завершает связанный жизненный цикл.
 // Синхронизирует доступ к разделяемому состоянию блокировкой.
 func (p *peer) close() {
-	p.closeOnce.Do( /* Вложенный обработчик выполняет выделенный шаг обработки в пересылке WebRTC-медиа через SFU, используя состояние окружающей функции.
-		Синхронизирует доступ к разделяемому состоянию блокировкой.
-
-		*/func() {
-			p.mu.Lock()
-			p.closing = true
-			pubs := make([]*publishedTrack, 0, len(p.publications))
-			for _, t := range p.publications {
-				pubs = append(pubs, t)
-			}
-			subs := make([]*subscription, 0, len(p.subscriptions))
-			for _, s := range p.subscriptions {
-				subs = append(subs, s)
-			}
-			p.mu.Unlock()
-			p.cancel()
-			// Первым закрываем транспорт, освобождая все чтения RTP и RTCP. При закрытии сетевых
-			// транспортов Pion блокировки соединения и комнаты не удерживаются.
-			_ = p.pc.Close()
-			for _, t := range pubs {
-				p.manager.unpublish(t)
-			}
-			for _, s := range subs {
-				p.manager.unsubscribe(s)
-			}
-			p.wg.Wait()
-		})
+	p.closeOnce.Do(func() {
+		p.mu.Lock()
+		p.closing = true
+		pubs := make([]*publishedTrack, 0, len(p.publications))
+		for _, t := range p.publications {
+			pubs = append(pubs, t)
+		}
+		subs := make([]*subscription, 0, len(p.subscriptions))
+		for _, s := range p.subscriptions {
+			subs = append(subs, s)
+		}
+		p.mu.Unlock()
+		p.cancel()
+		// Первым закрываем транспорт, освобождая все чтения RTP и RTCP. При закрытии сетевых
+		// транспортов Pion блокировки соединения и комнаты не удерживаются.
+		_ = p.pc.Close()
+		for _, t := range pubs {
+			p.manager.unpublish(t)
+		}
+		for _, s := range subs {
+			p.manager.unsubscribe(s)
+		}
+		p.wg.Wait()
+	})
 }
 
 // Offer обрабатывает или передаёт SDP-предложение действующего WebRTC-подключения.
@@ -702,27 +673,6 @@ func (m *Manager) Unpublish(ctx context.Context, id, trackID string) error {
 		m.unpublish(track)
 	}
 	return nil
-}
-
-// validateOffer проверяет SDP-предложение и допустимость его дорожек.
-//
-// @args
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
-//   - maxPeers (int): значение maxPeers типа int, используемое согласно назначению этой операции.
-//
-// @return:
-//   - результат 1 (map[string]bool): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
-func validateOffer(raw string, maxPeers int) (map[string]bool, error) {
-	sources, err := validateSourceOffer(raw, maxPeers, nil, 2, 1, 1)
-	if err != nil {
-		return nil, err
-	}
-	active := map[string]bool{}
-	for _, source := range sources {
-		active[string(media.SourceKind(source))] = true
-	}
-	return active, nil
 }
 
 // validateSourceOffer проверяет соответствие SDP-секций заявленным источникам и действующей политике.

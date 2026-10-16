@@ -1,0 +1,104 @@
+package postgres_test
+
+import (
+	"context"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/janickiy/meet-space/internal/config"
+	"github.com/janickiy/meet-space/internal/domain/conferences"
+	domain "github.com/janickiy/meet-space/internal/domain/realtime"
+	"github.com/janickiy/meet-space/internal/domain/users"
+	pg "github.com/janickiy/meet-space/internal/infrastructure/postgres"
+	ri "github.com/janickiy/meet-space/internal/infrastructure/redis"
+	"github.com/janickiy/meet-space/internal/infrastructure/security"
+	ws "github.com/janickiy/meet-space/internal/transport/websocket"
+	cu "github.com/janickiy/meet-space/internal/usecase/conferences"
+	ru "github.com/janickiy/meet-space/internal/usecase/realtime"
+	gr "github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
+	"io"
+	"log/slog"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
+)
+
+type stageTwoFixture struct {
+	db         *gorm.DB
+	redis      *gr.Client
+	store      *ri.RealtimeStore
+	hubs       []*ru.Hub
+	servers    []*httptest.Server
+	tokens     *security.TokenService
+	config     config.RealtimeConfig
+	ownerToken string
+	conference conferences.View
+}
+
+func stageTwo(t *testing.T) *stageTwoFixture {
+	t.Helper()
+	addr := os.Getenv("RECORDER_STAGE2_TEST_REDIS_ADDR")
+	if !strings.HasPrefix(addr, "127.0.0.1:") {
+		t.Skip("isolated audit Redis required")
+	}
+	gin.SetMode(gin.TestMode)
+	f := &stageTwoFixture{db: stageOneDatabase(t)}
+	var err error
+	f.redis, err = ri.NewClient(context.Background(), addr, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.config = config.RealtimeConfig{PingInterval: 150 * time.Millisecond, PongTimeout: 150 * time.Millisecond, WriteTimeout: 300 * time.Millisecond, SessionTTL: time.Second, TicketTTL: 30 * time.Second, QueueSize: 64, MessageBytes: 65536, OutboundBytes: 262144, SDPBytes: 49152, ICEBytes: 4096, MessagesPerSecond: 100, Burst: 200, Namespace: "p1-ws:" + uuid.NewString(), ICE: domain.ICEConfig{ICEServers: []domain.ICEServer{}}}
+	f.store = ri.NewRealtimeStore(f.redis, f.config.Namespace)
+	f.tokens, err = security.NewTokenService("audit-only-local-token-key-20261016")
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "Audit owner"
+	owner := users.User{ID: uuid.NewString(), Email: "owner@example.invalid", DisplayName: &name, PasswordHash: "fixture-not-a-password"}
+	ur := pg.NewUserRepository(f.db)
+	if _, err = ur.Create(context.Background(), owner); err != nil {
+		t.Fatal(err)
+	}
+	f.ownerToken, err = f.tokens.Issue(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := cu.NewService(pg.NewConferenceRepository(f.db), ur, security.GenerateInviteCode)
+	f.conference, err = service.Create(context.Background(), owner.ID, conferences.CreateRequest{Title: "Audit meeting"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Join(context.Background(), owner.ID, f.conference.ID, conferences.JoinRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Transition(context.Background(), owner.ID, f.conference.ID, conferences.Active); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		hub, err := ru.NewHub(pg.NewSessionRepository(f.db), f.store, f.config.SessionTTL, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.hubs = append(f.hubs, hub)
+		router := gin.New()
+		ws.NewHandler(hub, f.tokens, f.store, ri.NewRateLimiter(f.redis), f.config).RegisterRoutes(router)
+		f.servers = append(f.servers, httptest.NewServer(router))
+	}
+	t.Cleanup(func() {
+		for _, hub := range f.hubs {
+			hub.Shutdown()
+		}
+		for _, server := range f.servers {
+			server.Close()
+		}
+		keys, _ := f.redis.Keys(context.Background(), f.config.Namespace+":*").Result()
+		if len(keys) > 0 {
+			_ = f.redis.Del(context.Background(), keys...).Err()
+		}
+		_ = f.redis.Close()
+	})
+	return f
+}

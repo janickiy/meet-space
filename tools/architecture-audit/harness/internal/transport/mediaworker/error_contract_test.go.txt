@@ -1,0 +1,41 @@
+package mediaworker
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/janickiy/meet-space/internal/domain/media"
+)
+
+func TestP2MediaHTTPErrorContracts(t *testing.T) {
+	cases := []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{media.ErrUnavailable, 503, "media_unavailable"},
+		{media.ErrInvalid, 400, "invalid_media_signal"},
+		{media.ErrUnauthorized, 401, "media_unauthorized"},
+		{media.ErrOwnership, 409, "media_ownership_lost"},
+		{media.ErrLimit, 429, "media_limit_exceeded"},
+		{media.ErrPeerNotFound, 404, "media_peer_not_found"},
+		{media.ErrNegotiation, 409, "media_negotiation_conflict"},
+		{media.ErrScreenConflict, 409, "screen_sharing_conflict"},
+		{media.ErrPolicy, 403, "media_policy_blocked"},
+		// Historical private protocol distinction: raw failures use 400, not 503.
+		{errors.New("private database details"), 400, "media_unavailable"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.code+fmt.Sprint(tc.status), func(t *testing.T) {
+			w := httptest.NewRecorder()
+			(&Handler{}).fail(w, fmt.Errorf("private boundary: %w", tc.err))
+			var body map[string]any
+			if w.Code != tc.status || w.Header().Get("Content-Type") != "application/json" || json.Unmarshal(w.Body.Bytes(), &body) != nil || len(body) != 1 || body["code"] != tc.code {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+		})
+	}
+}

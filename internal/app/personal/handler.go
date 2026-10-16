@@ -29,7 +29,18 @@ type Repository interface {
 type Handler struct {
 	Repo     Repository
 	Events   *personalusecase.Events
-	Presence GroupPresence
+	Presence personalusecase.PresenceReader
+}
+
+// uuidParameter normalizes a route UUID and writes the existing error response
+// when validation fails, before any repository operation can run.
+func uuidParameter(c *gin.Context, name string) (string, bool) {
+	id, err := chat.UUID(c.Param(name))
+	if err != nil {
+		httpresponse.Fail(c, err)
+		return "", false
+	}
+	return id, true
 }
 
 func (h *Handler) AccountOnly(c *gin.Context) {

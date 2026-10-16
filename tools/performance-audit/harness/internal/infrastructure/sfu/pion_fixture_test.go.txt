@@ -1,0 +1,482 @@
+package sfu
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+
+	"sync"
+	"sync/atomic"
+
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/janickiy/meet-space/internal/domain/media"
+	"github.com/pion/rtcp"
+	"github.com/pion/rtp"
+	pion "github.com/pion/webrtc/v4"
+)
+
+// pionHarness хранит изолированный стенд Pion для проверки поведения медиа.
+//   - manager: значение manager типа *Manager, используемое согласно назначению этой операции.
+//   - mu: блокировка согласованного доступа к разделяемому состоянию.
+//   - peers: индекс значений peers для поиска и согласования состояния.
+//   - errors: канал «ошибки» для передачи данных или завершения ожидания.
+type pionHarness struct {
+	manager                              *Manager
+	mu                                   sync.Mutex
+	peers                                map[string]*testPeer
+	errors                               chan error
+	audioPayloadBytes, videoPayloadBytes int                // Optional realistic packet sizes for opt-in performance workloads.
+	clientConfig                         pion.Configuration // Необязательная ICE-конфигурация только тестового клиента.
+}
+
+// testPeer хранит изолированное состояние тестового компонента «проверка Peer».
+//   - harness: значение harness типа *pionHarness, используемое согласно назначению этой операции.
+//   - binding: проверенная идентичность медиа-подключения, назначенная сервером.
+//   - id: идентификатор обрабатываемого ресурса.
+//   - pc: значение pc типа *pion.PeerConnection, используемое согласно назначению этой операции.
+//   - audio: значение audio типа *pion.TrackLocalStaticRTP, используемое согласно назначению этой операции.
+//   - video: значение video типа *pion.TrackLocalStaticRTP, используемое согласно назначению этой операции.
+//   - audioSender: значение audioSender типа *pion.RTPSender, используемое согласно назначению этой операции.
+//   - videoSender: значение videoSender типа *pion.RTPSender, используемое согласно назначению этой операции.
+//   - ctx: контекст отмены, дедлайна и времени жизни операции.
+//   - cancel: отмена контекста, завершающая принадлежащие ресурсу операции.
+//   - neg: значение neg типа sync.Mutex, используемое согласно назначению этой операции.
+//   - mu: блокировка согласованного доступа к разделяемому состоянию.
+//   - pending: набор значений pending для последовательной или пакетной обработки.
+//   - received: индекс значений received для поиска и согласования состояния.
+//   - packets: значение packets типа uint64, используемое согласно назначению этой операции.
+//   - pli: значение pli типа uint64, используемое согласно назначению этой операции.
+//   - renegotiate: канал «renegotiate» для передачи данных или завершения ожидания.
+//   - wg: счётчик принадлежащих компоненту фоновых горутин для ожидания завершения.
+//   - closed: логический признак closed, управляющий соответствующей веткой обработки.
+//   - publishingPaused: значение publishingPaused типа atomic.Bool, используемое согласно назначению этой операции.
+//   - sourceDeclarations: индекс значений sourceDeclarations для поиска и согласования состояния.
+//   - declarationGeneration: значение declarationGeneration типа string, используемое согласно назначению этой операции.
+type testPeer struct {
+	harness                  *pionHarness
+	binding                  media.Binding
+	id                       string
+	pc                       *pion.PeerConnection
+	audio, video             *pion.TrackLocalStaticRTP
+	audioSender, videoSender *pion.RTPSender
+	ctx                      context.Context
+	cancel                   context.CancelFunc
+	neg                      sync.Mutex
+	mu                       sync.Mutex
+	pending                  []*pion.ICECandidateInit
+	received                 map[string]string
+	packets                  uint64
+	pli                      uint64
+	renegotiate              chan struct{}
+	wg                       sync.WaitGroup
+	closed                   bool
+	publishingPaused         atomic.Bool
+	sourceDeclarations       map[string]media.Source // защищено neg; nil сохраняет поддержку прежних предложений
+	declarationGeneration    string                  // тестовое поколение захвата, защищено neg
+}
+
+// harness подготавливает или проверяет часть тестового сценария «harness».
+// Синхронизирует доступ к разделяемому состоянию блокировкой.
+//
+// @args
+//   - t (*testing.T): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
+//   - maxPeers (int): значение maxPeers типа int, используемое согласно назначению этой операции.
+//   - configured (...Options): значение configured типа ...Options, используемое согласно назначению этой операции.
+//
+// @return:
+//   - результат 1 (*pionHarness): значение, подготовленное операцией для вызывающей стороны.
+func harness(t *testing.T, maxPeers int, configured ...Options) *pionHarness {
+	t.Helper()
+	h := &pionHarness{peers: map[string]*testPeer{}, errors: make(chan error, 128)}
+	options := Options{MaxRooms: 2, NegotiationTimeout: 10 * time.Second}
+	if len(configured) > 0 {
+		options = configured[0]
+	}
+	options.MaxPeers = maxPeers
+	options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	intercept := options.Emit
+	// Вложенный обработчик выполняет выделенный шаг обработки в проверках поведения приложения, используя состояние окружающей функции.
+	//
+	// @args
+	//   - binding (media.Binding): проверенная идентичность медиа-подключения, назначенная сервером.
+	//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
+	//   - data (any): полезная нагрузка события или байты обрабатываемого содержимого.
+	options.Emit = func(binding media.Binding, kind string, data any) {
+		if intercept != nil {
+			intercept(binding, kind, data)
+		}
+		h.emit(binding, kind, data)
+	}
+	m, err := NewManager(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.manager = m
+	t.Cleanup( /* Вложенный обработчик выполняет выделенный шаг обработки в проверках поведения приложения, используя состояние окружающей функции.
+		Синхронизирует доступ к разделяемому состоянию блокировкой.
+
+		*/func() {
+			h.mu.Lock()
+			peers := make([]*testPeer, 0, len(h.peers))
+			for _, p := range h.peers {
+				peers = append(peers, p)
+			}
+			h.mu.Unlock()
+			for _, p := range peers {
+				p.close()
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := m.Shutdown(ctx); err != nil {
+				t.Errorf("manager shutdown: %v", err)
+			}
+		})
+	return h
+}
+
+// emit формирует и передаёт исходящее событие через принадлежащий компоненту канал доставки.
+// Синхронизирует доступ к разделяемому состоянию блокировкой.
+//
+// @args
+//   - binding (media.Binding): проверенная идентичность медиа-подключения, назначенная сервером.
+//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
+//   - data (any): полезная нагрузка события или байты обрабатываемого содержимого.
+func (h *pionHarness) emit(binding media.Binding, kind string, data any) {
+	h.mu.Lock()
+	p := h.peers[binding.ConnectionID]
+	h.mu.Unlock()
+	if p == nil {
+		return
+	}
+	switch kind {
+	case "media.ice":
+		candidate, _ := data.(map[string]any)["candidate"].(*pion.ICECandidateInit)
+		if candidate == nil {
+			return
+		}
+		p.mu.Lock()
+		if p.closed {
+			p.mu.Unlock()
+			return
+		}
+		if p.pc.RemoteDescription() == nil {
+			p.pending = append(p.pending, candidate)
+			p.mu.Unlock()
+			return
+		}
+		p.mu.Unlock()
+		if err := p.pc.AddICECandidate(*candidate); err != nil {
+			h.problem(err)
+		}
+	case "media.renegotiate":
+		select {
+		case p.renegotiate <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// problem подготавливает или проверяет часть тестового сценария «problem».
+//
+// @args
+//   - err (error): ошибка, которую необходимо классифицировать, сохранить или вернуть клиенту.
+func (h *pionHarness) problem(err error) {
+	select {
+	case h.errors <- err:
+	default:
+	}
+}
+
+// join назначает владельца медиа-комнаты и создаёт подключение для проверенной физической сессии.
+//
+// @args
+//   - t (*testing.T): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
+//   - conference (string): конференция либо её идентификатор, ограничивающий область операции.
+//   - participant (string): значение participant типа string, используемое согласно назначению этой операции.
+//
+// @return:
+//   - результат 1 (*testPeer): значение, подготовленное операцией для вызывающей стороны.
+func (h *pionHarness) join(t *testing.T, conference string, participant string) *testPeer {
+	return h.joinSlots(t, conference, participant, h.manager.opts.MaxPeers-1)
+}
+
+// joinSlots подготавливает приёмные слоты при присоединении тестового участника.
+// Синхронизирует доступ к разделяемому состоянию блокировкой.
+//
+// @args
+//   - t (*testing.T): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
+//   - conference (string): конференция либо её идентификатор, ограничивающий область операции.
+//   - participant (string): значение participant типа string, используемое согласно назначению этой операции.
+//   - receiveSlots (int): значение receiveSlots типа int, используемое согласно назначению этой операции.
+//
+// @return:
+//   - результат 1 (*testPeer): значение, подготовленное операцией для вызывающей стороны.
+func (h *pionHarness) joinSlots(t *testing.T, conference string, participant string, receiveSlots int) *testPeer {
+	t.Helper()
+	if participant == "" {
+		participant = uuid.NewString()
+	}
+	b := media.Binding{ConferenceID: conference, ParticipantID: participant, SessionID: uuid.NewString(), ConnectionID: uuid.NewString(), UserID: uuid.NewString(), AuthorizationExpiresAt: time.Now().Add(time.Hour)}
+	settings := pion.SettingEngine{}
+	settings.SetNetworkTypes([]pion.NetworkType{pion.NetworkTypeUDP4})
+	pc, err := pion.NewAPI(pion.WithSettingEngine(settings)).NewPeerConnection(h.clientConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &testPeer{harness: h, binding: b, pc: pc, ctx: ctx, cancel: cancel, received: map[string]string{}, renegotiate: make(chan struct{}, 1)}
+	p.audio, _ = pion.NewTrackLocalStaticRTP(pion.RTPCodecCapability{MimeType: pion.MimeTypeOpus, ClockRate: 48000, Channels: 2}, "microphone", "publisher")
+	p.video, _ = pion.NewTrackLocalStaticRTP(pion.RTPCodecCapability{MimeType: pion.MimeTypeVP8, ClockRate: 90000}, "camera", "publisher")
+	p.audioSender, err = pc.AddTrack(p.audio)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.videoSender, err = pc.AddTrack(p.video)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < receiveSlots; i++ {
+		for _, kind := range []pion.RTPCodecType{pion.RTPCodecTypeAudio, pion.RTPCodecTypeVideo} {
+			if _, err := pc.AddTransceiverFromKind(kind, pion.RTPTransceiverInit{Direction: pion.RTPTransceiverDirectionRecvonly}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	pc.OnTrack( /* Вложенный обработчик выполняет выделенный шаг обработки в проверках поведения приложения, используя состояние окружающей функции.
+		Синхронизирует доступ к разделяемому состоянию блокировкой.
+
+		@args
+		  - remote (*pion.TrackRemote): значение remote типа *pion.TrackRemote, используемое согласно назначению этой операции.
+		  - _ (*pion.RTPReceiver): неиспользуемый аргумент, сохранённый для совместимости с контрактом вызова.
+		*/func(remote *pion.TrackRemote, _ *pion.RTPReceiver) {
+			p.mu.Lock()
+			if p.closed {
+				p.mu.Unlock()
+				return
+			}
+			p.wg.Add(1)
+			p.mu.Unlock()
+			go /* Вложенный обработчик выполняет выделенный шаг обработки в проверках поведения приложения, используя состояние окружающей функции.
+			Синхронизирует доступ к разделяемому состоянию блокировкой.
+
+			*/func() {
+				defer p.wg.Done()
+				for {
+					packet, _, err := remote.ReadRTP()
+					if err != nil {
+						return
+					}
+					if len(packet.Payload) != h.payloadBytes(remote.Kind()) || packet.Payload[0] != 0x10 {
+						h.problem(fmt.Errorf("encoded RTP payload changed"))
+						return
+					}
+					p.mu.Lock()
+					p.received[remote.ID()] = remote.Kind().String()
+					p.packets++
+					p.mu.Unlock()
+				}
+			}()
+		})
+	h.mu.Lock()
+	h.peers[b.ConnectionID] = p
+	h.mu.Unlock()
+	view, err := h.manager.Join(context.Background(), b)
+	if err != nil {
+		p.close()
+		t.Fatal(err)
+	}
+	p.id = view.MediaPeerID
+	// Явно читаем RTCP каждого отправителя публикации, как это делает браузер.
+	for _, sender := range []*pion.RTPSender{p.audioSender, p.videoSender} {
+		p.wg.Add(1)
+		go /* Вложенный обработчик выполняет выделенный шаг обработки в проверках поведения приложения, используя состояние окружающей функции.
+		Синхронизирует доступ к разделяемому состоянию блокировкой.
+
+		@args
+		  - s (*pion.RTPSender): значение s типа *pion.RTPSender, используемое согласно назначению этой операции.
+		*/func(s *pion.RTPSender) {
+			defer p.wg.Done()
+			for {
+				packets, _, err := s.ReadRTCP()
+				if err != nil {
+					return
+				}
+				for _, packet := range packets {
+					if _, ok := packet.(*rtcp.PictureLossIndication); ok {
+						p.mu.Lock()
+						p.pli++
+						p.mu.Unlock()
+					}
+				}
+			}
+		}(sender)
+	}
+	if err := p.negotiate(); err != nil {
+		p.close()
+		t.Fatal(err)
+	}
+	p.wg.Add(2)
+	go /* Вложенный обработчик выполняет выделенный шаг обработки в проверках поведения приложения, используя состояние окружающей функции.
+
+	 */func() {
+		defer p.wg.Done()
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-p.renegotiate:
+				if err := p.negotiate(); err != nil && p.ctx.Err() == nil && !errors.Is(err, media.ErrPeerNotFound) {
+					h.problem(err)
+				}
+			}
+		}
+	}()
+	go p.publish()
+	return p
+}
+
+// negotiate подготавливает или проверяет часть тестового сценария «negotiate».
+// Синхронизирует доступ к разделяемому состоянию блокировкой.
+//
+// @return:
+//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+func (p *testPeer) negotiate() error {
+	p.neg.Lock()
+	defer p.neg.Unlock()
+	if p.ctx.Err() != nil {
+		return nil
+	}
+	offer, err := p.pc.CreateOffer(nil)
+	if err != nil {
+		return err
+	}
+	complete := pion.GatheringCompletePromise(p.pc)
+	if err = p.pc.SetLocalDescription(offer); err != nil {
+		return err
+	}
+	select {
+	case <-complete:
+	case <-p.ctx.Done():
+		return nil
+	case <-time.After(5 * time.Second):
+		return errors.New("client ICE gathering timeout")
+	}
+	negotiationID := uuid.NewString()
+	var publications []media.Publication
+	if p.sourceDeclarations != nil {
+		publications = []media.Publication{}
+		for _, tr := range p.pc.GetTransceivers() {
+			if sender := tr.Sender(); sender != nil && sender.Track() != nil {
+				publications = append(publications, media.Publication{MID: tr.Mid(), Source: p.sourceDeclarations[sender.Track().ID()], TrackID: sender.Track().ID() + p.declarationGeneration})
+			}
+		}
+	}
+	answer, err := p.harness.manager.OfferSources(p.ctx, p.id, negotiationID, p.pc.LocalDescription().SDP, publications)
+	if err != nil {
+		return err
+	}
+	if err = p.pc.SetRemoteDescription(answer); err != nil {
+		return err
+	}
+	if err = p.harness.manager.Ready(p.ctx, p.id, negotiationID); err != nil {
+		return err
+	}
+	p.mu.Lock()
+	pending := p.pending
+	p.pending = nil
+	p.mu.Unlock()
+	for _, c := range pending {
+		if err = p.pc.AddICECandidate(*c); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// publish передаёт сохранённое изменение через транспорт событий или внутренних команд.
+func (p *testPeer) publish() {
+	defer p.wg.Done()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	var sequence uint16
+	audioPayload := make([]byte, p.harness.payloadBytes(pion.RTPCodecTypeAudio))
+	videoPayload := make([]byte, p.harness.payloadBytes(pion.RTPCodecTypeVideo))
+	copy(audioPayload, []byte{0x10, 0x01, 0x02, 0x03})
+	copy(videoPayload, []byte{0x10, 0x01, 0x02, 0x03})
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+			if p.publishingPaused.Load() {
+				continue
+			}
+			sequence++
+			packet := &rtp.Packet{Header: rtp.Header{Version: 2, SequenceNumber: sequence, Timestamp: uint32(sequence) * 960, Marker: true}, Payload: audioPayload}
+			_ = p.audio.WriteRTP(packet)
+			packet.Header.Timestamp = uint32(sequence) * 1800
+			packet.Payload = videoPayload
+			_ = p.video.WriteRTP(packet)
+		}
+	}
+}
+
+// close закрывает принадлежащие компоненту ресурсы и завершает связанный жизненный цикл.
+// Синхронизирует доступ к разделяемому состоянию блокировкой.
+func (p *testPeer) close() {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return
+	}
+	p.closed = true
+	p.mu.Unlock()
+	p.cancel()
+	_ = p.pc.Close()
+	p.harness.mu.Lock()
+	delete(p.harness.peers, p.binding.ConnectionID)
+	p.harness.mu.Unlock()
+	if p.id != "" {
+		_ = p.harness.manager.Leave(context.Background(), p.id)
+	}
+	p.wg.Wait()
+}
+
+// eventually подготавливает или проверяет часть тестового сценария «eventually».
+//
+// @args
+//   - t (*testing.T): контекст теста: сообщает об ошибках, управляет вспомогательными проверками и очисткой.
+//   - h (*pionHarness): значение h типа *pionHarness, используемое согласно назначению этой операции.
+//   - label (string): безопасная подпись диагностируемой операции.
+//   - fn (func() bool): вызываемый обработчик «fn» с контрактом, указанным в типе.
+func eventually(t *testing.T, h *pionHarness, label string, fn func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for !fn() {
+		select {
+		case err := <-h.errors:
+			t.Fatalf("%s: %v", label, err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timeout: %s; stats=%+v", label, h.manager.Snapshot())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func (h *pionHarness) payloadBytes(kind pion.RTPCodecType) int {
+	size := h.audioPayloadBytes
+	if kind == pion.RTPCodecTypeVideo {
+		size = h.videoPayloadBytes
+	}
+	if size == 0 {
+		return 4
+	}
+	return size
+}

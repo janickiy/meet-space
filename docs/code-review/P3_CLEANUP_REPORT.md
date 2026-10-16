@@ -1,6 +1,183 @@
 # P3 — финальная чистка кода
 
-## Текущий проход — 2026-10-10
+## Текущий проход — 2026-10-16
+
+**Статус:** выбранная косметическая чистка P3 выполнена; проверки поведения, race, static/lint и репрезентативные media benchmarks прошли. Исходный HEAD: `a604c0d49ce5651f481fe0c0a144e5a049759ff4` **плюс существовавшие P1/P2-изменения**, сохранённые без отката. Это сравнение рабочих состояний, не чистых commits. Production deployment не выполнялся.
+
+До начала P3 не было открытых P0 race/resource blockers. Ограничение P2 — нестабильный throughput при 10 участниках — явно документировано в [P2_BEFORE_AFTER.md](P2_BEFORE_AFTER.md); P3 его не закрывает. Исходники, HEAD, status, hashes и diff сохранены до правок в `tmp/p3-audit-20261016/`. Исторический отчёт 10 октября ниже не является результатом текущего запуска.
+
+### 1. Executive summary / scope
+
+Изменены 13 Go-файлов и три текущих руководства; этот отчёт — четвёртый документ. Единственное исполняемое изменение: одинаковая проверка UUID вынесена из двух приватных helpers в один внутри прежнего пакета `app/personal`. Остальные Go-правки — корректировка комментариев и вызванное удалением inline-комментариев стандартное форматирование.
+
+Проверены naming, локальные условия, error/log terminology, comments/TODO/debug, generated markers, зависимости, небольшой dead code и актуальность руководств. Не найдено основания для новых package/file splits, интерфейсов, generics, options structs или изменения constructors. Имена Participant, ParticipantSession, MediaPeer и Conference/Room сохраняют разные роли. Короткие Go-имена в малых scopes оставлены.
+
+### 2. Naming changes
+
+`directActionID` использовался не только в direct actions, но и в общих закреплениях сообщений личных и групповых чатов. Вместо него и `groupParameter` используется приватный `uuidParameter(c, name)`: имя точно описывает нормализацию UUID из параметра маршрута.
+
+Заменены 15 вызовов. Прежние имена параметров `id`/`userId`, порядок их чтения и последующих действий сохранены. Нет переименований публичных Go declarations, пакетов, полей JSON или событий.
+
+### 3. Local simplifications
+
+Проверка UUID теперь читается одинаково во всех затронутых handlers: parse/normalize → существующий HTTP error при ошибке → early return перед repository. Тело нового helper совпадает с прежним `groupParameter`; при `name="id"` оно совпадает с прежним `directActionID`.
+
+Сложные lifecycle-функции не переписывались. В SFU удаление шаблонных комментариев между `func(...)` и `{` возвращает обычное читаемое оформление callbacks; это не изменение nesting, блокировок или defer semantics.
+
+### 4. Duplicate code removed
+
+Два одинаковых UUID helpers заменены одним в `handler.go` того же пакета. Отдельный generic/common слой не появился. Удалён ставший лишним импорт `domain/chat` из `direct_actions_handler.go`; остальные использующие его файлы сохранены.
+
+| Метрика | До P3 | После P3 |
+|---|---:|---:|
+| UUID helpers для выбранных actions | 2 | 1 |
+| Production internal packages | 74 | 74 |
+| Все функции/методы в AST | 1430 | 1429 |
+| Public declarations | 1527 | 1527 |
+| Изменённые package imports / type fields / interfaces | — | 0 |
+
+Количество строк не используется как основной показатель качества. Доказательство сравнения границ: `api-boundaries.json`; доказательство эквивалентности helper и вызовов: `batches/ad/source-equivalence.json`.
+
+### 5. Dead code removed
+
+Удалена только дублирующая приватная реализация проверки UUID и один неиспользуемый после объединения import. Новых доказанно unreachable функций, obsolete endpoints, flags, типов или файлов не обнаружено. Staticcheck был чистым до и после P3. Compatibility, recovery, диагностические инструменты и opt-in tests сохранены.
+
+### 6. Comments / TODO / debug cleanup
+
+В `sfu/{manager,peer,tracks,egress}.go`:
+
+- удалены 18 шаблонных inline-блоков внутри callbacks (78 строк) и один повторяющийся двухстрочный комментарий;
+- исправлены 16 ложных описаний параметров: peer не массив байтов, published track не `testing.T`, receiver не HTTP client, captured timestamp — Unix nanoseconds;
+- сохранены WHY-комментарии о блокировках, владении, закрытии, Pion, RTP и recovery.
+
+В пяти других Go-файлах исправлены конкретные контракты:
+
+- `notifications/streams.go`: счётчик хранит per-user capacity, а global counter принадлежит `eventStreams`;
+- `notifications/events.go`: контекст подключения Redis ограничивает установку подписки, её длительный lifecycle закрывает `serve`; строка verifier — JWT, не произвольные JSON bytes;
+- `domain/apperrors/errors.go`: Kind — категория ошибки, Message — безопасный текст ошибки; New всегда создаёт ошибку, Unwrap возвращает Cause либо Kind;
+- `httpresponse/response.go`: BindJSON — 32 KiB, запрет unknown/trailing JSON, optional empty body; Pagination — defaults 20/0, limit 1–100 и offset≥0;
+- `websocket/handler.go`: code — код ошибки протокола, а не приглашения; replyTo длиннее 36 символов опускается.
+
+Нативный Go scanner подтвердил одинаковые token streams во всех девяти comment-only файлах, включая автоматически вставляемые `;` и string literals. Кода с `Code generated`, `DO NOT EDIT`, `go:generate` либо действующего генератора этих комментариев не найдено. Production Go/TS scan не обнаружил TODO/FIXME/HACK и `fmt.Print*`/`console.log/debug`/`debugger`, требующих удаления. Вывод CLI-аудита и резервного копирования оставлен намеренно.
+
+### 7. Tests и логические batches
+
+Новые тесты, повторяющие простое объединение двух одинаковых helpers, не добавлялись. Существующие opt-in контракты и assertions не менялись, skipped tests не удалялись. Результаты разделены по scope:
+
+| Batch | Изменение | Проверка |
+|---|---|---|
+| A naming | `directActionID`/`groupParameter` → `uuidParameter` | Проверка всех 15 call sites и параметров, HTTP contracts |
+| B local simplification | Один понятный путь UUID validation вместо двух копий | Exact body equivalence, те же ранние возвраты |
+| C comments/debug | SFU и error/SSE/HTTP/WS contracts | Go scanner identity, focused normal/race |
+| D small duplication | Удалена вторая копия UUID helper | 5 affected packages normal/race с реальным Redis |
+| E tests/docs | Сохранён harness; актуализированы три руководства | 21 локальная Markdown-ссылка существует, сверка с routes/auth/backend |
+| F dead/dependencies | Один лишний import; прочие удаления не обоснованы | Staticcheck и `go mod tidy -diff` без замечаний |
+
+Независимый review проверил UUID merge относительно snapshot, второй — все четыре SFU comment diffs. Семантических изменений не найдено. Изменения не коммитились одним большим commit, существующий staging не сбрасывался.
+
+### 8. Docs consistency changes
+
+Обновлены `FRONTEND_GUIDE.md`, `frontend.md`, `USER_GUIDE.md` по фактическому коду:
+
+- MeetSpace вместо устаревшего default Meetrix;
+- `/history/*` перенаправляет в `/conferences?view=past`, `/search` и `/app/search` — в `/app`;
+- страницы записей, папки, личные/групповые чаты, действия главной и мобильная навигация;
+- постоянная серверная авторизация, refresh выбранного аккаунта и переключение аккаунтов;
+- гостевой вход по приглашению, отдельные «Аудио»/«Видео», раздел «Аккаунты», выход из sidebar;
+- существующее удаление записей с действительными backend-ограничениями;
+- серверный поиск переписок и поиск сообщений;
+- наличие opt-in Go audit harness вместо неверного утверждения об отсутствии всех тестов.
+
+Дополнительно уточнено: realtime events обновляют локальное состояние; серверные snapshot/reconciliation его восстанавливают. Это документация существующей системы. API/UI ради текстов не изменялись, исторические отчёты не переписывались под новые результаты.
+
+### 9. Dependencies
+
+Удалено и обновлено зависимостей: **0**. `go mod tidy -diff` завершился с exit 0 и пустым diff. Go module files, frontend manifests/lock и frontend source не менялись. TS noUnusedLocals/noUnusedParameters уже включены; оснований для удаления runtime dependencies или CSS без проверки использования не найдено.
+
+### 10. Public compatibility
+
+Сохранены REST routes, JSON fields/null-vs-empty, safe error texts/statuses, WS/Rabbit envelopes, Redis keys, DB schema, storage paths, config defaults и публичные Go signatures. P2 package imports, type fields/interfaces и списки public declarations совпадают до/после. Нормализация `chat.UUID`, порядок validation и прекращение запроса до repository при ошибке сохранены.
+
+В Pion/FFmpeg lifecycle, concurrency model и RTP hot path исполняемых изменений нет. Не менялись logging ownership и error taxonomy. Удалён только private duplicate helper; клиентам не нужна миграция.
+
+### 11. Test / race / lint results
+
+| Проверка | До | После |
+|---|---|---|
+| `go test -count=1 ./...` | PASS | PASS |
+| `go test -race -count=1 ./...` | PASS | PASS |
+| `go vet ./...` | PASS | PASS |
+| staticcheck v0.7.0 | PASS | PASS |
+| govulncheck v1.8.0 | PASS с оговоркой ниже | Та же оговорка |
+| Frontend Prettier | PASS | PASS |
+| `go mod tidy -diff` | Не требовалось повторять P2 | PASS, без diff |
+
+Vulncheck: 0 достижимых уязвимостей и 0 в импортируемых packages; остаётся 1 advisory в требуемом модуле вне импортируемых packages. Обновлений dependencies в косметическом этапе нет.
+
+Обычный `go test ./...` не включает `.go.txt` templates и сам по себе проверяет сборку. Дополнительное runtime evidence P3:
+
+- **12 top-level контрактных tests в 6 packages**, normal и race, настоящий Redis/Pion, без skips: HTTP errors, group presence/UUID, SSE limits/authorization/cleanup, WS errors и rejected Join ownership.
+- **WS/Redis:** reconnect после disconnect и transient prune failure, 1020 connect/disconnect/reconnect циклов двух hubs; на последнем checkpoint 14 goroutines / 15 FD, local sockets/Redis keys/connected sessions = 0.
+- **SFU:** 10 полных lifecycle + 10 source-churn циклов с race; после shutdown 2 goroutines / 6 FD, rooms/peers/tracks/subscriptions/recording outputs/audio taps = 0.
+- **AMQP:** cancellation/blocked write/close/handshake contracts с race ×3 — PASS.
+- **Key API:** HTTP error/presence/UUID/WS contracts плюс реальные PostgreSQL group creation authorization/roles/atomic rollback — PASS. Это не полный браузерный e2e всех страниц.
+- **FFmpeg:** настоящие process/cancellation/pipe/decoder/finalization tests — PASS; после cleanup child processes/temp files/temp bytes = 0.
+
+Первый media запуск внутри sandbox не смог привязать UDP/mDNS socket (`operation not permitted`) и получил timeout. Сохранён `before/media-sandbox.log`; повтор **того же before binary** с разрешёнными локальными соединениями прошёл. Это ограничение среды, не скрытый исправленный продуктовый дефект.
+
+После проверок удалены только три собственных fixture-контейнера, их anonymous volumes и сеть; `preexisting_not_running_at_cleanup: []`. Generated test binaries и собственный локальный build cache удалены. Source snapshots, JSON, logs и pprof сохранены под ignored `tmp/p3-audit-20261016/`.
+
+### 12. P1 performance regression result
+
+Перед edits сохранены исходники и собраны before binaries. After binaries используют тот же performance harness. Apple M5, Go1.26.9 darwin/arm64; timed suites выполнялись последовательно, отдельно от сборок и race/static jobs.
+
+**RTP microbenchmarks:** 6×300ms для 160/1200-byte payload и 0/1/2 sinks. Allocation counts и bytes/op совпадают: 0/0 без sinks, 176 B/1 alloc для audio, 1280 B/1 alloc для video (в том числе два sinks). Geomean времени −0,73%; значимого замедления не обнаружено. Это не заявление об ускорении продукта.
+
+**Реальные Pion media scenarios:** 22s warmup и 5s measurement. Clients и server работают в одном процессе; CPU/allocations включают обе стороны:
+
+| Сценарий | Packets до→после | CPU seconds до→после | Allocated bytes до→после |
+|---|---:|---:|---:|
+| 2 peers | 1000→1000 | 0,346→0,323 | 5 232 848→5 225 952 |
+| 5 peers + screen + recording/audio tap | 11 000→11 000 | 1,161→1,036 | 37 795 776→37 756 120 |
+
+Application packet/recording/audio-tap drops = 0; после cleanup владельцы rooms/peers/tracks/subscriptions/recording/audio taps обнулены. Регрессия в этих репрезентативных P3 сценариях не обнаружена. Доказанное token identity дополнительно подтверждает отсутствие нового кода/allocations на media пути.
+
+FFmpeg smoke также измерил 12 finalizations двумя параллельными pipelines над уже закодированными 4s 640×360, 10 fps H264/AAC segments: p50 86,082ms, max88,766ms; 8 durable fixture-файлов до/после, temp size стабилен. Это один новый after measurement, не статистическое сравнение ускорения; он исключает SFU/capture/SQL/upload/fixture encoding.
+
+Нестабильный 10-peer throughput из P2 здесь не переизмерялся и не объявляется исправленным. Production capacity, WAN/TURN и полный recording end-to-end SLO этими локальными проверками не подтверждаются. Evidence: `rtp-benchstat.txt`, `before/media/`, `after/media/`, `after/p0-*`, `after/recording/`.
+
+### 13. Files changed (только текущий P3)
+
+Go — 13 файлов:
+
+- `internal/app/personal/{handler,group_handler,direct_actions_handler,pins_handler}.go`
+- `internal/app/notifications/{events,streams}.go`
+- `internal/app/httpresponse/response.go`
+- `internal/domain/apperrors/errors.go`
+- `internal/transport/websocket/handler.go`
+- `internal/infrastructure/sfu/{manager,peer,tracks,egress}.go`
+
+Документы — 4 файла:
+
+- `docs/FRONTEND_GUIDE.md`
+- `docs/frontend.md`
+- `docs/USER_GUIDE.md`
+- `docs/code-review/P3_CLEANUP_REPORT.md`
+
+Новых production файлов, новых versioned test tools и migrations нет. Предыдущие P1/P2 изменения сохранены отдельно от этого списка.
+
+### 14. Deferred non-cosmetic issues
+
+- Строгий performance sign-off на 10 участников требует стабильного нагрузочного окружения; прежний P2 result остаётся inconclusive.
+- Крупные Capture/mediaworker handlers, ORM type в domain, broad repositories и typed call transitions — P2 debt, не косметические правки.
+- Не выполнялась массовая чистка всех шаблонных комментариев. За текущими понятными границами нужны отдельная проверка точности и небольшой reviewable diff.
+- Не проводились изменение UI, браузерный e2e, production deployment или новый refactoring stage.
+
+P3 остановлен после отчёта; дальнейшие этапы автоматически не запускались.
+
+---
+
+## Исторический проход — 2026-10-10
 
 Статус: **P3 завершён; baseline/after gates, runtime smoke и representative performance — PASS.** Baseline: HEAD `a0781257debba3f911ee180067cc0fad5bb06204` **плюс существовавшие P0/P1/P2/UI-правки**, не чистый checkout. Текущий [P2](P2_BEFORE_AFTER.md) завершён без открытых race/resource blockers. История 6 октября ниже сохранена отдельно и не выдаётся за свежие результаты. Evidence: `tmp/p3-cleanup-20261010/` (ignored). Рабочий Docker и удалённый сервер не обновлялись; следующий этап не начат.
 
