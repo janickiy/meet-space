@@ -4,7 +4,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   CalendarDays,
-  FolderOpen,
   Plus,
   MessageCircle,
   DoorOpen,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth";
 import { useConferences } from "../queries";
+import { conferenceLink } from "../conferenceNavigation";
 import { formatDate } from "../utils";
 import { Button, ErrorNotice, StatusBadge } from "../components/ui";
 import { CreateConference, JoinByLink } from "../components/ConferenceModals";
@@ -36,7 +36,7 @@ const views: { id: NonNullable<ConferenceFilters["view"]>; label: string }[] = [
  * @args conference — запись сервера с проверенным доступом текущего пользователя.
  * actions — показывать меню действий; showOpenAction — показывать отдельный переход
  * «Открыть» для незавершённой встречи. Ссылка в названии остаётся доступной всегда.
- * @return Ссылка на комнату либо материалы завершённой встречи.
+ * @return Ссылка на комнату либо общий список завершённых встреч.
  */
 function MeetingRow({
   conference,
@@ -55,9 +55,7 @@ function MeetingRow({
     conference.scheduledAt ||
     conference.createdAt;
   const date = new Date(timestamp);
-  const target = past
-    ? `/history/${conference.id}`
-    : `/meetings/${conference.id}`;
+  const target = conferenceLink(conference);
   return (
     <article
       className={`conference-row dashboard-meeting-row ${conference.status === "active" ? "dashboard-meeting-active" : ""}`}
@@ -97,14 +95,10 @@ function MeetingRow({
       </div>
       <StatusBadge status={conference.status} />
       <div className="dashboard-meeting-action">
-        {(past || showOpenAction) && (
+        {!past && showOpenAction && (
           <Link className="button button-outline" to={target}>
-            {past ? (
-              <FolderOpen size={16} aria-hidden="true" />
-            ) : (
-              <ArrowRight size={16} aria-hidden="true" />
-            )}
-            {past ? "Материалы" : "Открыть"}
+            <ArrowRight size={16} aria-hidden="true" />
+            Открыть
           </Link>
         )}
         {actions && <ConferenceChatActions conference={conference} />}
@@ -186,7 +180,6 @@ function ConferenceDashboard() {
       <section className="page-heading dashboard-heading">
         <div>
           <h1>Встречи</h1>
-          <p>Ваши разговоры, планы и общие результаты.</p>
         </div>
         <Button type="button" onClick={() => setCreating(true)}>
           <Plus size={18} aria-hidden="true" />
@@ -333,7 +326,7 @@ function ConferenceDashboard() {
                         ? "Самое время для первой встречи"
                         : tab === "active"
                           ? "Сейчас нет активных встреч"
-                          : "Здесь будет история встреч"}
+                          : "Завершённых встреч пока нет"}
                   </h3>
                   <p>
                     {search

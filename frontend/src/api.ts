@@ -164,6 +164,10 @@ const messages: Record<string, string> = {
     "Встреча завершена. Чат доступен только для чтения.",
   "recording is already active":
     "Запись уже запущена. Дождитесь завершения текущей записи перед запуском новой.",
+  "recording is still being processed":
+    "Сначала остановите запись и дождитесь завершения её обработки.",
+  "recording deletion timed out":
+    "Удаление заняло слишком много времени. Попробуйте ещё раз.",
 };
 const statuses: Record<number, string> = {
   400: "Проверьте данные запроса.",
@@ -757,6 +761,11 @@ export const api = {
     request<Item<ConferenceRecording>>(
       `/conferences/${encodeURIComponent(id)}/recordings/${encodeURIComponent(recordingId)}`,
       { signal },
+    ),
+  deleteRecording: (id: string, recordingId: string) =>
+    request<{ status: string }>(
+      `/conferences/${encodeURIComponent(id)}/recordings/${encodeURIComponent(recordingId)}`,
+      { method: "DELETE" },
     ),
   /**
    * Читает состояние расшифровки без запуска обработки.

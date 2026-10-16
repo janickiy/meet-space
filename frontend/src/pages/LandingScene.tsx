@@ -27,7 +27,7 @@ export function LandingScene() {
           </div>
           <div className="home-call-portrait">
             <img
-              src="/media/meetspace-group-chat-v5.webp"
+              src="/media/meetspace-group-chat-v6.webp"
               alt=""
               width="1536"
               height="1024"

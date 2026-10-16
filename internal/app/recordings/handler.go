@@ -19,6 +19,7 @@ import (
 //   - Read: операция чтение с контрактом, описанным у метода.
 //   - List: операция список с контрактом, описанным у метода.
 type Service interface {
+	Delete(context.Context, string, string, string) error
 	// Start запускает обработку задач записи и связанных артефактов и подготавливает связанные ресурсы.
 	//
 	// @args
@@ -145,6 +146,22 @@ func (h *Handler) Stop(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusAccepted, gin.H{"status": "success", "item": item})
+}
+
+func (h *Handler) Delete(c *gin.Context) {
+	id, ok := parameter(c, "id")
+	if !ok {
+		return
+	}
+	recordID, ok := parameter(c, "recordingId")
+	if !ok {
+		return
+	}
+	if err := h.service.Delete(c.Request.Context(), httpmiddleware.UserID(c), id, recordID); err != nil {
+		httpresponse.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
 // Read читает состояние задач записи и связанных артефактов для дальнейшей обработки или ответа.

@@ -13,6 +13,7 @@ import {
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { useConferences } from "../queries";
+import { conferenceLink } from "../conferenceNavigation";
 import { Button, ErrorNotice, Modal, StatusBadge } from "../components/ui";
 import { EditSchedule } from "../components/ConferenceModals";
 import { MeetingSkeleton } from "../components/MeetingSkeleton";
@@ -223,12 +224,9 @@ function CalendarMeetingDetails({
           <br />
           Встреча не начнётся автоматически.
         </p>
-        <Link
-          className="button button-primary"
-          to={past ? `/history/${meeting.id}` : `/meetings/${meeting.id}`}
-        >
+        <Link className="button button-primary" to={conferenceLink(meeting)}>
           <Video size={17} aria-hidden="true" />
-          {past ? "Открыть историю" : "Открыть встречу"}
+          {past ? "Завершённые встречи" : "Открыть встречу"}
         </Link>
         {canChange && (
           <div className="calendar-meeting-actions">

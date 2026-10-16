@@ -13,6 +13,7 @@ import {
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { useConferences } from "../queries";
+import { PAST_CONFERENCES_PATH } from "../conferenceNavigation";
 import { formatDate } from "../utils";
 import type {
   Conference,
@@ -21,6 +22,7 @@ import type {
 } from "../types";
 import { Button, ErrorNotice, Loading } from "../components/ui";
 import { RecordingActions } from "../components/RecordingActions";
+import { DeleteRecordingDialog } from "../components/DeleteRecordingDialog";
 import {
   formatRecordingDuration,
   formatRecordingSize,
@@ -48,6 +50,12 @@ export function RecordingCard({
   history?: ConferenceHistory;
 }) {
   const [brokenPreview, setBrokenPreview] = useState<string | null>(null);
+  const { user } = useAuth();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const canDelete =
+    !!user &&
+    !user.guestConferenceId &&
+    (conference.ownerId === user.id || record.requestedBy === user.id);
   const preview = recordingPreviewFile(record);
   const file = recordingMediaFile(record);
   const path = recordingDetailPath(conference.id, record.uuid);
@@ -155,8 +163,16 @@ export function RecordingCard({
           title={conference.title}
           path={path}
           downloadUrl={file?.url}
+          onDelete={canDelete ? () => setConfirmDelete(true) : undefined}
         />
       </div>
+      {confirmDelete && canDelete && (
+        <DeleteRecordingDialog
+          record={record}
+          title={conference.title}
+          onClose={() => setConfirmDelete(false)}
+        />
+      )}
     </article>
   );
 }
@@ -503,9 +519,9 @@ export function RecordingsPage() {
           {["finished", "cancelled"].includes(selected.status) && (
             <Link
               className="recordings-history-link"
-              to={`/history/${encodeURIComponent(selected.id)}`}
+              to={PAST_CONFERENCES_PATH}
             >
-              Открыть историю встречи
+              Завершённые встречи
             </Link>
           )}
         </section>

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router";
 import { AnalyticsPanel } from "../components/AnalyticsPanel";
 import { Button, ErrorNotice, Loading } from "../components/ui";
 import { useConferences } from "../queries";
+import { PAST_CONFERENCES_PATH } from "../conferenceNavigation";
 import { useCapabilities } from "../useCapabilities";
 import { formatDate } from "../utils";
 import "./analytics.css";
@@ -35,8 +36,8 @@ export function AnalyticsPage() {
             Функция не включена администратором или её доступность не удалось
             проверить.
           </p>
-          <Link className="text-link" to="/history">
-            Вернуться к истории встреч
+          <Link className="text-link" to={PAST_CONFERENCES_PATH}>
+            Перейти к завершённым встречам
           </Link>
         </section>
       )}

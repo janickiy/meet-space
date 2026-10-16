@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { Copy, Download, MoreVertical } from "lucide-react";
+import { Copy, Download, MoreVertical, Trash2 } from "lucide-react";
 import { safeRecordingUrl } from "../recordingPresentation";
 
 /** RecordingActions показывает только поддерживаемые действия одной записи.
@@ -12,10 +12,12 @@ export function RecordingActions({
   title,
   path,
   downloadUrl,
+  onDelete,
 }: {
   title: string;
   path: string;
   downloadUrl?: string;
+  onDelete?: () => void;
 }) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -144,6 +146,21 @@ export function RecordingActions({
           >
             <Copy size={16} aria-hidden="true" /> Копировать ссылку
           </button>
+          {onDelete && (
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              className="recordings-delete-action"
+              onClick={() => {
+                setOpen(false);
+                trigger.current?.focus();
+                onDelete();
+              }}
+            >
+              <Trash2 size={16} aria-hidden="true" /> Удалить запись
+            </button>
+          )}
           <p>Для участников с доступом к встрече.</p>
         </div>
       )}

@@ -200,11 +200,9 @@ export function Layout() {
           ? location.pathname === "/app"
           : location.pathname.startsWith(item.to),
     )?.label ||
-    (location.pathname.startsWith("/history")
-      ? "Материалы встречи"
-      : location.pathname.startsWith("/notifications")
-        ? "Уведомления"
-        : "Встречи");
+    (location.pathname.startsWith("/notifications")
+      ? "Уведомления"
+      : "Встречи");
   const sectionContext = location.pathname.startsWith("/personal")
     ? "Общение"
     : location.pathname.startsWith("/folders")

@@ -1,9 +1,9 @@
-/** Постановочное изображение экрана видеоконференции; не использует данные участников приложения. */
+/** Декоративная фотография деловой видеоконференции. */
 export function AuthTeamVisual() {
   return (
     <div className="auth-team-photo" aria-hidden="true">
       <img
-        src="/media/auth-videoconference-v4.webp"
+        src="/media/auth-business-conference-v5.webp"
         width="1536"
         height="1024"
         alt=""

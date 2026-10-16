@@ -15,6 +15,7 @@ import { AuthPage, RegistrationSuccess } from "./pages/AuthPages";
 import { Link } from "react-router";
 import { CalendarCallback } from "./components/IntegrationsSettings";
 import { AccountSettingsModal } from "./components/AccountSettingsModal";
+import { PAST_CONFERENCES_PATH } from "./conferenceNavigation";
 
 const PersonalPage = lazy(() =>
   import("./pages/PersonalPage").then((module) => ({
@@ -56,19 +57,9 @@ const RecordingsPage = lazy(() =>
     default: module.RecordingsPage,
   })),
 );
-const HistoryPage = lazy(() =>
-  import("./pages/AccountPages").then((module) => ({
-    default: module.HistoryPage,
-  })),
-);
 const RecordingDetailPage = lazy(() =>
   import("./pages/RecordingDetailPage").then((module) => ({
     default: module.RecordingDetailPage,
-  })),
-);
-const HistoryDetailPage = lazy(() =>
-  import("./pages/HistoryDetailPage").then((module) => ({
-    default: module.HistoryDetailPage,
   })),
 );
 const NotificationsPage = lazy(() =>
@@ -244,8 +235,10 @@ export function App() {
           <Route path="/app/recordings" element={<RecordingsPage />} />
           <Route path="/recordings" element={<RecordingsPage />} />
           <Route path="/recordings/:id" element={<RecordingDetailPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/history/:id" element={<HistoryDetailPage />} />
+          <Route
+            path="/history/*"
+            element={<Navigate to={PAST_CONFERENCES_PATH} replace />}
+          />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/app/search" element={<Navigate to="/app" replace />} />
           <Route path="/search" element={<Navigate to="/app" replace />} />

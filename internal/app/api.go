@@ -181,7 +181,7 @@ func RunAPI() error {
 	mediaController.SetPolicyProvider(conferenceRepository)
 	controlService := conferenceusecase.NewControlService(conferenceRepository, mediaController, hub)
 	recordingRepository := postgresinfra.NewConferenceRecordingRepository(db)
-	recordingService := recordingsusecase.NewConferenceService(recordingRepository, service, hub)
+	recordingService := recordingsusecase.NewConferenceService(recordingRepository, service, hub, s3Client)
 	recordingCommands := recordingsusecase.NewCommandDispatcher(recordingRepository, commandPublisher, conferenceLock, hub)
 	hub.SetDisconnectObserver(realtimeusecase.DisconnectObservers{controlService, mediaController})
 	conferenceService.SetObserver(hub)
