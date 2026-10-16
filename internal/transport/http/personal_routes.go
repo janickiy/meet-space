@@ -34,7 +34,7 @@ func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *ch
 	g.POST("/conversations/group", h.CreateGroup)
 	g.GET("/conversations/:id", h.Get)
 	g.GET("/conversations/:id/peer-presence", h.PeerPresence)
-	g.PATCH("/conversations/:id/preferences", h.SetDirectPreferences)
+	g.PATCH("/conversations/:id/preferences", h.SetConversationPreferences)
 	g.POST("/conversations/:id/clear-history", h.ClearDirectHistory)
 	g.POST("/conversations/:id/hide", h.HideDirectConversation)
 	g.GET("/conversations/:id/pins", h.Pins)

@@ -82,28 +82,31 @@ func (r *PersonalRepository) WithConversationMessageDelivery(ctx context.Context
 	return allowed, err
 }
 
-// WithDirectActionDelivery обновляет персональную нагрузку перед отправкой,
+// WithConversationActionDelivery обновляет персональную нагрузку перед отправкой,
 // потому что события разных HTTP-запросов могут публиковаться не в порядке COMMIT.
 // Запоздалое скрытие пропускается, если новое сообщение уже вернуло беседу;
 // старые mute/clear события получают текущую проекцию, а не прежнее превью.
 //
 // @args
 //   - ctx — контекст операции и ограниченной записи.
-//   - id, user — личная беседа и владелец настройки.
+//   - id, user — беседа и владелец настройки.
 //   - kind — разрешённое событие настройки, очистки или скрытия.
 //   - deliver — отправка актуальной проекции; при скрытии получает только ID, тип и границу истории.
 //
 // @return разрешена ли отправка и ошибка проверки либо отправки.
-func (r *PersonalRepository) WithDirectActionDelivery(ctx context.Context, id, user, kind string, deliver func(*personal.Conversation) error) (bool, error) {
+func (r *PersonalRepository) WithConversationActionDelivery(ctx context.Context, id, user, kind string, deliver func(*personal.Conversation) error) (bool, error) {
 	if kind != "conversation.preferences.updated" && kind != "conversation.history.cleared" && kind != "conversation.hidden" {
 		return false, errors.New("unsupported personal conversation event")
 	}
 	allowed := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var conversation struct{ ID string }
-		result := tx.Raw("SELECT id FROM conversations WHERE id=? AND type='direct' AND deleted_at IS NULL FOR SHARE", id).Scan(&conversation)
+		var conversation struct{ ID, Type string }
+		result := tx.Raw("SELECT id,type FROM conversations WHERE id=? AND type IN('direct','group') AND deleted_at IS NULL FOR SHARE", id).Scan(&conversation)
 		if result.Error != nil || conversation.ID == "" {
 			return result.Error
+		}
+		if conversation.Type == "group" && kind != "conversation.preferences.updated" {
+			return nil
 		}
 		var member struct {
 			HiddenAt              *time.Time

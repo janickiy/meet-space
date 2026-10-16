@@ -1220,6 +1220,15 @@ export const api = {
       method: "POST",
       body,
     }),
+  setGroupNotifications: (
+    id: string,
+    notificationsEnabled: boolean,
+    signal?: AbortSignal,
+  ) =>
+    request<Item<GroupConversation>>(
+      `/conversations/${encodeURIComponent(id)}/preferences`,
+      { method: "PATCH", body: { notificationsEnabled }, signal },
+    ),
   updateGroup: (id: string, body: { name?: string; description?: string }) =>
     request<Item<GroupConversation>>(
       `/conversations/${encodeURIComponent(id)}`,

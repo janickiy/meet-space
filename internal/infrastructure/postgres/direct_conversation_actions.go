@@ -25,13 +25,13 @@ func lockDirectConversation(tx *gorm.DB, user, id string) error {
 	return nil
 }
 
-// SetDirectPreferences сохраняет уведомления только для текущего собеседника.
+// SetConversationPreferences сохраняет уведомления только текущего участника.
 // @args: ctx — контекст; user — владелец настройки; id — переписка; enabled — разрешение уведомлений.
 // @return: актуальная персональная проекция переписки и ошибка.
-func (r *PersonalRepository) SetDirectPreferences(ctx context.Context, user, id string, enabled bool) (personal.Conversation, error) {
+func (r *PersonalRepository) SetConversationPreferences(ctx context.Context, user, id string, enabled bool) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockDirectConversation(tx, user, id); err != nil {
+		if err := authorizeDirect(tx, user, id, true); err != nil {
 			return err
 		}
 		if err := tx.Table("conversation_members").Where("conversation_id=? AND user_id=?", id, user).

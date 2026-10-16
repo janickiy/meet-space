@@ -1,0 +1,80 @@
+package websocket
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/janickiy/meet-space/internal/domain/chat"
+	"github.com/janickiy/meet-space/internal/domain/personal"
+	domain "github.com/janickiy/meet-space/internal/domain/realtime"
+	"testing"
+)
+
+type preferencesDeliveryAccounts struct {
+	AccountChecker
+	actionCalls, messageCalls int
+}
+
+func (a *preferencesDeliveryAccounts) WithConversationActionDelivery(_ context.Context, id, user, kind string, send func(*personal.Conversation) error) (bool, error) {
+	a.actionCalls++
+	return true, send(&personal.Conversation{ID: id, Type: "group", NotificationsEnabled: false})
+}
+func (a *preferencesDeliveryAccounts) WithConversationMessageDelivery(_ context.Context, id, user, message string, send func(bool, int64) error) (bool, error) {
+	a.messageCalls++
+	return true, send(false, 0)
+}
+
+func TestGroupPreferencesWebSocketDelivery(t *testing.T) {
+	const conversation = "94563614-53b0-4820-a7b6-ea5710655cd4"
+	accounts := &preferencesDeliveryAccounts{}
+	h := &UserHandler{accounts: accounts}
+	ctx := context.Background()
+	deliver := func(kind, target string, data map[string]any) []byte {
+		t.Helper()
+		data["conversationId"] = conversation
+		data["type"] = "group"
+		data["userId"] = target
+		raw, _ := json.Marshal(domain.Event(kind, "", data))
+		var received []byte
+		if err := h.deliver(ctx, "actor", raw, func(value []byte) error { received = value; return nil }); err != nil {
+			t.Fatal(err)
+		}
+		return received
+	}
+	for _, tc := range []struct{ kind, target string }{
+		{"conversation.preferences.updated", "other"}, {"conversation.history.cleared", "actor"}, {"conversation.hidden", "actor"},
+	} {
+		if got := deliver(tc.kind, tc.target, map[string]any{}); got != nil {
+			t.Fatalf("private/unsupported group action leaked: %s", got)
+		}
+	}
+	if accounts.actionCalls != 0 {
+		t.Fatal("invalid event reached delivery guard")
+	}
+	got := deliver("conversation.preferences.updated", "actor", map[string]any{"item": personal.Conversation{ID: conversation, Type: "group", NotificationsEnabled: true}})
+	var event domain.Envelope
+	if json.Unmarshal(got, &event) != nil {
+		t.Fatalf("missing action: %s", got)
+	}
+	var state struct {
+		Type, UserID string
+		Item         personal.Conversation
+	}
+	if json.Unmarshal(event.Data, &state) != nil || state.Type != "group" || state.UserID != "actor" || state.Item.NotificationsEnabled {
+		t.Fatalf("stale preferences not refreshed: %s", event.Data)
+	}
+	message := chat.Message{ID: "6edbbcb1-830a-4599-8df4-90cc96ec53be", ConversationID: conversation, Text: "A muted group still receives messages"}
+	got = deliver("message.created", "", map[string]any{"message": message, "notificationsEnabled": true})
+	if json.Unmarshal(got, &event) != nil {
+		t.Fatalf("muted message lost: %s", got)
+	}
+	var payload struct {
+		Message              chat.Message
+		NotificationsEnabled *bool
+	}
+	if json.Unmarshal(event.Data, &payload) != nil || payload.NotificationsEnabled == nil || *payload.NotificationsEnabled || payload.Message.ID != message.ID {
+		t.Fatalf("notification flag not refreshed: %s", event.Data)
+	}
+	if accounts.actionCalls != 1 || accounts.messageCalls != 1 {
+		t.Fatalf("guards not used: %+v", accounts)
+	}
+}

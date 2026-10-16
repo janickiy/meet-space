@@ -305,10 +305,9 @@ export function PersonalPage() {
                       {c.lastMessageAt ? chatTime(c.lastMessageAt) : ""}
                     </time>
                     <UnreadMessageCount count={c.unreadCount} />
-                    {c.type === "direct" &&
-                      c.notificationsEnabled === false && (
-                        <BellOff size={14} aria-label="Уведомления отключены" />
-                      )}
+                    {c.notificationsEnabled === false && (
+                      <BellOff size={14} aria-label="Уведомления отключены" />
+                    )}
                   </span>
                 </NavLink>
                 <ConversationActions conversation={c} />

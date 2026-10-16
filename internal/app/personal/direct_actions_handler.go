@@ -8,15 +8,16 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// publishDirectAction синхронизирует настройку между вкладками только её владельца.
+// publishConversationAction синхронизирует настройку между вкладками только её владельца.
 // @args: c — запрос; kind — тип события; id — переписка; item — персональная проекция;
 // cutoff — подтверждённая граница истории для минимального события скрытия без проекции.
-func (h *Handler) publishDirectAction(c *gin.Context, kind, id string, item *personal.Conversation, cutoff int64) {
+func (h *Handler) publishConversationAction(c *gin.Context, kind, id string, item *personal.Conversation, cutoff int64) {
 	if h.Events == nil {
 		return
 	}
 	data := gin.H{"conversationId": id, "type": "direct", "userId": middleware.UserID(c)}
 	if item != nil {
+		data["type"] = item.Type
 		data["item"] = *item
 		data["historyClearedThrough"] = item.HistoryClearedThrough
 	} else if kind == "conversation.hidden" {
@@ -26,9 +27,9 @@ func (h *Handler) publishDirectAction(c *gin.Context, kind, id string, item *per
 	_ = h.Events.PublishUser(c.Request.Context(), middleware.UserID(c), kind, data)
 }
 
-// SetDirectPreferences принимает явное разрешение уведомлений для личного чата.
+// SetConversationPreferences сохраняет личную настройку уведомлений участника чата.
 // @args: c — авторизованный запрос с notificationsEnabled.
-func (h *Handler) SetDirectPreferences(c *gin.Context) {
+func (h *Handler) SetConversationPreferences(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
 		return
@@ -43,12 +44,12 @@ func (h *Handler) SetDirectPreferences(c *gin.Context) {
 		httpresponse.Fail(c, apperrors.ErrInvalidInput)
 		return
 	}
-	item, err := h.Repo.SetDirectPreferences(c.Request.Context(), middleware.UserID(c), id, *body.NotificationsEnabled)
+	item, err := h.Repo.SetConversationPreferences(c.Request.Context(), middleware.UserID(c), id, *body.NotificationsEnabled)
 	if err != nil {
 		httpresponse.Fail(c, err)
 		return
 	}
-	h.publishDirectAction(c, "conversation.preferences.updated", id, &item, item.HistoryClearedThrough)
+	h.publishConversationAction(c, "conversation.preferences.updated", id, &item, item.HistoryClearedThrough)
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
 
@@ -64,7 +65,7 @@ func (h *Handler) ClearDirectHistory(c *gin.Context) {
 		httpresponse.Fail(c, err)
 		return
 	}
-	h.publishDirectAction(c, "conversation.history.cleared", id, &item, item.HistoryClearedThrough)
+	h.publishConversationAction(c, "conversation.history.cleared", id, &item, item.HistoryClearedThrough)
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
 
@@ -80,6 +81,6 @@ func (h *Handler) HideDirectConversation(c *gin.Context) {
 		httpresponse.Fail(c, err)
 		return
 	}
-	h.publishDirectAction(c, "conversation.hidden", id, nil, cutoff)
+	h.publishConversationAction(c, "conversation.hidden", id, nil, cutoff)
 	c.JSON(200, gin.H{"status": "success", "hidden": true, "historyClearedThrough": cutoff})
 }

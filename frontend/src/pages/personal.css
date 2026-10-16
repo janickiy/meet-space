@@ -265,25 +265,6 @@
 .personal-thread .chat-message-own > .chat-message-avatar {
   display: none;
 }
-.personal-thread .chat-message-content {
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 18px 18px 18px 4px;
-  background: var(--surface);
-  box-shadow: 0 1px 2px #00000008;
-}
-.personal-thread .chat-message-own .chat-message-content {
-  --text: #203b27;
-  --muted: #506d53;
-  --primary: #397044;
-  --primary-soft: #d5edc6;
-  --surface: #edfadf;
-  --border: #cfe5bf;
-  color: var(--text);
-  background: var(--surface);
-  border-color: var(--border);
-  border-radius: 18px 18px 4px 18px;
-}
 .personal-thread.chat-panel .chat-message header {
   gap: 6px;
   margin-bottom: 4px;
@@ -308,9 +289,6 @@
 }
 .personal-thread.chat-panel .chat-attachment {
   background: color-mix(in srgb, var(--surface) 70%, var(--primary-soft));
-}
-.personal-thread .chat-message-focused .chat-message-content {
-  box-shadow: inset 0 0 0 2px var(--primary);
 }
 .personal-thread.chat-panel .chat-day-label {
   justify-content: center;
@@ -380,9 +358,6 @@
   }
   .personal-thread.chat-panel .chat-message-avatar {
     display: none;
-  }
-  .personal-thread .chat-message-content {
-    padding: 8px 10px;
   }
   .personal-thread .chat-composer {
     padding: 10px 8px max(10px, env(safe-area-inset-bottom));

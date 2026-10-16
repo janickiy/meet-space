@@ -9,6 +9,7 @@ import { useLocation, useNavigate } from "react-router";
 import { api } from "./api";
 import { receiveDirectCallEvent } from "./components/DirectCalls";
 import { invalidateFolders, purgeFolder, purgeFolderTarget } from "./folders";
+import { observeGroupConversationNotifications } from "./groupConversations";
 import {
   directConversationHistoryCutoff,
   observeDirectConversationNotifications,
@@ -17,12 +18,7 @@ import {
   resetDirectConversationHistory,
   updateDirectConversation,
 } from "./directConversations";
-import type {
-  ChatMessage,
-  DirectConversation,
-  PersonalConversation,
-  PersonalPage,
-} from "./types";
+import type { ChatMessage, PersonalConversation, PersonalPage } from "./types";
 
 /** A revoke removes previews immediately, even when REST recovery is offline. */
 export function revokePersonalConversation(
@@ -127,7 +123,7 @@ export interface PersonalEvent {
     notificationsEnabled?: boolean;
     historyClearedThrough?: number;
     hidden?: boolean;
-    item?: DirectConversation;
+    item?: PersonalConversation;
   };
 }
 // A bounded identity/version window suppresses duplicate notices, including send retries.
@@ -162,6 +158,21 @@ export function acceptPersonalEvent(
   )
     return null;
   if (
+    event.type === "conversation.preferences.updated" &&
+    event.data.type === "group"
+  ) {
+    const item = event.data.item;
+    if (
+      item?.id !== event.data.conversationId ||
+      item?.type !== "group" ||
+      typeof item.name !== "string" ||
+      !["owner", "admin", "member"].includes(item.myRole) ||
+      !Number.isSafeInteger(item.memberCount) ||
+      item.memberCount < 1 ||
+      typeof item.notificationsEnabled !== "boolean"
+    )
+      return null;
+  } else if (
     [
       "conversation.preferences.updated",
       "conversation.history.cleared",
@@ -324,7 +335,22 @@ export function usePersonalRealtime(userId?: string) {
             return;
           }
           if (
-            event.data.item &&
+            event.type === "conversation.preferences.updated" &&
+            event.data.item?.type === "group"
+          ) {
+            observeGroupConversationNotifications(
+              client,
+              id,
+              userId,
+              event.data.item.notificationsEnabled!,
+            );
+            if (!event.data.item.notificationsEnabled)
+              setNotice((current) => (current?.id === id ? null : current));
+            refresh();
+            return;
+          }
+          if (
+            event.data.item?.type === "direct" &&
             [
               "conversation.preferences.updated",
               "conversation.history.cleared",
@@ -367,16 +393,22 @@ export function usePersonalRealtime(userId?: string) {
               BigInt(m.sequence) <= BigInt(cutoff))
           )
             return;
-          if (
-            event.data.type === "direct" &&
-            typeof event.data.notificationsEnabled === "boolean"
-          ) {
-            observeDirectConversationNotifications(
-              client,
-              id,
-              userId,
-              event.data.notificationsEnabled,
-            );
+          if (typeof event.data.notificationsEnabled === "boolean") {
+            if (event.data.type === "group")
+              observeGroupConversationNotifications(
+                client,
+                id,
+                userId,
+                event.data.notificationsEnabled,
+                false,
+              );
+            else
+              observeDirectConversationNotifications(
+                client,
+                id,
+                userId,
+                event.data.notificationsEnabled,
+              );
             if (!event.data.notificationsEnabled)
               setNotice((current) => (current?.id === id ? null : current));
           }

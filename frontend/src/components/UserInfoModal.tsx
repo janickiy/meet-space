@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { PersonalPeer } from "../types";
 import { initials } from "../utils";
 import { DirectCallButton } from "./DirectCallButton";
-import { Button, Modal } from "./ui";
+import { Modal } from "./ui";
 import "./user-info-modal.css";
 
 /** Общая карточка пользователя для личной переписки и списка участников группы. */
@@ -72,9 +72,6 @@ export function UserInfoModal({
             onStart={onCallStart}
           />
         </div>
-        <Button variant="outline" onClick={onClose}>
-          Закрыть
-        </Button>
       </div>
     </Modal>
   );

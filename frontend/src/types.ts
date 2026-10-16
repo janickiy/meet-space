@@ -775,12 +775,12 @@ interface ConversationSummary {
   lastMessageId: string | null;
   preview: string;
   unreadCount: number;
+  /** Личная настройка уведомлений; отсутствие поля в старом ответе означает «включены». */
+  notificationsEnabled?: boolean;
 }
 export interface DirectConversation extends ConversationSummary {
   type: "direct";
   peer: PersonalPeer;
-  /** Личная настройка уведомлений; отсутствие поля в старом ответе означает «включены». */
-  notificationsEnabled?: boolean;
   /** Личный порог видимой истории; сообщения с меньшим номером больше недоступны. */
   historyClearedThrough?: number;
 }

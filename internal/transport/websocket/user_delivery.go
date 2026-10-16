@@ -29,10 +29,10 @@ type conversationMessageDeliveryGuard interface {
 	WithConversationMessageDelivery(context.Context, string, string, string, func(bool, int64) error) (bool, error)
 }
 
-// directActionDeliveryGuard заменяет запоздалую личную нагрузку текущей
+// conversationActionDeliveryGuard заменяет запоздалую личную нагрузку текущей
 // проекцией владельца и отклоняет скрытие уже восстановленной беседы.
-type directActionDeliveryGuard interface {
-	WithDirectActionDelivery(context.Context, string, string, string, func(*personal.Conversation) error) (bool, error)
+type conversationActionDeliveryGuard interface {
+	WithConversationActionDelivery(context.Context, string, string, string, func(*personal.Conversation) error) (bool, error)
 }
 
 // deliver проверяет право на событие непосредственно перед записью в сокет.
@@ -83,15 +83,15 @@ func (h *UserHandler) deliver(ctx context.Context, user string, data []byte, wri
 	}
 	if event.Type == "conversation.preferences.updated" || event.Type == "conversation.history.cleared" || event.Type == "conversation.hidden" {
 		// Персональные настройки и очистка не публикуются собеседнику.
-		if payload.Type != "direct" || payload.UserID != user {
+		if payload.UserID != user || (payload.Type == "group" && event.Type != "conversation.preferences.updated") {
 			return nil
 		}
-		if guard, ok := h.accounts.(directActionDeliveryGuard); ok {
-			_, err := guard.WithDirectActionDelivery(ctx, payload.ConversationID, user, event.Type, func(item *personal.Conversation) error {
+		if guard, ok := h.accounts.(conversationActionDeliveryGuard); ok {
+			_, err := guard.WithConversationActionDelivery(ctx, payload.ConversationID, user, event.Type, func(item *personal.Conversation) error {
 				if item == nil {
 					return errors.New("missing authoritative conversation state")
 				}
-				fields := map[string]any{"conversationId": payload.ConversationID, "type": "direct", "userId": user}
+				fields := map[string]any{"conversationId": payload.ConversationID, "type": item.Type, "userId": user}
 				fields["historyClearedThrough"] = item.HistoryClearedThrough
 				if event.Type == "conversation.hidden" {
 					fields["hidden"] = true

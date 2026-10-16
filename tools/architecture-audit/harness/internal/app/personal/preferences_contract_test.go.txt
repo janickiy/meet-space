@@ -1,0 +1,108 @@
+package personalapp
+
+import (
+	"context"
+	"encoding/json"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	"github.com/janickiy/meet-space/internal/domain/personal"
+	domain "github.com/janickiy/meet-space/internal/domain/realtime"
+	personalusecase "github.com/janickiy/meet-space/internal/usecase/personal"
+)
+
+type preferencesRepository struct {
+	Repository
+	set func(context.Context, string, string, bool) (personal.Conversation, error)
+}
+
+func (r preferencesRepository) SetConversationPreferences(ctx context.Context, user, id string, enabled bool) (personal.Conversation, error) {
+	return r.set(ctx, user, id, enabled)
+}
+
+type preferencesBus struct {
+	users  []string
+	events []domain.Envelope
+}
+
+func (b *preferencesBus) Publish(_ context.Context, user string, event domain.Envelope) error {
+	b.users = append(b.users, user)
+	b.events = append(b.events, event)
+	return nil
+}
+
+func TestConversationPreferencesHTTP(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const user = "d91d81c5-99c5-4d49-a926-c7f375782bf2"
+	const conversation = "94563614-53b0-4820-a7b6-ea5710655cd4"
+	for _, tc := range []struct {
+		name, kind, body, path string
+		enabled                bool
+		err                    error
+		want                   int
+		called                 bool
+	}{
+		{name: "member mutes group", kind: "group", body: `{"notificationsEnabled":false}`, want: 200, called: true},
+		{name: "member unmutes group", kind: "group", body: `{"notificationsEnabled":true}`, enabled: true, want: 200, called: true},
+		{name: "direct remains supported", kind: "direct", body: `{"notificationsEnabled":false}`, want: 200, called: true},
+		{name: "nonmember denied", kind: "group", body: `{"notificationsEnabled":false}`, err: apperrors.ErrForbidden, want: 403, called: true},
+		{name: "missing flag", body: `{}`, want: 422},
+		{name: "null flag", body: `{"notificationsEnabled":null}`, want: 422},
+		{name: "cannot target another member", body: `{"notificationsEnabled":false,"userId":"other"}`, want: 400},
+		{name: "invalid id", path: "invalid", body: `{"notificationsEnabled":false}`, want: 422},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			bus := &preferencesBus{}
+			h := &Handler{Events: &personalusecase.Events{Bus: bus}, Repo: preferencesRepository{set: func(ctx context.Context, actor, id string, enabled bool) (personal.Conversation, error) {
+				calls++
+				if actor != user || id != conversation || enabled != tc.enabled {
+					t.Fatalf("untrusted identity or flag: %s %s %v", actor, id, enabled)
+				}
+				return personal.Conversation{ID: id, Type: tc.kind, MyRole: personal.MemberRole, NotificationsEnabled: enabled}, tc.err
+			}}}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			id := conversation
+			if tc.path != "" {
+				id = tc.path
+			}
+			c.Request = httptest.NewRequest("PATCH", "/api/v1/conversations/"+id+"/preferences", strings.NewReader(tc.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			c.Params = gin.Params{{Key: "id", Value: id}}
+			c.Set("authenticated_user_id", user)
+			h.SetConversationPreferences(c)
+			if w.Code != tc.want {
+				t.Fatalf("status=%d want=%d body=%s", w.Code, tc.want, w.Body.String())
+			}
+			if (calls == 1) != tc.called {
+				t.Fatalf("repository calls=%d", calls)
+			}
+			if w.Code != 200 {
+				if len(bus.events) != 0 {
+					t.Fatal("failed mutation published an event")
+				}
+				return
+			}
+			var body struct {
+				Item personal.Conversation `json:"item"`
+			}
+			if json.Unmarshal(w.Body.Bytes(), &body) != nil || body.Item.Type != tc.kind || body.Item.NotificationsEnabled != tc.enabled {
+				t.Fatal("incorrect response projection")
+			}
+			if len(bus.users) != 1 || bus.users[0] != user || bus.events[0].Type != "conversation.preferences.updated" {
+				t.Fatalf("event not restricted to actor: %v", bus.users)
+			}
+			var data struct {
+				UserID, Type string
+				Item         personal.Conversation
+			}
+			if json.Unmarshal(bus.events[0].Data, &data) != nil || data.UserID != user || data.Type != tc.kind || data.Item.NotificationsEnabled != tc.enabled {
+				t.Fatalf("invalid event payload: %s", bus.events[0].Data)
+			}
+		})
+	}
+}

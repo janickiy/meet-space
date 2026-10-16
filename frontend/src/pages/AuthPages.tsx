@@ -224,56 +224,58 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                 disabled={busy}
               />
             </label>
-            {register ? (
-              <>
-                <p className="field-hint password-hint">
-                  От 8 до 128 символов. Цифры и спецсимволы необязательны.
-                </p>
-                <label className="field" htmlFor="displayName">
-                  Ваше имя · необязательно
-                  <input
-                    id="displayName"
-                    autoComplete="nickname"
-                    placeholder="Как к вам обращаться?"
-                    value={name}
-                    onChange={
-                      /**
-                       * onChange обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-                       *
-                       * @args
-                       *   - event — проверенный конверт события комнаты.
-                       *
-                       * @returns вычисленное значение: setName(event.target.value).
-                       */ (event) => setName(event.target.value)
-                    }
-                    disabled={busy}
-                  />
-                </label>
-              </>
-            ) : (
-              <div className="recovery">
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={
-                    /**
-                     * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-                     *
-                     *
-                     * @returns вычисленное значение: setRecovery(!recovery).
-                     */ () => setRecovery(!recovery)
-                  }
-                >
-                  Забыли пароль?
-                </button>
-                {recovery && (
-                  <p className="field-hint" role="status">
-                    Восстановление пароля пока недоступно. Обратитесь к
-                    администратору сервиса.
+            <div className="auth-form-options">
+              {register ? (
+                <>
+                  <p className="field-hint password-hint">
+                    От 8 до 128 символов. Цифры и спецсимволы необязательны.
                   </p>
-                )}
-              </div>
-            )}
+                  <label className="field" htmlFor="displayName">
+                    Ваше имя · необязательно
+                    <input
+                      id="displayName"
+                      autoComplete="nickname"
+                      placeholder="Как к вам обращаться?"
+                      value={name}
+                      onChange={
+                        /**
+                         * onChange обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
+                         *
+                         * @args
+                         *   - event — проверенный конверт события комнаты.
+                         *
+                         * @returns вычисленное значение: setName(event.target.value).
+                         */ (event) => setName(event.target.value)
+                      }
+                      disabled={busy}
+                    />
+                  </label>
+                </>
+              ) : (
+                <div className="recovery">
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={
+                      /**
+                       * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
+                       *
+                       *
+                       * @returns вычисленное значение: setRecovery(!recovery).
+                       */ () => setRecovery(!recovery)
+                    }
+                  >
+                    Забыли пароль?
+                  </button>
+                  {recovery && (
+                    <p className="field-hint" role="status">
+                      Восстановление пароля пока недоступно. Обратитесь к
+                      администратору сервиса.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
             <Button type="submit" busy={busy} className="full-width">
               {register ? "Зарегистрироваться" : "Войти"}
               <ArrowRight size={17} aria-hidden="true" />

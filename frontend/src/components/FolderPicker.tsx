@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderPlus, Info, LogOut } from "lucide-react";
+import {
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router";
+import { Bell, BellOff, FolderPlus, Info, LogOut } from "lucide-react";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
+import { observeGroupConversationNotifications } from "../groupConversations";
+import { revokePersonalConversation } from "../personalRealtime";
 import {
   folderAccessDenied,
   invalidateFolders,
@@ -212,6 +220,7 @@ export function ConversationActions({
   conversation: PersonalConversation;
   onGroupInfo?: () => void;
 }) {
+  const { user } = useAuth();
   return conversation.type === "direct" ? (
     <DirectConversationActions
       key={conversation.id}
@@ -219,14 +228,14 @@ export function ConversationActions({
     />
   ) : (
     <FolderConversationActions
-      key={conversation.id}
+      key={`${user?.id}:${conversation.id}`}
       conversation={conversation}
       onGroupInfo={onGroupInfo}
     />
   );
 }
 
-/** Меню групповой переписки использует общий диалог выхода из группы. */
+/** Личная настройка уведомлений группы и общий диалог выхода из неё. */
 function FolderConversationActions({
   conversation,
   onGroupInfo,
@@ -234,9 +243,63 @@ function FolderConversationActions({
   conversation: GroupConversation;
   onGroupInfo?: () => void;
 }) {
+  const { user } = useAuth();
+  const client = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const request = useFolderRequest();
+  const gate = useRef(false);
+  const mutationKey = ["group-notifications", conversation.id, user?.id];
+  const otherBusy = useIsMutating({ mutationKey }) > 0;
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const leaveTrigger = useRef<HTMLElement | null>(null);
+  const notifications = useMutation({
+    mutationKey,
+    mutationFn: async (enabled: boolean) => {
+      if (!request.mounted.current || !user)
+        throw new DOMException("Операция отменена", "AbortError");
+      const response = await api.setGroupNotifications(
+        conversation.id,
+        enabled,
+        request.signal(),
+      );
+      if (
+        response.item.id !== conversation.id ||
+        response.item.type !== "group" ||
+        typeof response.item.notificationsEnabled !== "boolean"
+      )
+        throw new ApiError(502, "Сервер вернул некорректный ответ.");
+      return response;
+    },
+    onSuccess: ({ item }) => {
+      if (!request.mounted.current || !user) return;
+      observeGroupConversationNotifications(
+        client,
+        item.id,
+        user.id,
+        item.notificationsEnabled!,
+      );
+      void client.invalidateQueries({ queryKey: ["personal-list", user.id] });
+      void client.invalidateQueries({
+        queryKey: ["personal-detail", item.id, user.id],
+      });
+      void invalidateFolders(client, user.id);
+    },
+    onError: (error) => {
+      if (!request.mounted.current || !user) return;
+      if (folderAccessDenied(error)) {
+        revokePersonalConversation(client, conversation.id, user.id);
+        if (location.pathname === `/personal/${conversation.id}`)
+          navigate(`/personal${location.search}`, { replace: true });
+      }
+    },
+    onSettled: () => {
+      gate.current = false;
+    },
+  });
+  const busy = notifications.isPending || otherBusy;
+  const muted = conversation.notificationsEnabled === false;
   return (
     <>
       <ItemActions
@@ -247,19 +310,36 @@ function FolderConversationActions({
                 {
                   label: "Информация",
                   icon: <Info size={19} aria-hidden="true" />,
+                  disabled: busy,
                   run: onGroupInfo,
                 },
               ]
             : []),
           {
+            label: muted ? "Включить уведомления" : "Без уведомлений",
+            icon: muted ? (
+              <Bell size={19} aria-hidden="true" />
+            ) : (
+              <BellOff size={19} aria-hidden="true" />
+            ),
+            disabled: busy || !user,
+            run: () => {
+              if (gate.current || busy) return;
+              gate.current = true;
+              notifications.mutate(muted);
+            },
+          },
+          {
             label: "Добавить в папку",
             icon: <FolderPlus size={19} aria-hidden="true" />,
+            disabled: busy,
             run: () => setOpen(true),
           },
           {
             label: "Покинуть группу",
             icon: <LogOut size={19} aria-hidden="true" />,
             danger: true,
+            disabled: busy,
             run: () => {
               leaveTrigger.current = document.activeElement as HTMLElement;
               setLeaving(true);
@@ -267,6 +347,12 @@ function FolderConversationActions({
           },
         ]}
       />
+      <ErrorNotice error={notifications.error} />
+      {notifications.isPending && (
+        <span className="sr-only" role="status">
+          Сохраняем настройки уведомлений…
+        </span>
+      )}
       {open && (
         <FolderPicker
           target={{ type: "conversation", id: conversation.id }}

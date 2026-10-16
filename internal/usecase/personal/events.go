@@ -51,7 +51,8 @@ func (e *Events) PublishConversation(ctx context.Context, id, kind string, data 
 //   - ctx — контекст публикации после сохранения изменения.
 //   - user — владелец личной настройки и персонального канала.
 //   - kind — одно из событий preferences.updated, history.cleared или hidden.
-//   - data — нагрузка с conversationId, type=direct и userId, совпадающим с владельцем.
+//   - data — нагрузка с conversationId, type и userId, совпадающим с владельцем.
+//     Группы допускают только preferences.updated; очистка и скрытие остаются личными.
 //
 // @return ошибка контракта нагрузки или публикации.
 func (e *Events) PublishUser(ctx context.Context, user, kind string, data any) error {
@@ -71,7 +72,8 @@ func (e *Events) PublishUser(ctx context.Context, user, kind string, data any) e
 		return err
 	}
 	id, err := uuid.Parse(payload.ConversationID)
-	if user == "" || payload.UserID != user || payload.Type != "direct" || err != nil || id == uuid.Nil || id.String() != payload.ConversationID {
+	validType := payload.Type == "direct" || (payload.Type == "group" && kind == "conversation.preferences.updated")
+	if user == "" || payload.UserID != user || !validType || err != nil || id == uuid.Nil || id.String() != payload.ConversationID {
 		return errors.New("invalid personal conversation event payload")
 	}
 	return e.Bus.Publish(ctx, user, realtime.Event(kind, "", data))

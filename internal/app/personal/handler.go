@@ -20,7 +20,7 @@ type Repository interface {
 	List(context.Context, string, string, int) (personal.Page, error)
 	ListFiltered(context.Context, string, string, int, personal.ListFilter) (personal.Page, error)
 	Search(context.Context, string, string) ([]personal.Peer, error)
-	SetDirectPreferences(context.Context, string, string, bool) (personal.Conversation, error)
+	SetConversationPreferences(context.Context, string, string, bool) (personal.Conversation, error)
 	ClearDirectHistory(context.Context, string, string) (personal.Conversation, error)
 	HideDirectConversation(context.Context, string, string) (int64, error)
 	ConversationPins(context.Context, string, string, string, int) (chat.MessagePage, error)

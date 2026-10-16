@@ -5,7 +5,7 @@
     var(--primary-soft) 24%,
     var(--canvas)
   );
-  --messenger-own: var(--success-soft);
+  --messenger-own: #edfadf;
   background: var(--messenger-canvas);
 }
 
@@ -42,6 +42,7 @@
 }
 
 .personal-thread .chat-message-content {
+  /* Обёртка отвечает за раскладку; единственный пузырёк — chat-message-bubble. */
   flex: 0 1 auto;
   max-width: min(72%, 620px);
 }
@@ -82,6 +83,12 @@
 }
 
 .personal-thread .chat-message-own .chat-message-bubble {
+  --text: #203b27;
+  --muted: #506d53;
+  --primary: #397044;
+  --primary-soft: #d5edc6;
+  --surface: var(--messenger-own);
+  --border: #cfe5bf;
   border-color: color-mix(in srgb, var(--success) 12%, transparent);
   border-radius: 17px 17px 5px 17px;
   background: var(--messenger-own);
@@ -165,13 +172,13 @@
   outline: none;
 }
 
-.personal-thread .chat-message-focused .chat-message-bubble {
-  outline: 2px solid var(--primary);
-  outline-offset: 3px;
-}
-
 .personal-thread .chat-message-pinned .chat-message-bubble {
   border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+}
+
+.personal-thread .chat-message-focused .chat-message-bubble {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
 }
 
 .personal-thread.chat-panel .chat-message blockquote {
@@ -188,11 +195,16 @@
   background: color-mix(in srgb, var(--success) 7%, var(--messenger-own));
 }
 
+.personal-thread .call-history-message {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 .personal-thread
   .chat-message-own
   .call-history-message:not(.call-history-missed) {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 7%, var(--messenger-own));
+  color: var(--primary);
 }
 
 .personal-thread .chat-reply-jump {

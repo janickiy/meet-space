@@ -134,6 +134,9 @@
   box-shadow: none;
   backdrop-filter: none;
 }
+.auth-business-layout > .auth-card {
+  align-self: stretch;
+}
 .auth-mode-switch {
   display: grid;
   grid-template-columns: 1fr 1.4fr;
@@ -240,10 +243,16 @@
   overflow-wrap: anywhere;
 }
 .auth-business-page .auth-card .password-hint {
-  margin: -8px 0 20px;
+  margin: 0 0 20px;
+}
+.auth-form-options {
+  /* Один резерв под подсказку и имя сохраняет высоту при смене режима. */
+  display: flow-root;
+  min-block-size: calc(140px * var(--text-scale) + 20px);
+  margin-top: -8px;
 }
 .auth-business-page .auth-card .recovery {
-  margin: -8px 0 22px;
+  margin: 0;
   text-align: right;
 }
 .auth-business-page .auth-card .text-button {
@@ -342,7 +351,7 @@
 
 /* Фотография декоративна; подписи остаются настоящим текстом страницы. */
 .auth-team-photo {
-  aspect-ratio: 1.5;
+  aspect-ratio: 3 / 2;
   flex: none;
   overflow: hidden;
   background: #c9d2db;
@@ -351,7 +360,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
 }
 .auth-success-layout {
@@ -412,12 +421,6 @@
   }
   .auth-business-story-copy {
     display: none;
-  }
-  .auth-team-photo {
-    aspect-ratio: 2.4;
-  }
-  .auth-team-photo img {
-    object-position: center 28%;
   }
   .auth-business-page .auth-footer {
     justify-content: center;
