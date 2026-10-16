@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderPlus, Info } from "lucide-react";
+import { FolderPlus, Info, LogOut } from "lucide-react";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
 import {
@@ -14,6 +14,7 @@ import {
 } from "../folders";
 import type {
   FolderTarget,
+  GroupConversation,
   PersonalConversation,
   PersonalFolder,
 } from "../types";
@@ -21,6 +22,7 @@ import { Button, ErrorNotice, Loading, Modal } from "./ui";
 import { FolderNameForm } from "./FolderModals";
 import { ItemActions } from "./ItemActions";
 import { DirectConversationActions } from "./DirectConversationActions";
+import { GroupInfoModal } from "./GroupChats";
 import "./folders.css";
 
 /** Each checkbox is an idempotent mapping write; folders never grant access. */
@@ -217,29 +219,28 @@ export function ConversationActions({
     />
   ) : (
     <FolderConversationActions
+      key={conversation.id}
       conversation={conversation}
       onGroupInfo={onGroupInfo}
     />
   );
 }
 
-/** Сохраняет прежнее меню папок для групповых переписок. */
+/** Меню групповой переписки использует общий диалог выхода из группы. */
 function FolderConversationActions({
   conversation,
   onGroupInfo,
 }: {
-  conversation: PersonalConversation;
+  conversation: GroupConversation;
   onGroupInfo?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const name =
-    conversation.type === "group"
-      ? conversation.name
-      : conversation.peer.displayName;
+  const [leaving, setLeaving] = useState(false);
+  const leaveTrigger = useRef<HTMLElement | null>(null);
   return (
     <>
       <ItemActions
-        label={`Действия с перепиской: ${name}`}
+        label={`Действия с перепиской: ${conversation.name}`}
         actions={[
           ...(onGroupInfo
             ? [
@@ -255,12 +256,29 @@ function FolderConversationActions({
             icon: <FolderPlus size={19} aria-hidden="true" />,
             run: () => setOpen(true),
           },
+          {
+            label: "Покинуть группу",
+            icon: <LogOut size={19} aria-hidden="true" />,
+            danger: true,
+            run: () => {
+              leaveTrigger.current = document.activeElement as HTMLElement;
+              setLeaving(true);
+            },
+          },
         ]}
       />
       {open && (
         <FolderPicker
           target={{ type: "conversation", id: conversation.id }}
           onClose={() => setOpen(false)}
+        />
+      )}
+      {leaving && (
+        <GroupInfoModal
+          group={conversation}
+          initialView="leave"
+          onClose={() => setLeaving(false)}
+          returnFocus={() => leaveTrigger.current}
         />
       )}
     </>

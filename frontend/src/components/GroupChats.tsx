@@ -534,17 +534,19 @@ function GroupMemberInfoModal({
 
 export function GroupInfoModal({
   group,
+  initialView = "info",
   onClose,
   returnFocus,
 }: {
   group: GroupConversation;
+  initialView?: "info" | "leave";
   onClose: () => void;
   returnFocus: () => HTMLElement | null;
 }) {
   const { user } = useAuth();
   const client = useQueryClient();
   const navigate = useNavigate();
-  const [view, setView] = useState<GroupView>("info");
+  const [view, setView] = useState<GroupView>(initialView);
   const [selected, setSelected] = useState<PersonalPeer[]>([]);
   const [search, setSearch] = useState("");
   const [validation, setValidation] = useState("");
@@ -642,7 +644,7 @@ export function GroupInfoModal({
     members: "Участники группы",
     add: "Добавить участников",
     edit: "Настройки группы",
-    leave: "Выйти из группы",
+    leave: "Покинуть группу",
     transfer: "Передать владение",
     delete: "Удалить группу",
   };
@@ -656,7 +658,8 @@ export function GroupInfoModal({
         onClose={() => {
           if (submitting.current) return;
           if (removeTarget) setRemoveTarget(undefined);
-          else if (view !== "info") setView("info");
+          else if (view !== "info" && view !== initialView)
+            setView(initialView);
           else onClose();
         }}
       >
