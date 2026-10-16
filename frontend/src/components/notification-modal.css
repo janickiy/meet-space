@@ -1,0 +1,278 @@
+.modal.notification-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-width: 560px;
+  max-height: min(760px, calc(100dvh - 48px));
+  padding: 24px 0 0;
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.modal.notification-modal > h2 {
+  flex-shrink: 0;
+  margin: 0 68px 6px 24px;
+  font-size: calc(20px * var(--text-scale));
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.notification-modal .modal-close {
+  top: 16px;
+  right: 16px;
+  border-radius: 50%;
+}
+
+.notification-modal-summary {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 24px;
+  margin: 0 24px 18px;
+  color: var(--muted);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+}
+
+.notification-modal-count {
+  padding: 3px 9px;
+  border-radius: 20px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-weight: 500;
+}
+
+.notification-modal-body {
+  min-height: 0;
+  padding: 0 12px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.notification-modal-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-modal-item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: start;
+  column-gap: 12px;
+  padding: 16px 12px;
+  border-radius: 12px;
+}
+
+.notification-modal-item.is-unread {
+  background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface));
+}
+
+.notification-modal-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.is-unread > .notification-modal-icon {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.notification-modal-copy {
+  min-width: 0;
+  padding-top: 1px;
+  overflow-wrap: anywhere;
+}
+
+.notification-modal-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.notification-modal-title h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: calc(14px * var(--text-scale));
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.is-unread .notification-modal-title h3 {
+  font-weight: 600;
+}
+
+.notification-modal-dot {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.notification-modal-copy time {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: calc(11px * var(--text-scale));
+  line-height: 1.5;
+}
+
+.notification-modal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  margin-top: 4px;
+  color: var(--primary);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.notification-modal-link svg {
+  flex-shrink: 0;
+}
+
+.notification-modal .notification-modal-read {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.notification-modal .notification-modal-read:hover:not(:disabled) {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.notification-modal-read[aria-busy="true"] > svg:last-child {
+  display: none;
+}
+
+.notification-modal .notification-modal-more {
+  width: 100%;
+  margin-top: 12px;
+  font-size: calc(13px * var(--text-scale));
+}
+
+.notification-modal-footer {
+  flex-shrink: 0;
+  padding: 8px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.notification-modal-footer a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  color: var(--primary);
+  font-size: calc(13px * var(--text-scale));
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.notification-modal-empty {
+  padding: 30px 24px 42px;
+  text-align: center;
+}
+
+.notification-modal-empty > span {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  border-radius: 18px;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.notification-modal-empty h3 {
+  margin: 0 0 8px;
+  font-size: calc(16px * var(--text-scale));
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.notification-modal-empty p {
+  max-width: 300px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.6;
+}
+
+@media (max-width: 480px) {
+  .modal.notification-modal {
+    max-height: calc(100dvh - 32px);
+    padding-top: 20px;
+    border-radius: 16px;
+  }
+
+  .modal.notification-modal > h2 {
+    margin-left: 20px;
+  }
+
+  .notification-modal-summary {
+    margin-left: 20px;
+    margin-bottom: 14px;
+  }
+
+  .notification-modal .modal-close {
+    top: 12px;
+    right: 12px;
+  }
+
+  .notification-modal-body {
+    padding: 0 8px 8px;
+  }
+
+  .notification-modal-item {
+    grid-template-columns: 28px minmax(0, 1fr) 32px;
+    column-gap: 8px;
+    padding: 14px 10px;
+  }
+
+  .notification-modal-icon {
+    width: 28px;
+    height: 32px;
+    background: transparent;
+  }
+
+  .notification-modal .notification-modal-read {
+    width: 32px;
+    min-width: 32px;
+  }
+
+  .notification-modal-footer {
+    padding-inline: 20px;
+  }
+
+  [data-large-text="true"] .notification-modal-item {
+    grid-template-columns: minmax(0, 1fr) 32px;
+  }
+
+  [data-large-text="true"] .notification-modal-icon {
+    display: none;
+  }
+}

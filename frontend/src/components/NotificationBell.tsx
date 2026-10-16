@@ -5,13 +5,37 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Bell, Check } from "lucide-react";
+import {
+  ArrowUpRight,
+  Bell,
+  CalendarClock,
+  Check,
+  ChevronRight,
+  FileText,
+  MessageCircle,
+  Play,
+  Users,
+  Video,
+} from "lucide-react";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { formatDate } from "../utils";
 import { notificationLink } from "../intelligence";
 import type { Notification } from "../types";
 import { Button, ErrorNotice, Loading, Modal } from "./ui";
+import "./notification-modal.css";
+
+function notificationIcon(item: Notification) {
+  if (item.type === "chat.message")
+    return item.payload.conversationType === "group" ? Users : MessageCircle;
+  if (item.type.includes("recording")) return Play;
+  if (item.type.includes("transcript") || item.type.includes("summary"))
+    return FileText;
+  if (item.type === "conference.soon" || item.type === "conference.rescheduled")
+    return CalendarClock;
+  if (item.type === "conference.invited") return Users;
+  return Video;
+}
 
 /**
  * notificationLabel переводит тип и нагрузку уведомления в понятную подпись для списка.
@@ -162,116 +186,167 @@ export function NotificationBell() {
              * @returns вычисленное значение: setOpen(false).
              */ () => setOpen(false)
           }
-          wide
         >
-          <ErrorNotice error={query.error || read.error} />
-          {query.isPending ? (
-            <Loading />
-          ) : (
-            <>
-              {!rows.length && !query.isError && (
-                <p className="empty-state compact-empty">
-                  Пока нет уведомлений. Здесь появятся сообщения, ответы,
-                  приглашения и готовые записи.
-                </p>
-              )}
-              <div className="notification-list">
-                {rows.map(
-                  /**
-                   * Обработчик rows.map преобразует один элемент набора в представление или данные следующего шага.
-                   *
-                   * @args
-                   *   - item — элемент списка, который обрабатывает текущий шаг.
-                   *
-                   * @returns преобразованное значение текущего элемента для результирующего набора.
-                   */ (item) => (
-                    <article
-                      key={item.id}
-                      className={`notification-row ${item.readAt ? "" : "notification-unread"}`}
-                    >
-                      <div>
-                        <strong>{notificationLabel(item)}</strong>
-                        <p className="field-hint">
-                          {formatDate(item.createdAt)}
-                        </p>
-                        {(item.payload.conferenceId ||
-                          item.payload.conversationId) && (
-                          <Link
-                            to={notificationLink(item)}
-                            onClick={
-                              /**
-                               * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-                               *
-                               *
-                               * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
-                               */ () => {
-                                if (!item.readAt) read.mutate(item.id);
-                                setOpen(false);
-                              }
-                            }
-                          >
-                            {item.payload.conversationId
-                              ? "Открыть чат"
-                              : item.type === "chat.message"
-                                ? "Открыть комментарий"
-                                : "Открыть встречу"}
-                          </Link>
-                        )}
-                      </div>
-                      {!item.readAt && (
-                        <Button
-                          variant="outline"
-                          busy={read.isPending && read.variables === item.id}
-                          onClick={
-                            /**
-                             * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-                             *
-                             *
-                             * @returns вычисленное значение: read.mutate(item.id).
-                             */ () => read.mutate(item.id)
-                          }
-                          aria-label={`Прочитано: ${notificationLabel(item)}`}
-                        >
-                          <Check size={17} />
-                        </Button>
-                      )}
-                    </article>
-                  ),
+          <div className="notification-modal-summary" role="status">
+            {query.data &&
+              (unread > 0 ? (
+                <span className="notification-modal-count">
+                  Новых: {unread}
+                </span>
+              ) : (
+                <span>Всё прочитано</span>
+              ))}
+          </div>
+          <div className="notification-modal-body">
+            <ErrorNotice error={query.error || read.error} />
+            {query.isPending ? (
+              <Loading />
+            ) : (
+              <>
+                {!rows.length && !query.isError && (
+                  <div className="notification-modal-empty">
+                    <span>
+                      <Bell size={26} aria-hidden="true" />
+                    </span>
+                    <h3>Вы ничего не пропустили</h3>
+                    <p>
+                      Здесь появятся сообщения, приглашения и материалы ваших
+                      встреч.
+                    </p>
+                  </div>
                 )}
-              </div>
-              {query.hasNextPage && (
-                <Button
-                  variant="outline"
-                  busy={query.isFetchingNextPage}
-                  onClick={
-                    /**
-                     * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-                     *
-                     *
-                     * @returns вычисленное значение: void query.fetchNextPage().
-                     */ () => void query.fetchNextPage()
-                  }
+                <ul
+                  className="notification-modal-list"
+                  aria-label="Уведомления"
                 >
-                  Ещё уведомления
-                </Button>
-              )}
-              {query.isError && (
-                <Button
-                  variant="outline"
-                  onClick={
+                  {rows.map(
                     /**
-                     * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
+                     * Обработчик rows.map преобразует один элемент набора в представление или данные следующего шага.
                      *
+                     * @args
+                     *   - item — элемент списка, который обрабатывает текущий шаг.
                      *
-                     * @returns вычисленное значение: void query.refetch().
-                     */ () => void query.refetch()
-                  }
-                >
-                  Попробовать снова
-                </Button>
-              )}
-            </>
-          )}
+                     * @returns преобразованное значение текущего элемента для результирующего набора.
+                     */ (item) => {
+                      const Icon = notificationIcon(item);
+                      return (
+                        <li
+                          key={item.id}
+                          className={`notification-modal-item${item.readAt ? "" : " is-unread"}`}
+                        >
+                          <span
+                            className="notification-modal-icon"
+                            aria-hidden="true"
+                          >
+                            <Icon size={19} />
+                          </span>
+                          <div className="notification-modal-copy">
+                            <div className="notification-modal-title">
+                              <h3>{notificationLabel(item)}</h3>
+                              {!item.readAt && (
+                                <span
+                                  className="notification-modal-dot"
+                                  role="img"
+                                  aria-label="Непрочитанное"
+                                />
+                              )}
+                            </div>
+                            <time dateTime={item.createdAt}>
+                              {formatDate(item.createdAt)}
+                            </time>
+                            {(item.payload.conferenceId ||
+                              item.payload.conversationId) && (
+                              <Link
+                                className="notification-modal-link"
+                                to={notificationLink(item)}
+                                onClick={
+                                  /**
+                                   * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
+                                   *
+                                   *
+                                   * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
+                                   */ () => {
+                                    if (!item.readAt) read.mutate(item.id);
+                                    setOpen(false);
+                                  }
+                                }
+                              >
+                                {item.payload.conversationId
+                                  ? "Открыть чат"
+                                  : item.type === "chat.message"
+                                    ? "Открыть комментарий"
+                                    : "Открыть встречу"}
+                                <ArrowUpRight size={14} aria-hidden="true" />
+                              </Link>
+                            )}
+                          </div>
+                          {!item.readAt && (
+                            <Button
+                              variant="secondary"
+                              className="notification-modal-read"
+                              busy={
+                                read.isPending && read.variables === item.id
+                              }
+                              onClick={
+                                /**
+                                 * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
+                                 *
+                                 *
+                                 * @returns вычисленное значение: read.mutate(item.id).
+                                 */ () => read.mutate(item.id)
+                              }
+                              aria-label={`Отметить как прочитанное: ${notificationLabel(item)}`}
+                              title="Отметить как прочитанное"
+                            >
+                              <Check size={17} aria-hidden="true" />
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    },
+                  )}
+                </ul>
+                {query.hasNextPage && (
+                  <Button
+                    variant="outline"
+                    className="notification-modal-more"
+                    busy={query.isFetchingNextPage}
+                    onClick={
+                      /**
+                       * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
+                       *
+                       *
+                       * @returns вычисленное значение: void query.fetchNextPage().
+                       */ () => void query.fetchNextPage()
+                    }
+                  >
+                    Ещё уведомления
+                  </Button>
+                )}
+                {query.isError && (
+                  <Button
+                    variant="outline"
+                    onClick={
+                      /**
+                       * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
+                       *
+                       *
+                       * @returns вычисленное значение: void query.refetch().
+                       */ () => void query.refetch()
+                    }
+                  >
+                    Попробовать снова
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+          <footer className="notification-modal-footer">
+            <Link to="/notifications" onClick={() => setOpen(false)}>
+              Все уведомления
+              <ChevronRight size={16} aria-hidden="true" />
+            </Link>
+          </footer>
         </Modal>
       )}
     </>

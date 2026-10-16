@@ -46,6 +46,15 @@
   max-width: min(72%, 620px);
 }
 
+.personal-thread.chat-panel
+  .chat-message
+  .chat-message-content:has(
+    > .chat-message-bubble-text,
+    > .chat-message-bubble > .call-history-message
+  ) {
+  max-width: min(100%, 620px);
+}
+
 .personal-thread .chat-message header {
   gap: 6px;
   margin: 0 12px 5px;
@@ -107,6 +116,27 @@
 .personal-thread .chat-message-footer svg {
   flex-shrink: 0;
   color: var(--primary);
+}
+
+.personal-thread .chat-message-bubble-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.personal-thread .chat-message-bubble-text > .chat-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.personal-thread .chat-message-bubble-text > .chat-message-footer {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  margin-top: 0;
+  margin-inline-start: auto;
+  white-space: nowrap;
 }
 
 .personal-thread .chat-message-tools {

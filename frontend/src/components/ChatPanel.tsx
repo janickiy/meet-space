@@ -844,6 +844,12 @@ export function MessageThread({
             {messages.map((message, index) => {
               const own = message.senderId === user?.id;
               const pinned = personal && pinnedIds.has(message.id);
+              const inlineMeta =
+                personal &&
+                !message.call &&
+                !message.replyPreview &&
+                message.attachments.length === 0 &&
+                !/[\r\n]/.test(message.text);
               const day = chatDayKey(message.createdAt);
               return (
                 <Fragment key={message.id}>
@@ -885,7 +891,9 @@ export function MessageThread({
                             </span>
                           )}
                       </header>
-                      <div className="chat-message-bubble">
+                      <div
+                        className={`chat-message-bubble${inlineMeta ? " chat-message-bubble-text" : ""}`}
+                      >
                         {message.replyPreview && (
                           <blockquote>
                             {personal && onFocusMessage ? (
