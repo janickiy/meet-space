@@ -502,7 +502,7 @@ function CallRinging({
     if (call.status !== "ringing" || (!incoming && !owned)) return;
     const audio = new Audio(toneURL);
     audio.loop = true;
-    audio.volume = 0.25;
+    audio.volume = 0.75;
     let disposed = false;
     let release: (() => void) | undefined;
     const preferences = readDevicePreferences(userId);

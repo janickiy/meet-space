@@ -3,7 +3,9 @@
   'use strict';
   const M = window.MS, E = value => M.escape(value ?? ''), I = name => M.icon(name);
   const copy = value => JSON.parse(JSON.stringify(value));
-  let threads = {}, focused = null;
+  let threads = {}, focused = null, forwarding = null;
+  const reactions = [['👍','Нравится'],['❤️','Любовь'],['😂','Смешно'],['😮','Удивление'],['😢','Грусть'],['🙏','Спасибо']];
+  const reactionOf = item => reactions.some(([emoji]) => emoji === item.reaction) ? item.reaction : item.reaction === true ? '👍' : '';
   const files = new Map();
   const scope = (id = M.state.chat) => `${M.accountManagerSnapshot?.().activeId || 'personal'}:${id}`;
   const contact = () => M.chatContact(M.state.chat);
@@ -45,7 +47,7 @@
   }
   function renderMessage(item) {
     const pinned = data().pins.includes(item.id) && !item.deleted;
-    return `<article class="chat-message cr-message ${item.own ? 'mine' : ''} ${focused?.key === scope() && focused.id === item.id ? 'cr-focused' : ''}" id="cr-${E(item.id)}" tabindex="-1">${item.own ? '' : avatar(item.initials, item.tone)}<div class="cr-message-content"><div class="bubble">${item.own ? '' : `<h4>${E(author(item))}</h4>`}${quote(item)}<div class="cr-message-text ${item.deleted ? 'muted' : ''}">${E(item.deleted ? 'Сообщение удалено' : item.text)}</div>${item.deleted ? '' : (item.attachments || []).map(file => attachment(file)).join('')}<footer class="cr-meta">${pinned ? `<span aria-label="Закреплено">${I('Pin')}</span>` : ''}${item.edited && !item.deleted ? '<span>изменено</span>' : ''}<time>${E(item.time)}</time>${item.own ? `<span aria-label="Отправлено">${I('CheckCheck')}</span>` : ''}</footer></div>${!item.deleted ? `<div class="cr-message-tools">${item.reaction ? `<button class="chat-reaction" data-action="chatRefreshReaction" data-id="${E(item.id)}" aria-label="Убрать реакцию">👍 1</button>` : ''}<button class="icon-button cr-more" data-action="chatRefreshMenu" data-id="${E(item.id)}" aria-haspopup="dialog" aria-label="Действия с сообщением от ${E(author(item))} в ${E(item.time)}">${I('Ellipsis')}</button></div>` : ''}</div></article>`;
+    return `<article class="chat-message cr-message ${item.own ? 'mine' : ''} ${focused?.key === scope() && focused.id === item.id ? 'cr-focused' : ''}" id="cr-${E(item.id)}" data-message-id="${E(item.id)}" tabindex="${item.deleted ? '-1' : '0'}" aria-label="Сообщение от ${E(author(item))} в ${E(item.time)}" ${item.deleted ? '' : 'aria-haspopup="dialog"'}>${item.own ? '' : avatar(item.initials, item.tone)}<div class="cr-message-content"><div class="bubble">${item.forwarded ? `<span class="cr-forwarded-label">${I('ArrowRight')}Переслано от ${E(item.forwarded)}</span>` : ''}${item.own ? '' : `<h4>${E(author(item))}</h4>`}${quote(item)}<div class="cr-message-text ${item.deleted ? 'muted' : ''}">${E(item.deleted ? 'Сообщение удалено' : item.text)}</div>${item.deleted ? '' : (item.attachments || []).map(file => attachment(file)).join('')}<footer class="cr-meta">${pinned ? `<span aria-label="Закреплено">${I('Pin')}</span>` : ''}${item.edited && !item.deleted ? '<span>изменено</span>' : ''}<time>${E(item.time)}</time>${item.own ? `<span aria-label="Отправлено">${I('CheckCheck')}</span>` : ''}</footer></div>${!item.deleted ? `<div class="cr-message-tools">${reactionOf(item) ? `<button class="chat-reaction" data-action="chatRefreshReaction" data-id="${E(item.id)}" aria-label="Убрать реакцию ${E(reactionOf(item))}" aria-pressed="true">${E(reactionOf(item))} <span>1</span></button>` : ''}<button class="icon-button cr-more" data-action="chatRefreshMenu" data-id="${E(item.id)}" aria-haspopup="dialog" aria-label="Действия с сообщением от ${E(author(item))} в ${E(item.time)}">${I('Ellipsis')}</button></div>` : ''}</div></article>`;
   }
   function pinBar() {
     const list = pins();
@@ -60,7 +62,7 @@
   M.renderChatThread = c => {
     if (!M.chatIsVisible(c)) return `<section class="thread cr-thread cr-chat-empty"><span>${I('MessagesSquare')}</span><h3>Выберите чат</h3><p>Откройте переписку из списка или начните новую.</p><button class="button primary" data-action="newChat">${I('Plus')}Новый чат</button></section>`;
     const d = data(), group = c.kind === 'group';
-    return `<section class="thread cr-thread"><header class="thread-header"><button class="icon-button phone-back" data-go="messages" aria-label="Назад к чатам">${I('ArrowLeft')}</button><span class="chat-avatar ${group ? 'is-group' : ''}">${avatar(c.initials, c.tone)}${group ? `<span class="group-avatar-badge" aria-label="Группа">${I('Users')}</span>` : ''}</span><div class="cr-contact-copy"><h3>${E(c.name)}${d.muted ? `<span class="cr-muted-indicator" aria-label="Уведомления выключены">${I('BellOff')}</span>` : ''}</h3><p>${group ? `Группа · ${memberCount(c.members.length)}` : 'В сети'}</p></div><span class="spacer"></span>${!group ? `<button class="icon-button personal-call-trigger" data-action="startPersonalCall" data-contact="${E(c.id)}" aria-label="Позвонить: ${E(c.name)}">${I('Phone')}</button>` : ''}<button class="icon-button" data-action="chatRefreshSearch" aria-label="Поиск в переписке">${I('Search')}</button><div class="cr-header-actions"><button class="icon-button cr-header-menu-trigger" data-action="chatRefreshHeader" aria-label="Действия с чатом" aria-haspopup="menu" aria-expanded="false" aria-controls="cr-chat-dropdown">${I('Ellipsis')}</button></div></header>${M.renderPersonalCallBanner?.(c) || ''}${pinBar()}<div class="thread-log" id="thread-log" aria-label="Сообщения"><div class="chat-date">${c.created ? 'Вы создали группу' : 'Сегодня, 16 октября'}</div>${d.messages.map(renderMessage).join('') || `<div class="group-welcome">${avatar(c.initials, c.tone)}<h3>${E(c.name)}</h3><p>Напишите первое сообщение.</p></div>`}</div>${focused?.key === scope() ? '<div class="cr-context-return"><button data-action="chatRefreshLatest">К последним сообщениям ↓</button></div>' : ''}<div class="thread-create-actions"><button class="button primary" type="button" data-action="newChat" aria-label="Новый чат">${I('Plus')}Новый чат</button></div><div class="cr-composer-shell">${composerContext()}${!d.editing && d.pending.length ? `<div class="cr-pending-files">${d.pending.map(file => attachment(file, true)).join('')}</div>` : ''}<form class="composer" id="message-form"><button class="icon-button" type="button" data-action="chatRefreshAttach" aria-label="Прикрепить файлы" ${d.editing ? 'disabled' : ''}>${I('Paperclip')}</button><textarea id="message-input" rows="1" maxlength="10000" autocomplete="off" aria-label="${d.editing ? 'Редактировать сообщение' : 'Сообщение'}" placeholder="Написать сообщение…">${E(d.editing ? d.editText : d.draft)}</textarea><button class="icon-button send-button" aria-label="${d.editing ? 'Сохранить сообщение' : 'Отправить сообщение'}" ${canSend() ? '' : 'disabled'}>${I(d.editing ? 'Check' : 'ArrowUp')}</button></form></div></section>`;
+    return `<section class="thread cr-thread"><header class="thread-header"><button class="icon-button phone-back" data-go="messages" aria-label="Назад к чатам">${I('ArrowLeft')}</button><span class="chat-avatar ${group ? 'is-group' : ''}">${avatar(c.initials, c.tone)}${group ? `<span class="group-avatar-badge" aria-label="Группа">${I('Users')}</span>` : ''}</span><div class="cr-contact-copy"><h3>${E(c.name)}${d.muted ? `<span class="cr-muted-indicator" aria-label="Уведомления выключены">${I('BellOff')}</span>` : ''}</h3><p>${group ? `Группа · ${memberCount(c.members.length)}` : 'В сети'}</p></div><span class="spacer"></span>${!group ? `<button class="icon-button personal-call-trigger" data-action="startPersonalCall" data-contact="${E(c.id)}" aria-label="Позвонить: ${E(c.name)}">${I('Phone')}</button>` : ''}<button class="icon-button" data-action="chatRefreshSearch" aria-label="Поиск в переписке">${I('Search')}</button><div class="cr-header-actions"><button class="icon-button cr-header-menu-trigger" data-action="chatRefreshHeader" aria-label="Действия с чатом" aria-haspopup="menu" aria-expanded="false" aria-controls="cr-chat-dropdown">${I('Ellipsis')}</button></div></header>${M.renderPersonalCallBanner?.(c) || ''}${pinBar()}<div class="thread-log" id="thread-log" aria-label="Сообщения"><div class="chat-date">${c.created ? 'Вы создали группу' : 'Сегодня, 16 октября'}</div>${d.messages.some(item => !item.deleted) ? '<p class="cr-gesture-hint">Удерживайте сообщение, чтобы открыть действия</p>' : ''}${d.messages.map(renderMessage).join('') || `<div class="group-welcome">${avatar(c.initials, c.tone)}<h3>${E(c.name)}</h3><p>Напишите первое сообщение.</p></div>`}</div>${focused?.key === scope() ? '<div class="cr-context-return"><button data-action="chatRefreshLatest">К последним сообщениям ↓</button></div>' : ''}<div class="thread-create-actions"><button class="button primary" type="button" data-action="newChat" aria-label="Новый чат">${I('Plus')}Новый чат</button></div><div class="cr-composer-shell">${composerContext()}${!d.editing && d.pending.length ? `<div class="cr-pending-files">${d.pending.map(file => attachment(file, true)).join('')}</div>` : ''}<form class="composer" id="message-form"><button class="icon-button" type="button" data-action="chatRefreshAttach" aria-label="Прикрепить файлы" ${d.editing ? 'disabled' : ''}>${I('Paperclip')}</button><textarea id="message-input" rows="1" maxlength="10000" autocomplete="off" aria-label="${d.editing ? 'Редактировать сообщение' : 'Сообщение'}" placeholder="Написать сообщение…">${E(d.editing ? d.editText : d.draft)}</textarea><button class="icon-button send-button" aria-label="${d.editing ? 'Сохранить сообщение' : 'Отправить сообщение'}" ${canSend() ? '' : 'disabled'}>${I(d.editing ? 'Check' : 'ArrowUp')}</button></form></div></section>`;
   };
   function canSend() {
     const d = data();
@@ -112,6 +114,7 @@
       }
       focused = null; updatePreview(); redraw({focus: true, latest: true});
     });
+    bindMessageGestures();
     resize();
   };
   function jump(id) {
@@ -132,11 +135,73 @@
   function showPins() {
     M.modal('Закреплённые сообщения', `<div class="cr-pin-list">${pins().map(item => `<div>${jumpButton(item, 'cr-pin-result')}<button class="icon-button" data-action="chatRefreshUnpin" data-id="${E(item.id)}" aria-label="Открепить сообщение">${I('X')}</button></div>`).join('') || '<p>В этом чате пока нет закреплённых сообщений.</p>'}</div>`);
   }
+  function bindMessageGestures() {
+    const log=document.getElementById('thread-log'); if(!log)return;
+    let hold=null, origin=null, suppressClick=false;
+    const cancel=()=>{clearTimeout(hold);hold=null;origin=null;};
+    log.addEventListener('pointerdown',event=>{
+      cancel();suppressClick=false;
+      const article=event.target.closest('.cr-message');
+      if(event.button!==0||!article||event.target.closest('button,a,input')||!message(article.dataset.messageId)||message(article.dataset.messageId).deleted)return;
+      origin={x:event.clientX,y:event.clientY};
+      const key=scope();
+      hold=setTimeout(()=>{hold=null;origin=null;if(!article.isConnected||scope()!==key)return;suppressClick=true;openMenu(article.dataset.messageId);},500);
+    });
+    log.addEventListener('pointermove',event=>{if(origin&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>10)cancel();});
+    ['pointerup','pointercancel','pointerleave'].forEach(type=>log.addEventListener(type,cancel));
+    log.addEventListener('scroll',cancel,{passive:true});
+    log.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopPropagation();suppressClick=false;}},true);
+    log.addEventListener('contextmenu',event=>{
+      const article=event.target.closest('.cr-message');if(!article||event.target.closest('button,a'))return;
+      if(message(article.dataset.messageId)?.deleted)return;
+      event.preventDefault();cancel();openMenu(article.dataset.messageId);
+    });
+    log.addEventListener('keydown',event=>{
+      if(!event.target.matches('.cr-message'))return;
+      if(event.key==='Enter'||event.key===' '||event.key==='ContextMenu'||event.key==='F10'&&event.shiftKey){event.preventDefault();openMenu(event.target.dataset.messageId);}
+    });
+  }
   function openMenu(id) {
     const item = message(id); if (!item || item.deleted) return;
-    const options = [['Reply', 'chatRefreshReply', 'Ответить'], ['Pin', 'chatRefreshPin', data().pins.includes(id) ? 'Открепить' : 'Закрепить'], ['Smile', 'chatRefreshReaction', item.reaction ? 'Убрать реакцию 👍' : 'Поставить 👍'], ['Copy', 'chatRefreshCopy', 'Копировать текст']];
-    if (item.own) options.push(['Pencil', 'chatRefreshEdit', 'Редактировать'], ['Trash2', 'chatRefreshDelete', 'Удалить']);
-    M.modal('Действия с сообщением', `<div class="cr-menu-preview"><strong>${E(author(item))}</strong><p>${E(preview(item))}</p></div><div class="cr-message-menu">${options.map(([icon, action, label]) => `<button class="${action === 'chatRefreshDelete' ? 'cr-danger' : ''}" data-action="${action}" data-id="${E(id)}">${I(icon)}${label}</button>`).join('')}</div>`);
+    const article=document.getElementById('cr-'+id), anchor=article?.querySelector('.bubble')?.getBoundingClientRect();
+    if(!anchor)return;
+    const options = [['Reply','chatRefreshReply','Ответить'],['Copy','chatRefreshCopy','Копировать'],['ArrowRight','chatRefreshForward','Переслать'],['Pin','chatRefreshPin',data().pins.includes(id)?'Открепить':'Закрепить']];
+    if(item.own)options.push(['Pencil','chatRefreshEdit','Изменить'],['Trash2','chatRefreshDelete','Удалить']);
+    M.closeModal();M.opener=article;
+    document.getElementById('dialog-root').innerHTML=`<div class="modal-backdrop cr-message-backdrop"><section class="modal cr-message-popover" role="dialog" aria-modal="true" aria-labelledby="cr-message-title"><div class="cr-context-caption"><h2 id="cr-message-title">Действия с сообщением</h2><button class="icon-button" data-close aria-label="Закрыть действия с сообщением">${I('X')}</button></div><div class="cr-quick-reactions" role="group" aria-label="Быстрые реакции">${reactions.map(([emoji,label])=>`<button data-action="chatRefreshReaction" data-id="${E(id)}" data-emoji="${E(emoji)}" aria-label="${E(label)} ${emoji}" aria-pressed="${reactionOf(item)===emoji}">${emoji}</button>`).join('')}</div><div class="cr-selected-preview ${item.own?'mine':''}"><strong>${E(author(item))}</strong><p>${E(item.text)}</p>${item.attachments?.length?`<span class="cr-preview-attachment">${I('Paperclip')}${E(item.attachments[0].name)}${item.attachments.length>1?` · ещё ${item.attachments.length-1}`:''}</span>`:''}<small>${item.edited?'изменено · ':''}${E(item.time)}${item.own?' · ✓✓':''}</small></div><div class="cr-context-actions">${options.map(([icon,action,label])=>`<button class="${action==='chatRefreshDelete'?'cr-danger':''}" data-action="${action}" data-id="${E(id)}">${I(icon)}<span>${label}</span></button>`).join('')}</div></section></div>`;
+    document.getElementById('app').inert=true;
+    const popover=document.querySelector('.cr-message-popover'), backdrop=document.querySelector('.cr-message-backdrop');
+    const width=Math.min(320,innerWidth-32);popover.style.width=width+'px';
+    const thread=document.querySelector('.cr-thread')?.getBoundingClientRect();
+    const minLeft=Math.max(16,(thread?.left||0)+12), maxLeft=innerWidth-width-16;
+    const left=Math.min(maxLeft,Math.max(Math.min(minLeft,maxLeft),item.own?anchor.right-width:anchor.left));
+    const height=popover.getBoundingClientRect().height;
+    popover.style.left=left+'px';popover.style.top=Math.max(16,Math.min(anchor.top-68,innerHeight-height-16))+'px';
+    const openedAt=performance.now();
+    backdrop.addEventListener('click',event=>{if(event.target===backdrop&&performance.now()-openedAt>300)M.closeModal();});
+    popover.querySelector('.cr-context-actions button')?.focus({preventScroll:true});
+  }
+  function showForward(id) {
+    const item=message(id);if(!item||item.deleted)return;
+    forwarding={key:scope(),id};
+    const recipients=(M.chatContacts?.()||[]).filter(M.chatIsVisible);
+    M.modal('Переслать сообщение',`<div class="stack"><label class="field">Получатель<input id="cr-forward-search" type="search" placeholder="Найти чат или группу" autocomplete="off"/></label><div class="cr-menu-preview"><strong>${E(author(item))}</strong><p>${E(preview(item))}</p></div><div class="cr-forward-list">${recipients.map(c=>`<button class="cr-forward-target" data-action="chatRefreshForwardTo" data-chat="${E(c.id)}" data-search="${E(c.name.toLocaleLowerCase('ru'))}">${avatar(c.initials,c.tone)}<span><strong>${E(c.name)}</strong><small>${c.kind==='group'?'Групповой чат':'Личный чат'}</small></span>${I('ChevronRight')}</button>`).join('')}</div><p id="cr-forward-empty" class="muted" hidden>Чат не найден</p></div>`,()=>{
+      document.getElementById('cr-forward-search').oninput=event=>{
+        const q=event.target.value.trim().toLocaleLowerCase('ru');let count=0;
+        document.querySelectorAll('.cr-forward-target').forEach(button=>{button.hidden=!button.dataset.search.includes(q);if(!button.hidden)count++;});
+        document.getElementById('cr-forward-empty').hidden=Boolean(count);
+      };
+    });
+  }
+  window.addEventListener('resize',()=>{if(document.querySelector('.cr-message-popover'))M.closeModal();});
+  function forwardTo(button) {
+    if(!forwarding||forwarding.key!==scope())return;
+    const item=message(forwarding.id), recipient=M.chatContact(button.dataset.chat);
+    if(!item||item.deleted||!recipient||!M.chatIsVisible(recipient))return;
+    const forwarded={id:uid(),own:true,text:item.text,attachments:copy(item.attachments||[]),forwarded:item.forwarded||(item.own?M.state.profileName||'вас':author(item)),time:new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})};
+    M.state.chat=recipient.id;data().messages.push(forwarded);updatePreview();forwarding=null;focused=null;M.go('thread');
+    const log=document.getElementById('thread-log');if(log)log.scrollTop=log.scrollHeight;
+    M.toast('Сообщение переслано');
   }
   function searchResults(query) {
     query = query.trim().toLocaleLowerCase('ru');
@@ -225,7 +290,9 @@
     chatRefreshReply: button => {const d = data(); if (!message(button.dataset.id) || message(button.dataset.id).deleted) return; d.reply = button.dataset.id; d.editing = null; d.editText = ''; M.closeModal(); redraw({focus: true});},
     chatRefreshEdit: button => {const item = message(button.dataset.id); if (!item?.own || item.deleted) return; const d = data(); d.editing = item.id; d.editText = item.text; d.reply = null; M.closeModal(); redraw({focus: true});},
     chatRefreshCancel: () => {data().reply = null; data().editing = null; data().editText = ''; redraw({focus: true});},
-    chatRefreshReaction: button => {const item = message(button.dataset.id); if (!item || item.deleted) return; item.reaction = !item.reaction; M.closeModal(); redraw();},
+    chatRefreshReaction: button => {const item=message(button.dataset.id);if(!item||item.deleted)return;const emoji=button.dataset.emoji||reactionOf(item)||'👍';if(!reactions.some(([value])=>value===emoji))return;item.reaction=reactionOf(item)===emoji?false:emoji;M.closeModal();redraw();},
+    chatRefreshForward: button => showForward(button.dataset.id),
+    chatRefreshForwardTo: forwardTo,
     chatRefreshPin: button => togglePin(button.dataset.id),
     chatRefreshUnpin: button => togglePin(button.dataset.id, true),
     chatRefreshPins: showPins,
