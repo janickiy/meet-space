@@ -36,6 +36,9 @@
   };
   const open = (section) => { s.section = section; s.open = true; M.go("settings"); document.getElementById("account-heading")?.focus(); };
   const canChange = () => {
+    if (Object.values(M.state.roomRefresh || {}).some(room => ['starting','recording','processing'].includes(room.recording))) {
+      M.modal("Сначала завершите запись", `<div class="stack"><p>Остановите запись встречи и дождитесь обработки, чтобы сменить или удалить аккаунт.</p><button class="button primary" data-go="call">Вернуться к встрече</button><button class="button secondary" data-close>Остаться в настройках</button></div>`);return false;
+    }
     if (!M.state.personalCall) return true;
     M.modal("Сначала завершите звонок", `<div class="stack"><p>После завершения личного звонка можно сменить аккаунт.</p><button class="button primary" data-action="resumePersonalCall" data-close>Вернуться к звонку</button><button class="button secondary" data-close>Остаться в настройках</button></div>`);
     return false;
@@ -132,16 +135,17 @@
     accountDelete: () => {
       if (!active() || !canChange()) return;
       const target = { ...active() };
-      M.modal("Удалить аккаунт с сервера?", `<form id="account-delete-form" class="accounts-delete-form" novalidate><div class="accounts-delete-identity">${avatar(target)}<div><strong>${E(target.name)}</strong><span>${E(target.email)}</span><small>${E(host(target))}</small></div></div><p>Вы потеряете доступ к этому аккаунту. Удаление с сервера нельзя отменить.</p><label class="account-field"><span>Для подтверждения введите email</span><input name="email" type="email" placeholder="${E(target.email)}" autocomplete="off" autocapitalize="none" spellcheck="false" required></label><div class="accounts-delete-actions"><button type="button" class="button secondary" data-close>Отмена</button><button type="submit" class="button danger" disabled>${I("Trash2")}Удалить аккаунт</button></div><small class="accounts-demo">В демо удаление имитируется. Аккаунт на сервере не изменится.</small></form>`, () => {
+      M.modal("Удалить аккаунт с сервера?", `<form id="account-delete-form" class="accounts-delete-form" novalidate><div class="accounts-delete-identity">${avatar(target)}<div><strong>${E(target.name)}</strong><span>${E(target.email)}</span><small>${E(host(target))}</small></div></div><p>Данные входа и личные настройки будут удалены, все сессии завершены. Общая история встреч и переписки останется с именем «Удалённый аккаунт».</p><p class="wr-hint">Перед удалением передайте владение группами, завершите или отмените созданные встречи и выйдите из звонков.</p><label class="account-field"><span>Пароль текущего аккаунта</span><input name="password" type="password" placeholder="В демо — любой текст" autocomplete="off" required maxlength="128"/></label><label class="wr-delete-check"><input name="confirmed" type="checkbox"/>Я понимаю, что удаление нельзя отменить</label><div class="accounts-delete-actions"><button type="button" class="button secondary" data-close>Отмена</button><button type="submit" class="button danger" disabled>${I("Trash2")}Удалить аккаунт</button></div><small class="accounts-demo">В демо удаление имитируется. Аккаунт на сервере не изменится.</small></form>`, () => {
         const form = document.getElementById("account-delete-form"), submit = form.querySelector('[type="submit"]');
-        const matches = () => form.elements.email.value.trim().toLowerCase() === target.email.toLowerCase();
-        form.elements.email.addEventListener("input", () => { submit.disabled = !matches(); });
+        const matches = () => Boolean(form.elements.password.value.trim()) && form.elements.confirmed.checked;
+        form.addEventListener("input", () => { submit.disabled = !matches(); });
+        form.addEventListener("change", () => { submit.disabled = !matches(); });
         form.addEventListener("submit", (event) => {
           event.preventDefault(); if (!matches() || target.id !== activeId) return;
           accounts = accounts.filter((a) => a.id !== target.id); activeId = accounts[0]?.id || null; apply();
           M.closeModal();
           if (active()) open("accounts"); else M.go("login");
-          M.toast("Демо: аккаунт удалён с сервера");
+          M.toast("Демо: аккаунт удалён из макета");
         });
       });
     },

@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-16",
+  "variant": "MeetSpace Android — вариант 1",
+  "source_commit": "6bfb55bb6af4e6179f59c306f1632a5b590c1d32",
+  "reference": "MeetSpace-Windows 4",
+  "status": "passed",
+  "checks": [
+    "JavaScript syntax: all changed scripts",
+    "Phone 390px and tablet 834px: no horizontal document overflow on meetings, recordings, recording, folders, settings and call",
+    "Light and dark themes visually inspected; dark gallery heading contrast corrected",
+    "Chat reply and send synchronized between phone and tablet; message actions, per-account previews and new group snapshot validated",
+    "Folder creation synchronized between phone and tablet; personal folder CRUD and associations validated",
+    "Recordings search, empty state, audio player, timestamp seek, AI summary and grid inspected",
+    "Recording lifecycle: start, admit participant in other frame, stop, processing, ready, open new recording index 6 on both devices",
+    "Invitations search, waiting room and account deletion confirmation inspected",
+    "Recordings permission checks and dynamic recording snapshots validated with Node VM"
+  ],
+  "limitations": [
+    "Interactive design prototype with fixture data; no backend mutations, camera capture, email delivery or AI requests",
+    "Player does not contain actual audio/video. Download returns a demo metadata file",
+    "Attached local file bytes are available in originating frame; the other frame receives the card only",
+    "An existing browser MutationObserver error without source URL was observed; no project source contains MutationObserver"
+  ]
+}

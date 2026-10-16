@@ -46,14 +46,14 @@
   color: #202c40;
   background: #edf0f5;
   font-synthesis: none;
-  --canvas: #edf0f5;
+  --canvas: #f0f1f7;
   --text: #202c40;
   --muted: #87909f;
   --line: #dce1e9;
   --white: #fff;
-  --blue: #3265eb;
+  --blue: #6264d9;
   --control: #e4e8ef;
-  --chip: #e4eaff;
+  --chip: #eeeffe;
   --shadow: 0 36px 56px -22px #24385338, 0 7px 16px #24385312;
 }
 * {
@@ -657,3 +657,7 @@ body[data-theme="dark"] .device-name {
     scroll-behavior: auto !important;
   }
 }
+/* Keep the gallery itself readable when reviewing dark product screens. */
+body{color:var(--text)}
+body[data-theme="dark"]{--blue:#aaaaff;--chip:#343452;color:var(--text)}
+body[data-theme="dark"] .screen-tab.active{background:var(--chip);color:var(--blue)}

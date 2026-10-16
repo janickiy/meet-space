@@ -45,9 +45,12 @@ window.MS = {
     const url = new URL(location.href);
     url.searchParams.set("screen", this.state.screen);
     url.searchParams.set("theme", this.state.theme);
+    if (this.state.screen === "recording") url.searchParams.set("record", this.state.record || 0);
+    else url.searchParams.delete("record");
     const chat = this.chatRoute?.() || null;
     const personalCall = this.personalCallSnapshot?.() || null;
     const accountManager = this.accountManagerSnapshot?.() || null;
+    const productState = { recordings: this.recordingLibrarySnapshot?.(), folders: this.folderSnapshot?.(), chat: this.chatRefreshSnapshot?.(), workspace: this.workspaceRefreshSnapshot?.() };
     if (chat) url.searchParams.set("chat", chat);
     else url.searchParams.delete("chat");
     const section = this.accountSectionRoute?.() || null;
@@ -60,11 +63,20 @@ window.MS = {
           type: "ms:navigate",
           screen: this.state.screen,
           theme: this.state.theme,
-          section, chat, personalCall, accountManager,
+          section, chat, personalCall, accountManager, productState,
         },
         location.origin === "null" ? "*" : location.origin,
       );
   },
+  productStateChanged() {
+    if (window.parent === window) return;
+    window.parent.postMessage({type: 'ms:navigate', screen:this.state.screen, theme:this.state.theme,
+      section:this.accountSectionRoute?.() || null, chat:this.chatRoute?.(),
+      personalCall:this.personalCallSnapshot?.(), accountManager:this.accountManagerSnapshot?.(),
+      productState:{recordings:this.recordingLibrarySnapshot?.(), folders:this.folderSnapshot?.(), chat:this.chatRefreshSnapshot?.(), workspace:this.workspaceRefreshSnapshot?.()}
+    }, location.origin === 'null' ? '*' : location.origin);
+  },
+  recordingsChanged() { this.productStateChanged(); },
   toast(message) {
     const toast = document.getElementById("toast");
     toast.textContent = message;
@@ -143,9 +155,16 @@ window.MS = {
       const chatChanged = this.setChatRoute?.(e.data.chat);
       const callChanged = Object.hasOwn(e.data, "personalCall") ? this.setPersonalCallSnapshot?.(e.data.personalCall) : false;
       const accountsChanged = Object.hasOwn(e.data, "accountManager") ? this.setAccountManagerSnapshot?.(e.data.accountManager) : false;
+      const updates = e.data.productState || {};
+      const productChanges = [
+        this.setRecordingLibrarySnapshot?.(updates.recordings),
+        this.setFolderSnapshot?.(updates.folders),
+        this.setChatRefreshSnapshot?.(updates.chat),
+        this.setWorkspaceRefreshSnapshot?.(updates.workspace),
+      ].some(Boolean);
       const sectionChanged = Object.hasOwn(e.data, "section")
         ? this.setAccountSectionRoute?.(e.data.section) : false;
-      if (next !== this.state.screen || theme !== this.state.theme || sectionChanged || chatChanged || callChanged || accountsChanged) {
+      if (next !== this.state.screen || theme !== this.state.theme || sectionChanged || chatChanged || callChanged || accountsChanged || productChanges) {
         this.closeModal();
         this.state.screen = next;
         this.state.theme = theme;

@@ -134,6 +134,7 @@
       unread: 0,
     },
   ];
+  M.chatContacts = () => contacts;
   M.chatContact = (id) => contacts.find((person) => person.id === id);
   M.setChatRoute = (id) => {
     if (!M.chatContact(id) || M.state.chat === id) return false;
@@ -181,11 +182,12 @@
     ]
       .map(
         ([id, label]) =>
-          `<button data-filter="${id}" aria-pressed="${M.state.filter === id}" class="${M.state.filter === id ? "active" : ""}">${label}${id === "unread" ? `<span>${contacts.filter((c) => c.unread).length}</span>` : ""}</button>`,
+          `<button data-filter="${id}" aria-pressed="${M.state.filter === id}" class="${M.state.filter === id ? "active" : ""}">${label}${id === "unread" ? `<span>${contacts.filter((c) => c.unread && M.chatIsVisible?.(c) !== false).length}</span>` : ""}</button>`,
       )
       .join(
         "",
       )}<button data-action="folders">Папки ${I("ChevronDown")}</button></div><label class="search-box tm-search" ${M.state.searchOpen?.messages ? "" : "hidden"}>${I("Search")}<input id="chat-search" type="search" placeholder="Найти человека или чат" aria-label="Найти чат" value="${E(M.state.chatQuery || "")}"/></label>${!M.state.inviteDismissed ? `<div class="chat-invite-note"><button data-action="copyHomeInvite"><span><strong>Пригласите свою команду</strong><small>Общайтесь и встречайтесь в MeetSpace</small></span>${I("UserPlus")}</button><button class="dismiss-invite" data-action="dismissInvite" aria-label="Скрыть приглашение">${I("X")}</button></div>` : ""}<div id="conversation-results">${contacts
+      .filter((c) => M.chatIsVisible?.(c) !== false)
       .filter((c) =>
         M.state.filter === "personal"
           ? c.kind === "direct"
@@ -193,13 +195,14 @@
       )
       .map(
         (c) =>
-          `<button class="conversation ${M.state.screen === "thread" && M.state.chat === c.id ? "active" : ""}" data-action="chat" data-chat="${c.id}" data-kind="${c.kind}" data-search="${E(c.name.toLocaleLowerCase("ru"))}">${chatAvatar(c)}<span class="message-text"><h3>${E(c.name)}</h3>${groupMeta(c)}<p>${E(c.preview)}</p></span><span class="conversation-meta">${c.time}${c.unread ? `<span class="unread">${c.unread}</span>` : I("CheckCheck")}</span></button>`,
+          `<button class="conversation ${M.state.screen === "thread" && M.state.chat === c.id ? "active" : ""}" data-action="chat" data-chat="${c.id}" data-kind="${c.kind}" data-search="${E(c.name.toLocaleLowerCase("ru"))}">${chatAvatar(c)}<span class="message-text"><h3>${E(c.name)}${M.chatIsMuted?.(c) ? `<span class="cr-muted-indicator" aria-label="Уведомления выключены">${I("BellOff")}</span>` : ""}</h3>${groupMeta(c)}<p>${E(M.chatPreview?.(c)?.text ?? c.preview)}</p></span><span class="conversation-meta">${E(M.chatPreview?.(c)?.time ?? c.time)}${c.unread ? `<span class="unread">${c.unread}</span>` : I("CheckCheck")}</span></button>`,
       )
       .join(
         "",
       )}</div><p id="chat-empty" class="empty-state" hidden>Такого чата пока нет</p></aside>`;
   const thread = () => {
     const c = contacts.find((c) => c.id === M.state.chat) || contacts[0];
+    if (M.renderChatThread) return M.renderChatThread(c);
     const isGroup = c.kind === "group";
     const firstAuthor = isGroup ? member(c.members[1]) : c;
     const secondAuthor = isGroup ? member(c.members[2] || c.members[1]) : c;
@@ -237,6 +240,7 @@
       filterChatRows();
     });
     filterChatRows();
+    if (M.bindChatThread) return M.bindChatThread();
     document.getElementById("message-form")?.addEventListener("submit", (e) => {
       e.preventDefault();
       const input = document.getElementById("message-input");

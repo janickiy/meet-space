@@ -15,7 +15,7 @@
       group: "workspace",
       title: "Разговор, который объединяет.",
       description:
-        "Личные диалоги и командные обсуждения. Важное всегда рядом.",
+        "Ответы, реакции, закрепления и поиск внутри личных и групповых чатов.",
     },
     {
       id: "settings",
@@ -46,7 +46,7 @@
       group: "workspace",
       title: "Хорошие идеи остаются с вами.",
       description:
-        "Записи встреч — в библиотеке команды. Найдите нужный разговор и вернитесь к нему.",
+        "Записи по встречам, форматы, статусы обработки и срок хранения. Найдите нужный разговор и вернитесь к нему.",
     },
     {
       id: "recording",
@@ -54,8 +54,9 @@
       group: "workspace",
       title: "Вернитесь к важному моменту.",
       description:
-        "Просмотр записи, информация о встрече и управление доступом.",
+        "Видео и аудио, расшифровка, итоги и файлы встречи в одном месте.",
     },
+    { id: "folders", label: "Папки", group: "workspace", title: "Всё по своим местам.", description: "Соберите встречи и чаты проекта в личную папку." },
     {
       id: "prejoin",
       label: "Перед встречей",
@@ -161,6 +162,8 @@
   let chat = params.get("chat") || "team";
   let personalCall = null;
   let accountManager = null;
+  let productState = null;
+  let currentRecord = /^\d+$/.test(params.get("record") || "") ? Number(params.get("record")) : 0;
   let theme = params.get("theme") === "dark" ? "dark" : "light";
   let view = ["compare", "phone", "tablet"].includes(params.get("view"))
     ? params.get("view")
@@ -170,7 +173,7 @@
   let portrait = params.get("orientation") === "portrait";
   const $ = (id) => document.getElementById(id);
   const frames = [$("phone-preview"), $("tablet-preview")];
-  const initialPreview = `preview.html?rev=20261013-accounts&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "settings" && section ? `&section=${section}` : ""}`;
+  const initialPreview = `preview.html?rev=20261016-refresh&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "recording" ? `&record=${currentRecord}` : ""}${current.id === "settings" && section ? `&section=${section}` : ""}`;
   frames.forEach((frame) => {
     if (frame.getAttribute("src") !== initialPreview)
       frame.src = initialPreview;
@@ -194,18 +197,20 @@
     url.searchParams.set("theme", theme);
     url.searchParams.set("view", view);
     url.searchParams.set("chat", chat);
+    if (current.id === "recording") url.searchParams.set("record", currentRecord);
+    else url.searchParams.delete("record");
     if (portrait) url.searchParams.set("orientation", "portrait");
     else url.searchParams.delete("orientation");
     if (current.id === "settings" && section) url.searchParams.set("section", section);
     else url.searchParams.delete("section");
     history.replaceState(null, "", url);
-    $("open-screen").href = `preview.html?rev=20261013-accounts&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "settings" && section ? `&section=${section}` : ""}`;
+    $("open-screen").href = `preview.html?rev=20261016-refresh&screen=${current.id}&theme=${theme}&chat=${encodeURIComponent(chat)}${current.id === "recording" ? `&record=${currentRecord}` : ""}${current.id === "settings" && section ? `&section=${section}` : ""}`;
   }
   function notifyFrames(except) {
     frames.forEach((frame) => {
       if (frame.contentWindow && frame.contentWindow !== except)
         frame.contentWindow.postMessage(
-          { type: "ms:screen", screen: current.id, theme, section, chat, personalCall, accountManager },
+          { type: "ms:screen", screen: current.id, theme, section, chat, personalCall, accountManager, productState },
           "*",
         );
     });
@@ -350,10 +355,13 @@
       const nextChat = typeof event.data.chat === "string" ? event.data.chat : chat;
       const nextCall = event.data.personalCall || null;
       const nextAccounts = event.data.accountManager || accountManager;
-      if (next && (next.id !== current.id || nextTheme !== theme || nextSection !== section || nextChat !== chat || JSON.stringify(nextCall) !== JSON.stringify(personalCall) || JSON.stringify(nextAccounts) !== JSON.stringify(accountManager))) {
+      const nextProduct = event.data.productState || productState;
+      if (next && (next.id !== current.id || nextTheme !== theme || nextSection !== section || nextChat !== chat || JSON.stringify(nextCall) !== JSON.stringify(personalCall) || JSON.stringify(nextAccounts) !== JSON.stringify(accountManager) || JSON.stringify(nextProduct) !== JSON.stringify(productState))) {
         chat = nextChat;
         personalCall = nextCall;
         accountManager = nextAccounts;
+        productState = nextProduct;
+        if (Number.isInteger(nextProduct?.recordings?.record)) currentRecord = nextProduct.recordings.record;
         section = nextSection;
         current = next;
         theme = nextTheme;
