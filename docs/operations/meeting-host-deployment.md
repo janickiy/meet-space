@@ -3194,3 +3194,31 @@ Manifest SHA-256: `72e530fb20cb5485300a103977e50f0f7f099a06e5491acdc9d2efb63ea4b
 Deployment receipt SHA-256: `3e6b29395b8e5a6e197a002b4c0f704a611dac7ac3a86a12ebae3d764c91205d`.
 Пакет: `/opt/meetrix/releases/v1.0.0-meeting.20261016-auth-chat-layout.1/`.
 Локальные артефакты: `tmp/auth-chat-layout-deploy-20261016/`.
+
+## Исправление изображения на настенном экране — 16 октября 2026
+
+Установлен frontend-only выпуск `v1.0.0-meeting.20261016-auth-screen-insert.1`.
+После уточнения пользователя восстановлена сцена переговорной: предоставленная
+сетка шести участников размещена внутри настенного экрана. Изображение
+`auth-business-conference-v7.webp` подготовлено встроенным imagegen из исходной
+фотографии `v5` и пользовательской картинки; промпт сохранён в
+`docs/design/auth-business-conference-v7.prompt.json`. Пропорции 1536×1024
+сохранены на страницах входа и регистрации.
+
+Снимок содержит 680 файлов и ровно три изменения относительно установленного
+`auth-chat-layout.1`: новый WebP, его подключение и пропорции в CSS.
+Остальные файлы, включая выравнивание форм и стили пузырьков, совпадают с parent.
+Сборка, типы, форматирование и Trivy (0 HIGH/CRITICAL) прошли. Обе формы
+проверены в браузере по release-пакету при ширинах 1440, 390 и 320 px;
+высота совпадает, переполнения и ошибок JavaScript нет.
+
+Frontend штатно заменён через nginx QUIT. Остальные 18 контейнеров,
+конфигурация и 35 миграций сохранены. API остаётся `group-notifications.1`.
+Readiness и HTTPS проверены; все 98 опубликованных файлов совпали с пакетом.
+
+Snapshot commit: `d23c7e814e451d802bacf8337709faa6e0c2c9d7`.
+Source SHA-256: `fedfca167063c221998fe8d87624cef1c3df427a8705809a85ce8f4540cadc41`.
+Manifest SHA-256: `24a2916ee1dc5b9528e27457cade73d7ec26f34b21bf8f94d0b8a9c8a46ca72c`.
+Deployment receipt SHA-256: `13267645241fdc4d094c0a8594ecfc1c48d349239f0eefe8848e618d5cc7154a`.
+Пакет: `/opt/meetrix/releases/v1.0.0-meeting.20261016-auth-screen-insert.1/`.
+Локальные артефакты: `tmp/auth-screen-insert-deploy-20261016/`.
