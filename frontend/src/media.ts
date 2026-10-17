@@ -1,6 +1,7 @@
 import type { ClientRealtimeType } from "./realtime";
 import type { RealtimeEvent } from "./types";
 import { summarizeRtcStats, type RtcCounters } from "./mediaDiagnostics";
+import { MicrophoneGain } from "./microphoneGain";
 
 /**
  * MediaSource различает микрофон, камеру, экран и звук экрана при публикации медиа.
@@ -309,6 +310,7 @@ export class ConferenceMediaClient {
   private localRevision = 0;
   private preferredInputs = new Map<MediaSource, string>();
   private noiseSuppression = true;
+  private microphones = new Set<MicrophoneGain>();
   private receiveVideo = true;
   private configuredInputs = new Map<MediaSource, string>();
   private answeredLocalRevision = -1;
@@ -453,6 +455,8 @@ export class ConferenceMediaClient {
     this.pc?.close();
     this.pc = null;
     this.lastStatsCounters = null;
+    for (const microphone of this.microphones) microphone.dispose();
+    this.microphones.clear();
     for (const track of this.local?.getTracks() || []) track.stop();
     for (const track of this.screen?.getTracks() || []) track.stop();
     this.local = null;
@@ -512,6 +516,7 @@ export class ConferenceMediaClient {
     try {
       if ((microphone || camera) && !navigator.mediaDevices?.getUserMedia)
         throw new Error("secure_context");
+      const input = microphone ? this.prepareMicrophone() : null;
       if (options?.audioInputId)
         this.preferredInputs.set("microphone", options.audioInputId);
       if (options?.videoInputId)
@@ -578,16 +583,32 @@ export class ConferenceMediaClient {
         );
         return;
       }
+      // Own raw capture before awaiting audio processing, including its video track.
+      this.local = stream;
       for (const track of stream.getTracks()) {
         if (
           (track.kind === "audio" && this.policy.microphoneBlocked) ||
           (track.kind === "video" && this.policy.cameraBlocked)
         ) {
-          track.stop();
+          this.stopLocalTrack(track);
           stream.removeTrack(track);
         }
       }
-      this.local = stream;
+      const rawMicrophone = stream.getAudioTracks()[0];
+      if (input && rawMicrophone) {
+        const track = await input.attach(rawMicrophone);
+        if (this.disposed) return;
+        if (this.policy.microphoneBlocked) {
+          this.releaseMicrophone(input);
+          stream.removeTrack(rawMicrophone);
+        } else {
+          stream.removeTrack(rawMicrophone);
+          stream.addTrack(track);
+          this.watchTrack("microphone", track);
+        }
+      } else if (input) {
+        this.releaseMicrophone(input);
+      }
       this.update({
         localStream: stream.getTracks().length ? stream : null,
         microphoneEnabled: stream.getTracks().some(
@@ -622,13 +643,15 @@ export class ConferenceMediaClient {
       this.fail(
         error instanceof Error && error.message === "secure_context"
           ? "Камера доступна только на HTTPS или localhost. Откройте защищённую страницу."
-          : name === "NotAllowedError" || name === "SecurityError"
-            ? "Доступ к камере и микрофону запрещён. Разрешите их для этого сайта в браузере и повторите."
-            : name === "NotFoundError"
-              ? "Камера или микрофон не найдены. Подключите устройства и повторите."
-              : name === "NotReadableError"
-                ? "Не удалось открыть камеру или микрофон. Возможно, устройство занято другим приложением."
-                : "Не удалось включить медиасвязь. Проверьте устройства и media-worker, затем повторите.",
+          : error instanceof Error && error.message === "microphone_processing"
+            ? "Не удалось подготовить звук микрофона. Разрешите воспроизведение звука в браузере и включите микрофон снова."
+            : name === "NotAllowedError" || name === "SecurityError"
+              ? "Доступ к камере и микрофону запрещён. Разрешите их для этого сайта в браузере и повторите."
+              : name === "NotFoundError"
+                ? "Камера или микрофон не найдены. Подключите устройства и повторите."
+                : name === "NotReadableError"
+                  ? "Не удалось открыть камеру или микрофон. Возможно, устройство занято другим приложением."
+                  : "Не удалось включить медиасвязь. Проверьте устройства и media-worker, затем повторите.",
       );
     }
   }
@@ -643,35 +666,76 @@ export class ConferenceMediaClient {
    * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
    */
   private watchTrack(source: MediaSource, track: MediaStreamTrack) {
-    track.onended =
-      /**
-       * Вложенный обработчик выполняет шаг «Вложенный обработчик» в состоянии связи и WebRTC-медиа.
-       *
-       *
-       * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
-       */ () => {
-        if (this.disposed || this.sources.get(source)?.track !== track) return;
-        for (const publication of this.ownPublished.values()) {
-          if (publication.source === source)
+    const ended = () => {
+      if (this.disposed) return;
+      if (this.sources.get(source)?.track !== track) {
+        if (
+          source === "microphone" &&
+          !this.pc &&
+          this.local?.getTracks().includes(track)
+        ) {
+          this.local.removeTrack(track);
+          this.stopLocalTrack(track);
+          this.update({
+            localStream: this.local.getTracks().length ? this.local : null,
+            microphoneEnabled: false,
+          });
+        }
+        return;
+      }
+      for (const publication of this.ownPublished.values()) {
+        if (publication.source === source) {
+          try {
             this.send("media.unpublish", {
               mediaPeerId: this.view.mediaPeerId,
               trackId: publication.id,
             });
+          } catch {
+            // Closing WS removes server publications; local capture must still stop.
+          }
         }
-        if (source === "video/screen") void this.stopScreen();
-        else
-          void this.mutate(
-            /**
-             * Обработчик mutate выполняет переданный шаг вызова mutate в состоянии связи и WebRTC-медиа.
-             *
-             *
-             * @returns Promise, который после завершения операции возвращает: значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
-             */ async () => {
-              if (this.sources.get(source)?.track === track)
-                await this.replaceSource(source, null);
-            },
-          );
-      };
+      }
+      if (source === "video/screen") void this.stopScreen();
+      else
+        void this.mutate(
+          /**
+           * Обработчик mutate выполняет переданный шаг вызова mutate в состоянии связи и WebRTC-медиа.
+           *
+           *
+           * @returns Promise, который после завершения операции возвращает: значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
+           */ async () => {
+            if (this.sources.get(source)?.track === track)
+              await this.replaceSource(source, null);
+          },
+        );
+    };
+    track.onended = ended;
+    const input = this.microphoneFor(track);
+    if (input) input.onEnded = ended;
+    if (track.readyState === "ended") queueMicrotask(ended);
+  }
+
+  private prepareMicrophone() {
+    const input = new MicrophoneGain();
+    this.microphones.add(input);
+    return input;
+  }
+
+  private microphoneFor(track: MediaStreamTrack) {
+    return [...this.microphones].find(
+      (input) => input.outputTrack === track || input.inputTrack === track,
+    );
+  }
+
+  private releaseMicrophone(input: MicrophoneGain) {
+    this.microphones.delete(input);
+    input.dispose();
+  }
+
+  private stopLocalTrack(track: MediaStreamTrack) {
+    const input = this.microphoneFor(track);
+    if (input) this.releaseMicrophone(input);
+    else track.stop();
   }
   /**
    * refreshLocal обновляет локальные потоки и признаки активных источников для интерфейса.
@@ -762,7 +826,10 @@ export class ConferenceMediaClient {
     if (this.disposed || !this.pc || this.view.controlBusy) return;
     if (this.noiseSuppression !== (options.noiseSuppression !== false)) {
       this.noiseSuppression = options.noiseSuppression !== false;
-      const track = this.sources.get("microphone")?.track;
+      const published = this.sources.get("microphone")?.track;
+      const track = published
+        ? this.microphoneFor(published)?.inputTrack
+        : null;
       void track
         ?.applyConstraints({ noiseSuppression: this.noiseSuppression })
         .catch(() => {
@@ -801,13 +868,13 @@ export class ConferenceMediaClient {
   ) {
     const slot = this.sources.get(source);
     if (!slot || this.disposed) {
-      track?.stop();
+      if (track) this.stopLocalTrack(track);
       return;
     }
     const previous = slot.track;
     await slot.sender.replaceTrack(track);
     if (this.disposed) {
-      track?.stop();
+      if (track) this.stopLocalTrack(track);
       return;
     }
     slot.track = track;
@@ -816,7 +883,7 @@ export class ConferenceMediaClient {
     if (previous) {
       previous.onended = null;
       stream?.removeTrack(previous);
-      previous.stop();
+      this.stopLocalTrack(previous);
     }
     if (track) {
       if (!stream?.getTracks().includes(track)) stream?.addTrack(track);
@@ -897,7 +964,9 @@ export class ConferenceMediaClient {
     }
     this.update({ controlBusy: true, error: null });
     let captured: MediaStream | null = null;
+    let input: MicrophoneGain | null = null;
     try {
+      if (enabled && source === "microphone") input = this.prepareMicrophone();
       const constraints = (selected?: string): MediaStreamConstraints => ({
         audio:
           source === "microphone"
@@ -969,7 +1038,7 @@ export class ConferenceMediaClient {
         );
         return;
       }
-      const track =
+      let track =
         captured?.getTracks().find(
           /**
            * Обработчик find проверяет, соответствует ли текущий элемент условию выборки или поиска.
@@ -982,6 +1051,13 @@ export class ConferenceMediaClient {
           (t) => t.kind === (source === "microphone" ? "audio" : "video"),
         ) || null;
       if (enabled && !track) throw new Error("missing_track");
+      if (input && track) {
+        const raw = track;
+        track = await input.attach(raw);
+        captured?.removeTrack(raw);
+        captured?.addTrack(track);
+      }
+      if (this.disposed) return;
       await this.mutate(
         /**
          * Обработчик mutate выполняет переданный шаг вызова mutate в состоянии связи и WebRTC-медиа.
@@ -995,7 +1071,7 @@ export class ConferenceMediaClient {
               ? this.policy.microphoneBlocked
               : this.policy.cameraBlocked)
           ) {
-            track?.stop();
+            if (track) this.stopLocalTrack(track);
             return;
           }
           await this.replaceSource(source, track);
@@ -1003,7 +1079,7 @@ export class ConferenceMediaClient {
           else if (track) this.preferredInputs.delete(source);
         },
       );
-    } catch {
+    } catch (error) {
       captured?.getTracks().forEach(
         /**
          * Обработчик forEach выполняет переданный шаг вызова forEach в состоянии связи и WebRTC-медиа.
@@ -1012,16 +1088,21 @@ export class ConferenceMediaClient {
          *   - track — дорожка захваченного или удалённого MediaStream.
          *
          * @returns вычисленное значение: track.stop().
-         */ (track) => track.stop(),
+         */ (track) => this.stopLocalTrack(track),
       );
       if (!this.disposed)
         this.update({
           error:
-            "Не удалось открыть устройство. Проверьте разрешения браузера и выбор камеры или микрофона.",
+            error instanceof Error && error.message === "microphone_processing"
+              ? "Не удалось подготовить звук микрофона. Разрешите воспроизведение звука в браузере и включите микрофон снова."
+              : "Не удалось открыть устройство. Проверьте разрешения браузера и выбор камеры или микрофона.",
         });
     } finally {
       for (const track of captured?.getTracks() || [])
-        if (this.sources.get(source)?.track !== track) track.stop();
+        if (this.sources.get(source)?.track !== track)
+          this.stopLocalTrack(track);
+      if (input && this.sources.get(source)?.track !== input.outputTrack)
+        this.releaseMicrophone(input);
       if (!this.disposed) this.update({ controlBusy: false });
     }
   }
@@ -1357,7 +1438,7 @@ export class ConferenceMediaClient {
           (track.kind === "audio" && this.policy.microphoneBlocked) ||
           (track.kind === "video" && this.policy.cameraBlocked)
         ) {
-          track.stop();
+          this.stopLocalTrack(track);
           this.local?.removeTrack(track);
         }
       }
