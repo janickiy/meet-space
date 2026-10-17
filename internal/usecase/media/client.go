@@ -65,7 +65,7 @@ func (c *HTTPClient) Call(ctx context.Context, action string, command domain.Com
 		return domain.Result{}, domain.ErrInvalid
 	}
 	raw, err := json.Marshal(command)
-	if err != nil || len(raw) > 98304 {
+	if err != nil || len(raw) > domain.MaxCommandBytes {
 		return domain.Result{}, domain.ErrInvalid
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(command.Route.Endpoint, "/")+"/internal/media/"+action, bytes.NewReader(raw))
@@ -80,11 +80,11 @@ func (c *HTTPClient) Call(ctx context.Context, action string, command domain.Com
 		return domain.Result{}, apperrors.Wrap(domain.ErrUnavailable, err, domain.ErrorCode(domain.ErrUnavailable))
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 262145))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, domain.MaxCommandBytes+1))
 	if err != nil {
 		return domain.Result{}, apperrors.Wrap(domain.ErrUnavailable, err, domain.ErrorCode(domain.ErrUnavailable))
 	}
-	if len(body) > 262144 {
+	if len(body) > domain.MaxCommandBytes {
 		return domain.Result{}, domain.ErrUnavailable
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

@@ -9,7 +9,11 @@ import (
 )
 
 // Ограничения сигнализации медиа задаются отдельно от настраиваемой ретрансляции этапа 2.
-const MaxSDPBytes = 49152
+// Forty receive/publish slots can exceed 48 KiB in a valid Firefox offer.
+const MaxSDPBytes = 128 << 10
+
+// JSON escaping can expand SDP; internal commands and responses remain bounded.
+const MaxCommandBytes = 1 << 20
 const MaxICEBytes = 4096
 
 // Binding links a media peer to a verified WebSocket session. Browser payloads cannot supply this identity.

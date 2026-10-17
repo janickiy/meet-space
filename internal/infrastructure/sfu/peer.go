@@ -689,7 +689,7 @@ func (m *Manager) Unpublish(ctx context.Context, id, trackID string) error {
 //   - результат 1 (map[string]media.Source): значение, подготовленное операцией для вызывающей стороны.
 //   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
 func validateSourceOffer(raw string, maxPeers int, publications []media.Publication, maxTracks, maxAudio, maxVideo int) (map[string]media.Source, error) {
-	if len(raw) == 0 || len(raw) > 49152 {
+	if len(raw) == 0 || len(raw) > media.MaxSDPBytes {
 		return nil, media.ErrInvalid
 	}
 	var description sdp.SessionDescription

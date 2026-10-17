@@ -537,7 +537,7 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 		h.fail(w, media.ErrLimit)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 65536)
+	r.Body = http.MaxBytesReader(w, r.Body, media.MaxCommandBytes)
 	raw, err := io.ReadAll(r.Body)
 	var cmd media.Command
 	if err != nil || strictJSON(raw, &cmd) != nil || !validUUID(cmd.RequestID) || r.Header.Get("X-Request-ID") != cmd.RequestID {

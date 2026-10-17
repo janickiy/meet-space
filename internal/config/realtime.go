@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	mediadomain "github.com/janickiy/meet-space/internal/domain/media"
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
@@ -64,9 +65,9 @@ func LoadRealtime() (RealtimeConfig, error) {
 		SessionTTL:        envDuration("WS_SESSION_TTL", PresenceTimeout),
 		TicketTTL:         envDuration("WS_TICKET_TTL", 45*time.Second),
 		QueueSize:         envInt("WS_QUEUE_SIZE", 64),
-		MessageBytes:      int64(envInt("WS_MAX_MESSAGE_BYTES", 65536)),
-		OutboundBytes:     envInt("WS_MAX_OUTBOUND_BYTES", 262144),
-		SDPBytes:          envInt("WS_MAX_SDP_BYTES", 49152),
+		MessageBytes:      int64(envInt("WS_MAX_MESSAGE_BYTES", 2*mediadomain.MaxSDPBytes+8192)),
+		OutboundBytes:     envInt("WS_MAX_OUTBOUND_BYTES", mediadomain.MaxCommandBytes),
+		SDPBytes:          envInt("WS_MAX_SDP_BYTES", mediadomain.MaxSDPBytes),
 		ICEBytes:          envInt("WS_MAX_ICE_BYTES", 4096),
 		MessagesPerSecond: envInt("WS_MESSAGES_PER_SECOND", 20),
 		Burst:             envInt("WS_MESSAGE_BURST", 40),

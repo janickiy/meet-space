@@ -74,7 +74,7 @@ Server offer отсутствует, поэтому glare не требует с
 Remote ICE до SDP буферизуется: максимум 64 сообщения до offer и 128 на PeerConnection
 за lifecycle; null означает end-of-candidates и тоже учитывается в лимите.
 Malformed SDP, unsupported codecs, ICE и переполнение дают безопасные coded errors.
-Медиаконтракт ограничен SDP 48 KiB и ICE 4 KiB, даже если legacy WS config разрешает больше.
+Медиаконтракт ограничен SDP 128 KiB и ICE 4 KiB, даже если legacy WS config разрешает больше.
 Встроенные SDP candidates валидируются до Pion и ограничены 128 на offer;
 для совместимости полного SDP допускаются компоненты 1/2, trickle принимает только 1.
 Прежний `webrtc.*` relay остаётся для совместимости тестов, но frontend SFU его не использует.
