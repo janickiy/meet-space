@@ -18,8 +18,27 @@ import (
 
 type CallRepository struct{ db *gorm.DB }
 
+// NewCallRepository constructs the call repository with the dependencies and limits required for
+// call.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded call repository.
 func NewCallRepository(db *gorm.DB) *CallRepository { return &CallRepository{db: db} }
 
+// callView builds the public direct-call view, including its current duration and participant
+// state.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - call: Persisted direct-call lifecycle state.
+//
+// Returns:
+//   - result 1: The resulting call.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func callView(tx *gorm.DB, call calls.Call) (calls.Call, error) {
 	var peers []users.User
 	if err := tx.Select("id", "display_name").Where("id IN ?", []string{call.CallerUserID, call.CalleeUserID}).Find(&peers).Error; err != nil {
@@ -36,6 +55,18 @@ func callView(tx *gorm.DB, call calls.Call) (calls.Call, error) {
 	call.SetDuration(time.Now().UTC())
 	return call, nil
 }
+
+// Get loads the requested call within the caller's authorized scope.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting call.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CallRepository) Get(ctx context.Context, actor, id string) (calls.Call, error) {
 	var c calls.Call
 	err := r.db.WithContext(ctx).Where("id=? AND (caller_user_id=? OR callee_user_id=?)", id, actor, actor).Take(&c).Error
@@ -44,6 +75,17 @@ func (r *CallRepository) Get(ctx context.Context, actor, id string) (calls.Call,
 	}
 	return callView(r.db.WithContext(ctx), c)
 }
+
+// Active returns the account's current nonterminal direct call, if any.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//
+// Returns:
+//   - result 1: The constructed or loaded call.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CallRepository) Active(ctx context.Context, actor string) (*calls.Call, error) {
 	var c calls.Call
 	err := r.db.WithContext(ctx).Table("direct_calls c").Select("c.*").Joins("JOIN direct_call_slots s ON s.call_id=c.id").Where("s.user_id=? AND c.status IN ('ringing','accepted')", actor).Take(&c).Error
@@ -59,6 +101,19 @@ func (r *CallRepository) Active(ctx context.Context, actor string) (*calls.Call,
 
 // Create locks both registered accounts in a stable order before checking slots.
 // This serializes crossed calls as well as callers racing for the same callee.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - target: Target state, account or decoded value, as defined by its type.
+//   - requestID: Client-supplied idempotency key for a retriable operation.
+//   - clientID: Physical browser or socket client identifier.
+//
+// Returns:
+//   - result 1: The resulting call.
+//   - result 2: Whether this request created new state rather than reusing an idempotent result.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CallRepository) Create(ctx context.Context, actor, target, requestID, clientID string) (calls.Call, bool, error) {
 	var c calls.Call
 	created := false
@@ -139,6 +194,20 @@ func (r *CallRepository) Create(ctx context.Context, actor, target, requestID, c
 
 // Change serializes every state transition on the call. The first accept wins;
 // retries by that same client are idempotent and other devices cannot take over.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - action: Requested lifecycle or moderation action.
+//   - clientID: Physical browser or socket client identifier.
+//
+// Returns:
+//   - result 1: The resulting call.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CallRepository) Change(ctx context.Context, actor, id, action, clientID string) (calls.Call, bool, error) {
 	var c calls.Call
 	changed := false
@@ -257,9 +326,32 @@ func (r *CallRepository) Change(ctx context.Context, actor, id, action, clientID
 	c, err = callView(r.db.WithContext(ctx), c)
 	return c, changed, err
 }
+
+// updateCallHistory updates the chat history item associated with a direct-call lifecycle
+// change.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - c: The call value processed by this operation.
+//   - now: Reference time used for expiration or duration calculations.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func updateCallHistory(tx *gorm.DB, c calls.Call, now time.Time) error {
 	return tx.Exec("UPDATE conversation_messages SET version=version+1,updated_at=? WHERE call_id=?", now, c.ID).Error
 }
+
+// finishCall records the terminal direct-call state and final duration.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - c: The call value processed by this operation.
+//   - now: Reference time used for expiration or duration calculations.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func finishCall(tx *gorm.DB, c *calls.Call, now time.Time) error {
 	c.EndedAt = &now
 	c.Version++
@@ -279,6 +371,16 @@ func finishCall(tx *gorm.DB, c *calls.Call, now time.Time) error {
 	}
 	return updateCallHistory(tx, *c, now)
 }
+
+// Expiring returns the direct calls eligible for timeout processing.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: The collected string values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CallRepository) Expiring(ctx context.Context) ([]string, error) {
 	var ids []string
 	err := r.db.WithContext(ctx).Table("direct_calls").Where("(status='ringing' AND expires_at<=clock_timestamp()) OR (status='accepted' AND (caller_lease_until<=clock_timestamp() OR callee_lease_until<=clock_timestamp()))").Order("created_at,id").Limit(100).Pluck("id", &ids).Error

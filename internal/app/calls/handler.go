@@ -11,10 +11,23 @@ import (
 
 type Handler struct{ Service *usecase.Service }
 
+// validID checks that the supplied resource identifier is a valid nonzero UUID.
+//
+// Parameters:
+//   - value: Value to validate, normalize or convert.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func validID(value string) bool {
 	id, err := uuid.Parse(value)
 	return err == nil && id != uuid.Nil && id.String() == value
 }
+
+// Create validates the request and returns the newly created direct call for the acting account.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Create(c *gin.Context) {
 	var body struct {
 		TargetUserID    string `json:"targetUserId"`
@@ -40,6 +53,11 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	c.JSON(code, gin.H{"status": "success", "item": item})
 }
+
+// Get serves the requested direct call within the caller's authorized scope.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Get(c *gin.Context) {
 	id := c.Param("id")
 	if !validID(id) {
@@ -53,6 +71,11 @@ func (h *Handler) Get(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
+
+// Active returns the account's current nonterminal direct call, if any.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Active(c *gin.Context) {
 	item, err := h.Service.Active(c.Request.Context(), middleware.UserID(c))
 	if err != nil {
@@ -61,6 +84,14 @@ func (h *Handler) Active(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
+
+// Change applies the requested direct-call lifecycle action and returns its updated state.
+//
+// Parameters:
+//   - action: Requested lifecycle or moderation action.
+//
+// Returns:
+//   - result 1: The HTTP handler to register for this operation.
 func (h *Handler) Change(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

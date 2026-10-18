@@ -1,4 +1,4 @@
-// Пакет captionsapp связывает настройки живого распознавания с авторизованным HTTP.
+// Package captionsapp connects live-caption settings to authenticated HTTP endpoints.
 package captionsapp
 
 import (
@@ -16,21 +16,49 @@ import (
 	"time"
 )
 
-// Handler возвращает сохранённые финальные реплики и настройки, не открывая провайдер в API.
+// Handler returns saved final captions and settings without opening a speech-provider session in
+// the API.
 type Handler struct {
 	Repo      live.Repository
 	Enabled   bool
 	Analytics interface {
+		// Read loads the saved technical conference aggregates after checking the account's history
+		// access.
+		//
+		// Parameters:
+		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+		//   - argument 2: Acting account identifier used to scope access.
+		//   - argument 3: Conference identifier limiting the operation scope.
+		//
+		// Returns:
+		//   - result 1: The resulting conference.
+		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+		//     failure.
 		Read(context.Context, string, string) (analytics.Conference, error)
 	}
 	Search interface {
+		// Reindex queues a bounded transcript reindex after checking the actor's management permission.
+		//
+		// Parameters:
+		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+		//   - argument 2: Acting account identifier used to scope access.
+		//   - argument 3: Conference identifier limiting the operation scope.
+		//   - argument 4: Recording identifier used by the current operation.
+		//   - argument 5: Operator-controlled configuration and processing limits.
+		//   - argument 6: Minimum interval between expensive retriable processing requests.
+		//
+		// Returns:
+		//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+		//     failure.
 		Reindex(context.Context, string, string, string, config.StageEightConfig, time.Duration) error
 	}
 	Config config.StageEightConfig
 }
 
-// ReadAnalytics возвращает объективные агрегаты только допущенным участникам встречи.
-// @args c — авторизованный запрос с идентификатором конференции.
+// ReadAnalytics returns saved technical conference aggregates only to admitted participants.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) ReadAnalytics(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -44,8 +72,10 @@ func (h *Handler) ReadAnalytics(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": value})
 }
 
-// Reindex ставит ограниченную по частоте переиндексацию для организатора или соведущего.
-// @args c — авторизованный запрос с идентификаторами встречи и записи.
+// Reindex queues a bounded transcript reindex after checking the actor's management permission.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Reindex(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -64,9 +94,16 @@ func (h *Handler) Reindex(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success"})
 }
 
-// id проверяет UUID конференции до выполнения SQL.
-// @args c — авторизованный HTTP запрос.
-// @return нормализованный UUID и признак успешной проверки.
+// id validates the resource UUID from the HTTP route before an application or database
+// operation.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//
+// Returns:
+//   - result 1: Validated resource UUID.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func id(c *gin.Context) (string, bool) {
 	v, e := uuid.Parse(c.Param("id"))
 	if e != nil || v == uuid.Nil {
@@ -76,8 +113,10 @@ func id(c *gin.Context) (string, bool) {
 	return v.String(), true
 }
 
-// Read показывает согласие и состояние всем допущенным участникам и право изменения организатору.
-// @args c — authenticated request.
+// Read reads the live-caption state state or stream required by the caller.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Read(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -96,8 +135,10 @@ func (h *Handler) Read(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": s})
 }
 
-// Set принимает только enabled/language, без произвольных параметров провайдера и URI.
-// @args c — запрос организатора с JSON.
+// Set updates the persisted live-caption state settings after validating the request.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Set(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -130,8 +171,11 @@ func (h *Handler) Set(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": s})
 }
 
-// Finals восстанавливает пропущенные финальные события WebSocket через курсорную пагинацию.
-// @args c — authenticated request с afterCursor/limit.
+// Finals returns a cursor-bounded page of saved final captions so clients can recover missed
+// realtime events.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Finals(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {

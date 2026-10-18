@@ -1,4 +1,5 @@
-// Пакет captions задаёт независимый от медиа и поставщика контракт живого распознавания.
+// Package captions defines a live-transcription contract independent of the media engine and
+// provider SDK.
 package captions
 
 import (
@@ -9,8 +10,8 @@ import (
 
 var ErrUnavailable = errors.New("live_provider_unavailable")
 
-// SessionConfig описывает одну дорожку одного подключения без биометрической идентификации.
-// Audio — знаковый PCM16LE, один канал, 16000 Гц; время событий отсчитывается от первого отсчёта PCM.
+// SessionConfig describes one connection's track without biometric identification. Audio is
+// signed PCM16LE, mono, 16000 Hz; event times are relative to the first PCM sample.
 type SessionConfig struct {
 	SessionID       string `json:"sessionId"`
 	TrackInstanceID string `json:"trackInstanceId"`
@@ -20,7 +21,8 @@ type SessionConfig struct {
 	Format          string `json:"format"`
 }
 
-// Event содержит версию реплики поставщика; final запрещает последующую замену partial.
+// Event carries a provider utterance revision; a final result cannot subsequently be replaced by
+// a partial result.
 type Event struct {
 	UtteranceID string `json:"utteranceId"`
 	Sequence    int64  `json:"sequence"`
@@ -32,29 +34,48 @@ type Event struct {
 	Final       bool   `json:"final"`
 }
 
-// LiveTranscriptionProvider открывает потоковую сессию; SDK скрывается адаптером.
+// LiveTranscriptionProvider opens a streaming session while its adapter hides provider SDK
+// details.
 type LiveTranscriptionProvider interface {
-	// StartSession открывает канал распознавания с конечным временем жизни.
-	// @args ctx — отмена; config — формат и серверная идентичность дорожки.
-	// @return сессия либо безопасная ошибка адаптера.
+	// StartSession opens one bounded live-speech provider session for the authorized audio stream.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Operator-controlled configuration and processing limits.
+	//
+	// Returns:
+	//   - result 1: The resulting session.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	StartSession(context.Context, SessionConfig) (Session, error)
 }
 
-// Session владеет одним внешним соединением и ограниченным потоком ответов.
+// Session owns one external connection and a bounded result stream.
 type Session interface {
-	// WriteAudio отправляет ограниченную порцию PCM только вне SFU.
-	// @args ctx — срок выполнения записи; pcm — 16-битные монофонические отсчёты с порядком байтов от младшего к старшему.
-	// @return ошибка отправки или отмены.
+	// WriteAudio forwards one bounded audio frame to the active speech session.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: The byte value required by the contract.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	WriteAudio(context.Context, []byte) error
-	// Events возвращает закрываемый канал partial/final событий.
-	// @return поток ограниченного размера, принадлежащий сессии.
+	// Events returns the live event stream or serves its authorized transport adapter.
+	//
+	// Returns:
+	//   - result 1: The bounded event or media channel owned by this operation.
 	Events() <-chan Event
-	// Close прерывает соединение и освобождает ресурсы, повторный вызов безопасен.
-	// @return ошибка завершения.
+	// Close closes the component-owned resources and ends their lifecycle.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Close() error
 }
 
-// Caption связывает текст с серверной идентичностью и временем конференции.
+// Caption binds text to the server-verified speaker identity and conference timeline.
 type Caption struct {
 	Cursor          int64  `json:"cursor"`
 	Generation      int64  `json:"generation"`
@@ -68,7 +89,7 @@ type Caption struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// State сообщает всем допущенным участникам состояние передачи аудио на распознавание.
+// State tells admitted participants whether conference audio is being sent for transcription.
 type State struct {
 	ConferenceID         string    `json:"conferenceId"`
 	SessionID            string    `json:"sessionId"`

@@ -5,14 +5,20 @@ import (
 	"net/http"
 )
 
-// ConfigureDrain задаёт остановку приёма работ и подсчёт активности до запуска HTTP.
-// @args begin — идемпотентное закрытие приёма; active — точное число незавершённых работ.
+// ConfigureDrain registers the process-owned graceful-drain hooks used during deployment.
+//
+// Parameters:
+//   - begin: Callback that stops acceptance of new component work.
+//   - active: Callback returning the count of owned operations still active during drain.
 func (r *Runtime) ConfigureDrain(begin func(), active func() int) {
 	r.beginDrain, r.activeWork = begin, active
 }
 
-// DrainStatus запускает или читает необратимое завершение работы с внутренним секретом.
-// @args w — ответ; req — GET либо POST с METRICS_SECRET, без JSON и идентификаторов работ.
+// DrainStatus returns the current drain state and active-work counts.
+//
+// Parameters:
+//   - w: Destination HTTP response writer.
+//   - req: Incoming HTTP request.
 func (r *Runtime) DrainStatus(w http.ResponseWriter, req *http.Request) {
 	if !Authorized(req, r.Config.MetricsSecret) {
 		http.NotFound(w, req)

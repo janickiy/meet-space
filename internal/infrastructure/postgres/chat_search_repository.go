@@ -10,6 +10,19 @@ import (
 )
 
 // SearchMessages preserves the conference action API while using the shared visibility rules.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - scopeID: Conference or conversation identifier selected by the repository mode.
+//   - query: Search text or validated query filters.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The resulting message page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) SearchMessages(ctx context.Context, userID, scopeID, query, cursor string, limit int) (chat.MessagePage, error) {
 	page, err := r.SearchMessagePage(ctx, userID, scopeID, query, cursor, limit)
 	return chat.MessagePage{Items: page.Items, NextCursor: page.NextCursor}, err
@@ -17,6 +30,19 @@ func (r *ChatRepository) SearchMessages(ctx context.Context, userID, scopeID, qu
 
 // SearchMessagePage searches literal text in the history currently visible to this reader.
 // The conversation SHARE lock in authorize serializes group removal and history clearing.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - scopeID: Conference or conversation identifier selected by the repository mode.
+//   - query: Search text or validated query filters.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The resulting page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) SearchMessagePage(ctx context.Context, userID, scopeID, query, cursor string, limit int) (chat.Page, error) {
 	page := chat.Page{Items: []chat.Message{}}
 	query, err := chat.NormalizeSearchQuery(query)
@@ -65,6 +91,17 @@ func (r *ChatRepository) SearchMessagePage(ctx context.Context, userID, scopeID,
 
 // ChatMessageContext returns up to 25 messages through the target and 25 newer ones,
 // chronologically, with an ordinary older-message cursor anchored to the visible window.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - scopeID: Conference or conversation identifier selected by the repository mode.
+//   - messageID: Message identifier within the authorized conversation.
+//
+// Returns:
+//   - result 1: The resulting page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) ChatMessageContext(ctx context.Context, userID, scopeID, messageID string) (chat.Page, error) {
 	page := chat.Page{Items: []chat.Message{}}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

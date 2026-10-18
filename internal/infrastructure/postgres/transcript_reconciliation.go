@@ -5,10 +5,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// reconcileLiveTranscript сохраняет живой черновик и делает основной готовую расшифровку после записи.
-// Speaker переносится только при буквальном совпадении нормализованного текста, времени и единственном участнике.
-// @args tx — транзакция ready transcript; t — проверенные связанные UUID.
-// @return ошибка SQL; неизвестная личность остаётся NULL и не угадывается по голосу.
+// reconcileLiveTranscript reconciles final live captions with the current transcript generation.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - t: Test handle used for assertions, cleanup and failure reporting.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func reconcileLiveTranscript(tx *gorm.DB, t domain.Transcript) error {
 	if err := tx.Exec(`WITH links AS (
  SELECT s.id,min(l.participant_id::text)::uuid AS participant_id FROM transcript_segments s

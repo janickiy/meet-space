@@ -12,37 +12,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config собирает общие параметры окружения для запуска API и воркеров.
-//   - AppEnv: значение AppEnv типа string, используемое согласно назначению этой операции.
-//   - APIPort: значение APIPort типа int, используемое согласно назначению этой операции.
-//   - WorkerPort: значение WorkerPort типа int, используемое согласно назначению этой операции.
-//   - WorkerInternalURL: значение WorkerInternalURL типа string, используемое согласно назначению этой операции.
-//   - WorkerID: идентификатор воркера-владельца операции.
-//   - StoragePath: корневой каталог локального хранения артефактов записи.
-//   - FFmpegPath: значение FFmpegPath типа string, используемое согласно назначению этой операции.
-//   - WebRTCUDPPort: значение WebRTCUDPPort типа int, используемое согласно назначению этой операции.
-//   - WebRTCTCPPort: значение WebRTCTCPPort типа int, используемое согласно назначению этой операции.
-//   - WebRTCNATIPs: набор значений WebRTCNATIPs для последовательной или пакетной обработки.
-//   - PostgresDSN: значение PostgresDSN типа string, используемое согласно назначению этой операции.
-//   - RedisAddr: значение RedisAddr типа string, используемое согласно назначению этой операции.
-//   - RedisPassword: значение RedisPassword типа string, используемое согласно назначению этой операции.
-//   - RedisDB: значение RedisDB типа int, используемое согласно назначению этой операции.
-//   - RabbitMQURL: значение RabbitMQURL типа string, используемое согласно назначению этой операции.
-//   - RabbitMQExchange: значение RabbitMQExchange типа string, используемое согласно назначению этой операции.
-//   - RabbitMQQueue: значение RabbitMQQueue типа string, используемое согласно назначению этой операции.
-//   - RabbitMQRoutingKey: значение RabbitMQRoutingKey типа string, используемое согласно назначению этой операции.
-//   - RecordLockTTL: значение RecordLockTTL типа time.Duration, используемое согласно назначению этой операции.
-//   - RateLimitEnabled: логический признак RateLimitEnabled, управляющий соответствующей веткой обработки.
-//   - RateLimitWindow: значение RateLimitWindow типа time.Duration, используемое согласно назначению этой операции.
-//   - RateLimit: значение RateLimit типа RateLimitConfig, используемое согласно назначению этой операции.
-//   - MinIOEndpoint: значение MinIOEndpoint типа string, используемое согласно назначению этой операции.
-//   - MinIOAccessKey: значение MinIOAccessKey типа string, используемое согласно назначению этой операции.
-//   - MinIOSecretKey: значение MinIOSecretKey типа string, используемое согласно назначению этой операции.
-//   - MinIOBucket: значение MinIOBucket типа string, используемое согласно назначению этой операции.
-//   - MinIOUseSSL: логический признак MinIOUseSSL, управляющий соответствующей веткой обработки.
-//   - MinIOPublicOrigin: значение MinIOPublicOrigin типа string, используемое согласно назначению этой операции.
-//   - JWTSecret: значение JWTSecret типа string, используемое согласно назначению этой операции.
-//   - TrustedProxies: набор значений TrustedProxies для последовательной или пакетной обработки.
+// Config contains the environment-controlled settings used to start the API and workers.
 type Config struct {
 	AppEnv             string
 	APIPort            int
@@ -79,9 +49,12 @@ type Config struct {
 	StageEight         StageEightConfig
 }
 
-// Load читает .env и переменные окружения.
-// @args нет.
-// @return заполненный Config или ошибку некорректной настройки.
+// Load loads application settings from the environment and the supported local environment file.
+//
+// Returns:
+//   - result 1: The resulting config.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func Load() (Config, error) {
 	_ = godotenv.Load()
 	if err := validateTypedEnvironment(); err != nil {
@@ -148,29 +121,27 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-// RateLimitConfig задаёт правила и режим обработки ограничения частоты запросов.
-// @params:
-//   - DefaultRPM: значение DefaultRPM типа int, используемое согласно назначению этой операции.
-//   - AuthLoginIPRPM: значение AuthLoginIPRPM типа int, используемое согласно назначению этой операции.
-//   - AuthRegisterIPRPM: значение AuthRegisterIPRPM типа int, используемое согласно назначению этой операции.
+// RateLimitConfig contains request-rate rules and the configured limiter failure policy.
 type RateLimitConfig struct {
 	DefaultRPM        int
 	AuthLoginIPRPM    int
 	AuthRegisterIPRPM int
 }
 
-// IsLocal проверяет, что приложение запущено в локальном окружении.
-// @args нет.
-// @return true для APP_ENV=local/dev/debug.
+// IsLocal reports whether the application is running in an explicitly local environment.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (c Config) IsLocal() bool {
 	value := strings.ToLower(c.AppEnv)
 	return value == "local" || value == "dev" || value == "debug"
 }
 
-// postgresDSN собирает строку подключения PostgreSQL из настроек окружения.
+// postgresDSN builds the PostgreSQL connection string from operator-controlled configuration.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: PostgreSQL connection string built from trusted settings.
 func postgresDSN() string {
 	host := env("POSTGRES_HOST", "postgres")
 	port := env("POSTGRES_PORT", "5432")
@@ -182,10 +153,10 @@ func postgresDSN() string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=UTC", host, port, user, password, db, sslmode)
 }
 
-// redisAddr собирает сетевой адрес Redis из настроек окружения.
+// redisAddr builds the Redis host and port used by the application client.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: Configured Redis host and port.
 func redisAddr() string {
 	host := env("REDIS_HOST", "redis")
 	port := env("REDIS_PORT", "6379")
@@ -193,10 +164,10 @@ func redisAddr() string {
 	return fmt.Sprintf("%s:%s", host, port)
 }
 
-// rabbitMQURL собирает адрес подключения RabbitMQ из настроек окружения.
+// rabbitMQURL builds the AMQP connection URL from the configured broker settings.
 //
-// @return:
-//   - результат 1 (string): адрес разрешённого чтения или целевого ресурса.
+// Returns:
+//   - result 1: Configured AMQP connection URL.
 func rabbitMQURL() string {
 	if dsn := env("RABBIT_MQ_DSN", ""); dsn != "" {
 		return dsn
@@ -217,14 +188,14 @@ func rabbitMQURL() string {
 	return dsn.String()
 }
 
-// env читает строковую переменную окружения и применяет запасное значение при её отсутствии.
+// env reads an environment variable and uses the fallback when it is empty.
 //
-// @args
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
-//   - fallback (string): значение, используемое при отсутствии входного параметра.
+// Parameters:
+//   - key: Storage, cache or cryptographic key used by the operation.
+//   - fallback: Value used when the optional setting is absent or invalid.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: Configured environment value or the supplied fallback.
 func env(key string, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -234,14 +205,14 @@ func env(key string, fallback string) string {
 	return value
 }
 
-// envInt читает целочисленный параметр окружения и проверяет его формат.
+// envInt reads an integer environment setting, falling back when it cannot be parsed.
 //
-// @args
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
-//   - fallback (int): значение, используемое при отсутствии входного параметра.
+// Parameters:
+//   - key: Storage, cache or cryptographic key used by the operation.
+//   - fallback: Value used when the optional setting is absent or invalid.
 //
-// @return:
-//   - результат 1 (int): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
 func envInt(key string, fallback int) int {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -255,14 +226,15 @@ func envInt(key string, fallback int) int {
 	return parsed
 }
 
-// envBool читает логический параметр окружения и проверяет допустимый формат.
+// envBool reads a boolean environment setting, falling back when it cannot be parsed.
 //
-// @args
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
-//   - fallback (bool): значение, используемое при отсутствии входного параметра.
+// Parameters:
+//   - key: Storage, cache or cryptographic key used by the operation.
+//   - fallback: Value used when the optional setting is absent or invalid.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func envBool(key string, fallback bool) bool {
 	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
 	if value == "" {
@@ -272,14 +244,14 @@ func envBool(key string, fallback bool) bool {
 	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
 
-// envDuration читает длительность из окружения и проверяет её формат.
+// envDuration reads a duration environment setting, falling back when it cannot be parsed.
 //
-// @args
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
-//   - fallback (time.Duration): значение, используемое при отсутствии входного параметра.
+// Parameters:
+//   - key: Storage, cache or cryptographic key used by the operation.
+//   - fallback: Value used when the optional setting is absent or invalid.
 //
-// @return:
-//   - результат 1 (time.Duration): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The duration or bounded waiting interval computed by the operation.
 func envDuration(key string, fallback time.Duration) time.Duration {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -297,13 +269,13 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// envList разбирает список значений переменной окружения.
+// envList splits a comma-separated environment setting into nonempty trimmed entries.
 //
-// @args
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
+// Parameters:
+//   - key: Storage, cache or cryptographic key used by the operation.
 //
-// @return:
-//   - результат 1 ([]string): собранные элементы результата; состав ограничивается параметрами операции.
+// Returns:
+//   - result 1: The collected string values.
 func envList(key string) []string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {

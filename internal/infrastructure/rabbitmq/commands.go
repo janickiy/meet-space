@@ -19,14 +19,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// Options собирает зависимости и настройки создания компонента.
-// @params
-//   - URL: значение URL типа string, используемое согласно назначению этой операции.
-//   - Exchange: значение Exchange типа string, используемое согласно назначению этой операции.
-//   - Queue: значение Queue типа string, используемое согласно назначению этой операции.
-//   - RoutingKey: значение RoutingKey типа string, используемое согласно назначению этой операции.
-//   - ConsumerTag: значение ConsumerTag типа string, используемое согласно назначению этой операции.
-//   - Logger: значение Logger типа *log.Logger, используемое согласно назначению этой операции.
+// Options contains broker dependencies, timeouts and component construction settings.
 type Options struct {
 	URL         string
 	Exchange    string
@@ -36,17 +29,10 @@ type Options struct {
 	Logger      *log.Logger
 }
 
-// CommandHandler обрабатывает одну команду записи из RabbitMQ.
+// CommandHandler processes one recording command delivered by RabbitMQ.
 type CommandHandler func(context.Context, records.Command) error
 
-// Publisher задаёт согласованное представление данных «Publisher» для доставке внутренних команд воркеру записи.
-// @params
-//   - conn: действующее сетевое соединение операции.
-//   - channel: значение channel типа *amqp.Channel, используемое согласно назначению этой операции.
-//   - exchange: значение exchange типа string, используемое согласно назначению этой операции.
-//   - routingKey: значение routingKey типа string, используемое согласно назначению этой операции.
-//   - options: зависимости и настройки создаваемого компонента.
-//   - mu: блокировка согласованного доступа к разделяемому состоянию.
+// Publisher holds the publisher data used by recording command delivery.
 type Publisher struct {
 	conn       *amqp.Connection
 	channel    *amqp.Channel
@@ -59,13 +45,7 @@ type Publisher struct {
 	current    atomic.Pointer[amqp.Connection]
 }
 
-// Consumer задаёт согласованное представление данных «Consumer» для доставке внутренних команд воркеру записи.
-// @params
-//   - conn: действующее сетевое соединение операции.
-//   - channel: значение channel типа *amqp.Channel, используемое согласно назначению этой операции.
-//   - queue: значение queue типа string, используемое согласно назначению этой операции.
-//   - consumerTag: значение consumerTag типа string, используемое согласно назначению этой операции.
-//   - logger: значение logger типа *log.Logger, используемое согласно назначению этой операции.
+// Consumer holds the consumer data used by recording command delivery.
 type Consumer struct {
 	drainMu     sync.Mutex
 	draining    bool
@@ -81,17 +61,27 @@ type Consumer struct {
 	closed      bool
 }
 
-// BeginDrain откладывает новые старты; команды завершения продолжают обслуживаться.
+// BeginDrain stops accepting new work while existing operations finish.
 func (c *Consumer) BeginDrain() { c.drainMu.Lock(); c.draining = true; c.drainMu.Unlock() }
 
-// Active возвращает число команд, чьё подтверждение или обработка ещё не закончены.
+// Active returns the count of component-owned operations still requiring completion before
+// shutdown.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
 func (c *Consumer) Active() int { c.drainMu.Lock(); defer c.drainMu.Unlock(); return c.active }
 
-// NewPublisher создаёт издателя RabbitMQ и объявляет обменник, очередь и привязку.
-// @args
-// - ctx: контекст bootstrap-а.
-// - options: URL, обменник, очередь и ключ маршрутизации.
-// @return готовый Publisher или ошибку подключения.
+// NewPublisher constructs the publisher with the dependencies and limits required for recording
+// command delivery.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - options: Validated component construction or execution options.
+//
+// Returns:
+//   - result 1: The constructed or loaded publisher.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func NewPublisher(ctx context.Context, options Options) (*Publisher, error) {
 	options = normalizeOptions(options)
 	conn, channel, err := openDeclaredChannel(ctx, options)
@@ -114,12 +104,16 @@ func NewPublisher(ctx context.Context, options Options) (*Publisher, error) {
 	return p, nil
 }
 
-// StartRecord публикует команду подготовки приёма WebRTC.
-// @args
-// - ctx: контекст HTTP-запроса API.
-// - recordID: UUID записи.
-// - segmentDurationSec: длительность сегмента.
-// @return ошибку публикации.
+// StartRecord publishes the recording-start command that prepares media ingestion.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - recordID: External recording UUID.
+//   - segmentDurationSec: Requested segment duration in seconds.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *Publisher) StartRecord(ctx context.Context, recordID string, segmentDurationSec int) error {
 	return p.publish(ctx, records.Command{
 		Type:               "record.start",
@@ -128,12 +122,17 @@ func (p *Publisher) StartRecord(ctx context.Context, recordID string, segmentDur
 	})
 }
 
-// StopRecord публикует команду остановки записи, финализации, preview и загрузки в MinIO.
-// @args
-// - ctx: контекст HTTP-запроса API.
-// - recordID: UUID записи.
-// - reason: причина остановки.
-// @return ошибку публикации.
+// StopRecord publishes the recording-stop command that triggers finalization and artifact
+// publication.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - recordID: External recording UUID.
+//   - reason: Bounded lifecycle or failure reason.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *Publisher) StopRecord(ctx context.Context, recordID string, reason string) error {
 	return p.publish(ctx, records.Command{
 		Type:     "record.stop",
@@ -142,9 +141,7 @@ func (p *Publisher) StopRecord(ctx context.Context, recordID string, reason stri
 	})
 }
 
-// Close закрывает канал и соединение RabbitMQ.
-// @args нет.
-// @return ничего.
+// Close closes the component-owned resources and ends their lifecycle.
 func (p *Publisher) Close() {
 	if p == nil {
 		return
@@ -161,15 +158,15 @@ func (p *Publisher) Close() {
 	closeAMQP(p.conn)
 }
 
-// publish передаёт сохранённое изменение через транспорт событий или внутренних команд.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// publish publishes the saved rabbitmq change through its configured event or command transport.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - command (records.Command): внутренняя команда с типом операции и серверной идентичностью ресурса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - command: Validated internal recording or media command.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *Publisher) publish(ctx context.Context, command records.Command) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -196,15 +193,16 @@ func (p *Publisher) publish(ctx context.Context, command records.Command) error 
 	return p.publishLocked(ctx, body, command.Type)
 }
 
-// publishLocked публикует команду через канал RabbitMQ при удерживаемой блокировке транспорта.
+// publishLocked publishes a command while the publisher connection state is locked.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - body ([]byte): тело входящего запроса или сериализованные данные передачи.
-//   - commandType (string): значение commandType типа string, используемое согласно назначению этой операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - body: Input content stream or serialized request body.
+//   - commandType: Allowlisted recording command kind.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *Publisher) publishLocked(ctx context.Context, body []byte, commandType string) error {
 	if p.channel == nil {
 		return fmt.Errorf("rabbitmq channel is not configured")
@@ -236,8 +234,14 @@ func (p *Publisher) publishLocked(ctx context.Context, body []byte, commandType 
 	return nil
 }
 
-// Check проверяет действующее соединение издателя без блокировки отправки.
-// ctx задаёт дедлайн health-пробы; метод не создаёт новую очередь или публикацию.
+// Check checks the configured component or dependency without creating user work.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *Publisher) Check(ctx context.Context) error {
 	if p.closed.Load() {
 		return fmt.Errorf("publisher closed")
@@ -255,13 +259,14 @@ func (p *Publisher) Check(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// reconnectLocked восстанавливает RabbitMQ-соединение и канал публикации при удерживаемой блокировке.
+// reconnectLocked restores the publisher channel while serializing connection changes.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *Publisher) reconnectLocked(ctx context.Context) error {
 	closeAMQP(p.conn)
 	p.channel, p.conn = nil, nil
@@ -291,8 +296,11 @@ func (p *Publisher) reconnectLocked(ctx context.Context) error {
 	return nil
 }
 
-// watch наблюдает закрытие конкретного соединения. conn — новое соединение AMQP;
-// закрытие старого connection не переводит новый publisher в failed.
+// watch observes one broker connection so closure of an obsolete connection cannot invalidate a
+// newer publisher.
+//
+// Parameters:
+//   - conn: Connection owned by the current operation.
 func (p *Publisher) watch(conn *amqp.Connection) {
 	p.current.Store(conn)
 	p.alive.Store(true)
@@ -306,11 +314,17 @@ func (p *Publisher) watch(conn *amqp.Connection) {
 	}()
 }
 
-// NewConsumer создаёт потребителя RabbitMQ и объявляет обменник, очередь и привязку.
-// @args
-// - ctx: контекст bootstrap-а.
-// - options: URL, обменник, очередь, ключ маршрутизации и метка потребителя.
-// @return готовый Consumer или ошибку подключения.
+// NewConsumer constructs the consumer with the dependencies and limits required for recording
+// command delivery.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - options: Validated component construction or execution options.
+//
+// Returns:
+//   - result 1: The constructed or loaded consumer.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func NewConsumer(ctx context.Context, options Options) (*Consumer, error) {
 	options = normalizeOptions(options)
 	conn, channel, err := openDeclaredChannel(ctx, options)
@@ -338,11 +352,15 @@ func NewConsumer(ctx context.Context, options Options) (*Consumer, error) {
 	return consumer, nil
 }
 
-// Consume читает команды из RabbitMQ до отмены ctx.
-// @args
-// - ctx: общий контекст worker-а.
-// - handler: обработчик record.start/record.stop.
-// @return ошибку consume loop.
+// Consume processes broker recording commands until its context is canceled.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - handler: Callback responsible for processing the scoped operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Consumer) Consume(ctx context.Context, handler CommandHandler) error {
 	if c == nil {
 		return fmt.Errorf("rabbitmq consumer is not configured")
@@ -396,8 +414,14 @@ func (c *Consumer) Consume(ctx context.Context, handler CommandHandler) error {
 	return nil
 }
 
-// Check сообщает готовность consumer без сетевого запроса. ctx ограничивает
-// health-пробу; готовность снимается при потере канала и восстанавливается после consume.
+// Check checks the configured component or dependency without creating user work.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Consumer) Check(ctx context.Context) error {
 	if !c.alive.Load() {
 		return fmt.Errorf("consumer unavailable")
@@ -405,9 +429,15 @@ func (c *Consumer) Check(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// reconnect восстанавливает QoS и подтверждения после потери брокера. ctx
-// ограничивает подключение; старые соединения закрываются, закрытый consumer
-// не запускается повторно. Не подтверждённые доставки повторяет RabbitMQ.
+// reconnect restores the broker connection, QoS and acknowledgement state without reviving a
+// closed consumer.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Consumer) reconnect(ctx context.Context) error {
 	conn, ch, err := openDeclaredChannel(ctx, c.options)
 	if err != nil {
@@ -434,9 +464,7 @@ func (c *Consumer) reconnect(ctx context.Context) error {
 	return nil
 }
 
-// Close закрывает канал и соединение RabbitMQ.
-// @args нет.
-// @return ничего.
+// Close closes the component-owned resources and ends their lifecycle.
 func (c *Consumer) Close() {
 	if c == nil {
 		return
@@ -451,12 +479,13 @@ func (c *Consumer) Close() {
 	}
 }
 
-// handleDelivery разбирает доставленную AMQP-команду и подтверждает либо назначает её повторную обработку.
+// handleDelivery decodes an AMQP recording command and acknowledges, retries or quarantines the
+// delivery.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - delivery (amqp.Delivery): значение delivery типа amqp.Delivery, используемое согласно назначению этой операции.
-//   - handler (CommandHandler): обработчик вызываемой команды или маршрута.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - delivery: Broker delivery with its acknowledgement state.
+//   - handler: Callback responsible for processing the scoped operation.
 func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery, handler CommandHandler) {
 	started := time.Now()
 	defer func() { operations.Observe("command", time.Since(started).Seconds()) }()
@@ -479,7 +508,7 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery, h
 	}
 	c.drainMu.Unlock()
 	if deferred {
-		// Возврат не считается ошибкой задания и не отправляет повтор в карантин.
+		// This return is not a job failure and does not quarantine the retried delivery.
 		c.acknowledge(ctx, delivery, false)
 		select {
 		case <-ctx.Done():
@@ -507,6 +536,12 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery, h
 	c.acknowledge(ctx, delivery, true)
 }
 
+// acknowledge acknowledges or requeues a broker delivery according to its processing result.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - d: The delivery state processed by this operation.
+//   - ack: Whether the broker delivery should be acknowledged rather than requeued.
 func (c *Consumer) acknowledge(ctx context.Context, d amqp.Delivery, ack bool) {
 	c.mu.Lock()
 	conn := c.conn
@@ -519,9 +554,12 @@ func (c *Consumer) acknowledge(ctx context.Context, d amqp.Delivery, ack bool) {
 	})
 }
 
-// quarantine сохраняет некорректное или повторно сбойное сообщение в отдельной постоянной
-// очереди с подтверждением брокера перед ack. ctx ограничивает операцию пятью
-// секундами; при ошибке исходная доставка остаётся доступной для повтора.
+// quarantine routes a rejected message to the quarantine path instead of repeatedly processing
+// invalid input.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - d: The delivery state processed by this operation.
 func (c *Consumer) quarantine(ctx context.Context, d amqp.Delivery) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -553,27 +591,28 @@ func (c *Consumer) quarantine(ctx context.Context, d amqp.Delivery) {
 	c.acknowledge(ctx, d, false)
 }
 
-// logf записывает ограниченную диагностику компонента с указанными параметрами.
+// logf records a bounded diagnostic without including private payloads or credentials.
 //
-// @args
-//   - format (string): формат диагностического сообщения; чувствительные аргументы не должны раскрывать медиа.
-//   - args (...any): значения переменного числа аргументов для форматирования или внешней команды.
+// Parameters:
+//   - format: Diagnostic message format; sensitive values must not be included.
+//   - args: Command-line, process or protocol arguments.
 func (c *Consumer) logf(format string, args ...any) {
 	if c.logger != nil {
 		c.logger.Printf(format, args...)
 	}
 }
 
-// openDeclaredChannel открывает AMQP-канал и проверяет необходимую топологию очередей.
+// openDeclaredChannel opens an AMQP channel and declares the required recording topology.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - options (Options): зависимости и настройки создаваемого компонента.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - options: Validated component construction or execution options.
 //
-// @return:
-//   - результат 1 (*amqp.Connection): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (*amqp.Channel): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The constructed or loaded connection.
+//   - result 2: The constructed or loaded channel.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func openDeclaredChannel(ctx context.Context, options Options) (*amqp.Connection, *amqp.Channel, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -596,9 +635,18 @@ func openDeclaredChannel(ctx context.Context, options Options) (*amqp.Connection
 	return conn, channel, nil
 }
 
+// cancelConnectionIO interrupts broker I/O when the owning operation is canceled.
+//
 // amqp091-go checks publish contexts before writing but cannot interrupt a
 // socket write. Cancellation closes this uncertain connection with an I/O
 // deadline, releasing both the write and the library's shutdown locks.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conn: Connection owned by the current operation.
+//
+// Returns:
+//   - result 1: The callback used to complete or release the operation.
 func cancelConnectionIO(ctx context.Context, conn *amqp.Connection) func() {
 	done := make(chan struct{})
 	stop := context.AfterFunc(ctx, func() {
@@ -614,12 +662,26 @@ func cancelConnectionIO(ctx context.Context, conn *amqp.Connection) func() {
 	}
 }
 
+// closeAMQP closes the owned AMQP channel and connection.
+//
+// Parameters:
+//   - conn: Connection owned by the current operation.
 func closeAMQP(conn *amqp.Connection) {
 	if conn != nil {
 		_ = conn.CloseDeadline(time.Now().Add(time.Second))
 	}
 }
 
+// boundedAMQPRPC runs an AMQP setup operation with a bounded cancellation window.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conn: Connection owned by the current operation.
+//   - call: Persisted direct-call lifecycle state.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func boundedAMQPRPC(ctx context.Context, conn *amqp.Connection, call func() error) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -631,14 +693,16 @@ func boundedAMQPRPC(ctx context.Context, conn *amqp.Connection, call func() erro
 	return call()
 }
 
-// declareTopology объявляет обменники, очереди и привязки доставки команд записи.
+// declareTopology declares the recording exchange, queues and bindings required by the
+// component.
 //
-// @args
-//   - channel (*amqp.Channel): значение channel типа *amqp.Channel, используемое согласно назначению этой операции.
-//   - options (Options): зависимости и настройки создаваемого компонента.
+// Parameters:
+//   - channel: Broker or in-process channel owned by this component.
+//   - options: Validated component construction or execution options.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func declareTopology(channel *amqp.Channel, options Options) error {
 	if err := channel.ExchangeDeclare(options.Exchange, "direct", true, false, false, false, nil); err != nil {
 		return fmt.Errorf("rabbitmq declare exchange: %w", err)
@@ -656,15 +720,16 @@ func declareTopology(channel *amqp.Channel, options Options) error {
 	return nil
 }
 
-// dial устанавливает соединение с RabbitMQ с настроенными ограничениями.
+// dial opens a broker connection using the configured connection and cancellation limits.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - url (string): адрес вызываемого ресурса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - url: Validated endpoint or public resource URL.
 //
-// @return:
-//   - результат 1 (*amqp.Connection): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The constructed or loaded connection.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func dial(ctx context.Context, url string) (*amqp.Connection, error) {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
@@ -707,13 +772,13 @@ func dial(ctx context.Context, url string) (*amqp.Connection, error) {
 	return conn, nil
 }
 
-// normalizeOptions заполняет значения по умолчанию и проверяет параметры RabbitMQ-транспорта.
+// normalizeOptions fills and bounds AMQP connection, retry and consumer options.
 //
-// @args
-//   - options (Options): зависимости и настройки создаваемого компонента.
+// Parameters:
+//   - options: Validated component construction or execution options.
 //
-// @return:
-//   - результат 1 (Options): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The resulting options.
 func normalizeOptions(options Options) Options {
 	options.URL = strings.TrimSpace(options.URL)
 	if options.URL == "" {

@@ -9,6 +9,7 @@ import (
 	"github.com/janickiy/meet-space/internal/buildinfo"
 )
 
+// main starts the main process and reports startup or execution failures.
 func main() {
 	command := "serve"
 	if len(os.Args) > 1 {

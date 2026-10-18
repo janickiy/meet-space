@@ -18,13 +18,52 @@ const accountCookiePrefix = "meetrix_account_"
 const maxBrowserAccounts = 5
 
 type accountService interface {
+	// SessionAccount returns the public account view for a valid persistent session.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Untrusted serialized value to decode or validate.
+	//
+	// Returns:
+	//   - result 1: The resulting view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	SessionAccount(context.Context, string) (users.View, error)
+	// DeleteAccount verifies account ownership and removes the account together with its scoped
+	// session state.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//   - argument 3: Plaintext password accepted only for validation or hashing.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	DeleteAccount(context.Context, string, string) error
 }
 
+// accountCookieName builds the per-account refresh-cookie name from the account identifier.
+//
+// Parameters:
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: Per-account HttpOnly refresh-cookie name.
 func accountCookieName(id string) string { return accountCookiePrefix + id }
 
+// browserAccounts reads the browser's valid persistent account sessions without returning their
+// secrets.
+//
 // Cookie names are only selectors. Each secret is checked against its server-side owner.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//
+// Returns:
+//   - result 1: The collected view values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Handler) browserAccounts(c *gin.Context) ([]users.View, error) {
 	service, ok := h.service.(accountService)
 	if !ok || !h.persistentSessions {
@@ -64,6 +103,14 @@ func (h *Handler) browserAccounts(c *gin.Context) ([]users.View, error) {
 }
 
 // preserveSignIn keeps other identities in HttpOnly cookies, never in JavaScript storage.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - response: Application response whose session or public metadata is being processed.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Handler) preserveSignIn(c *gin.Context, response users.LoginResponse) error {
 	service, ok := h.service.(accountService)
 	if !ok {
@@ -120,6 +167,10 @@ func (h *Handler) preserveSignIn(c *gin.Context, response users.LoginResponse) e
 	return nil
 }
 
+// Accounts lists the browser's authenticated accounts without returning session secrets.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Accounts(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return
@@ -136,6 +187,10 @@ func (h *Handler) Accounts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": items})
 }
 
+// SwitchAccount selects a browser account only after verifying its persistent server session.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) SwitchAccount(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return
@@ -170,6 +225,11 @@ func (h *Handler) SwitchAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// DeleteAccount verifies account ownership and removes the account together with its scoped
+// session state.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) DeleteAccount(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return

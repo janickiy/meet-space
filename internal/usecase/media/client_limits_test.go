@@ -16,8 +16,22 @@ import (
 
 type limitsRoundTripper func(*http.Request) (*http.Response, error)
 
+// RoundTrip implements the isolated test HTTP transport by invoking its configured request
+// callback.
+//
+// Parameters:
+//   - r: Incoming HTTP request.
+//
+// Returns:
+//   - result 1: The constructed or loaded response.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (f limitsRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
+// limitsCommand creates a media command fixture for encoded-SDP size-limit checks.
+//
+// Returns:
+//   - result 1: The resulting command.
 func limitsCommand() domain.Command {
 	return domain.Command{
 		RequestID: "11111111-1111-4111-8111-111111111111",
@@ -31,10 +45,23 @@ func limitsCommand() domain.Command {
 	}
 }
 
+// limitsResponse creates an isolated HTTP response fixture for body-boundary checks.
+//
+// Parameters:
+//   - status: Lifecycle state or response status to record.
+//   - body: Input content stream or serialized request body.
+//
+// Returns:
+//   - result 1: The constructed or loaded response.
 func limitsResponse(status int, body string) *http.Response {
 	return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}
 }
 
+// TestHTTPClientTransportsLargeEscapedSDP verifies HTTP client transports large escaped SDP to
+// prevent regressions in authenticated media-room control.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestHTTPClientTransportsLargeEscapedSDP(t *testing.T) {
 	// Extension attributes are legal SDP. Characters escaped by encoding/json
 	// make the internal command larger than both historical request caps.
@@ -83,6 +110,11 @@ func TestHTTPClientTransportsLargeEscapedSDP(t *testing.T) {
 	}
 }
 
+// TestHTTPClientCommandBodyBoundary verifies HTTP client command body boundary to prevent
+// regressions in authenticated media-room control.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestHTTPClientCommandBodyBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -130,6 +162,11 @@ func TestHTTPClientCommandBodyBoundary(t *testing.T) {
 	}
 }
 
+// TestHTTPClientResponseBodyBoundary verifies HTTP client response body boundary to prevent
+// regressions in authenticated media-room control.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestHTTPClientResponseBodyBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

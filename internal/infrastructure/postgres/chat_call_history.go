@@ -7,6 +7,15 @@ import (
 
 // decorateCallHistory hydrates the page in one bounded query after chat authorization
 // and the reader's history cutoff have been applied. Device claims are never returned.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - items: Bounded collection of records to process.
+//   - ids: Resource identifiers to process as a bounded batch.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func decorateCallHistory(tx *gorm.DB, items []chat.Message, ids []string) error {
 	hasCalls := false
 	for _, item := range items {

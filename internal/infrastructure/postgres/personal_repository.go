@@ -16,9 +16,27 @@ import (
 
 type PersonalRepository struct{ db *gorm.DB }
 
+// NewPersonalRepository constructs the personal repository with the dependencies and limits
+// required for personal and group conversations.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded personal repository.
 func NewPersonalRepository(db *gorm.DB) *PersonalRepository {
 	return &PersonalRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
 }
+
+// Account checks that the acting identity is a registered non-guest account.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) Account(ctx context.Context, user string) error {
 	var n int64
 	err := r.db.WithContext(ctx).Table("users").Where("id=? AND guest_conference_id IS NULL AND password_hash<>''", user).Count(&n).Error
@@ -30,6 +48,20 @@ func (r *PersonalRepository) Account(ctx context.Context, user string) error {
 	}
 	return nil
 }
+
+// GetOrCreate returns the existing direct conversation or creates its unique account-pair
+// conversation.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - target: Target state, account or decoded value, as defined by its type.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: Whether this request created new state rather than reusing an idempotent result.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) GetOrCreate(ctx context.Context, user, target string) (personal.Conversation, bool, error) {
 	if user == target {
 		return personal.Conversation{}, false, apperrors.New(apperrors.ErrInvalidInput, "self messaging is unavailable")
@@ -105,6 +137,10 @@ type personalRow struct {
 	HistoryClearedThrough                                                  int64
 }
 
+// view builds the public, member-specific view of the stored resource.
+//
+// Returns:
+//   - result 1: The resulting conversation.
 func (row personalRow) view() personal.Conversation {
 	item := personal.Conversation{ID: row.ID, Type: row.Type, Name: row.Name, Description: row.Description,
 		CreatedBy: row.CreatedBy, UpdatedAt: row.UpdatedAt, MemberCount: row.MemberCount, AvatarVersion: row.AvatarVersion,
@@ -122,12 +158,36 @@ func (row personalRow) view() personal.Conversation {
 	}
 	return item
 }
+
+// Get loads the requested personal within the caller's authorized scope.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) Get(ctx context.Context, user, id string) (personal.Conversation, error) {
 	return personalView(r.db.WithContext(ctx), user, id)
 }
 
+// personalView builds the member-specific personal-conversation response.
+//
 // A write response is projected while its conversation lock is still held. A
 // subsequent revoke cannot turn a committed mutation into an apparent failure.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func personalView(db *gorm.DB, user, id string) (personal.Conversation, error) {
 	var row personalRow
 	result := db.Raw(personalProjection+" AND c.id=?", user, id).Scan(&row)
@@ -147,9 +207,36 @@ type personalCursor struct {
 	Filter personal.ListFilter
 }
 
+// List returns a bounded page of personal records using the supplied pagination and filters.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The resulting page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) List(ctx context.Context, user, cursor string, limit int) (personal.Page, error) {
 	return r.ListFiltered(ctx, user, cursor, limit, personal.ListFilter{})
 }
+
+// ListFiltered returns a member-scoped conversation page using the validated personal, group or
+// unread filters.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//   - filter: Validated filters restricting the result set.
+//
+// Returns:
+//   - result 1: The resulting page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) ListFiltered(ctx context.Context, user, cursor string, limit int, filter personal.ListFilter) (personal.Page, error) {
 	page := personal.Page{Items: []personal.Conversation{}}
 	if limit < 1 || limit > 100 {
@@ -206,11 +293,34 @@ func (r *PersonalRepository) ListFiltered(ctx context.Context, user, cursor stri
 	err = r.db.WithContext(ctx).Raw(`SELECT count(*) FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id AND c.deleted_at IS NULL JOIN conversation_messages x ON x.conversation_id=m.conversation_id AND x.sequence>GREATEST(m.last_read_sequence,m.history_cleared_through) AND x.sender_user_id<>m.user_id AND x.deleted_at IS NULL WHERE m.user_id=? AND m.left_at IS NULL AND m.hidden_at IS NULL`, user).Scan(&page.UnreadCount).Error
 	return page, err
 }
+
+// Members returns the current member identifiers or member views for the authorized
+// conversation.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The collected string values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) Members(ctx context.Context, id string) ([]string, error) {
 	ids := []string{}
 	err := r.db.WithContext(ctx).Table("conversation_members m").Joins("JOIN conversations c ON c.id=m.conversation_id").Where("m.conversation_id=? AND m.left_at IS NULL AND c.deleted_at IS NULL", id).Order("m.user_id").Pluck("m.user_id", &ids).Error
 	return ids, err
 }
+
+// ConversationType returns whether the persisted conversation is direct or group-scoped.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: Persisted direct or group conversation kind.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) ConversationType(ctx context.Context, id string) (string, error) {
 	var row struct{ Type string }
 	err := r.db.WithContext(ctx).Table("conversations").Select("type").Where("id=?", id).Take(&row).Error
@@ -219,11 +329,38 @@ func (r *PersonalRepository) ConversationType(ctx context.Context, id string) (s
 	}
 	return row.Type, nil
 }
+
+// HasActiveMembership checks the account's current conversation membership immediately before
+// protected access or delivery.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - user: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) HasActiveMembership(ctx context.Context, id, user string) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Table("conversation_members m").Joins("JOIN conversations c ON c.id=m.conversation_id").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND c.deleted_at IS NULL AND c.type IN('direct','group') AND u.guest_conference_id IS NULL AND u.password_hash<>''", id, user).Count(&count).Error
 	return count == 1, err
 }
+
+// Search searches personal and group conversations using bounded input and the caller's
+// visibility filters.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - query: Search text or validated query filters.
+//
+// Returns:
+//   - result 1: The collected peer values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) Search(ctx context.Context, user, query string) ([]personal.Peer, error) {
 	query = strings.TrimSpace(query)
 	if !utf8.ValidString(query) || utf8.RuneCountInString(query) < 2 || utf8.RuneCountInString(query) > 100 || strings.ContainsRune(query, 0) {

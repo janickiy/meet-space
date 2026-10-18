@@ -9,6 +9,17 @@ import (
 )
 
 type Bus interface {
+	// Publish publishes the saved private folder change through its configured event or command
+	// transport.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Trusted event to publish or process.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Publish(context.Context, string, realtime.Envelope) error
 }
 
@@ -16,6 +27,18 @@ type Bus interface {
 // channel. Membership of an item must never make its other users recipients.
 type Events struct{ Bus Bus }
 
+// PublishFolder publishes a committed folder change only to the owning account's realtime
+// channel.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - kind: Validated event, job, media or resource category.
+//   - folderID: Identifier of the acting account's private folder.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (e *Events) PublishFolder(ctx context.Context, userID, kind, folderID string) error {
 	if err := ctx.Err(); err != nil {
 		return err

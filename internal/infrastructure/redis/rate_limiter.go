@@ -41,27 +41,35 @@ local remaining = limit - count - 1
 return {1, remaining, 0, math.floor((now_ms + window_ms) / 1000)}
 `)
 
-// RateLimiter применяет Redis-ограничения частоты независимо для разных видов операций.
-//   - client: клиент внешнего сервиса или транспорта компонента.
+// RateLimiter applies independent Redis request budgets to different operation kinds.
 type RateLimiter struct {
 	client *goredis.Client
 }
 
-// NewRateLimiter создаёт ограничитель запросов на основе Redis.
-// @args
-// - client: клиент Redis.
-// @return RateLimiter.
+// NewRateLimiter constructs the rate limiter with the dependencies and limits required for
+// distributed presence and ownership.
+//
+// Parameters:
+//   - client: Browser media-client identity or transport dependency, as defined by its type.
+//
+// Returns:
+//   - result 1: The constructed or loaded rate limiter.
 func NewRateLimiter(client *goredis.Client) *RateLimiter {
 	return &RateLimiter{client: client}
 }
 
-// Allow проверяет, можно ли выполнить запрос по ключу лимита.
-// @args
-// - ctx: контекст операции.
-// - key: ключ лимита Redis.
-// - limit: максимум запросов за окно.
-// - window: длительность окна.
-// @return результат проверки или ошибку Redis.
+// Allow evaluates the rate limit and returns the remaining budget and reset boundary.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - key: Storage, cache or cryptographic key used by the operation.
+//   - limit: Maximum number of results or operations in this batch.
+//   - window: Duration of the rate-limit or observation window.
+//
+// Returns:
+//   - result 1: The resulting result.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (l *RateLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration) (ratelimit.Result, error) {
 	if l == nil || l.client == nil || limit <= 0 {
 		return ratelimit.Result{Allowed: true, Limit: limit}, nil
@@ -107,14 +115,15 @@ func (l *RateLimiter) Allow(ctx context.Context, key string, limit int, window t
 	}, nil
 }
 
-// redisInt приводит числовой ответ Redis к ожидаемому целочисленному виду.
+// redisInt converts a Redis script result to the integer representation used by the caller.
 //
-// @args
-//   - value (interface{}): значение для проверки, нормализации или преобразования.
+// Parameters:
+//   - value: Value to validate, normalize or convert.
 //
-// @return:
-//   - результат 1 (int64): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func redisInt(value interface{}) (int64, error) {
 	switch typed := value.(type) {
 	case int:

@@ -2,7 +2,7 @@ package config
 
 import (
 	"crypto/hmac"
-	"crypto/sha1" // Совместимость с Coturn REST; не используется для хеширования паролей.
+	"crypto/sha1" // Coturn REST compatibility; this is not used for password hashing.
 	"encoding/base64"
 	"fmt"
 	"net/url"
@@ -16,9 +16,9 @@ import (
 	"github.com/pion/stun/v3"
 )
 
-// TURNConfig хранит общий серверный секрет, адреса TURN и срок временных
-// credentials. ForceRelay применяется только к новым браузерным соединениям.
-// Secret не сериализуется в HTTP и не включается в логи.
+// TURNConfig contains the shared server secret, TURN endpoints and temporary credential
+// lifetime. ForceRelay affects only new browser connections. Secret is never serialized into
+// HTTP responses or logs.
 type TURNConfig struct {
 	URLs       []string
 	Secret     string `json:"-"`
@@ -26,9 +26,13 @@ type TURNConfig struct {
 	ForceRelay bool
 }
 
-// LoadTURN читает TURN_URLS (через запятую), TURN_SHARED_SECRET и TTL из env.
-// Возвращает отключённую конфигурацию, если URLs отсутствуют; relay без TURN
-// запрещён. Неверный URL или слабый ключ приводит к отказу запуска.
+// LoadTURN loads and validates the TURN endpoints, shared secret and temporary credential
+// lifetime.
+//
+// Returns:
+//   - result 1: The resulting turn config.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func LoadTURN() (TURNConfig, error) {
 	if v := strings.ToLower(os.Getenv("TURN_FORCE_RELAY")); v != "" && !strings.Contains("|true|false|1|0|yes|no|on|off|", "|"+v+"|") {
 		return TURNConfig{}, fmt.Errorf("TURN_FORCE_RELAY must be boolean")
@@ -59,10 +63,15 @@ func LoadTURN() (TURNConfig, error) {
 	return c, nil
 }
 
-// ClientICE создаёт отдельные краткоживущие credentials для одного подключения.
-// base — существующие STUN/ICE адреса, now — текущее время для проверяемого TTL.
-// Возвращает копию списка: изменение ответа не меняет настройки процесса.
-// Username содержит срок истечения и случайный UUID, без идентификатора пользователя.
+// ClientICE builds browser ICE settings, including temporary TURN credentials when TURN is
+// enabled.
+//
+// Parameters:
+//   - base: Base configuration or value from which the result is derived.
+//   - now: Reference time used for expiration or duration calculations.
+//
+// Returns:
+//   - result 1: The resulting ICE config.
 func (c TURNConfig) ClientICE(base realtime.ICEConfig, now time.Time) realtime.ICEConfig {
 	result := realtime.ICEConfig{ICEServers: append([]realtime.ICEServer{}, base.ICEServers...), ICETransportPolicy: "all"}
 	for i := range result.ICEServers {

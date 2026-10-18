@@ -13,34 +13,36 @@ import (
 	chatusecase "github.com/janickiy/meet-space/internal/usecase/chat"
 )
 
-// Handler связывает транспортный запрос с прикладным сценарием, проверкой входных данных и формированием ответа.
-//   - service: значение service типа *chatusecase.Service, используемое согласно назначению этой операции.
+// Handler adapts HTTP requests to persistent chat messages and private attachments, validates
+// input and writes the response.
 type Handler struct {
 	service        *chatusecase.Service
 	namespace      string
 	groupDownloads GroupDownloads
 }
 
-// NewHandler создаёт и связывает зависимости компонента Handler, используемого в постоянном чате и приватных вложениях.
+// NewHandler constructs the handler with the dependencies and limits required for persistent
+// chat messages and private attachments.
 //
-// @args
-//   - service (*chatusecase.Service): значение service типа *chatusecase.Service, используемое согласно назначению этой операции.
+// Parameters:
+//   - service: Application service invoked by this adapter.
 //
-// @return:
-//   - результат 1 (*Handler): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func NewHandler(service *chatusecase.Service) *Handler {
 	return &Handler{service: service, namespace: "conferences"}
 }
 
-// parameter проверяет обязательный параметр HTTP-маршрута перед прикладной операцией.
+// parameter validates a required route parameter before invoking the application operation.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - key: Storage, cache or cryptographic key used by the operation.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Validated required route parameter.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func parameter(c *gin.Context, key string) (string, bool) {
 	id, err := chat.UUID(c.Param(key))
 	if err != nil {
@@ -50,10 +52,10 @@ func parameter(c *gin.Context, key string) (string, bool) {
 	return id, true
 }
 
-// List возвращает ограниченный список сообщений и вложений конференции с принятыми в данном слое фильтрами.
+// List returns a bounded page of chat message records using the supplied pagination and filters.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) List(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -76,10 +78,11 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "nextCursor": page.NextCursor, "unreadCount": page.UnreadCount, "lastReadMessageId": page.LastReadMessageID})
 }
 
-// Send сохраняет сообщение чата с проверкой доступа, ответа и вложений; ключ запроса защищает повторную отправку от дубля.
+// Send validates access, reply and attachment references and persists the chat message with
+// idempotency protection against duplicate retries.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Send(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -101,10 +104,11 @@ func (h *Handler) Send(c *gin.Context) {
 	c.JSON(status, gin.H{"status": "success", "item": item})
 }
 
-// Edit изменяет текст собственного неудалённого сообщения с проверкой доступа и состояния встречи.
+// Edit changes the author's existing message text after checking visibility and edit
+// eligibility.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Edit(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -126,10 +130,11 @@ func (h *Handler) Edit(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Delete мягко удаляет доступное сообщение, проверяя автора или полномочия модератора и сохраняя историю.
+// Delete removes the requested chat message using the caller's scope and the resource lifecycle
+// rules.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Delete(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -147,10 +152,10 @@ func (h *Handler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// ReadState возвращает сохранённую границу прочтения и число доступных непрочитанных сообщений.
+// ReadState returns the member's saved read boundary and visible unread-message count.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) ReadState(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -164,10 +169,11 @@ func (h *Handler) ReadState(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// MarkRead продвигает сохранённое состояние прочтения; повторные и запоздалые запросы не должны уменьшать курсор.
+// MarkRead advances the saved read boundary without allowing late or repeated requests to move
+// it backward.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) MarkRead(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -185,10 +191,11 @@ func (h *Handler) MarkRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// InitAttachment создаёт или возвращает метаданные незавершённого вложения для безопасной повторной загрузки.
+// InitAttachment creates or reuses pending attachment metadata so an upload can be retried
+// safely.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) InitAttachment(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -210,10 +217,11 @@ func (h *Handler) InitAttachment(c *gin.Context) {
 	c.JSON(status, gin.H{"status": "success", "item": item, "uploadUrl": "/api/v1/" + h.namespace + "/" + id + "/attachments/" + item.ID + "/content"})
 }
 
-// Upload принимает ограниченное тело загрузки, проверяет содержимое и сохраняет объект действующей попытки.
+// Upload validates a bounded content stream and stores it for the currently owned upload
+// attempt.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Upload(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -223,8 +231,8 @@ func (h *Handler) Upload(c *gin.Context) {
 	if !ok {
 		return
 	}
-	// Ограничиваем медленных клиентов и объём данных. Загрузки отделены от очередей сигнализации
-	// и модерации; сервис ограничивает число одновременных загрузок в памяти.
+	// Bound slow clients and input size. Uploads use a separate path from signaling and moderation;
+	// the service also bounds concurrent in-memory uploads.
 	controller := http.NewResponseController(c.Writer)
 	_ = controller.SetReadDeadline(time.Now().Add(60 * time.Second))
 	defer controller.SetReadDeadline(time.Time{})
@@ -237,10 +245,11 @@ func (h *Handler) Upload(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// FinalizeAttachment подтверждает готовность загруженного вложения к привязке к сообщению.
+// FinalizeAttachment marks a successfully uploaded attachment ready to be referenced by a
+// message.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) FinalizeAttachment(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -261,10 +270,10 @@ func (h *Handler) FinalizeAttachment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Download проверяет доступ к прикреплённому файлу и выдаёт временную подписанную ссылку чтения.
+// Download checks attachment visibility and returns a short-lived private download URL.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Download(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -287,4 +296,7 @@ func (h *Handler) Download(c *gin.Context) {
 }
 
 // ForConversations preserves the shared HTTP/file flow with a distinct public scope.
+//
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func (h *Handler) ForConversations() *Handler { h.namespace = "conversations"; return h }

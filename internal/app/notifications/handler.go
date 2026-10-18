@@ -18,6 +18,16 @@ type Handler struct {
 }
 
 // NewHandler preserves the HTTP API while giving SSE its own lifecycle owner.
+//
+// Parameters:
+//   - service: Application service invoked by this adapter.
+//   - bus: Scoped publication and subscription transport.
+//   - tokens: Token issuer or verifier used for trusted identity checks.
+//   - limiter: Shared request-rate limiter.
+//   - namespace: Namespace isolating this component's distributed keys and channels.
+//
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func NewHandler(service *usecase.Service, bus Subscriber, tokens Verifier, limiter Limiter, namespace string) *Handler {
 	return &Handler{service: service, events: &eventStreams{
 		service: service, bus: bus, tokens: tokens, limiter: limiter,
@@ -33,10 +43,11 @@ func (h *Handler) BeginDrain() {
 	}
 }
 
-// List возвращает ограниченный список личных уведомлений пользователя с принятыми в данном слое фильтрами.
+// List returns a bounded page of personal notification records using the supplied pagination and
+// filters.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) List(c *gin.Context) {
 	limit := 30
 	if raw := c.Query("limit"); raw != "" {
@@ -56,10 +67,10 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(200, page)
 }
 
-// Read идемпотентно отмечает принадлежащее пользователю уведомление прочитанным.
+// Read idempotently marks the account-owned notification as read and returns its saved state.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Read(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("notificationId"))
 	if err != nil || id == uuid.Nil {
@@ -78,4 +89,7 @@ func (h *Handler) Read(c *gin.Context) {
 }
 
 // Events opens an authorized notification stream owned by the SSE component.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Events(c *gin.Context) { h.events.serve(c) }

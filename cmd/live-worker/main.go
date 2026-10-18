@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// main запускает независимый live-worker; ошибки не раскрывают входное аудио и настройки секретов.
+// main starts the live worker process and reports startup or execution failures.
 func main() {
 	if app.RunLiveWorker() != nil {
 		slog.Error("live worker stopped", "event_type", "live.bootstrap.failed")

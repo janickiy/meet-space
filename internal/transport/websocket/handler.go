@@ -30,25 +30,51 @@ import (
 	usecase "github.com/janickiy/meet-space/internal/usecase/realtime"
 )
 
-// Verifier задаёт контракт зависимого компонента Verifier в присутствии участников и доставке realtime-событий; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - VerifyWithExpiry: операция Verify с истечение срока с контрактом, описанным у метода.
+// Verifier defines the replaceable dependency contract for websocket.
 type Verifier interface {
-	// VerifyWithExpiry проверяет подпись и содержимое JWT и возвращает идентификатор пользователя вместе со сроком действия.
+	// VerifyWithExpiry verifies an access token and returns the account identity and token deadline.
 	//
-	// @args
-	//   - аргумент 1 (string): исходные байты JSON, пакета или сериализованного значения.
+	// Parameters:
+	//   - argument 1: Untrusted serialized value to decode or validate.
 	//
-	// @return:
-	//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (time.Time): временная отметка результата или окончания действия разрешения.
-	//   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: Authenticated account identifier.
+	//   - result 2: The timestamp or validity boundary associated with the result.
+	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	VerifyWithExpiry(string) (string, time.Time, error)
 }
 
 // PersistentVerifier binds an access token to a revocable account session.
 // Guest and legacy tokens retain their original expiration deadline.
 type PersistentVerifier interface {
+	// VerifyAuthorization verifies the authorization token and resolves its user, session, guest
+	// scope and expiry.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Untrusted serialized value to decode or validate.
+	//
+	// Returns:
+	//   - result 1: Verified account identifier.
+	//   - result 2: Guest conference scope, or an empty string for a registered account.
+	//   - result 3: Persistent server-session identifier, or an empty string for a guest or legacy
+	//     token.
+	//   - result 4: The timestamp or validity boundary associated with the result.
+	//   - result 5: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	VerifyAuthorization(context.Context, string) (string, string, string, time.Time, error)
+	// AuthorizeSession checks that the server session is current, unrevoked and bound to the
+	// requested account.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Persistent or physical session identifier, as defined by the operation.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	AuthorizeSession(context.Context, string, string) error
 }
 
@@ -56,59 +82,53 @@ type PersistentVerifier interface {
 // session on every heartbeat and command. Access JWT rotation cannot change a peer.
 var durableAuthorizationUntil = time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 
-// Tickets задаёт контракт зависимого компонента Tickets в присутствии участников и доставке realtime-событий; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - SaveTicket: операция сохранение билет с контрактом, описанным у метода.
-//   - ConsumeTicket: операция Consume билет с контрактом, описанным у метода.
+// Tickets defines the replaceable dependency contract for websocket.
 type Tickets interface {
-	// SaveTicket сохраняет одноразовый билет подключения с ограниченным сроком жизни.
+	// SaveTicket stores a one-use connection ticket with a bounded expiration.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): одноразовый билет ограниченного подключения.
-	//   - аргумент 3 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 4 (domain.Identity): проверенная идентичность пользователя и его членства.
-	//   - аргумент 5 (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: One-use connection ticket or its server-side identity.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Verified account and physical-session identity.
+	//   - argument 5: Lifetime assigned to the temporary value or ownership record.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	SaveTicket(context.Context, string, string, domain.Identity, time.Duration) error
-	// ConsumeTicket атомарно забирает одноразовый билет, исключая повторное использование.
+	// ConsumeTicket atomically consumes a connection ticket so it cannot be replayed.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): одноразовый билет ограниченного подключения.
-	//   - аргумент 3 (string): идентификатор конференции, ограничивающий область операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: One-use connection ticket or its server-side identity.
+	//   - argument 3: Conference identifier limiting the operation scope.
 	//
-	// @return:
-	//   - результат 1 (domain.Identity): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting identity.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	ConsumeTicket(context.Context, string, string) (domain.Identity, error)
 }
 
-// Limiter задаёт контракт зависимого компонента Limiter в присутствии участников и доставке realtime-событий; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - Allow: операция Allow с контрактом, описанным у метода.
+// Limiter defines the replaceable dependency contract for websocket.
 type Limiter interface {
-	// Allow проверяет ограничение частоты и возвращает решение, остаток и время сброса.
+	// Allow evaluates the rate limit and returns the remaining budget and reset boundary.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
-	//   - аргумент 3 (int): предел количества обрабатываемых элементов.
-	//   - аргумент 4 (time.Duration): значение window типа time.Duration, используемое согласно назначению этой операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Storage, cache or cryptographic key used by the operation.
+	//   - argument 3: Maximum number of results or operations in this batch.
+	//   - argument 4: Duration of the rate-limit or observation window.
 	//
-	// @return:
-	//   - результат 1 (ratelimit.Result): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting result.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Allow(context.Context, string, int, time.Duration) (ratelimit.Result, error)
 }
 
-// Handler связывает транспортный запрос с прикладным сценарием, проверкой входных данных и формированием ответа.
-//   - hub: координатор присутствия и доставки событий комнаты.
-//   - verifier: значение verifier типа Verifier, используемое согласно назначению этой операции.
-//   - tickets: сервис выпуска и проверки ограниченных билетов подключения.
-//   - limiter: ограничитель частоты запросов, общий для экземпляров API.
-//   - cfg: проверенные настройки соответствующего компонента.
-//   - media: значение media типа MediaController, используемое согласно назначению этой операции.
+// Handler adapts HTTP requests to websocket, validates input and writes the response.
 type Handler struct {
 	hub         *usecase.Hub
 	verifier    Verifier
@@ -119,64 +139,65 @@ type Handler struct {
 	connections atomic.Int64
 }
 
-// MediaController задаёт контракт зависимого компонента MediaController в присутствии участников и доставке realtime-событий; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - Handle: операция Handle с контрактом, описанным у метода.
+// MediaController defines the replaceable dependency contract for websocket.
 type MediaController interface {
-	// Handle обрабатывает проверенное событие сигнализации в рамках живой серверной сессии.
+	// Handle dispatches the validated websocket operation to its application handler.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (domain.Session): историческая физическая сессия или состояние текущего соединения.
-	//   - аргумент 3 (time.Time): момент окончания действия сессии, токена или аренды.
-	//   - аргумент 4 (domain.Envelope): конверт входящего или публикуемого события.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Persistent or physical session state, as defined by its type.
+	//   - argument 3: Absolute expiration of the verified access credential.
+	//   - argument 4: Trusted event to publish or process.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Handle(context.Context, domain.Session, time.Time, domain.Envelope) error
 }
 
-// NewHandler создаёт и связывает зависимости компонента Handler, используемого в присутствии участников и доставке realtime-событий.
+// NewHandler constructs the handler with the dependencies and limits required for websocket.
 //
-// @args
-//   - hub (*usecase.Hub): координатор присутствия и доставки событий комнаты.
-//   - verifier (Verifier): значение verifier типа Verifier, используемое согласно назначению этой операции.
-//   - tickets (Tickets): сервис выпуска и проверки ограниченных билетов подключения.
-//   - limiter (Limiter): ограничитель частоты запросов, общий для экземпляров API.
-//   - cfg (config.RealtimeConfig): проверенные настройки соответствующего компонента.
+// Parameters:
+//   - hub: Realtime hub coordinating authorized socket delivery.
+//   - verifier: Token verifier or private PKCE verifier, as defined by its type.
+//   - tickets: One-use or signed media-ticket issuer and verifier.
+//   - limiter: Shared request-rate limiter.
+//   - cfg: Operator-controlled configuration and processing limits.
 //
-// @return:
-//   - результат 1 (*Handler): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func NewHandler(hub *usecase.Hub, verifier Verifier, tickets Tickets, limiter Limiter, cfg config.RealtimeConfig) *Handler {
 	return &Handler{hub: hub, verifier: verifier, tickets: tickets, limiter: limiter, cfg: cfg}
 }
 
-// SetMedia подключает обработчик медиа-команд к WebSocket-транспорту.
+// SetMedia updates media for websocket.
 //
-// @args
-//   - controller (MediaController): значение controller типа MediaController, используемое согласно назначению этой операции.
+// Parameters:
+//   - controller: Media policy and command controller.
 //
-// @return:
-//   - результат 1 (*Handler): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func (h *Handler) SetMedia(controller MediaController) *Handler { h.media = controller; return h }
 
-// RegisterRoutes регистрирует HTTP-маршруты соответствующего сценария и подключает авторизацию и ограничения запросов.
+// RegisterRoutes registers the authenticated realtime endpoints and their request limits.
 //
-// @args
-//   - router (gin.IRouter): значение router типа gin.IRouter, используемое согласно назначению этой операции.
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
 func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/api/v1/conferences/:id/ws", h.Connect)
 	router.POST("/api/v1/conferences/:id/ws-ticket", h.Ticket)
 	router.GET("/api/v1/webrtc/config", h.ICE)
 }
 
-// identity извлекает доверенную идентичность пользователя из проверенной авторизации.
+// identity resolves the verified account and connection scope for a WebSocket request.
 //
-// @args
-//   - r (*http.Request): входящий HTTP-запрос.
+// Parameters:
+//   - r: Incoming HTTP request.
 //
-// @return:
-//   - результат 1 (domain.Identity): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting identity.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Handler) identity(r *http.Request) (domain.Identity, error) {
 	parts := strings.Fields(r.Header.Get("Authorization"))
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
@@ -208,14 +229,15 @@ func (h *Handler) identity(r *http.Request) (domain.Identity, error) {
 	return domain.Identity{UserID: id, ExpiresAt: expiry}, err
 }
 
-// conferenceID проверяет и нормализует идентификатор конференции из HTTP-маршрута.
+// conferenceID validates and normalizes the conference identifier from the request route.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: Validated conference UUID.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func conferenceID(c *gin.Context) (string, error) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil || id == uuid.Nil {
@@ -224,10 +246,10 @@ func conferenceID(c *gin.Context) (string, error) {
 	return id.String(), nil
 }
 
-// Ticket создаёт ограниченный по времени билет подключения после проверки авторизации.
+// Ticket issues a short-lived one-use connection ticket after authorization succeeds.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Ticket(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -291,12 +313,10 @@ func (h *Handler) Ticket(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"ticket": ticket, "expiresAt": time.Now().UTC().Add(ttl)})
 }
 
-// ICE выдаёт авторизованному пользователю конфигурацию STUN/TURN с временными
-// учётными данными и политикой ретрансляции. Общий секрет отсутствует в ответе; no-store
-// предотвращает кеширование credentials за пределами их короткого TTL.
+// ICE applies a validated ICE candidate to the current media connection.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) ICE(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	if _, err := h.identity(c.Request); err != nil {
@@ -306,18 +326,19 @@ func (h *Handler) ICE(c *gin.Context) {
 	c.JSON(200, h.cfg.TURN.ClientICE(h.cfg.ICE, time.Now()))
 }
 
-// origin проверяет Origin подключения по настроенному списку допустимых источников.
+// origin checks the WebSocket Origin against the configured allowlist.
 //
-// @args
-//   - r (*http.Request): входящий HTTP-запрос.
+// Parameters:
+//   - r: Incoming HTTP request.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (h *Handler) origin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
 		return true
-	} // Нативные клиенты используют заголовки Bearer.
+	} // Native clients use Bearer authorization headers.
 	u, err := url.Parse(origin)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
 		return false
@@ -333,10 +354,10 @@ func (h *Handler) origin(r *http.Request) bool {
 	return false
 }
 
-// Connect проверяет билет, Origin и членство, открывает WebSocket и запускает единственные циклы чтения и записи.
+// Connect opens the configured dependency or starts its authorized connection flow.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Connect(c *gin.Context) {
 	if h.cfg.MaxConnections > 0 && h.connections.Add(1) > int64(h.cfg.MaxConnections) {
 		h.connections.Add(-1)
@@ -431,27 +452,14 @@ func (h *Handler) Connect(c *gin.Context) {
 	}()
 }
 
-// control передаёт управляющую WebSocket-команду писателю сокета.
-// @params:
-//   - kind: тип события, ошибки или медиа, определяющий ветку обработки.
-//   - data: полезная нагрузка события или байты обрабатываемого содержимого.
+// control carries one WebSocket control command to the socket's single writer.
 type control struct {
 	kind int
 	data []byte
 }
 
-// client хранит физический WebSocket-клиент, единственного писателя, очереди событий и ограничения входящих сообщений.
-// @params:
-//   - conn: действующее сетевое соединение операции.
-//   - handler: обработчик вызываемой команды или маршрута.
-//   - session: историческая физическая сессия или состояние текущего соединения.
-//   - expiresAt: момент окончания действия сессии, токена или аренды.
-//   - out: ограниченная очередь исходящих данных.
-//   - low: отдельная ограниченная очередь восстанавливаемых событий.
-//   - controls: канал «управление» для передачи данных или завершения ожидания.
-//   - done: канал уведомления о завершении ресурса.
-//   - once: значение once типа sync.Once, используемое согласно назначению этой операции.
-//   - reason: причина завершения, отказа или изменения состояния.
+// client owns one physical WebSocket, its single writer, bounded event queues and
+// incoming-message limits.
 type client struct {
 	conn          *ws.Conn
 	handler       *Handler
@@ -466,27 +474,30 @@ type client struct {
 	reason        string
 }
 
-// newClient создаёт состояние сокета с единственным писателем и ограниченными очередями событий.
+// newClient creates a socket client with bounded queues and its verified physical-session
+// identity.
 //
-// @args
-//   - conn (*ws.Conn): действующее сетевое соединение операции.
-//   - h (*Handler): значение h типа *Handler, используемое согласно назначению этой операции.
-//   - s (domain.Session): значение s типа domain.Session, используемое согласно назначению этой операции.
-//   - expiry (time.Time): временная отметка expiry; указатель допускает отсутствие значения.
+// Parameters:
+//   - conn: Connection owned by the current operation.
+//   - h: HTTP handler adapter to register or bind to the client.
+//   - s: The session state processed by this operation.
+//   - expiry: Expiration deadline or validity interval, as defined by its type.
 //
-// @return:
-//   - результат 1 (*client): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The constructed or loaded client.
 func newClient(conn *ws.Conn, h *Handler, s domain.Session, expiry time.Time) *client {
 	return &client{conn: conn, handler: h, session: s, expiresAt: expiry, out: make(chan domain.Envelope, h.cfg.QueueSize), low: make(chan domain.Envelope, 8), controls: make(chan control, 8), done: make(chan struct{})}
 }
 
-// Offer ставит событие в соответствующую ограниченную очередь сокета с учётом приоритета.
+// Offer enqueues the event in the socket's bounded queue according to its priority and reports
+// whether it was accepted.
 //
-// @args
-//   - event (domain.Envelope): конверт входящего или публикуемого события.
+// Parameters:
+//   - event: Trusted event to publish or process.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (c *client) Offer(event domain.Envelope) bool {
 	if limit := c.handler.cfg.OutboundBytes; limit > 0 && len(event.Data) > limit {
 		c.Stop("outbound_too_large")
@@ -502,7 +513,7 @@ func (c *client) Offer(event domain.Envelope) bool {
 		case c.low <- event:
 		default:
 		}
-		return true // Пропуск восстанавливаемых событий не должен закрывать медиасоединения.
+		return true // Dropping recoverable events must not close media connections.
 	}
 	select {
 	case c.out <- event:
@@ -513,31 +524,29 @@ func (c *client) Offer(event domain.Envelope) bool {
 	}
 }
 
-// Stop останавливает активную обработку физических сессий и событий комнаты и освобождает связанные ресурсы.
+// Stop stops the active websocket operation and releases its owned resources.
 //
-// @args
-//   - reason (string): причина завершения, отказа или изменения состояния.
+// Parameters:
+//   - reason: Bounded lifecycle or failure reason.
 func (c *client) Stop(reason string) {
-	c.once.Do( /* Вложенный обработчик выполняет выделенный шаг обработки в присутствии участников и доставке realtime-событий, используя состояние окружающей функции.
+	c.once.Do(
 
-		 */func() { c.reason = reason; close(c.done) })
+		func() { c.reason = reason; close(c.done) })
 }
 
-// run выполняет основной цикл компонента до завершения работы или отмены контекста.
+// run runs websocket until the context is canceled or processing fails.
 func (c *client) run() {
 	written := make(chan struct{})
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в присутствии участников и доставке realtime-событий, используя состояние окружающей функции.
-
-	 */func() { defer close(written); c.write() }()
+	go func() { defer close(written); c.write() }()
 	c.read()
 	c.Stop("client_closed")
-	// Закрывающий кадр может ждать сетевого write timeout. Не удерживаем из-за
-	// него присутствие и медиа уже потерянного физического соединения.
+	// The close frame may wait for the network write timeout. Do not retain presence or media for a
+	// physical connection that is already lost.
 	c.handler.hub.Unregister(c.session)
 	<-written
 }
 
-// write последовательно записывает события и управляющие кадры сокета, отдавая приоритет критичным событиям.
+// write serially writes socket events and control frames while prioritizing critical delivery.
 func (c *client) write() {
 	defer c.conn.Close()
 	ticker := time.NewTicker(c.handler.cfg.PingInterval)
@@ -548,14 +557,7 @@ func (c *client) write() {
 		defer expiry.Stop()
 		expiryChannel = expiry.C
 	}
-	// Вложенный обработчик выполняет выделенный шаг обработки в присутствии участников и доставке realtime-событий, используя состояние окружающей функции.
-	//
-	// @args
-	//   - kind (int): тип события, ошибки или медиа, определяющий ветку обработки.
-	//   - data ([]byte): полезная нагрузка события или байты обрабатываемого содержимого.
-	//
-	// @return:
-	//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+
 	write := func(kind int, data []byte) bool {
 		_ = c.conn.SetWriteDeadline(time.Now().Add(c.handler.cfg.WriteTimeout))
 		return c.conn.WriteMessage(kind, data) == nil
@@ -590,8 +592,8 @@ func (c *client) write() {
 				return
 			}
 		case event := <-c.low:
-			// Если обе очереди готовы, сначала отправляем критичное событие.
-			// Выбранное событие низкого приоритета можно отбросить, как при переполнении очереди.
+			// When both queues are ready, send the critical event first. A selected low-priority event may
+			// be dropped as if its queue overflowed.
 			select {
 			case event = <-c.out:
 			default:
@@ -605,22 +607,18 @@ func (c *client) write() {
 	}
 }
 
-// bucket хранит локальное состояние ограничения частоты для физического сокета.
-// @params:
-//   - tokens: сервис выпуска или проверки JWT авторизации.
-//   - updated: временная отметка updated; указатель допускает отсутствие значения.
-//   - rate: значение rate типа float64, используемое согласно назначению этой операции.
-//   - burst: значение burst типа float64, используемое согласно назначению этой операции.
+// bucket contains the local incoming-message rate state of one physical socket.
 type bucket struct {
 	tokens      float64
 	updated     time.Time
 	rate, burst float64
 }
 
-// allow проверяет локальный лимит входящего сообщения физического сокета.
+// allow checks the local per-socket incoming-message budget.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (b *bucket) allow() bool {
 	now := time.Now()
 	b.tokens = min(b.burst, b.tokens+now.Sub(b.updated).Seconds()*b.rate)
@@ -633,6 +631,10 @@ func (b *bucket) allow() bool {
 }
 
 // authorize keeps durable sessions revocable without tying media to a JWT timer.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *client) authorize() error {
 	if c.authSessionID == "" {
 		if c.expiresAt.After(time.Now()) {
@@ -659,7 +661,8 @@ func (c *client) authorize() error {
 	return err
 }
 
-// read читает состояние физических сессий и событий комнаты для дальнейшей обработки или ответа.
+// read reads incoming stream events until cancellation or terminal failure and enforces the
+// destination queue bound.
 func (c *client) read() {
 	cfg := c.handler.cfg
 	c.conn.SetReadLimit(cfg.MessageBytes)
@@ -670,13 +673,9 @@ func (c *client) read() {
 	_ = c.conn.SetReadDeadline(initialSeen.Add(cfg.PingInterval + cfg.PongTimeout))
 	rate := bucket{tokens: float64(cfg.Burst), updated: time.Now(), rate: float64(cfg.MessagesPerSecond), burst: float64(cfg.Burst)}
 	lastPong := time.Time{}
-	c.conn.SetPongHandler( /* Вложенный обработчик выполняет выделенный шаг обработки в присутствии участников и доставке realtime-событий, используя состояние окружающей функции.
+	c.conn.SetPongHandler(
 
-		@args
-		  - value (string): значение для проверки, нормализации или преобразования.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(value string) error {
+		func(value string) error {
 			if !rate.allow() {
 				return errors.New("control rate exceeded")
 			}
@@ -690,7 +689,7 @@ func (c *client) read() {
 			lastPong = confirmedAt
 			c.session.LastSeenAt = lastPong.UTC()
 			deadline := lastPong.Add(cfg.PingInterval + cfg.PongTimeout)
-			// Отсчёт идёт от приёма pong, а не от завершения обращения к хранилищу.
+			// Measure from pong receipt, not from completion of the storage request.
 			if err := c.conn.SetReadDeadline(deadline); err != nil {
 				return err
 			}
@@ -701,13 +700,9 @@ func (c *client) read() {
 			}
 			return nil
 		})
-	c.conn.SetPingHandler( /* Вложенный обработчик выполняет выделенный шаг обработки в присутствии участников и доставке realtime-событий, используя состояние окружающей функции.
+	c.conn.SetPingHandler(
 
-		@args
-		  - value (string): значение для проверки, нормализации или преобразования.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(value string) error {
+		func(value string) error {
 			if !rate.allow() {
 				return errors.New("control rate exceeded")
 			}
@@ -718,14 +713,9 @@ func (c *client) read() {
 				return errors.New("control overflow")
 			}
 		})
-	c.conn.SetCloseHandler( /* Вложенный обработчик выполняет выделенный шаг обработки в присутствии участников и доставке realtime-событий, используя состояние окружающей функции.
+	c.conn.SetCloseHandler(
 
-		@args
-		  - _ (int): неиспользуемый аргумент, сохранённый для совместимости с контрактом вызова.
-		  - _ (string): неиспользуемый аргумент, сохранённый для совместимости с контрактом вызова.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(_ int, _ string) error { c.Stop("client_closed"); return nil })
+		func(_ int, _ string) error { c.Stop("client_closed"); return nil })
 	for {
 		kind, raw, err := c.conn.ReadMessage()
 		if err != nil {
@@ -749,9 +739,12 @@ func (c *client) read() {
 	}
 }
 
-// failure формирует безопасное событие ошибки протокола для клиента.
-// В payload передаётся только машинный code; replyTo добавляется, если его длина
-// не превышает 36 байт. Диагностические сообщения в событие не включаются.
+// failure builds a bounded protocol-error event containing only the safe code and validated
+// correlation identifier.
+//
+// Parameters:
+//   - replyTo: Validated client correlation identifier for the error response.
+//   - code: Bounded public status or failure code.
 func (c *client) failure(replyTo, code string) {
 	event := domain.Event("error", c.session.ConferenceID, map[string]string{"code": code})
 	if len(replyTo) <= 36 {
@@ -760,7 +753,15 @@ func (c *client) failure(replyTo, code string) {
 	c.Offer(event)
 }
 
-// strictJSON строго разбирает JSON-пакет и отвергает неизвестные поля и лишние данные.
+// strictJSON decodes bounded JSON with unknown-field and trailing-data rejection.
+//
+// Parameters:
+//   - raw: Untrusted serialized value to decode or validate.
+//   - value: Value to validate, normalize or convert.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func strictJSON(raw []byte, value any) error {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()

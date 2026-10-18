@@ -14,27 +14,118 @@ import (
 	"time"
 )
 
-// Service задаёт API сценариев без внешнего распознавания и ИИ внутри HTTP-запроса.
+// Service defines content operations that never invoke external transcription or AI inside an
+// HTTP request.
 type Service interface {
+	// Transcript returns the current transcript metadata and provider capabilities without starting
+	// transcription.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Recording identifier used by the current operation.
+	//
+	// Returns:
+	//   - result 1: The resulting transcript state.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Transcript(context.Context, string, string, string) (domain.TranscriptState, error)
+	// Segments returns a bounded page of saved transcript segments for timestamp navigation.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Recording identifier used by the current operation.
+	//   - argument 5: Maximum number of results or operations in this batch.
+	//   - argument 6: Number of results skipped before the requested page.
+	//
+	// Returns:
+	//   - result 1: The resulting segment page.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Segments(context.Context, string, string, string, int, int) (domain.SegmentPage, error)
+	// Summary returns the current persisted summary without invoking an external provider.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Recording identifier used by the current operation.
+	//
+	// Returns:
+	//   - result 1: The resulting summary state.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Summary(context.Context, string, string, string) (domain.SummaryState, error)
+	// RetryTranscript queues an authorized transcription retry instead of running the expensive
+	// provider call in the HTTP request.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Recording identifier used by the current operation.
+	//
+	// Returns:
+	//   - result 1: The resulting transcript state.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	RetryTranscript(context.Context, string, string, string) (domain.TranscriptState, error)
+	// RegenerateSummary queues a bounded summary generation without blocking the HTTP request on the
+	// AI provider.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Recording identifier used by the current operation.
+	//
+	// Returns:
+	//   - result 1: The resulting summary state.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	RegenerateSummary(context.Context, string, string, string) (domain.SummaryState, error)
+	// Search searches recording transcripts and summaries using bounded input and the caller's
+	// visibility filters.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Search text or validated query filters.
+	//
+	// Returns:
+	//   - result 1: The resulting search page.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Search(context.Context, string, domain.SearchQuery) (domain.SearchPage, error)
 }
 
-// Handler связывает авторизованные HTTP-запросы с прикладными сценариями содержимого.
+// Handler connects authorized HTTP requests to the recording-content application operations.
 type Handler struct{ service Service }
 
-// NewHandler создаёт адаптер маршрутов содержимого.
-// @args service — зависимый сценарий с repository authorization.
-// @return обработчик без SDK провайдера и состояния сетевых соединений.
+// NewHandler constructs the handler with the dependencies and limits required for recording
+// transcripts and summaries.
+//
+// Parameters:
+//   - service: Application service invoked by this adapter.
+//
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func NewHandler(service Service) *Handler { return &Handler{service: service} }
 
-// identifiers проверяет связанную пару UUID из пути до чтения или запуска.
-// @args c — запрос Gin с подтверждённой идентичностью пользователя.
-// @return UUID конференции и записи и признак успеха; при ошибке пишет безопасный HTTP-ответ.
+// identifiers validates the related conference and recording UUIDs before reading content or
+// queueing work.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//
+// Returns:
+//   - result 1: Validated conference UUID.
+//   - result 2: Validated recording UUID.
+//   - result 3: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func identifiers(c *gin.Context) (string, string, bool) {
 	cid, e := uuid.Parse(c.Param("id"))
 	rid, e2 := uuid.Parse(c.Param("recordingId"))
@@ -45,9 +136,18 @@ func identifiers(c *gin.Context) (string, string, bool) {
 	return cid.String(), rid.String(), true
 }
 
-// pageValue разбирает десятичную пагинацию, не скрывая неверные данные значением по умолчанию.
-// @args c — запрос; key — ключ параметра запроса; fallback — значение при отсутствии.
-// @return число и признак успеха; некорректные входные данные создают HTTP 400.
+// pageValue parses a decimal pagination value and distinguishes missing input from invalid
+// input.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - key: Storage, cache or cryptographic key used by the operation.
+//   - fallback: Value used when the optional setting is absent or invalid.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func pageValue(c *gin.Context, key string, fallback int) (int, bool) {
 	value, ok := c.GetQuery(key)
 	if !ok {
@@ -61,8 +161,11 @@ func pageValue(c *gin.Context, key string, fallback int) (int, bool) {
 	return n, true
 }
 
-// Transcript возвращает необязательные метаданные, возможности и достоверную метку режима провайдера.
-// @args c — авторизованный Gin request.
+// Transcript returns the current transcript metadata and provider capabilities without starting
+// transcription.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Transcript(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok {
@@ -76,8 +179,10 @@ func (h *Handler) Transcript(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": state.Item, "enabled": state.Enabled, "canRetry": state.CanRetry, "providerMode": state.ProviderMode})
 }
 
-// Segments выдаёт ограниченную страницу для переходов по временным отметкам.
-// @args c — request с limit/offset.
+// Segments returns a bounded page of saved transcript segments for timestamp navigation.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Segments(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok {
@@ -99,8 +204,10 @@ func (h *Handler) Segments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "total": page.Total, "limit": page.Limit, "offset": page.Offset})
 }
 
-// Summary возвращает необязательный результат ИИ текущего поколения без вызова провайдера.
-// @args c — авторизованный request.
+// Summary returns the current persisted summary without invoking an external provider.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Summary(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok {
@@ -114,8 +221,11 @@ func (h *Handler) Summary(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": state.Item, "enabled": state.Enabled, "canRegenerate": state.CanRegenerate, "providerMode": state.ProviderMode})
 }
 
-// RetryTranscript принимает пустой JSON и только ставит дорогую обработку в queue.
-// @args c — авторизованный request; права/лимит проверяет repository.
+// RetryTranscript queues an authorized transcription retry instead of running the expensive
+// provider call in the HTTP request.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) RetryTranscript(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok || !httpresponse.BindJSON(c, &struct{}{}, true) {
@@ -129,8 +239,11 @@ func (h *Handler) RetryTranscript(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success", "item": state.Item, "enabled": state.Enabled, "canRetry": false, "providerMode": state.ProviderMode})
 }
 
-// RegenerateSummary ставит ограниченное поколение, не блокируя HTTP длительным вызовом ИИ.
-// @args c — авторизованный request.
+// RegenerateSummary queues a bounded summary generation without blocking the HTTP request on the
+// AI provider.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) RegenerateSummary(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok || !httpresponse.BindJSON(c, &struct{}{}, true) {
@@ -144,8 +257,11 @@ func (h *Handler) RegenerateSummary(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success", "item": state.Item, "enabled": state.Enabled, "canRegenerate": false, "providerMode": state.ProviderMode})
 }
 
-// Search проверяет фильтры дат RFC3339 и возвращает страницу полнотекстового поиска с проверкой прав.
-// @args c — авторизованный запрос с q/source/conferenceId/from/to/limit/offset.
+// Search searches recording transcripts and summaries using bounded input and the caller's
+// visibility filters.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Search(c *gin.Context) {
 	started := time.Now()
 	defer func() { operations.Search(time.Since(started), c.Writer.Status() >= http.StatusBadRequest) }()

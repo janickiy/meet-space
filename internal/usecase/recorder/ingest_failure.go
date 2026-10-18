@@ -8,92 +8,97 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 )
 
-// ingestFailureRepository задаёт контракт зависимого компонента ingestFailureRepository в управлении задачами записи и её артефактами; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - FindByUUID: поиск записи по UUID с контрактом, описанным у метода.
-//   - MarkFailed: перевод записи в состояние ошибки с контрактом, описанным у метода.
-//   - AddEvent: операция Add событие с контрактом, описанным у метода.
+// ingestFailureRepository defines the replaceable dependency contract for recording jobs and
+// their artifacts.
 type ingestFailureRepository interface {
-	// FindByUUID читает задачу записи по её внешнему UUID.
+	// FindByUUID loads a recording by its public UUID.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): внешний UUID обрабатываемой записи.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: External recording UUID.
 	//
-	// @return:
-	//   - результат 1 (records.Record): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting record.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	FindByUUID(context.Context, string) (records.Record, error)
-	// MarkFailed условно переводит задачу записи в состояние «Failed», соблюдая ограничения жизненного цикла.
+	// MarkFailed conditionally moves a recording to the failed state without overwriting a newer
+	// lifecycle transition.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): внешний UUID обрабатываемой записи.
-	//   - аргумент 3 (error): значение cause типа error, используемое согласно назначению этой операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: External recording UUID.
+	//   - argument 3: Underlying error that caused the operation to fail.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	MarkFailed(context.Context, string, error) error
-	// AddEvent добавляет постоянное диагностическое событие жизненного цикла записи.
+	// AddEvent appends a persistent recording lifecycle diagnostic event.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор связанного ресурса, заданного параметром recordUUID.
-	//   - аргумент 3 (string): значение eventType типа string, используемое согласно назначению этой операции.
-	//   - аргумент 4 (string): семантический источник медиа либо входной источник данных.
-	//   - аргумент 5 (string): значение severity типа string, используемое согласно назначению этой операции.
-	//   - аргумент 6 (string): сообщение чата или безопасный текст ответа согласно указанному типу.
-	//   - аргумент 7 (string): идентификатор воркера-владельца операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: External recording UUID.
+	//   - argument 3: Bounded recording lifecycle event category.
+	//   - argument 4: Media or content source belonging to the current operation.
+	//   - argument 5: Bounded diagnostic severity.
+	//   - argument 6: Persisted or outgoing chat message.
+	//   - argument 7: Identity of the worker owning this operation.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	AddEvent(context.Context, string, string, string, string, string, string) error
 }
 
-// conferenceReleaser задаёт контракт зависимого компонента conferenceReleaser в управлении задачами записи и её артефактами; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - Release: операция освобождение с контрактом, описанным у метода.
+// conferenceReleaser defines the replaceable dependency contract for recording jobs and their
+// artifacts.
 type conferenceReleaser interface {
-	// Release освобождает ресурс только при совпадении сохранённого владельца или токена.
+	// Release releases only the recording job resource owned by the matching operation or token.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): внешний UUID задачи записи.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
+	//   - argument 3: External recording UUID.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Release(context.Context, string, string) error
 }
 
-// FailIngest сохраняет ошибку уже закрытого WebRTC-приёма и освобождает только принадлежащую записи блокировку.
+// FailIngest records an ingestion failure and releases only the recording's own resources and
+// lock.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - repository (ingestFailureRepository): хранилище постоянных данных прикладного сценария.
-//   - locker (conferenceReleaser): механизм взаимного исключения по ресурсу.
-//   - recordID (string): внешний UUID задачи записи.
-//   - workerID (string): идентификатор воркера-владельца операции.
-//   - cause (error): значение cause типа error, используемое согласно назначению этой операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - repository: Persistence dependency used by the application operation.
+//   - locker: Ownership-aware distributed conference recording lock.
+//   - recordID: External recording UUID.
+//   - workerID: Identity of the worker owning this operation.
+//   - cause: Underlying error that caused the operation to fail.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func FailIngest(ctx context.Context, repository ingestFailureRepository, locker conferenceReleaser, recordID, workerID string, cause error) error {
 	return failRecord(ctx, repository, locker, recordID, workerID, "record.ingest.failed", cause)
 }
 
-// failRecord сохраняет ошибку задачи записи с защитой от устаревшего состояния.
+// failRecord records a recording failure only if its lifecycle state is still current.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - repository (ingestFailureRepository): хранилище постоянных данных прикладного сценария.
-//   - locker (conferenceReleaser): механизм взаимного исключения по ресурсу.
-//   - recordID (string): внешний UUID задачи записи.
-//   - workerID (string): идентификатор воркера-владельца операции.
-//   - eventType (string): значение eventType типа string, используемое согласно назначению этой операции.
-//   - cause (error): значение cause типа error, используемое согласно назначению этой операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - repository: Persistence dependency used by the application operation.
+//   - locker: Ownership-aware distributed conference recording lock.
+//   - recordID: External recording UUID.
+//   - workerID: Identity of the worker owning this operation.
+//   - eventType: Bounded recording lifecycle event category.
+//   - cause: Underlying error that caused the operation to fail.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func failRecord(ctx context.Context, repository ingestFailureRepository, locker conferenceReleaser, recordID, workerID, eventType string, cause error) error {
 	record, err := repository.FindByUUID(ctx, recordID)
 	if err != nil {
@@ -114,15 +119,16 @@ func failRecord(ctx context.Context, repository ingestFailureRepository, locker 
 	return errors.Join(releaseErr, eventErr)
 }
 
-// releaseRecordLock освобождает блокировку только для указанной задачи записи.
+// releaseRecordLock releases the distributed lock only when it belongs to this recording.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - locker (conferenceReleaser): механизм взаимного исключения по ресурсу.
-//   - record (records.Record): задача записи с её сохранённым состоянием.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - locker: Ownership-aware distributed conference recording lock.
+//   - record: Recording and its persisted lifecycle metadata.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func releaseRecordLock(ctx context.Context, locker conferenceReleaser, record records.Record) error {
 	if locker == nil {
 		return nil

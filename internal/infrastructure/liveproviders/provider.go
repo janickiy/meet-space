@@ -1,4 +1,5 @@
-// Пакет liveproviders реализует потоковый шлюз и явно тестовый источник субтитров.
+// Package liveproviders implements the streaming gateway and an explicitly test-only caption
+// source.
 package liveproviders
 
 import (
@@ -12,15 +13,23 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/captions"
 )
 
-// Provider хранит только операторские настройки и не раскрывает endpoint/token клиенту.
+// Provider contains operator-controlled settings and never exposes its endpoint or token to
+// clients.
 type Provider struct {
 	Mode, Endpoint, Token string
 	Timeout               time.Duration
 }
 
-// StartSession открывает шлюз WebSocket: сначала конфигурация JSON, затем двоичный PCM и ответы с событиями JSON.
-// @args ctx — срок жизни; config — серверная дорожка и формат mono PCM16LE/16k.
-// @return отменяемая сессия; mock выдаёт демонстрационный текст только после поступления PCM.
+// StartSession opens one bounded live-speech provider session for the authorized audio stream.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - config: Operator-controlled configuration and processing limits.
+//
+// Returns:
+//   - result 1: The resulting session.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p Provider) StartSession(ctx context.Context, config captions.SessionConfig) (captions.Session, error) {
 	if config.SampleRate != 16000 || config.Channels != 1 || config.Format != "pcm_s16le" {
 		return nil, captions.ErrUnavailable
@@ -54,7 +63,7 @@ func (p Provider) StartSession(ctx context.Context, config captions.SessionConfi
 	return s, nil
 }
 
-// wsSession ограничивает размер ответа, очередь, время записи и число сетевых goroutines.
+// wsSession bounds response size, queue capacity, write time and network goroutine count.
 type wsSession struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -66,7 +75,8 @@ type wsSession struct {
 	stop    func() bool
 }
 
-// read принимает события до отмены; переполнение финальных результатов закрывает сессию с видимой деградацией.
+// read reads incoming stream events until cancellation or terminal failure and enforces the
+// destination queue bound.
 func (s *wsSession) read() {
 	defer close(s.done)
 	defer close(s.events)
@@ -89,9 +99,15 @@ func (s *wsSession) read() {
 	}
 }
 
-// WriteAudio отправляет ограниченную порцию PCM с конечным сроком записи.
-// @args ctx — отмена; pcm — чётное количество байт не более 32 KiB.
-// @return безопасная ошибка отправки.
+// WriteAudio forwards one bounded audio frame to the active speech session.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - pcm: Input bytes consumed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *wsSession) WriteAudio(ctx context.Context, pcm []byte) error {
 	if len(pcm) == 0 || len(pcm) > 32768 || len(pcm)%2 != 0 {
 		return captions.ErrUnavailable
@@ -115,17 +131,22 @@ func (s *wsSession) WriteAudio(ctx context.Context, pcm []byte) error {
 	return nil
 }
 
-// Events возвращает поток результатов ограниченного размера.
-// @return канал, закрываемый read.
+// Events returns the live event stream or serves its authorized transport adapter.
+//
+// Returns:
+//   - result 1: The bounded event or media channel owned by this operation.
 func (s *wsSession) Events() <-chan captions.Event { return s.events }
 
-// Close отменяет reader и ждёт освобождения соединения.
-// @return nil после закрытия.
+// Close closes the component-owned resources and ends their lifecycle.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *wsSession) Close() error {
 	select {
 	case <-s.done:
 	default:
-		// Конец PCM позволяет gateway дослать финальную реплику; ожидание всегда ограничено.
+		// Ending PCM input lets the gateway flush a final utterance; this wait is always bounded.
 		s.mu.Lock()
 		_ = s.conn.SetWriteDeadline(time.Now().Add(min(s.timeout, 2*time.Second)))
 		err := s.conn.WriteJSON(map[string]string{"type": "end"})
@@ -147,7 +168,7 @@ func (s *wsSession) Close() error {
 	return nil
 }
 
-// mockSession создаёт исправляемые тестовые реплики на основании длительности реально полученного PCM.
+// mockSession generates revisable test utterances from the duration of PCM actually received.
 type mockSession struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -158,9 +179,15 @@ type mockSession struct {
 	closed   bool
 }
 
-// WriteAudio генерирует partial на 500 ms и final на 1000 ms; текст не имитирует настоящее распознавание.
-// @args ctx — отмена; pcm — decoded audio.
-// @return ошибка остановленной или переполненной сессии.
+// WriteAudio forwards one bounded audio frame to the active speech session.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - pcm: Input bytes consumed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *mockSession) WriteAudio(ctx context.Context, pcm []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -197,12 +224,17 @@ func (s *mockSession) WriteAudio(ctx context.Context, pcm []byte) error {
 	return nil
 }
 
-// Events возвращает поток тестовых событий.
-// @return канал до Close.
+// Events returns the live event stream or serves its authorized transport adapter.
+//
+// Returns:
+//   - result 1: The bounded event or media channel owned by this operation.
 func (s *mockSession) Events() <-chan captions.Event { return s.events }
 
-// Close отменяет тестовую сессию и однократно закрывает канал.
-// @return nil.
+// Close closes the component-owned resources and ends their lifecycle.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *mockSession) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

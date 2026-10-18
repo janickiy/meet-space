@@ -13,124 +13,128 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// ControlRepository задаёт контракт зависимого компонента ControlRepository в жизненном цикле конференций и правах участников; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - Moderate: операция Moderate с контрактом, описанным у метода.
-//   - UpdateMediaState: операция обновление медиа состояние с контрактом, описанным у метода.
-//   - ReconcileParticipants: операция согласование Participants с контрактом, описанным у метода.
+// ControlRepository defines the replaceable dependency contract for conference lifecycle and
+// participant membership.
 type ControlRepository interface {
-	// Moderate применяет действие модерации с проверкой роли инициатора и ограничений целевого участника.
+	// Moderate applies a participant moderation action after checking the actor's role and the
+	// target restrictions.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 4 (string): идентификатор членства участника внутри конференции.
-	//   - аргумент 5 (domain.ModerationRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Conference participant identifier.
+	//   - argument 5: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (domain.Participant): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Moderate(context.Context, string, string, string, domain.ModerationRequest) (domain.Participant, error)
-	// UpdateMediaState сохраняет заявленное состояние источников медиа участника.
+	// UpdateMediaState saves the participant's declared media-source state.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 4 (domain.MediaState): значение state типа domain.MediaState, используемое согласно назначению этой операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Current state or validated state update.
 	//
-	// @return:
-	//   - результат 1 (domain.Participant): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	UpdateMediaState(context.Context, string, string, domain.MediaState) (domain.Participant, error)
-	// ReconcileParticipants выбирает участников, чью сохранённую политику необходимо повторно применить к медиа.
+	// ReconcileParticipants returns participants whose persisted media restrictions need
+	// reconciliation.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): значение after типа string, используемое согласно назначению этой операции.
-	//   - аргумент 3 (int): предел количества обрабатываемых элементов.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Boundary after which results or state are selected.
+	//   - argument 3: Maximum number of results or operations in this batch.
 	//
-	// @return:
-	//   - результат 1 ([]domain.Participant): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The collected participant values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	ReconcileParticipants(context.Context, string, int) ([]domain.Participant, error)
 }
 
-// PolicyController задаёт контракт зависимого компонента PolicyController в жизненном цикле конференций и правах участников; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - SetParticipantPolicy: операция изменение участник политика с контрактом, описанным у метода.
+// PolicyController defines the replaceable dependency contract for conference lifecycle and
+// participant membership.
 type PolicyController interface {
-	// SetParticipantPolicy передаёт актуальную политику участника владельцу медиа-комнаты.
+	// SetParticipantPolicy updates participant policy for conference lifecycle and participant
+	// membership.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор членства участника внутри конференции.
-	//   - аргумент 4 (media.ParticipantPolicy): актуальные ограничения медиа и версия модерации участника.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
+	//   - argument 3: Conference participant identifier.
+	//   - argument 4: Effective server-side media policy.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	SetParticipantPolicy(context.Context, string, string, media.ParticipantPolicy) error
 }
 
-// ControlEvents задаёт контракт зависимого компонента ControlEvents в жизненном цикле конференций и правах участников; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - Broadcast: операция Broadcast с контрактом, описанным у метода.
-//   - ConferenceChanged: операция конференция Changed с контрактом, описанным у метода.
+// ControlEvents defines the replaceable dependency contract for conference lifecycle and
+// participant membership.
 type ControlEvents interface {
-	// Broadcast публикует доверенное событие для разрешённых получателей конференции.
+	// Broadcast publishes a trusted event only to the currently authorized conference or
+	// conversation recipients.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (realtime.Envelope): конверт входящего или публикуемого события.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Trusted event to publish or process.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Broadcast(context.Context, realtime.Envelope) error
-	// ConferenceChanged уведомляет подключённые сессии о сохранённом изменении состояния конференции.
+	// ConferenceChanged notifies connected sessions or observers of the conference's committed state
+	// change.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
 	ConferenceChanged(context.Context, string)
 }
 
-// ControlService координирует сохранение модерации и применение ограничений к живому медиа.
-// @params
-//   - repo: хранилище постоянных данных прикладного сценария.
-//   - media: значение media типа PolicyController, используемое согласно назначению этой операции.
-//   - events: получатель или издатель событий прикладного сценария.
+// ControlService coordinates persisted moderation with enforcement on live media.
 type ControlService struct {
 	repo   ControlRepository
 	media  PolicyController
 	events ControlEvents
 }
 
-// NewControlService создаёт и связывает зависимости компонента ControlService, используемого в жизненном цикле конференций и правах участников.
+// NewControlService constructs the control service with the dependencies and limits required for
+// conference lifecycle and participant membership.
 //
-// @args
-//   - repo (ControlRepository): хранилище постоянных данных прикладного сценария.
-//   - controller (PolicyController): значение controller типа PolicyController, используемое согласно назначению этой операции.
-//   - events (ControlEvents): получатель или издатель событий прикладного сценария.
+// Parameters:
+//   - repo: Persistence dependency used by the application operation.
+//   - controller: Media policy and command controller.
+//   - events: Destination for committed lifecycle or chat events.
 //
-// @return:
-//   - результат 1 (*ControlService): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded control service.
 func NewControlService(repo ControlRepository, controller PolicyController, events ControlEvents) *ControlService {
 	return &ControlService{repo: repo, media: controller, events: events}
 }
 
-// Moderate применяет действие модерации с проверкой роли инициатора и ограничений целевого участника.
+// Moderate applies a participant moderation action after checking the actor's role and the
+// target restrictions.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - participantID (string): идентификатор членства участника внутри конференции.
-//   - request (domain.ModerationRequest): входные параметры соответствующего прикладного запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - participantID: Conference participant identifier.
+//   - request: Validated application request or incoming operation parameters.
 //
-// @return:
-//   - результат 1 (domain.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *ControlService) Moderate(ctx context.Context, userID, conferenceID, participantID string, request domain.ModerationRequest) (domain.ParticipantView, error) {
 	p, err := s.repo.Moderate(ctx, conferenceID, userID, participantID, request)
 	if err != nil {
@@ -156,17 +160,18 @@ func (s *ControlService) Moderate(ctx context.Context, userID, conferenceID, par
 	return p.View(), nil
 }
 
-// UpdateMediaState сохраняет заявленное состояние источников медиа участника.
+// UpdateMediaState saves the participant's declared media-source state.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - state (domain.MediaState): значение state типа domain.MediaState, используемое согласно назначению этой операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - state: Current state or validated state update.
 //
-// @return:
-//   - результат 1 (domain.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *ControlService) UpdateMediaState(ctx context.Context, userID, conferenceID string, state domain.MediaState) (domain.ParticipantView, error) {
 	p, err := s.repo.UpdateMediaState(ctx, conferenceID, userID, state)
 	if err != nil {
@@ -178,13 +183,28 @@ func (s *ControlService) UpdateMediaState(ctx context.Context, userID, conferenc
 	return p.View(), nil
 }
 
-// Disconnected обрабатывает закрытие физического соединения и запускает связанное освобождение ресурсов.
+// Disconnected handles closure of a physical connection and releases only the resources owned by
+// that connection.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (realtime.Session): историческая физическая сессия или состояние текущего соединения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
 func (s *ControlService) Disconnected(ctx context.Context, session realtime.Session) {
 	repo, ok := s.repo.(interface {
+		// ClearDisconnectedMedia clears declared media state when the participant no longer has an
+		// active authorized session.
+		//
+		// Parameters:
+		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+		//   - argument 2: Conference identifier limiting the operation scope.
+		//   - argument 3: Conference participant identifier.
+		//
+		// Returns:
+		//   - result 1: The resulting participant.
+		//   - result 2: Whether the operation's documented condition holds or its conditional state
+		//     change succeeded.
+		//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+		//     failure.
 		ClearDisconnectedMedia(context.Context, string, string) (domain.Participant, bool, error)
 	})
 	if !ok {
@@ -196,10 +216,11 @@ func (s *ControlService) Disconnected(ctx context.Context, session realtime.Sess
 	}
 }
 
-// Run выполняет основной цикл компонента до завершения работы или отмены контекста.
+// Run runs conference lifecycle and participant membership until the context is canceled or
+// processing fails.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
 func (s *ControlService) Run(ctx context.Context) {
 	if s.media == nil {
 		return
@@ -228,9 +249,7 @@ func (s *ControlService) Run(ctx context.Context) {
 		jobs := make(chan domain.Participant)
 		for range min(8, len(rows)) {
 			workers.Add(1)
-			go /* Вложенный обработчик выполняет выделенный шаг обработки в жизненном цикле конференций и правах участников, используя состояние окружающей функции.
-
-			 */func() {
+			go func() {
 				defer workers.Done()
 				for p := range jobs {
 					op, done := context.WithTimeout(ctx, 2*time.Second)

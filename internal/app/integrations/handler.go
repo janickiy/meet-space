@@ -12,23 +12,33 @@ import (
 	u "github.com/janickiy/meet-space/internal/usecase/integrations"
 )
 
-// Handler предоставляет только пользовательские проекции интеграций; credentials никогда не сериализуются в API.
+// Handler exposes only public account integration views; provider credentials are never
+// serialized into API responses.
 type Handler struct{ service *u.Service }
 
-// NewHandler связывает защищённые HTTP команды с прикладным сервисом.
-// @args service — настроенный серверный сервис интеграций.
-// @return: handler для authenticated маршрутов.
+// NewHandler constructs the handler with the dependencies and limits required for account
+// integrations and delivery preferences.
+//
+// Parameters:
+//   - service: Application service invoked by this adapter.
+//
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func NewHandler(service *u.Service) *Handler { return &Handler{service: service} }
 
-// Capabilities сообщает доступные режимы провайдеров без endpoints и credentials.
-// @args c — authenticated HTTP запрос.
+// Capabilities returns the product or integration capabilities actually enabled by the operator.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Capabilities(c *gin.Context) {
 	c.Header("Cache-Control", "private, no-store")
 	c.JSON(http.StatusOK, h.service.Capabilities())
 }
 
-// Preferences читает только настройки текущего пользователя.
-// @args c — authenticated HTTP запрос.
+// Preferences reads the acting account's saved delivery or conversation preferences.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Preferences(c *gin.Context) {
 	value, err := h.service.Preferences(c.Request.Context(), middleware.UserID(c))
 	if err != nil {
@@ -39,8 +49,11 @@ func (h *Handler) Preferences(c *gin.Context) {
 	c.JSON(http.StatusOK, value)
 }
 
-// SavePreferences заменяет логические настройки только для пользователя, определённого по токену.
-// @args c — authenticated JSON запрос.
+// SavePreferences validates and saves the account's delivery preferences without triggering a
+// delivery.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) SavePreferences(c *gin.Context) {
 	var request d.Preferences
 	if !httpresponse.BindJSON(c, &request, true) {
@@ -53,8 +66,11 @@ func (h *Handler) SavePreferences(c *gin.Context) {
 	c.JSON(http.StatusOK, request)
 }
 
-// Devices перечисляет собственные устройства без расшифрованного токена.
-// @args c — authenticated HTTP запрос.
+// Devices returns the account's registered delivery devices without exposing their private
+// credentials.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Devices(c *gin.Context) {
 	items, err := h.service.Devices(c.Request.Context(), middleware.UserID(c))
 	if err != nil {
@@ -65,8 +81,11 @@ func (h *Handler) Devices(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
-// RegisterDevice принимает токен платформы из клиентского SDK, но не произвольный адрес провайдера.
-// @args c — authenticated JSON запрос регистрации.
+// RegisterDevice registers the acting account's validated delivery device and protects its
+// private token.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) RegisterDevice(c *gin.Context) {
 	var request d.DeviceRequest
 	if !httpresponse.BindJSON(c, &request, true) {
@@ -80,8 +99,10 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"item": item})
 }
 
-// RevokeDevice отключает только UUID регистрации текущего пользователя.
-// @args c — authenticated HTTP запрос с deviceId.
+// RevokeDevice revokes only the acting account's selected delivery device.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) RevokeDevice(c *gin.Context) {
 	id, ok := resourceID(c, "deviceId")
 	if !ok {
@@ -94,8 +115,11 @@ func (h *Handler) RevokeDevice(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Calendars перечисляет собственные подключённые и отозванные календари без токенов OAuth.
-// @args c — authenticated HTTP запрос.
+// Calendars returns the acting account's calendar connections with private provider credentials
+// omitted.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Calendars(c *gin.Context) {
 	items, err := h.service.Connections(c.Request.Context(), middleware.UserID(c))
 	if err != nil {
@@ -106,8 +130,11 @@ func (h *Handler) Calendars(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
-// MockConnect создаёт явно демонстрационное подключение только при серверном разрешении.
-// @args c — authenticated HTTP запрос локального/test режима.
+// MockConnect creates a mock calendar connection only when the configured environment explicitly
+// permits it.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) MockConnect(c *gin.Context) {
 	var request struct{}
 	if !httpresponse.BindJSON(c, &request, true) {
@@ -121,8 +148,10 @@ func (h *Handler) MockConnect(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"item": item})
 }
 
-// Connect начинает серверный обмен кода авторизации; проверочное значение PKCE хранится зашифрованным в БД.
-// @args c — authenticated HTTP запрос с provider=generic.
+// Connect opens the configured dependency or starts its authorized connection flow.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Connect(c *gin.Context) {
 	authURL, state, err := h.service.OAuthStart(c.Request.Context(), middleware.UserID(c), c.Param("provider"))
 	if err != nil {
@@ -133,14 +162,17 @@ func (h *Handler) Connect(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"authUrl": authURL, "state": state})
 }
 
-// oauthCallbackRequest содержит только одноразовые код и состояние, без токенов доступа и обновления.
+// oauthCallbackRequest accepts only a one-time code and state, never provider access or refresh
+// tokens.
 type oauthCallbackRequest struct {
 	Code  string `json:"code"`
 	State string `json:"state"`
 }
 
-// Callback обменивает одноразовый код после проверки состояния, пользователя и провайдера; токен не попадает в браузер.
-// @args c — authenticated JSON запрос возврата OAuth.
+// Callback completes an authorized calendar connection using its one-time OAuth state and code.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Callback(c *gin.Context) {
 	var request oauthCallbackRequest
 	if !httpresponse.BindJSON(c, &request, true) {
@@ -155,8 +187,11 @@ func (h *Handler) Callback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"item": item})
 }
 
-// Disconnect удаляет локальные учётные данные и пытается отозвать разрешение внешнего провайдера.
-// @args c — authenticated HTTP запрос с connectionId.
+// Disconnect revokes the acting account's integration connection and stops its future
+// synchronization.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Disconnect(c *gin.Context) {
 	id, ok := resourceID(c, "provider")
 	if !ok {
@@ -169,8 +204,10 @@ func (h *Handler) Disconnect(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// CalendarMappings показывает внешнее состояние только пользователю с правами владельца или соведущего.
-// @args c — authenticated HTTP запрос с conference id.
+// CalendarMappings returns saved conference-to-calendar mappings for the acting account.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) CalendarMappings(c *gin.Context) {
 	id, ok := resourceID(c, "id")
 	if !ok {
@@ -184,9 +221,16 @@ func (h *Handler) CalendarMappings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
-// resourceID нормализует UUID из пути до обращения к постоянному хранилищу.
-// @args c — HTTP запрос; name — фиксированный route parameter.
-// @return: canonical UUID и признак успеха; ошибка уже отправлена клиенту.
+// resourceID validates the resource identifier from the integration route.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - name: Name of the setting, cookie, resource or provider being addressed.
+//
+// Returns:
+//   - result 1: Validated integration-resource UUID.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func resourceID(c *gin.Context, name string) (string, bool) {
 	value, err := uuid.Parse(c.Param(name))
 	if err != nil || value == uuid.Nil {

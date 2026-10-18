@@ -11,15 +11,26 @@ import (
 	"sync"
 )
 
-// RecordingObjectReader читает только приватный объект и не принимает внешние URL.
+// RecordingObjectReader reads only private stored objects and never accepts external URLs.
 type RecordingObjectReader interface {
-	// OpenRecording открывает принадлежащий серверу ключ с ограничением числа байтов.
-	// @args ctx — срок выполнения; key — проверенный ключ хранилища; maximum — предел байтов.
-	// @return поток, фактический размер и ошибку хранилища.
+	// OpenRecording opens the private recording audio or media stream using its stored artifact
+	// identity.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Storage, cache or cryptographic key used by the operation.
+	//   - argument 3: Maximum permitted size or number of characters.
+	//
+	// Returns:
+	//   - result 1: The resulting read closer.
+	//   - result 2: The resulting count, size or numeric value.
+	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	OpenRecording(context.Context, string, int64) (io.ReadCloser, int64, error)
 }
 
-// TranscriptionAudio извлекает WAV отдельно от финализации записи и передачи медиа.
+// TranscriptionAudio extracts WAV audio independently of recording finalization and media
+// transport.
 type TranscriptionAudio struct {
 	objects                      RecordingObjectReader
 	binary, tempRoot             string
@@ -27,18 +38,33 @@ type TranscriptionAudio struct {
 	maxDuration                  int
 }
 
-// NewTranscriptionAudio создаёт независимый обработчик извлечения с конечными пределами объёма и длительности.
-// @args objects — private MinIO reader; binary — доверенный FFmpeg path;
-// tempRoot — приватный каталог временных файлов; maxVideoBytes/maxAudioBytes — пределы входа и выхода;
-// maxDuration — максимально допустимая длительность в секундах.
-// @return адаптер AudioSource; actual выделение ресурсов происходит только в Open.
+// NewTranscriptionAudio constructs the transcription audio with the dependencies and limits
+// required for FFmpeg recording and post-processing.
+//
+// Parameters:
+//   - objects: Private recording-object reader.
+//   - binary: Path to the configured external executable.
+//   - tempRoot: Root directory restricting temporary media files.
+//   - maxVideoBytes: Maximum video input size in bytes.
+//   - maxAudioBytes: Maximum audio input size in bytes.
+//   - maxDuration: Maximum media duration accepted by this processing path.
+//
+// Returns:
+//   - result 1: The constructed or loaded transcription audio.
 func NewTranscriptionAudio(objects RecordingObjectReader, binary, tempRoot string, maxVideoBytes, maxAudioBytes int64, maxDuration int) *TranscriptionAudio {
 	return &TranscriptionAudio{objects: objects, binary: binary, tempRoot: tempRoot, maxVideoBytes: maxVideoBytes, maxAudioBytes: maxAudioBytes, maxDuration: maxDuration}
 }
 
-// Open скачивает MP4 ограниченного размера и извлекает монофонический WAV с частотой 16 кГц в приватном временном каталоге.
-// @args ctx — конечный срок распознавания речи; source — серверные метаданные готовой записи.
-// @return поток чтения и идемпотентную очистку; ошибки не меняют готовую запись.
+// Open opens the scoped media, recording or session resource required by this component.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - source: Media or content source belonging to the current operation.
+//
+// Returns:
+//   - result 1: The resulting audio.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (a *TranscriptionAudio) Open(ctx context.Context, source domain.RecordingSource) (domain.Audio, error) {
 	if a.objects == nil || a.binary == "" || a.maxVideoBytes < 1 || a.maxAudioBytes < 44 || a.maxDuration < 1 || source.DurationSec < 1 || source.DurationSec > a.maxDuration || source.SizeBytes > a.maxVideoBytes {
 		return domain.Audio{}, &jobs.Error{Code: "audio_input_limit", Retryable: false}

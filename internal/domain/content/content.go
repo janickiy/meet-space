@@ -1,5 +1,5 @@
-// Пакет content описывает расшифровки, проверенные результаты ИИ и поиск по встречам.
-// Он не зависит от SDK внешних поставщиков и не участвует в передаче медиапотока.
+// Package content defines transcripts, validated AI results and conference search. It is
+// independent of provider SDKs and does not participate in media transport.
 package content
 
 import (
@@ -16,8 +16,8 @@ const (
 	Failed     = "failed"
 )
 
-// Transcript хранит состояние одного поколения расшифровки готовой записи.
-// Внешний ответ не содержит ключей MinIO, аренды job или секретов провайдера.
+// Transcript stores one generation of transcription for a completed recording. Public responses
+// exclude MinIO keys, job leases and provider secrets.
 type Transcript struct {
 	ID           string     `json:"id"`
 	ConferenceID string     `json:"conferenceId"`
@@ -33,8 +33,8 @@ type Transcript struct {
 	ProcessedAt  *time.Time `json:"processedAt,omitempty"`
 }
 
-// Segment связывает текст с интервалом готовой записи; speakerLabel означает
-// только метку диаризации, а не подтверждённую личность участника встречи.
+// Segment binds text to a completed-recording time interval. speakerLabel is a diarization
+// label, not a verified conference participant identity.
 type Segment struct {
 	ID           string   `json:"id"`
 	TranscriptID string   `json:"transcriptId"`
@@ -47,8 +47,8 @@ type Segment struct {
 	Confidence   *float64 `json:"confidence"`
 }
 
-// ActionItem содержит только подтверждённое текстом действие. Исполнитель и
-// срок остаются null, если в исходных сегментах нет соответствующего подтверждения.
+// ActionItem contains only actions supported by source text. Assignee and deadline remain null
+// when the source segments do not explicitly support them.
 type ActionItem struct {
 	Text             string   `json:"text"`
 	Assignee         *string  `json:"assignee"`
@@ -56,7 +56,7 @@ type ActionItem struct {
 	SourceSegmentIDs []string `json:"sourceSegmentIds"`
 }
 
-// SummaryOutput задаёт единственную принимаемую JSON-схему ответа AI.
+// SummaryOutput defines the only accepted JSON schema for an AI summary response.
 type SummaryOutput struct {
 	Summary     string       `json:"summary"`
 	KeyPoints   []string     `json:"keyPoints"`
@@ -64,7 +64,7 @@ type SummaryOutput struct {
 	Topics      []string     `json:"topics"`
 }
 
-// Summary хранит проверенный результат с версией исходной расшифровки и инструкции.
+// Summary stores a validated result with the source transcript and instruction versions.
 type Summary struct {
 	ID                   string `json:"id"`
 	ConferenceID         string `json:"conferenceId"`
@@ -85,8 +85,8 @@ type Summary struct {
 	ProcessedAt          *time.Time      `json:"processedAt,omitempty"`
 }
 
-// TranscriptState позволяет отличить отсутствие расшифровки от отключённой
-// возможности и показывает проверенное сервером право повторного запуска.
+// TranscriptState distinguishes an absent transcript from a disabled capability and exposes the
+// server-verified retry permission.
 type TranscriptState struct {
 	Item         *Transcript `json:"item"`
 	Enabled      bool        `json:"enabled"`
@@ -94,7 +94,8 @@ type TranscriptState struct {
 	ProviderMode string      `json:"providerMode"`
 }
 
-// SummaryState возвращает необязательный результат и права без вымышленных состояний обработки.
+// SummaryState returns an optional saved result and permissions without inventing processing
+// states.
 type SummaryState struct {
 	Item          *Summary `json:"item"`
 	Enabled       bool     `json:"enabled"`
@@ -102,7 +103,7 @@ type SummaryState struct {
 	ProviderMode  string   `json:"providerMode"`
 }
 
-// SegmentPage содержит ограниченную страницу хронологически упорядоченного текста.
+// SegmentPage contains a bounded page of chronologically ordered transcript text.
 type SegmentPage struct {
 	Items  []Segment `json:"items"`
 	Total  int64     `json:"total"`
@@ -110,7 +111,7 @@ type SegmentPage struct {
 	Offset int       `json:"offset"`
 }
 
-// SearchQuery задаёт серверные фильтры; время передаётся как однозначная временная отметка UTC.
+// SearchQuery defines server-side filters; times are unambiguous UTC timestamps.
 type SearchQuery struct {
 	Mode, ParticipantID, Membership string
 	Query, Source, ConferenceID     string
@@ -118,7 +119,8 @@ type SearchQuery struct {
 	Limit, Offset                   int
 }
 
-// SearchResult возвращает обычный текст фрагмента и точку перехода к записи, без URL хранилища.
+// SearchResult contains plain-text excerpts and recording navigation positions, never
+// object-storage URLs.
 type SearchResult struct {
 	SpeakerID       *string `json:"speakerId,omitempty"`
 	Speaker         string  `json:"speaker,omitempty"`
@@ -133,7 +135,7 @@ type SearchResult struct {
 	Rank            float64 `json:"rank"`
 }
 
-// SearchPage содержит ограниченную страницу только разрешённых результатов.
+// SearchPage contains a bounded page of authorized results only.
 type SearchPage struct {
 	EffectiveMode  string         `json:"effectiveMode"`
 	FallbackReason string         `json:"fallbackReason,omitempty"`
@@ -143,14 +145,15 @@ type SearchPage struct {
 	Offset         int            `json:"offset"`
 }
 
-// RecordingSource описывает приватный объект из проверенной БД, а не пользовательский URL.
+// RecordingSource identifies a private object loaded from trusted database state, not a
+// user-supplied URL.
 type RecordingSource struct {
 	RecordingID, ConferenceID, ObjectKey string
 	DurationSec                          int
 	SizeBytes                            int64
 }
 
-// Audio содержит ограниченный источник mono/16k WAV и обязательную очистку ресурсов.
+// Audio contains a bounded mono 16 kHz WAV source and its mandatory cleanup operation.
 type Audio struct {
 	Reader      io.ReadCloser
 	Size        int64
@@ -158,7 +161,8 @@ type Audio struct {
 	Cleanup     func()
 }
 
-// TranscriptionRequest передаёт аудио, автоматический выбор языка и стабильный ключ идемпотентности адаптеру.
+// TranscriptionRequest supplies audio, automatic language selection and a stable idempotency key
+// to the provider adapter.
 type TranscriptionRequest struct {
 	Audio                                 io.Reader
 	Size                                  int64
@@ -166,37 +170,61 @@ type TranscriptionRequest struct {
 	DurationSec                           int
 }
 
-// TranscriptionResult возвращает язык и непроверенные сегменты поставщика.
+// TranscriptionResult contains the detected language and the provider's still-unvalidated
+// segments.
 type TranscriptionResult struct {
 	Language string    `json:"language"`
 	Segments []Segment `json:"segments"`
 }
 
-// TranscriptionProvider изолирует внешний STT от domain/usecase.
+// TranscriptionProvider isolates external speech recognition from domain and application code.
 type TranscriptionProvider interface {
-	// Name возвращает постоянное имя адаптера без секретов.
+	// Name returns the configured provider identifier used to label and validate generated content.
+	//
+	// Returns:
+	//   - result 1: Configured provider identifier.
 	Name() string
-	// Transcribe распознаёт аудио, соблюдая отмену контекста.
-	// @args ctx — срок выполнения; request — ограниченное аудио и ключ дедупликации.
-	// @return непроверенный результат или классифицированную ошибку.
+	// Transcribe submits bounded recording audio to the configured transcription provider.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Validated application request or incoming operation parameters.
+	//
+	// Returns:
+	//   - result 1: The resulting transcription result.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Transcribe(context.Context, TranscriptionRequest) (TranscriptionResult, error)
 }
 
-// AIRequest отделяет неизменные инструкции от недоверенного JSON содержимого встречи.
-// Инструменты и сетевые действия не входят в контракт.
+// AIRequest separates immutable instructions from untrusted conference-content JSON. Tool use
+// and network actions are outside this contract.
 type AIRequest struct {
 	PromptVersion, SchemaVersion, Instructions, InputJSON, IdempotencyKey string
 	Merge                                                                 bool
 }
 
-// AIProvider возвращает JSON, который сценарий проверяет перед сохранением.
+// AIProvider returns JSON that the application must validate before persistence.
 type AIProvider interface {
-	// Name возвращает постоянное имя адаптера.
+	// Name returns the configured provider identifier used to label and validate generated content.
+	//
+	// Returns:
+	//   - result 1: Configured provider identifier.
 	Name() string
-	// Model возвращает техническое имя модели без credentials.
+	// Model returns the configured model identifier used to label and validate generated content.
+	//
+	// Returns:
+	//   - result 1: Configured provider-model identifier.
 	Model() string
-	// Summarize обрабатывает только переданные входные данные, не выполняя внешних действий.
-	// @args ctx — срок выполнения; request — инструкции и недоверенные данные.
-	// @return сырой JSON для строгой серверной проверки или ошибку.
+	// Summarize generates a schema-constrained summary from the supplied transcript input.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Validated application request or incoming operation parameters.
+	//
+	// Returns:
+	//   - result 1: The resulting raw message.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Summarize(context.Context, AIRequest) (json.RawMessage, error)
 }

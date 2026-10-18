@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// RegisterCallRoutes registers the call endpoints with the supplied authentication and request
+// middleware.
+//
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - h: HTTP handler adapter to register or bind to the client.
+//   - auth: Authentication middleware or account handler dependency.
+//   - accountOnly: Middleware rejecting guest identities for registered-account-only operations.
+//   - limiter: Shared request-rate limiter.
 func RegisterCallRoutes(router gin.IRouter, h *app.Handler, auth, accountOnly gin.HandlerFunc, limiter middleware.Limiter) {
 	rules := []middleware.Rule{
 		{Method: "POST", Path: APIV1Prefix + "/calls", Scope: "call_create", Limit: 15, Window: time.Minute, Key: middleware.UserID},

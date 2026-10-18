@@ -2,13 +2,7 @@ package conferences
 
 import "github.com/janickiy/meet-space/internal/domain/apperrors"
 
-// MediaState описывает заявленную активность микрофона, камеры и экрана участника.
-// @params
-//   - ConnectionID: идентификатор физического медиа-соединения.
-//   - Sequence: серверный монотонный номер сообщения или команды.
-//   - MicrophoneEnabled: сохранённый признак включённого микрофона.
-//   - CameraEnabled: сохранённый признак включённой камеры.
-//   - ScreenSharing: сохранённый признак демонстрации экрана.
+// MediaState describes the participant's declared microphone, camera and screen activity.
 type MediaState struct {
 	ConnectionID      string `json:"connectionId"`
 	Sequence          int64  `json:"sequence"`
@@ -17,26 +11,23 @@ type MediaState struct {
 	ScreenSharing     bool   `json:"screenSharing"`
 }
 
-// ModerationRequest передаёт действие модерации и его дополнительные параметры.
-// @params
-//   - Action: действие управления, которое необходимо проверить или исполнить.
-//   - Blocked: значение Blocked типа *bool, используемое согласно назначению этой операции.
-//   - Role: роль участника, определяющая полномочия.
+// ModerationRequest contains a moderation action and its additional validated parameters.
 type ModerationRequest struct {
 	Action  string `json:"action"`
 	Blocked *bool  `json:"blocked,omitempty"`
 	Role    Role   `json:"role,omitempty"`
 }
 
-// CanModerate сопоставляет роли и состояния инициатора и цели; защищает владельца и ограничивает действия соорганизатора.
+// CanModerate checks whether the actor may apply a moderation action to the target participant.
 //
-// @args
-//   - actor (Participant): участник, от имени которого проверяются полномочия действия.
-//   - target (Participant): целевой объект, участник или состояние операции.
-//   - action (string): действие управления, которое необходимо проверить или исполнить.
+// Parameters:
+//   - actor: Identifier of the account performing the operation.
+//   - target: Target state, account or decoded value, as defined by its type.
+//   - action: Requested lifecycle or moderation action.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func CanModerate(actor, target Participant, action string) bool {
 	switch action {
 	case "mute", "camera", "screen", "kick", "role":
@@ -46,9 +37,9 @@ func CanModerate(actor, target Participant, action string) bool {
 	if !actor.CanParticipate() || actor.ConferenceID != target.ConferenceID || target.Role == Owner || actor.ID == target.ID {
 		return false
 	}
-	// Ожидающие участники видны только в зале ожидания и обрабатываются через
-	// admit/reject. Общие события модерации доступны допущенным участникам комнаты.
-	// Повтор уже выполненного удаления участника остаётся идемпотентным.
+	// Waiting participants are visible only in the waiting room and are handled through admit or
+	// reject. General moderation events are visible to admitted room participants. Repeating an
+	// already completed removal remains idempotent.
 	if !target.CanReadHistory() && !(action == "kick" && target.Status == Kicked) {
 		return false
 	}
@@ -58,10 +49,11 @@ func CanModerate(actor, target Participant, action string) bool {
 	return actor.Role == CoHost && target.Role == ParticipantRole && (action == "mute" || action == "screen" || action == "kick")
 }
 
-// Validate проверяет ограничения и согласованность полей текущего значения перед его использованием.
+// Validate rejects inconsistent or out-of-range conference fields before the value is used.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r ModerationRequest) Validate() error {
 	switch r.Action {
 	case "mute", "camera", "screen":

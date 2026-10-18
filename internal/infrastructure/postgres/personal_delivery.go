@@ -10,16 +10,21 @@ import (
 	"gorm.io/gorm"
 )
 
-// WithConversationDelivery проверяет членство под общей блокировкой беседы и
-// удерживает её до завершения ограниченной отправки. Скрытая личная беседа не
-// блокирует служебные события её владельцу: другие вкладки должны очистить кеш.
+// WithConversationDelivery attaches conversation delivery to the component before its operations
+// are served.
 //
-// @args
-//   - ctx — контекст операции и срок отправки.
-//   - id, user — идентификаторы беседы и получателя.
-//   - deliver — ограниченная отправка, выполняемая только для действующего участника.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - user: Acting account identifier used to scope access.
+//   - deliver: Delivery callback invoked only while the recipient or resource authorization
+//     remains valid.
 //
-// @return разрешена ли отправка и ошибка проверки либо отправки.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) WithConversationDelivery(ctx context.Context, id, user string, deliver func() error) (bool, error) {
 	allowed := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -44,17 +49,22 @@ func (r *PersonalRepository) WithConversationDelivery(ctx context.Context, id, u
 	return allowed, err
 }
 
-// WithConversationMessageDelivery повторно проверяет сообщение непосредственно
-// перед записью в сокет: удаление чата и очистка истории могли завершиться уже
-// после публикации события в Redis. Та же блокировка сериализует отправку с
-// изменением настроек, поэтому флаг уведомлений не берётся из устаревшей очереди.
+// WithConversationMessageDelivery attaches conversation message delivery to the component before
+// its operations are served.
 //
-// @args
-//   - ctx — контекст операции и ограниченный срок отправки.
-//   - id, user, messageID — беседа, получатель и сохранённое сообщение.
-//   - deliver — отправка с текущим флагом уведомлений и границей очищенной истории.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - user: Acting account identifier used to scope access.
+//   - messageID: Message identifier within the authorized conversation.
+//   - deliver: Delivery callback invoked only while the recipient or resource authorization
+//     remains valid.
 //
-// @return разрешена ли отправка и ошибка проверки либо отправки.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) WithConversationMessageDelivery(ctx context.Context, id, user, messageID string, deliver func(bool, int64) error) (bool, error) {
 	allowed := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -82,18 +92,22 @@ func (r *PersonalRepository) WithConversationMessageDelivery(ctx context.Context
 	return allowed, err
 }
 
-// WithConversationActionDelivery обновляет персональную нагрузку перед отправкой,
-// потому что события разных HTTP-запросов могут публиковаться не в порядке COMMIT.
-// Запоздалое скрытие пропускается, если новое сообщение уже вернуло беседу;
-// старые mute/clear события получают текущую проекцию, а не прежнее превью.
+// WithConversationActionDelivery attaches conversation action delivery to the component before
+// its operations are served.
 //
-// @args
-//   - ctx — контекст операции и ограниченной записи.
-//   - id, user — беседа и владелец настройки.
-//   - kind — разрешённое событие настройки, очистки или скрытия.
-//   - deliver — отправка актуальной проекции; при скрытии получает только ID, тип и границу истории.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - user: Acting account identifier used to scope access.
+//   - kind: Validated event, job, media or resource category.
+//   - deliver: Delivery callback invoked only while the recipient or resource authorization
+//     remains valid.
 //
-// @return разрешена ли отправка и ошибка проверки либо отправки.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) WithConversationActionDelivery(ctx context.Context, id, user, kind string, deliver func(*personal.Conversation) error) (bool, error) {
 	if kind != "conversation.preferences.updated" && kind != "conversation.history.cleared" && kind != "conversation.hidden" {
 		return false, errors.New("unsupported personal conversation event")

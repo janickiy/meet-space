@@ -20,9 +20,27 @@ import (
 
 type FolderRepository struct{ db *gorm.DB }
 
+// NewFolderRepository constructs the folder repository with the dependencies and limits required
+// for folder.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded folder repository.
 func NewFolderRepository(db *gorm.DB) *FolderRepository {
 	return &FolderRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
 }
+
+// Account checks that the acting identity is a registered non-guest account.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) Account(ctx context.Context, actor string) error {
 	return NewPersonalRepository(r.db).Account(ctx, actor)
 }
@@ -51,6 +69,19 @@ type folderRow struct {
 	ItemContains   bool
 }
 
+// folderRows builds the owner-scoped folder query used by folder operations.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - itemKind: Validated kind of resource linked to a folder.
+//   - itemID: Identifier of the resource linked to a folder.
+//
+// Returns:
+//   - result 1: The collected folder values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func folderRows(db *gorm.DB, actor, id, itemKind, itemID string) ([]folders.Folder, error) {
 	query := folderEligibleSQL + folderCountProjection
 	args := []any{actor, actor}
@@ -80,6 +111,18 @@ func folderRows(db *gorm.DB, actor, id, itemKind, itemID string) ([]folders.Fold
 	}
 	return items, nil
 }
+
+// folderView builds a folder response with its current item counts.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting folder.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func folderView(db *gorm.DB, actor, id string) (folders.Folder, error) {
 	items, err := folderRows(db, actor, id, "", "")
 	if err != nil {
@@ -91,8 +134,18 @@ func folderView(db *gorm.DB, actor, id string) (folders.Folder, error) {
 	return items[0], nil
 }
 
+// lockFolderActor locks and validates the account whose folder collection is being changed.
+//
 // NO KEY UPDATE serializes account-local mutations without conflicting with
 // key-share locks held by existing FK-based conversation/member writes.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - actor: Identifier of the account performing the operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func lockFolderActor(tx *gorm.DB, actor string) error {
 	var id string
 	result := tx.Raw(`SELECT id FROM users WHERE id=? AND guest_conference_id IS NULL AND password_hash<>'' FOR NO KEY UPDATE`, actor).Scan(&id)
@@ -104,6 +157,17 @@ func lockFolderActor(tx *gorm.DB, actor string) error {
 	}
 	return nil
 }
+
+// lockOwnedFolder locks a folder only when it belongs to the acting account.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func lockOwnedFolder(tx *gorm.DB, actor, id string) error {
 	var found string
 	result := tx.Raw(`SELECT id FROM folders WHERE id=? AND user_id=? FOR UPDATE`, id, actor).Scan(&found)
@@ -115,6 +179,15 @@ func lockOwnedFolder(tx *gorm.DB, actor, id string) error {
 	}
 	return nil
 }
+
+// folderConflict maps a folder uniqueness violation to the public conflict error.
+//
+// Parameters:
+//   - err: Error to classify, wrap or report safely.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func folderConflict(err error) error {
 	var pgError *pgconn.PgError
 	if errors.As(err, &pgError) && pgError.Code == "23505" && pgError.ConstraintName == "folders_owner_name_key" {
@@ -122,8 +195,29 @@ func folderConflict(err error) error {
 	}
 	return err
 }
+
+// folderID validates the folder identifier before persistence access.
+//
+// Parameters:
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func folderID(id string) error { _, err := chat.UUID(id); return err }
 
+// List returns a bounded page of folder records using the supplied pagination and filters.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - itemKind: Validated kind of resource linked to a folder.
+//   - itemID: Identifier of the resource linked to a folder.
+//
+// Returns:
+//   - result 1: The collected folder values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) List(ctx context.Context, actor, itemKind, itemID string) ([]folders.Folder, error) {
 	if itemKind != "" || itemID != "" {
 		if !folders.ValidKind(itemKind) || folderID(itemID) != nil {
@@ -135,6 +229,18 @@ func (r *FolderRepository) List(ctx context.Context, actor, itemKind, itemID str
 	}
 	return folderRows(r.db.WithContext(ctx), actor, "", itemKind, itemID)
 }
+
+// Get loads the requested folder within the caller's authorized scope.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting folder.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) Get(ctx context.Context, actor, id string) (folders.Folder, error) {
 	if err := folderID(id); err != nil {
 		return folders.Folder{}, err
@@ -144,6 +250,18 @@ func (r *FolderRepository) Get(ctx context.Context, actor, id string) (folders.F
 	}
 	return folderView(r.db.WithContext(ctx), actor, id)
 }
+
+// Create creates and persists a new folder for the acting account.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - name: Name of the setting, cookie, resource or provider being addressed.
+//
+// Returns:
+//   - result 1: The resulting folder.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) Create(ctx context.Context, actor, name string) (folders.Folder, error) {
 	name, key, err := folders.NormalizeName(name)
 	if err != nil {
@@ -171,6 +289,19 @@ func (r *FolderRepository) Create(ctx context.Context, actor, name string) (fold
 	})
 	return item, folderConflict(err)
 }
+
+// Rename normalizes a new folder name and updates the acting account's owned folder.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - name: Name of the setting, cookie, resource or provider being addressed.
+//
+// Returns:
+//   - result 1: The resulting folder.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) Rename(ctx context.Context, actor, id, name string) (folders.Folder, error) {
 	if err := folderID(id); err != nil {
 		return folders.Folder{}, err
@@ -196,6 +327,17 @@ func (r *FolderRepository) Rename(ctx context.Context, actor, id, name string) (
 	})
 	return item, folderConflict(err)
 }
+
+// Delete removes the requested folder using the caller's scope and the resource lifecycle rules.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) Delete(ctx context.Context, actor, id string) error {
 	if err := folderID(id); err != nil {
 		return err
@@ -213,6 +355,18 @@ func (r *FolderRepository) Delete(ctx context.Context, actor, id string) error {
 		return tx.Exec(`UPDATE folders f SET position=ranked.position FROM (SELECT id,(row_number() OVER(ORDER BY position,id)-1)::integer AS position FROM folders WHERE user_id=?) ranked WHERE f.id=ranked.id`, actor).Error
 	})
 }
+
+// Order stores a validated ordering of the acting account's private folders.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - ids: Resource identifiers to process as a bounded batch.
+//
+// Returns:
+//   - result 1: The collected folder values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) Order(ctx context.Context, actor string, ids []string) ([]folders.Folder, error) {
 	if len(ids) > folders.MaxFolders {
 		return nil, apperrors.ErrInvalidInput
@@ -260,6 +414,18 @@ func (r *FolderRepository) Order(ctx context.Context, actor string, ids []string
 	return items, err
 }
 
+// lockFolderTarget locks and validates the resource being added to or removed from a private
+// folder.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - actor: Identifier of the account performing the operation.
+//   - kind: Validated event, job, media or resource category.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func lockFolderTarget(tx *gorm.DB, actor, kind, id string) error {
 	table := "conversations"
 	eligible := folderConversationsSQL
@@ -286,6 +452,21 @@ func lockFolderTarget(tx *gorm.DB, actor, kind, id string) error {
 	}
 	return nil
 }
+
+// SetItem updates item for folder.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - folder: Identifier of the acting account's private folder.
+//   - kind: Validated event, job, media or resource category.
+//   - id: Identifier of the resource addressed by this operation.
+//   - add: Whether to add rather than remove the target item.
+//
+// Returns:
+//   - result 1: The resulting folder.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) SetItem(ctx context.Context, actor, folder, kind, id string, add bool) (folders.Folder, error) {
 	if !folders.ValidKind(kind) || folderID(folder) != nil || folderID(id) != nil {
 		return folders.Folder{}, apperrors.ErrInvalidInput
@@ -362,18 +543,63 @@ const folderConferenceJSON = `jsonb_build_object('id',c.id,'ownerId',c.owner_id,
  'scheduledAt',c.scheduled_at,'plannedDurationMin',c.planned_duration_min,'participantCount',CASE WHEN p.admission_state='admitted' AND p.status IN('joined','left') THEN
  (SELECT count(*) FROM conference_participants cp WHERE cp.conference_id=c.id AND cp.admission_state='admitted' AND cp.status IN('joined','left')) ELSE NULL END)`
 
+// Items returns a filtered, bounded page of resources linked to an owned folder.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - folder: Identifier of the acting account's private folder.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//   - filter: Validated filters restricting the result set.
+//
+// Returns:
+//   - result 1: The resulting page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) Items(ctx context.Context, actor, folder, cursor string, limit int, filter folders.Filter) (folders.Page, error) {
 	if folderID(folder) != nil {
 		return folders.Page{}, apperrors.ErrInvalidInput
 	}
 	return r.itemPage(ctx, actor, folder, "items", cursor, limit, filter)
 }
+
+// Candidates returns accessible resources that can be linked to the acting account's folder.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - folder: Identifier of the acting account's private folder.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//   - filter: Validated filters restricting the result set.
+//
+// Returns:
+//   - result 1: The resulting page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) Candidates(ctx context.Context, actor, folder, cursor string, limit int, filter folders.Filter) (folders.Page, error) {
 	if folder != "" && folderID(folder) != nil {
 		return folders.Page{}, apperrors.ErrInvalidInput
 	}
 	return r.itemPage(ctx, actor, folder, "candidates", cursor, limit, filter)
 }
+
+// itemPage builds an authorized page of folder items or candidate resources.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - folder: Identifier of the acting account's private folder.
+//   - scope: Authorized conversation or resource scope.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//   - filter: Validated filters restricting the result set.
+//
+// Returns:
+//   - result 1: The resulting page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *FolderRepository) itemPage(ctx context.Context, actor, folder, scope, cursor string, limit int, filter folders.Filter) (folders.Page, error) {
 	page := folders.Page{Items: []folders.Item{}}
 	if limit < 1 || limit > 100 {

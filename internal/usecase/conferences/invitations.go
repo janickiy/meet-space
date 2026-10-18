@@ -12,12 +12,50 @@ import (
 )
 
 type InvitationRepository interface {
+	// SearchInvitationUsers returns a bounded list of registered invitation candidates visible to
+	// the acting organizer.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the account performing the operation.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Search text or validated query filters.
+	//
+	// Returns:
+	//   - result 1: The collected invitation user values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	SearchInvitationUsers(context.Context, string, string, string) ([]domain.InvitationUser, error)
+	// Invite creates or updates conference invitations for the validated recipients.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the account performing the operation.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Validated application request or incoming operation parameters.
+	//
+	// Returns:
+	//   - result 1: The collected invitation result values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Invite(context.Context, string, string, domain.InvitationRequest) ([]domain.InvitationResult, error)
 }
 
 type InvitationService struct{ Repository InvitationRepository }
 
+// Search searches conference lifecycle and participant membership using bounded input and the
+// caller's visibility filters.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actorID: Identifier of the account performing the operation.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - query: Search text or validated query filters.
+//
+// Returns:
+//   - result 1: The collected invitation user values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *InvitationService) Search(ctx context.Context, actorID, conferenceID, query string) ([]domain.InvitationUser, error) {
 	query = strings.TrimSpace(query)
 	queryLength := utf8.RuneCountInString(query)
@@ -27,6 +65,18 @@ func (s *InvitationService) Search(ctx context.Context, actorID, conferenceID, q
 	return s.Repository.SearchInvitationUsers(ctx, actorID, conferenceID, query)
 }
 
+// Invite creates or updates conference invitations for the validated recipients.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actorID: Identifier of the account performing the operation.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - result 1: The collected invitation result values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *InvitationService) Invite(ctx context.Context, actorID, conferenceID string, request domain.InvitationRequest) ([]domain.InvitationResult, error) {
 	// The limit applies to submitted recipients, before deduplication.
 	recipientCount := len(request.Emails) + len(request.UserIDs)

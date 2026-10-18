@@ -19,22 +19,22 @@ type sessionClaims struct {
 	SessionID         string `json:"sid,omitempty"`
 }
 
-// TokenService выпускает и проверяет JWT учётной записи с настроенным сроком жизни.
-//   - secret: секрет подписи или внутренней авторизации компонента.
-//   - now: операция now с контрактом, описанным у метода.
+// TokenService issues and verifies account JWTs with a configured bounded lifetime.
 type TokenService struct {
 	secret []byte
 	now    func() time.Time
 }
 
-// NewTokenService создаёт и связывает зависимости компонента TokenService, используемого в проверке учётных данных и ограниченных разрешений.
+// NewTokenService constructs the token service with the dependencies and limits required for
+// authentication and cryptographic bindings.
 //
-// @args
-//   - secret (string): секрет подписи или внутренней авторизации компонента.
+// Parameters:
+//   - secret: Private key material or raw secret; it must not be logged or exposed.
 //
-// @return:
-//   - результат 1 (*TokenService): созданный компонент с переданными зависимостями.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The constructed or loaded token service.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func NewTokenService(secret string) (*TokenService, error) {
 	if len(secret) < 32 {
 		return nil, fmt.Errorf("JWT_SECRET must contain at least 32 bytes")
@@ -42,19 +42,29 @@ func NewTokenService(secret string) (*TokenService, error) {
 	return &TokenService{secret: []byte(secret), now: time.Now}, nil
 }
 
-// Issue выпускает подписанный JWT пользователя с настроенным сроком действия.
+// Issue creates a signed token bound to the supplied identity and expiry.
 //
-// @args
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// Parameters:
+//   - userID: Acting account identifier used to scope access.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: Signed short-lived credential for the verified identity.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *TokenService) Issue(userID string) (string, error) {
 	return s.issue(userID, "", "")
 }
 
 // IssueSession binds a short-lived access token to a revocable account session.
+//
+// Parameters:
+//   - userID: Acting account identifier used to scope access.
+//   - sessionID: Persistent or physical session identifier, as defined by the operation.
+//
+// Returns:
+//   - result 1: Signed access JWT bound to the persistent session.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *TokenService) IssueSession(userID, sessionID string) (string, error) {
 	id, err := uuid.Parse(sessionID)
 	if err != nil || id == uuid.Nil {
@@ -64,6 +74,15 @@ func (s *TokenService) IssueSession(userID, sessionID string) (string, error) {
 }
 
 // IssueGuest grants only the invited meeting; it never grants account access.
+//
+// Parameters:
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//
+// Returns:
+//   - result 1: Signed guest JWT restricted to the invited conference.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *TokenService) IssueGuest(userID, conferenceID string) (string, error) {
 	id, err := uuid.Parse(conferenceID)
 	if err != nil || id == uuid.Nil {
@@ -72,6 +91,17 @@ func (s *TokenService) IssueGuest(userID, conferenceID string) (string, error) {
 	return s.issue(userID, id.String(), "")
 }
 
+// issue creates a signed token bound to the supplied identity and expiry.
+//
+// Parameters:
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - sessionID: Persistent or physical session identifier, as defined by the operation.
+//
+// Returns:
+//   - result 1: Signed access JWT containing the supplied identity binding.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *TokenService) issue(userID, conferenceID, sessionID string) (string, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil || id == uuid.Nil {
@@ -84,53 +114,74 @@ func (s *TokenService) issue(userID, conferenceID, sessionID string) (string, er
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 }
 
-// Verify проверяет подпись и срок JWT и извлекает идентификатор пользователя.
+// Verify validates the supplied credentials or signed binding before accepting the caller's
+// identity.
 //
-// @args
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
+// Parameters:
+//   - raw: Serialized access token or refresh credential to validate; never log or expose it.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: Verified account identifier.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *TokenService) Verify(raw string) (string, error) {
 	id, _, err := s.VerifyWithExpiry(raw)
 	return id, err
 }
 
-// VerifyWithExpiry проверяет подпись и содержимое JWT и возвращает идентификатор пользователя вместе со сроком действия.
+// VerifyWithExpiry verifies an access token and returns the account identity and token deadline.
 //
-// @args
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
+// Parameters:
+//   - raw: Serialized access token or refresh credential to validate; never log or expose it.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (time.Time): временная отметка результата или окончания действия разрешения.
-//   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: Authenticated account identifier.
+//   - result 2: The timestamp or validity boundary associated with the result.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *TokenService) VerifyWithExpiry(raw string) (string, time.Time, error) {
 	id, _, expiry, err := s.VerifySession(raw)
 	return id, expiry, err
 }
 
 // VerifySession validates the signature and returns the optional meeting scope.
+//
+// Parameters:
+//   - raw: Serialized access token or refresh credential to validate; never log or expose it.
+//
+// Returns:
+//   - result 1: Verified account identifier.
+//   - result 2: Guest conference scope, or an empty string for an unrestricted registered
+//     account.
+//   - result 3: The timestamp or validity boundary associated with the result.
+//   - result 4: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *TokenService) VerifySession(raw string) (string, string, time.Time, error) {
 	id, conferenceID, _, expiry, err := s.VerifyAuthorization(raw)
 	return id, conferenceID, expiry, err
 }
 
 // VerifyAuthorization validates JWT claims; the application also checks session revocation.
+//
+// Parameters:
+//   - raw: Serialized access token or refresh credential to validate; never log or expose it.
+//
+// Returns:
+//   - result 1: Verified account identifier.
+//   - result 2: Guest conference scope, or an empty string for a registered account.
+//   - result 3: Persistent server-session identifier, or an empty string for a guest or legacy
+//     token.
+//   - result 4: The timestamp or validity boundary associated with the result.
+//   - result 5: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *TokenService) VerifyAuthorization(raw string) (string, string, string, time.Time, error) {
 	if len(raw) == 0 || len(raw) > 4096 {
 		return "", "", "", time.Time{}, apperrors.ErrUnauthorized
 	}
 	claims := &sessionClaims{}
-	token, err := jwt.ParseWithClaims(raw, claims, /* Вложенный обработчик выполняет выделенный шаг обработки в проверке учётных данных и ограниченных разрешений, используя состояние окружающей функции.
+	token, err := jwt.ParseWithClaims(raw, claims,
 
-		@args
-		  - _ (*jwt.Token): неиспользуемый аргумент, сохранённый для совместимости с контрактом вызова.
-
-		@return:
-		  - результат 1 (any): значение, подготовленное операцией для вызывающей стороны.
-		  - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(_ *jwt.Token) (any, error) { return s.secret, nil },
+		func(_ *jwt.Token) (any, error) { return s.secret, nil },
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(), jwt.WithIssuer(tokenIssuer), jwt.WithAudience(tokenAudience), jwt.WithTimeFunc(s.now))
 	if err != nil || !token.Valid || claims.IssuedAt == nil {

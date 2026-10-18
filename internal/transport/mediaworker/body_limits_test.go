@@ -13,6 +13,10 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/media"
 )
 
+// bodyLimitsCommand creates the media command fixture used to exercise protocol body boundaries.
+//
+// Returns:
+//   - result 1: The resulting command.
 func bodyLimitsCommand() media.Command {
 	return media.Command{
 		RequestID: "11111111-1111-4111-8111-111111111111",
@@ -31,6 +35,10 @@ func bodyLimitsCommand() media.Command {
 	}
 }
 
+// bodyLimitsHandler creates the isolated media-worker handler used by request-boundary tests.
+//
+// Returns:
+//   - result 1: The resulting handler.
 func bodyLimitsHandler() http.Handler {
 	// A command addressed to another worker must reach the ownership guard
 	// after JSON decoding, without requiring a real engine, Redis or ticket.
@@ -40,6 +48,11 @@ func bodyLimitsHandler() http.Handler {
 	}, nil, nil, nil, nil, nil, nil).Routes()
 }
 
+// TestWorkerCommandBodyBoundary verifies worker command body boundary to prevent regressions in
+// mediaworker.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestWorkerCommandBodyBoundary(t *testing.T) {
 	cmd := bodyLimitsCommand()
 	raw, err := json.Marshal(cmd)
@@ -85,9 +98,30 @@ type bodyReadCounter struct {
 	reads int
 }
 
+// Read copies at most the destination buffer size from the owned stream while preserving its
+// read and cancellation limits.
+//
+// Parameters:
+//   - p: Destination byte buffer filled from the stream.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *bodyReadCounter) Read(p []byte) (int, error) { r.reads++; return r.Reader.Read(p) }
-func (*bodyReadCounter) Close() error                 { return nil }
 
+// Close closes the component-owned resources and ends their lifecycle.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
+func (*bodyReadCounter) Close() error { return nil }
+
+// TestWorkerOversizedBodyDoesNotBypassAuthentication verifies worker oversized body does not
+// bypass authentication to prevent regressions in mediaworker.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestWorkerOversizedBodyDoesNotBypassAuthentication(t *testing.T) {
 	for _, authorization := range []string{"", "Bearer wrong-secret", "test-internal-secret"} {
 		t.Run(authorization, func(t *testing.T) {

@@ -30,13 +30,14 @@ const (
 	FileTypeDebugLog      = "debug_log"
 )
 
-// IsTerminalStatus проверяет, завершён ли жизненный цикл записи и запрещены ли дальнейшие обычные переходы.
+// IsTerminalStatus reports whether a recording has reached a final lifecycle state.
 //
-// @args
-//   - status (string): состояние ресурса, ответа или фильтра выборки.
+// Parameters:
+//   - status: Lifecycle state or response status to record.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func IsTerminalStatus(status string) bool {
 	switch status {
 	case StatusReady, StatusPartialReady, StatusFailed, StatusCancelled:
@@ -46,36 +47,8 @@ func IsTerminalStatus(status string) bool {
 	}
 }
 
-// Record сохраняет задачу записи, её параметры, состояние, аренду и сведения об ошибке.
-// @params
-//   - ID: уникальный идентификатор данной сущности.
-//   - UUID: идентификатор связанного ресурса, заданного параметром UUID.
-//   - Mode: значение Mode типа string, используемое согласно назначению этой операции.
-//   - PlatformConferenceID: идентификатор связанного ресурса, заданного параметром PlatformConferenceID.
-//   - RecorderToken: значение RecorderToken типа *string, используемое согласно назначению этой операции.
-//   - RecorderLeaseUntil: временная отметка RecorderLeaseUntil; указатель допускает отсутствие значения.
-//   - ConferenceID: идентификатор конференции, ограничивающий область операции.
-//   - RequestedBy: значение RequestedBy типа *string, используемое согласно назначению этой операции.
-//   - SourceType: значение SourceType типа string, используемое согласно назначению этой операции.
-//   - TransportType: значение TransportType типа string, используемое согласно назначению этой операции.
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - QualityMode: значение QualityMode типа string, используемое согласно назначению этой операции.
-//   - SegmentDurationSec: плановая длительность сегмента записи в секундах.
-//   - NeedPreview: логический признак NeedPreview, управляющий соответствующей веткой обработки.
-//   - StorageBucket: значение StorageBucket типа *string, используемое согласно назначению этой операции.
-//   - StorageObjectKey: значение StorageObjectKey типа *string, используемое согласно назначению этой операции.
-//   - PreviewObjectKey: значение PreviewObjectKey типа *string, используемое согласно назначению этой операции.
-//   - DurationSec: длительность в секундах.
-//   - SizeBytes: фактический размер объекта в байтах.
-//   - WorkerID: идентификатор воркера-владельца операции.
-//   - StartedAt: момент начала обработки или записи.
-//   - StoppedAt: временная отметка StoppedAt; указатель допускает отсутствие значения.
-//   - EndedAt: время завершения записи или физической сессии.
-//   - EndedReason: значение EndedReason типа *string, используемое согласно назначению этой операции.
-//   - ErrorMessage: безопасная причина отказа для внешнего ответа.
-//   - MetadataJSON: значение MetadataJSON типа datatypes.JSON, используемое согласно назначению этой операции.
-//   - CreatedAt: время создания значения.
-//   - UpdatedAt: время последнего сохранённого изменения.
+// Record persists recording settings, lifecycle state, ownership lease and bounded failure
+// metadata.
 type Record struct {
 	ID                   int64          `gorm:"primaryKey" json:"id"`
 	UUID                 string         `gorm:"column:uuid;type:uuid;default:gen_random_uuid()" json:"uuid"`
@@ -107,29 +80,14 @@ type Record struct {
 	UpdatedAt            time.Time      `gorm:"column:updated_at" json:"updatedAt"`
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (Record) TableName() string { return "record" }
 
-// RecordSegment сохраняет метаданные отдельного сегмента записи.
-// @params
-//   - ID: уникальный идентификатор данной сущности.
-//   - RecordID: внешний UUID задачи записи.
-//   - SeqNo: значение SeqNo типа int, используемое согласно назначению этой операции.
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - LocalPath: значение LocalPath типа *string, используемое согласно назначению этой операции.
-//   - ObjectKey: серверный ключ объекта внутри приватного бакета.
-//   - FileName: значение FileName типа *string, используемое согласно назначению этой операции.
-//   - MimeType: заявленный либо проверенный MIME-тип содержимого.
-//   - StartedAt: момент начала обработки или записи.
-//   - EndedAt: время завершения записи или физической сессии.
-//   - DurationMS: значение DurationMS типа *int, используемое согласно назначению этой операции.
-//   - SizeBytes: фактический размер объекта в байтах.
-//   - ChecksumSHA256: SHA-256 содержимого артефакта.
-//   - CreatedAt: время создания значения.
-//   - UpdatedAt: время последнего сохранённого изменения.
+// RecordSegment persists the metadata of one recording segment.
 type RecordSegment struct {
 	ID             int64      `gorm:"primaryKey" json:"id"`
 	RecordID       int64      `gorm:"column:record_id" json:"recordId"`
@@ -148,32 +106,16 @@ type RecordSegment struct {
 	UpdatedAt      time.Time  `gorm:"column:updated_at" json:"updatedAt"`
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (RecordSegment) TableName() string { return "record_segment" }
 
-// RecordFile сохраняет метаданные итогового артефакта в приватном объектном хранилище.
-// @params
-//   - ID: уникальный идентификатор данной сущности.
-//   - UUID: идентификатор связанного ресурса, заданного параметром UUID.
-//   - RecordID: внешний UUID задачи записи.
-//   - FileType: роль файла записи: итоговое видео, превью или другой артефакт.
-//   - Bucket: имя бакета объектного хранилища.
-//   - ObjectKey: серверный ключ объекта внутри приватного бакета.
-//   - FileName: значение FileName типа string, используемое согласно назначению этой операции.
-//   - MimeType: заявленный либо проверенный MIME-тип содержимого.
-//   - SizeBytes: фактический размер объекта в байтах.
-//   - DurationSec: длительность в секундах.
-//   - ChecksumSHA256: SHA-256 содержимого артефакта.
-//   - IsPrimary: логический признак IsPrimary, управляющий соответствующей веткой обработки.
-//   - IsPublic: логический признак IsPublic, управляющий соответствующей веткой обработки.
-//   - MetadataJSON: значение MetadataJSON типа datatypes.JSON, используемое согласно назначению этой операции.
-//   - CreatedAt: время создания значения.
-//   - UpdatedAt: время последнего сохранённого изменения.
+// RecordFile persists final artifact metadata in private object storage.
 type RecordFile struct {
-	// Related содержит дополнительные приватные артефакты для той же атомарной фиксации готовности.
+	// Related contains additional private artifacts committed atomically with recording readiness.
 	Related        []RecordFile   `gorm:"-" json:"-"`
 	ID             int64          `gorm:"primaryKey" json:"id"`
 	UUID           string         `gorm:"column:uuid;type:uuid;default:gen_random_uuid()" json:"uuid"`
@@ -193,23 +135,14 @@ type RecordFile struct {
 	UpdatedAt      time.Time      `gorm:"column:updated_at" json:"updatedAt"`
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (RecordFile) TableName() string { return "record_file" }
 
-// RecordEvent сохраняет диагностическое событие жизненного цикла записи.
-// @params:
-//   - ID: уникальный идентификатор данной сущности.
-//   - RecordID: внешний UUID задачи записи.
-//   - EventType: значение EventType типа string, используемое согласно назначению этой операции.
-//   - EventSource: значение EventSource типа string, используемое согласно назначению этой операции.
-//   - Severity: значение Severity типа string, используемое согласно назначению этой операции.
-//   - Message: сообщение чата или безопасный текст ответа согласно указанному типу.
-//   - PayloadJSON: значение PayloadJSON типа datatypes.JSON, используемое согласно назначению этой операции.
-//   - WorkerID: идентификатор воркера-владельца операции.
-//   - CreatedAt: время создания значения.
+// RecordEvent persists a bounded recording lifecycle diagnostic.
 type RecordEvent struct {
 	ID          int64          `gorm:"primaryKey" json:"id"`
 	RecordID    int64          `gorm:"column:record_id" json:"recordId"`
@@ -222,8 +155,9 @@ type RecordEvent struct {
 	CreatedAt   time.Time      `gorm:"column:created_at" json:"createdAt"`
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (RecordEvent) TableName() string { return "record_event" }

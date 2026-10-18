@@ -13,10 +13,9 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// Граница аренды вычисляется от приёма pong сервером API и ограничивается
-// Redis TIME+TTL; часы API и Redis должны быть синхронизированы. Ключ маршрута
-// с абсолютным сроком истечения — источник истины. Индекс сохраняет метаданные
-// для сообщения о сбое после исчезновения ключа. Все изменения атомарны.
+// The lease boundary starts at the API-confirmed pong time and is capped by Redis TIME plus TTL;
+// API and Redis clocks must be synchronized. The expiring route key is authoritative. The index
+// retains metadata needed to report failure after that key expires. All changes are atomic.
 var presenceScript = goredis.NewScript(`
 local prefix = ARGV[1]
 local op = ARGV[2]
@@ -81,52 +80,52 @@ end
 return 1
 `)
 
-// RealtimeStore хранит распределённое присутствие, одноразовые билеты и доставляет события через Redis.
-// @params
-//   - client: клиент внешнего сервиса или транспорта компонента.
-//   - prefix: ограниченный префикс объектов, относящихся к одной операции.
+// RealtimeStore persists distributed presence and one-use tickets and delivers scoped Redis
+// events.
 type RealtimeStore struct {
 	client *goredis.Client
 	prefix string
 }
 
-// NewRealtimeStore создаёт и связывает зависимости компонента RealtimeStore, используемого в присутствии участников и доставке realtime-событий.
+// NewRealtimeStore constructs the realtime store with the dependencies and limits required for
+// distributed presence and ownership.
 //
-// @args
-//   - client (*goredis.Client): клиент внешнего сервиса или транспорта компонента.
-//   - prefix (string): ограниченный префикс объектов, относящихся к одной операции.
+// Parameters:
+//   - client: Browser media-client identity or transport dependency, as defined by its type.
+//   - prefix: Server-controlled object or key prefix.
 //
-// @return:
-//   - результат 1 (*RealtimeStore): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded realtime store.
 func NewRealtimeStore(client *goredis.Client, prefix string) *RealtimeStore {
 	return &RealtimeStore{client: client, prefix: prefix}
 }
 
-// action вызывает соответствующий Lua-сценарий Redis для атомарной работы с распределённым состоянием.
+// action executes the selected Redis Lua operation atomically within the component namespace.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - op (string): значение op типа string, используемое согласно назначению этой операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
-//   - deadline (time.Time): абсолютная граница аренды; не используется операциями без продления.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - op: Atomic operation or command selected by the component.
+//   - id: Identifier of the resource addressed by this operation.
+//   - raw: Untrusted serialized value to decode or validate.
+//   - ttl: Lifetime assigned to the temporary value or ownership record.
+//   - deadline: Absolute deadline bounding the resource lifetime.
 //
-// @return:
-//   - результат 1 (*goredis.Cmd): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The constructed or loaded cmd.
 func (s *RealtimeStore) action(ctx context.Context, op, id, raw string, ttl time.Duration, deadline time.Time) *goredis.Cmd {
 	return presenceScript.Run(ctx, s.client, []string{s.prefix + ":metadata", s.prefix + ":expiry"}, s.prefix, op, id, raw, ttl.Milliseconds(), deadline.UnixMilli())
 }
 
-// Register регистрирует физическое соединение и его ограниченное по времени присутствие.
+// Register registers the physical connection and its bounded presence lifetime.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (realtime.Session): историческая физическая сессия или состояние текущего соединения.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
+//   - ttl: Lifetime assigned to the temporary value or ownership record.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Register(ctx context.Context, session realtime.Session, ttl time.Duration) error {
 	if session.LastSeenAt.IsZero() || ttl < time.Millisecond {
 		return apperrors.ErrConflict
@@ -142,31 +141,30 @@ func (s *RealtimeStore) Register(ctx context.Context, session realtime.Session, 
 	return err
 }
 
-// Unregister закрывает физическую сессию и обновляет распределённое присутствие участника.
+// Unregister closes the physical session and updates the participant's distributed presence.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Unregister(ctx context.Context, id string) error {
 	return s.action(ctx, "leave", id, "", 0, time.Time{}).Err()
 }
 
-// Touch продлевает присутствие до подтверждённого pong плюс ttl. Абсолютный
-// дедлайн исключает продление на задержку сети или обработки в Redis; старое
-// подтверждение не может воскресить уже истёкшее соединение. Время API и Redis
-// должно быть синхронизировано; при сдвиге часов срок не превышает now Redis+ttl.
+// Touch renews presence using the supplied confirmed transport activity time.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - confirmedAt (time.Time): момент получения подтверждённого pong сервером.
-//   - ttl (time.Duration): срок присутствия после подтверждённого pong.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - confirmedAt: Timestamp of a transport-confirmed pong or other liveness acknowledgement.
+//   - ttl: Lifetime assigned to the temporary value or ownership record.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Touch(ctx context.Context, id string, confirmedAt time.Time, ttl time.Duration) error {
 	if confirmedAt.IsZero() || ttl < time.Millisecond {
 		return apperrors.ErrNotFound
@@ -178,15 +176,16 @@ func (s *RealtimeStore) Touch(ctx context.Context, id string, confirmedAt time.T
 	return err
 }
 
-// Get читает состояние физических сессий и событий комнаты для дальнейшей обработки или ответа.
+// Get loads the requested redis within the caller's authorized scope.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
 //
-// @return:
-//   - результат 1 (realtime.Session): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting session.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Get(ctx context.Context, id string) (realtime.Session, error) {
 	raw, err := s.client.Get(ctx, s.prefix+":route:"+id).Bytes()
 	if errors.Is(err, goredis.Nil) {
@@ -202,6 +201,15 @@ func (s *RealtimeStore) Get(ctx context.Context, id string) (realtime.Session, e
 // Missing checks route existence without reading session JSON. Each pipeline is
 // bounded to the reconciliation page size. Partial replies on transport errors
 // are discarded so a Redis failure cannot close live SQL sessions.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - ids: Resource identifiers to process as a bounded batch.
+//
+// Returns:
+//   - result 1: The collected string values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Missing(ctx context.Context, ids []string) ([]string, error) {
 	var missing []string
 	for start := 0; start < len(ids); start += 500 {
@@ -225,15 +233,16 @@ func (s *RealtimeStore) Missing(ctx context.Context, ids []string) ([]string, er
 	return missing, nil
 }
 
-// Active возвращает действующие сессии, учитывая срок их активности.
+// Active returns physical sessions whose presence has not expired.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
 //
-// @return:
-//   - результат 1 ([]realtime.Session): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The collected session values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Active(ctx context.Context, conferenceID string) ([]realtime.Session, error) {
 	raw, err := s.action(ctx, "active", conferenceID, "", 0, time.Time{}).StringSlice()
 	if err != nil {
@@ -250,25 +259,27 @@ func (s *RealtimeStore) Active(ctx context.Context, conferenceID string) ([]real
 	return result, nil
 }
 
-// Prune удаляет просроченные сессии и возвращает сведения для восстановления присутствия.
+// Prune removes expired physical sessions and returns the state needed to reconcile presence.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Prune(ctx context.Context) error {
 	return s.action(ctx, "prune", "", "", 0, time.Time{}).Err()
 }
 
-// Publish сериализует доверенное событие и публикует его в изолированном Redis-канале.
+// Publish publishes the saved redis change through its configured event or command transport.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - bus (realtime.Bus): транспорт публикации и подписки на доверенные события.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - bus: Scoped publication and subscription transport.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Publish(ctx context.Context, bus realtime.Bus) error {
 	raw, err := json.Marshal(bus)
 	if err != nil {
@@ -277,14 +288,15 @@ func (s *RealtimeStore) Publish(ctx context.Context, bus realtime.Bus) error {
 	return s.client.Publish(ctx, s.prefix+":bus", raw).Err()
 }
 
-// Subscribe открывает ограниченную по времени подписку на изолированный канал событий.
+// Subscribe opens a scoped event subscription whose lifetime is bounded by the supplied context.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
 //
-// @return:
-//   - результат 1 (realtime.Subscription): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting subscription.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) Subscribe(ctx context.Context) (realtime.Subscription, error) {
 	p := s.client.Subscribe(ctx, s.prefix+":bus")
 	if _, err := p.Receive(ctx); err != nil {
@@ -294,24 +306,26 @@ func (s *RealtimeStore) Subscribe(ctx context.Context) (realtime.Subscription, e
 	return &realtimeSubscription{p}, nil
 }
 
-// realtimeSubscription оборачивает Redis Pub/Sub-подписку и её ограниченный жизненный цикл.
-//   - pub: значение pub типа *goredis.PubSub, используемое согласно назначению этой операции.
+// realtimeSubscription wraps one Redis Pub/Sub subscription and its bounded lifetime.
 type realtimeSubscription struct{ pub *goredis.PubSub }
 
-// Close закрывает принадлежащие компоненту ресурсы и завершает связанный жизненный цикл.
+// Close closes the component-owned resources and ends their lifecycle.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *realtimeSubscription) Close() error { return s.pub.Close() }
 
-// Receive ожидает и разбирает следующее сообщение активной подписки.
+// Receive waits for and decodes the next scoped subscription event within the caller's
+// cancellation lifetime.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
 //
-// @return:
-//   - результат 1 (realtime.Bus): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting bus.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *realtimeSubscription) Receive(ctx context.Context) (realtime.Bus, error) {
 	m, err := s.pub.ReceiveMessage(ctx)
 	if err != nil {
@@ -322,29 +336,30 @@ func (s *realtimeSubscription) Receive(ctx context.Context) (realtime.Bus, error
 	return bus, err
 }
 
-// ticketKey строит изолированный Redis-ключ одноразового билета подключения.
+// ticketKey builds the namespaced Redis key for a one-use connection ticket.
 //
-// @args
-//   - ticket (string): одноразовый билет ограниченного подключения.
+// Parameters:
+//   - ticket: One-use connection ticket or its server-side identity.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: Namespaced one-use ticket key.
 func (s *RealtimeStore) ticketKey(ticket string) string {
 	hash := sha256.Sum256([]byte(ticket))
 	return s.prefix + ":ticket:" + hex.EncodeToString(hash[:])
 }
 
-// SaveTicket сохраняет одноразовый билет подключения с ограниченным сроком жизни.
+// SaveTicket stores a one-use connection ticket with a bounded expiration.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - ticket (string): одноразовый билет ограниченного подключения.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - identity (realtime.Identity): проверенная идентичность пользователя и его членства.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - ticket: One-use connection ticket or its server-side identity.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - identity: Verified account and physical-session identity.
+//   - ttl: Lifetime assigned to the temporary value or ownership record.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) SaveTicket(ctx context.Context, ticket, conferenceID string, identity realtime.Identity, ttl time.Duration) error {
 	raw, err := json.Marshal(struct {
 		ConferenceID string            `json:"conferenceId"`
@@ -356,16 +371,17 @@ func (s *RealtimeStore) SaveTicket(ctx context.Context, ticket, conferenceID str
 	return s.client.Set(ctx, s.ticketKey(ticket), raw, ttl).Err()
 }
 
-// ConsumeTicket атомарно забирает одноразовый билет, исключая повторное использование.
+// ConsumeTicket atomically consumes a connection ticket so it cannot be replayed.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - ticket (string): одноразовый билет ограниченного подключения.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - ticket: One-use connection ticket or its server-side identity.
+//   - conferenceID: Conference identifier limiting the operation scope.
 //
-// @return:
-//   - результат 1 (realtime.Identity): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting identity.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *RealtimeStore) ConsumeTicket(ctx context.Context, ticket, conferenceID string) (realtime.Identity, error) {
 	if len(ticket) != 43 {
 		return realtime.Identity{}, apperrors.ErrUnauthorized

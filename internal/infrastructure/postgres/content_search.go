@@ -5,9 +5,9 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/content"
 )
 
-// contentSearchSQL использует простой словесный индекс для русского и английского текста без семантического поиска.
-// Permissions являются частью SQL до rank/page; snippet содержит обычный текст,
-// не HTML. Старый summary исключается, если сменилось поколение transcript.
+// contentSearchSQL uses a simple lexical index for Russian and English text, not semantic
+// search. Authorization is applied in SQL before ranking and pagination; snippets are plain
+// text, not HTML. A summary is excluded when its transcript generation is obsolete.
 const contentSearchSQL = `WITH searchquery AS (SELECT websearch_to_tsquery('simple'::regconfig,?) AS query),
  permitted AS (SELECT c.* FROM conferences c WHERE c.kind='meeting' AND
  EXISTS(SELECT 1 FROM conference_participants p WHERE p.conference_id=c.id AND p.user_id=? AND p.admission_state='admitted' AND p.status IN ('joined','left'))
@@ -34,9 +34,17 @@ const contentSearchSQL = `WITH searchquery AS (SELECT websearch_to_tsquery('simp
  JOIN meeting_summaries m ON m.transcript_id=t.id AND m.transcript_generation=t.generation AND m.status='ready'
  CROSS JOIN searchquery q WHERE m.search_vector@@q.query AND ? IN ('all','summary')) `
 
-// Search выполняет разрешённый FTS без выдачи count/snippet из других конференций.
-// @args ctx — срок выполнения запроса; userID — действующий пользователь; query — проверенные фильтры и пагинация.
-// @return страница plain-text результатов с timestamp и ошибка БД.
+// Search searches content search using bounded input and the caller's visibility filters.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - query: Search text or validated query filters.
+//
+// Returns:
+//   - result 1: The resulting search page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ContentRepository) Search(ctx context.Context, userID string, query domain.SearchQuery) (domain.SearchPage, error) {
 	page := domain.SearchPage{Items: []domain.SearchResult{}, Limit: query.Limit, Offset: query.Offset}
 	args := contentSearchArgs(userID, query)
@@ -49,9 +57,14 @@ func (r *ContentRepository) Search(ctx context.Context, userID string, query dom
 	return page, err
 }
 
-// contentSearchArgs формирует параметры запроса с предварительной проверкой прав в неизменном порядке подстановок.
-// @args userID — текущий актор; query — проверенные фильтры.
-// @return параметры SQL без пользовательской интерполяции.
+// contentSearchArgs builds the bounded SQL search arguments from validated content filters.
+//
+// Parameters:
+//   - userID: Acting account identifier used to scope access.
+//   - query: Search text or validated query filters.
+//
+// Returns:
+//   - result 1: The collected any values.
 func contentSearchArgs(userID string, query domain.SearchQuery) []any {
 	return []any{query.Query, userID, query.ConferenceID, query.ConferenceID, query.Membership, query.Membership, userID, query.Membership, userID, query.ParticipantID, query.ParticipantID, query.From, query.From, query.To, query.To, query.Source, query.Source, query.ParticipantID, query.ParticipantID, query.Source}
 }

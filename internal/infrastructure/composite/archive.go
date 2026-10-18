@@ -13,9 +13,15 @@ import (
 	"sort"
 )
 
-// TimelineOrigin читает начало общей шкалы записи из первого устойчивого фрагмента.
-// @args dir — приватный каталог записи.
-// @return Unix nanoseconds либо ошибка неполного/повреждённого манифеста.
+// TimelineOrigin chooses the common media time origin used to align composite recording tracks.
+//
+// Parameters:
+//   - dir: Validated local directory.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func TimelineOrigin(dir string) (int64, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, "chunk_000000.json"))
 	if err != nil {
@@ -28,7 +34,7 @@ func TimelineOrigin(dir string) (int64, error) {
 	return chunk.StartedAtNS, nil
 }
 
-// TrackFragment указывает на закрытый исходный фрагмент дорожки и его положение в записи.
+// TrackFragment identifies a closed source-track fragment and its recording timeline position.
 type TrackFragment struct {
 	TrackInstanceID string `json:"trackInstanceId"`
 	ParticipantID   string `json:"participantId"`
@@ -39,16 +45,26 @@ type TrackFragment struct {
 	EndMS           int64  `json:"endMs"`
 }
 
-// TrackManifest описывает отдельные экземпляры дорожек без объединения разных подключений.
-// Нулевая точка совпадает с началом аудиомикса; исходные файлы — Ogg/Opus и IVF/VP8.
+// TrackManifest describes separate track instances without merging distinct connections. Its
+// origin matches the audio mix; source files use Ogg/Opus and IVF/VP8.
 type TrackManifest struct {
 	Version   int             `json:"version"`
 	Fragments []TrackFragment `json:"fragments"`
 }
 
-// ArchiveTracks упаковывает проверенные исходники и манифест в приватный ZIP без перекодирования.
-// @args ctx — отмена; dir — каталог записи; maximum — предел суммарных исходных байт.
-// @return путь временного архива, размер, SHA-256 и ошибка; успешный файл удаляет вызывающая сторона.
+// ArchiveTracks reads the recorded track archive into bounded metadata for later composition.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - dir: Validated local directory.
+//   - maximum: Maximum permitted size or number of characters.
+//
+// Returns:
+//   - result 1: Path of the completed local track archive.
+//   - result 2: Archive size in bytes.
+//   - result 3: Hex-encoded SHA-256 of the archive bytes.
+//   - result 4: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func ArchiveTracks(ctx context.Context, dir string, maximum int64) (string, int64, string, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "chunk_*.json"))
 	if err != nil {
@@ -154,14 +170,22 @@ func ArchiveTracks(ctx context.Context, dir string, maximum int64) (string, int6
 	return output.Name(), stat.Size(), hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-// archiveReader проверяет отмену между ограниченными чтениями большого исходника.
+// archiveReader checks cancellation between bounded reads of a large source file.
 type archiveReader struct {
 	ctx    context.Context
 	source io.Reader
 }
 
-// Read прерывает копирование при остановке worker и не читает более размера буфера.
-// @args p — буфер io.Copy; @return число байт и причина завершения.
+// Read copies at most the destination buffer size from the owned stream while preserving its
+// read and cancellation limits.
+//
+// Parameters:
+//   - p: Destination byte buffer filled from the stream.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *archiveReader) Read(p []byte) (int, error) {
 	if err := r.ctx.Err(); err != nil {
 		return 0, err

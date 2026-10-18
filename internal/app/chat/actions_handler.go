@@ -14,6 +14,15 @@ import (
 
 type ActionHandler struct{ Service *chatusecase.ActionService }
 
+// actionPage parses and validates the page size used by chat action endpoints.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func actionPage(c *gin.Context) (int, bool) {
 	limit := 20
 	if value, present := c.GetQuery("limit"); present {
@@ -27,6 +36,10 @@ func actionPage(c *gin.Context) (int, bool) {
 	return limit, true
 }
 
+// Info returns the member-specific chat information visible to the current account.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) Info(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -40,6 +53,11 @@ func (h *ActionHandler) Info(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
+// Members returns the current member identifiers or member views for the authorized
+// conversation.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) Members(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -62,6 +80,11 @@ func (h *ActionHandler) Members(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": items, "nextCursor": next})
 }
 
+// UpdateInfo updates the chat's validated title or description after the management permission
+// check.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) UpdateInfo(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -79,6 +102,10 @@ func (h *ActionHandler) UpdateInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
+// Preferences reads the acting account's saved delivery or conversation preferences.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) Preferences(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -92,6 +119,10 @@ func (h *ActionHandler) Preferences(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
+// SetPreferences saves the acting account's validated conversation preferences.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) SetPreferences(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -115,6 +146,11 @@ func (h *ActionHandler) SetPreferences(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
+// Leave removes the active membership or media connection while preserving the saved
+// conversation or conference history.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) Leave(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -127,6 +163,11 @@ func (h *ActionHandler) Leave(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
+// Search searches persistent chat messages and private attachments using bounded input and the
+// caller's visibility filters.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) Search(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -144,6 +185,11 @@ func (h *ActionHandler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "nextCursor": page.NextCursor})
 }
 
+// Context returns the visible messages surrounding a selected message so clients can navigate to
+// a search result.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) Context(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -161,6 +207,10 @@ func (h *ActionHandler) Context(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "nextCursor": page.NextCursor, "unreadCount": page.UnreadCount, "lastReadMessageId": page.LastReadMessageID})
 }
 
+// Materials returns a bounded page of visible conversation attachments and shared links.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) Materials(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -178,6 +228,10 @@ func (h *ActionHandler) Materials(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "nextCursor": page.NextCursor})
 }
 
+// Pins returns a bounded page of the conversation's pinned messages.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ActionHandler) Pins(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -195,6 +249,13 @@ func (h *ActionHandler) Pins(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "nextCursor": page.NextCursor})
 }
 
+// SetPin updates pin for persistent chat messages and private attachments.
+//
+// Parameters:
+//   - important: Whether the message should be pinned or marked important.
+//
+// Returns:
+//   - result 1: The HTTP handler to register for this operation.
 func (h *ActionHandler) SetPin(important bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parameter(c, "id")

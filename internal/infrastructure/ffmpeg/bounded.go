@@ -8,10 +8,17 @@ import (
 	"time"
 )
 
-// runBounded выполняет бинарный файл напрямую, без shell и интерполяции команд.
-// ctx задаёт дедлайн, binary — доверенный исполняемый файл, args — отдельные
-// аргументы. Возвращает не более 64 КиБ диагностики и ошибку процесса. Отмена
-// сначала посылает SIGTERM, через 3 секунды Go завершает процесс принудительно.
+// runBounded runs an external process with cancellation and bounded diagnostic output.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - binary: Path to the configured external executable.
+//   - args: Command-line, process or protocol arguments.
+//
+// Returns:
+//   - result 1: The collected byte values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func runBounded(ctx context.Context, binary string, args ...string) ([]byte, error) {
 	started := time.Now()
 	operations.FFmpegActive(1)

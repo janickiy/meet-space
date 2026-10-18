@@ -15,11 +15,32 @@ import (
 
 var chatURL = regexp.MustCompile(`(?i)https?://[^\s<>"']+`)
 
+// materialCursor encodes a continuation boundary for chat materials.
+//
 // The item index keeps pagination inside a message with several files or links.
+//
+// Parameters:
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - sequence: Stable message or event ordering sequence.
+//   - index: Index of the item being processed.
+//
+// Returns:
+//   - result 1: Opaque materials continuation cursor.
 func materialCursor(conferenceID string, sequence int64, index int) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(conferenceID + ":" + strconv.FormatInt(sequence, 10) + ":" + strconv.Itoa(index)))
 }
 
+// parseMaterialCursor decodes and validates the materials pagination boundary.
+//
+// Parameters:
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - cursor: Opaque continuation boundary from the previous page.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: The resulting count, size or numeric value.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func parseMaterialCursor(conferenceID, cursor string) (int64, int, error) {
 	if cursor == "" {
 		return 0, 0, nil
@@ -46,10 +67,28 @@ func parseMaterialCursor(conferenceID, cursor string) (int64, int, error) {
 	return sequence, index, nil
 }
 
+// memberCursor encodes the continuation boundary for a page of chat members.
+//
+// Parameters:
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - participantID: Conference participant identifier.
+//
+// Returns:
+//   - result 1: Opaque member-list continuation cursor.
 func memberCursor(conferenceID, participantID string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(conferenceID + ":" + participantID))
 }
 
+// parseMemberCursor decodes and validates the chat-member pagination boundary.
+//
+// Parameters:
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - cursor: Opaque continuation boundary from the previous page.
+//
+// Returns:
+//   - result 1: Canonical member identifier decoded from the cursor.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func parseMemberCursor(conferenceID, cursor string) (string, error) {
 	if cursor == "" {
 		return "", nil
@@ -72,6 +111,17 @@ func parseMemberCursor(conferenceID, cursor string) (string, error) {
 	return id, nil
 }
 
+// chatInfo builds the member-specific conference-chat metadata inside the current transaction.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//
+// Returns:
+//   - result 1: The resulting info.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) chatInfo(tx *gorm.DB, userID, conferenceID string) (chat.Info, error) {
 	p, err := authorizeChat(tx, userID, conferenceID, false, false)
 	if err != nil {
@@ -104,6 +154,17 @@ func (r *ChatRepository) chatInfo(tx *gorm.DB, userID, conferenceID string) (cha
 		NotificationsEnabled: lookup.RowsAffected == 0 || pref.NotificationsEnabled, CanEdit: row.OwnerID == userID, CanInvite: canInvite}, nil
 }
 
+// ChatInfo returns the authenticated member's conference-chat information.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//
+// Returns:
+//   - result 1: The resulting info.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) ChatInfo(ctx context.Context, userID, conferenceID string) (chat.Info, error) {
 	var result chat.Info
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -114,6 +175,21 @@ func (r *ChatRepository) ChatInfo(ctx context.Context, userID, conferenceID stri
 	return result, err
 }
 
+// ChatMembers returns a cursor-bounded page of members visible in the authorized conference
+// chat.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The collected member view values.
+//   - result 2: Continuation cursor for the next authorized member page.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) ChatMembers(ctx context.Context, userID, conferenceID, cursor string, limit int) ([]chat.MemberView, string, error) {
 	items := []chat.MemberView{}
 	after, err := parseMemberCursor(conferenceID, cursor)
@@ -146,6 +222,19 @@ func (r *ChatRepository) ChatMembers(ctx context.Context, userID, conferenceID, 
 	return items, next, err
 }
 
+// UpdateChatInfo updates authorized conference-chat metadata and returns its member-specific
+// view.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - result 1: The resulting info.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) UpdateChatInfo(ctx context.Context, userID, conferenceID string, request chat.UpdateInfoRequest) (chat.Info, error) {
 	var result chat.Info
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -179,11 +268,34 @@ func (r *ChatRepository) UpdateChatInfo(ctx context.Context, userID, conferenceI
 	return result, err
 }
 
+// ChatPreferences reads the acting member's saved conference-chat notification preferences.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//
+// Returns:
+//   - result 1: The resulting preferences.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) ChatPreferences(ctx context.Context, userID, conferenceID string) (chat.Preferences, error) {
 	info, err := r.ChatInfo(ctx, userID, conferenceID)
 	return chat.Preferences{NotificationsEnabled: info.NotificationsEnabled}, err
 }
 
+// SetChatPreferences saves only the acting member's conference-chat notification preferences.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - enabled: Whether the requested feature or preference should be enabled.
+//
+// Returns:
+//   - result 1: The resulting preferences.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) SetChatPreferences(ctx context.Context, userID, conferenceID string, enabled bool) (chat.Preferences, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := authorizeChat(tx, userID, conferenceID, true, false); err != nil {
@@ -196,6 +308,17 @@ func (r *ChatRepository) SetChatPreferences(ctx context.Context, userID, confere
 	return chat.Preferences{NotificationsEnabled: enabled}, err
 }
 
+// LeaveChat records the account's departure from the conference chat according to membership
+// rules.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) LeaveChat(ctx context.Context, userID, conferenceID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := findConference(tx, conferenceID, true); err != nil {
@@ -227,6 +350,20 @@ func (r *ChatRepository) LeaveChat(ctx context.Context, userID, conferenceID str
 	})
 }
 
+// ChatMaterials returns a bounded page of visible message attachments and links.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - kind: Validated event, job, media or resource category.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The resulting material page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) ChatMaterials(ctx context.Context, userID, conferenceID, kind, cursor string, limit int) (chat.MaterialPage, error) {
 	page := chat.MaterialPage{Items: []chat.Material{}}
 	before, offset, err := parseMaterialCursor(conferenceID, cursor)
@@ -297,6 +434,19 @@ func (r *ChatRepository) ChatMaterials(ctx context.Context, userID, conferenceID
 	return page, err
 }
 
+// ChatPins returns the visible pinned messages of the conference chat.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The resulting message page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) ChatPins(ctx context.Context, userID, conferenceID, cursor string, limit int) (chat.MessagePage, error) {
 	page := chat.MessagePage{Items: []chat.Message{}}
 	before, err := parseChatCursor(conferenceID, cursor)
@@ -327,6 +477,18 @@ func (r *ChatRepository) ChatPins(ctx context.Context, userID, conferenceID, cur
 	return page, err
 }
 
+// SetChatPin changes the pin state of a visible conference-chat message.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - messageID: Message identifier within the authorized conversation.
+//   - important: Whether the message should be pinned or marked important.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ChatRepository) SetChatPin(ctx context.Context, userID, conferenceID, messageID string, important bool) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := authorizeChat(tx, userID, conferenceID, true, false); err != nil {

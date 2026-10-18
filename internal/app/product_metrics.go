@@ -10,87 +10,146 @@ import (
 	"github.com/janickiy/meet-space/internal/operations"
 )
 
-// measuredEmail дополняет заменяемый адаптер счётчиком попыток, не копируя текст письма.
+// measuredEmail counts delivery attempts around a replaceable adapter without copying email
+// content.
 type measuredEmail struct{ integrations.EmailProvider }
 
-// Send сохраняет контракт адаптера и измеряет одну фактическую отправку.
-// @args ctx — срок выполнения; message — минимальные данные письма и стабильный ключ.
-// @return исходная классифицированная ошибка без изменения политики повторов.
+// Send delivers the bounded email with a stable message identity; the configured transport
+// determines retry deduplication.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - message: Bounded email content, recipient and stable delivery identity.
+//
+// Returns:
+//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
 func (p measuredEmail) Send(ctx context.Context, message integrations.EmailMessage) (err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("email", time.Since(started), err) }()
 	return p.EmailProvider.Send(ctx, message)
 }
 
-// measuredPush измеряет вызовы платформенного канала без токена в метриках.
+// measuredPush measures platform delivery calls without placing device tokens in metrics.
 type measuredPush struct{ integrations.PushProvider }
 
-// Send учитывает отдельную попытку доставки устройству.
-// @args ctx — срок выполнения; message — разрешённый push и серверный токен.
-// @return неизменённая ошибка адаптера.
+// Send delivers a minimal notification to the selected registered device without transcript text
+// or provider secrets.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - message: Minimal push notification and its registered device recipient.
+//
+// Returns:
+//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
 func (p measuredPush) Send(ctx context.Context, message integrations.PushMessage) (err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("push", time.Since(started), err) }()
 	return p.PushProvider.Send(ctx, message)
 }
 
-// measuredCalendar сохраняет независимый от поставщика контракт и единый набор технических меток.
+// measuredCalendar preserves the provider-independent contract and a fixed set of technical
+// metric labels.
 type measuredCalendar struct{ integrations.CalendarProvider }
 
-// CreateEvent измеряет идемпотентное создание внешнего события.
-// @args ctx — срок выполнения; credentials — приватные OAuth данные; event — разрешённое расписание.
-// @return событие и неизменённая ошибка провайдера.
+// CreateEvent creates an idempotent calendar event through the configured provider.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - credentials: Server-only provider credentials; never expose them in logs or public
+//     responses.
+//   - event: Trusted event to publish or process.
+//
+// Returns:
+//   - out: The resulting calendar event.
+//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
 func (p measuredCalendar) CreateEvent(ctx context.Context, credentials integrations.CalendarCredentials, event integrations.CalendarEvent) (out integrations.CalendarEvent, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("calendar", time.Since(started), err) }()
 	return p.CalendarProvider.CreateEvent(ctx, credentials, event)
 }
 
-// UpdateEvent измеряет версионированное обновление без публикации ID события.
-// @args ctx — срок выполнения; credentials — секреты подключения; event — новое расписание.
-// @return событие и исходная ошибка.
+// UpdateEvent updates the mapped external calendar event for the current conference schedule.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - credentials: Server-only provider credentials; never expose them in logs or public
+//     responses.
+//   - event: Trusted event to publish or process.
+//
+// Returns:
+//   - out: The resulting calendar event.
+//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
 func (p measuredCalendar) UpdateEvent(ctx context.Context, credentials integrations.CalendarCredentials, event integrations.CalendarEvent) (out integrations.CalendarEvent, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("calendar", time.Since(started), err) }()
 	return p.CalendarProvider.UpdateEvent(ctx, credentials, event)
 }
 
-// CancelEvent измеряет отмену соответствующего внешнего события.
-// @args ctx — срок выполнения; credentials — приватные токены; event — сохранённое соответствие.
-// @return исходная ошибка отмены.
+// CancelEvent cancels the external calendar event associated with the saved mapping.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - credentials: Server-only provider credentials; never expose them in logs or public
+//     responses.
+//   - event: Trusted event to publish or process.
+//
+// Returns:
+//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
 func (p measuredCalendar) CancelEvent(ctx context.Context, credentials integrations.CalendarCredentials, event integrations.CalendarEvent) (err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("calendar", time.Since(started), err) }()
 	return p.CalendarProvider.CancelEvent(ctx, credentials, event)
 }
 
-// GetEvent измеряет чтение внешнего события, если оно потребуется сценарию сверки.
-// @args ctx — срок выполнения; credentials — серверные секреты; event — идентификаторы соответствия.
-// @return событие и исходная ошибка чтения.
+// GetEvent reads the mapped external calendar event for reconciliation.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - credentials: Server-only provider credentials; never expose them in logs or public
+//     responses.
+//   - event: Trusted event to publish or process.
+//
+// Returns:
+//   - out: The resulting calendar event.
+//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
 func (p measuredCalendar) GetEvent(ctx context.Context, credentials integrations.CalendarCredentials, event integrations.CalendarEvent) (out integrations.CalendarEvent, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("calendar", time.Since(started), err) }()
 	return p.CalendarProvider.GetEvent(ctx, credentials, event)
 }
 
-// measuredSTT измеряет аудио-запрос, сохраняя потоковую передачу и Name адаптера.
+// measuredSTT measures the audio request while preserving streaming and the adapter's provider
+// name.
 type measuredSTT struct{ content.TranscriptionProvider }
 
-// Transcribe учитывает попытку распознавания без аудио или текста в метриках.
-// @args ctx — срок выполнения; request — ограниченный поток WAV и ключ дедупликации.
-// @return исходные сегменты либо классифицированная ошибка.
+// Transcribe submits bounded recording audio to the configured transcription provider.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - out: The resulting transcription result.
+//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
 func (p measuredSTT) Transcribe(ctx context.Context, request content.TranscriptionRequest) (out content.TranscriptionResult, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("stt", time.Since(started), err) }()
 	return p.TranscriptionProvider.Transcribe(ctx, request)
 }
 
-// measuredAI измеряет каждый chunk/merge, не меняя инструкции и проверку схемы.
+// measuredAI measures each chunk or merge without changing model instructions or schema
+// validation.
 type measuredAI struct{ content.AIProvider }
 
-// Summarize учитывает отдельный внешний вызов без инструкции, текста и модели в метках метрик.
-// @args ctx — срок выполнения; request — версия инструкции и недоверенные данные.
-// @return исходный JSON, который по-прежнему обязан проверить usecase.
+// Summarize generates a schema-constrained summary from the supplied transcript input.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - out: The resulting raw message.
+//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
 func (p measuredAI) Summarize(ctx context.Context, request content.AIRequest) (out json.RawMessage, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("ai", time.Since(started), err) }()

@@ -14,12 +14,32 @@ import (
 
 type GuestRepository struct{ db *gorm.DB }
 
+// NewGuestRepository constructs the guest repository with the dependencies and limits required
+// for guest.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded guest repository.
 func NewGuestRepository(db *gorm.DB) *GuestRepository {
 	return &GuestRepository{db: db.Session(&gorm.Session{Logger: logger.Discard})}
 }
 
 // JoinGuest commits the identity and membership together. Rejected guests keep
 // their existing identity when retrying with the same session.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - code: Bounded public status or failure code.
+//   - name: Name of the setting, cookie, resource or provider being addressed.
+//   - resumeUserID: Existing guest account identifier eligible to resume this invitation.
+//
+// Returns:
+//   - result 1: The resulting user.
+//   - result 2: The resulting participant.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *GuestRepository) JoinGuest(ctx context.Context, code, name, resumeUserID string) (users.User, conferences.Participant, error) {
 	var user users.User
 	var participant conferences.Participant

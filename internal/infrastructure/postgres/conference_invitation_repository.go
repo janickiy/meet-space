@@ -19,11 +19,30 @@ import (
 
 type ConferenceInvitationRepository struct{ db *gorm.DB }
 
+// NewConferenceInvitationRepository constructs the conference invitation repository with the
+// dependencies and limits required for conference invitation.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded conference invitation repository.
 func NewConferenceInvitationRepository(db *gorm.DB) *ConferenceInvitationRepository {
 	return &ConferenceInvitationRepository{db: db}
 }
 
 // invitationActor checks both the account and room authority before returning directory data.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - actor: Identifier of the account performing the operation.
+//   - conference: Conference identifier limiting the operation scope.
+//   - lock: Lock mode or lock requirement for the database operation.
+//
+// Returns:
+//   - result 1: The resulting conference.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func invitationActor(tx *gorm.DB, actor, conference string, lock bool) (d.Conference, error) {
 	var c d.Conference
 	q := tx.Where("id=? AND kind='meeting'", conference)
@@ -58,6 +77,19 @@ func invitationActor(tx *gorm.DB, actor, conference string, lock bool) (d.Confer
 	return c, nil
 }
 
+// SearchInvitationUsers returns a bounded list of registered invitation candidates visible to
+// the acting organizer.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - conference: Conference identifier limiting the operation scope.
+//   - query: Search text or validated query filters.
+//
+// Returns:
+//   - result 1: The collected invitation user values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceInvitationRepository) SearchInvitationUsers(ctx context.Context, actor, conference, query string) ([]d.InvitationUser, error) {
 	items := []d.InvitationUser{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -71,6 +103,18 @@ func (r *ConferenceInvitationRepository) SearchInvitationUsers(ctx context.Conte
 	return items, err
 }
 
+// Invite creates or updates conference invitations for the validated recipients.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - conference: Conference identifier limiting the operation scope.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - result 1: The collected invitation result values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conference string, request d.InvitationRequest) ([]d.InvitationResult, error) {
 	items := []d.InvitationResult{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -201,6 +245,15 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 }
 
 // InvitationDelivery performs live authorization and lease checks immediately before SMTP.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//
+// Returns:
+//   - result 1: The resulting invitation delivery.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs.Job) (u.InvitationDelivery, error) {
 	var delivery u.InvitationDelivery
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -235,6 +288,17 @@ func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs
 	return delivery, err
 }
 
+// CompleteInvitation records invitation delivery completion only for its current job identity.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//   - status: Lifecycle state or response status to record.
+//   - code: Bounded public status or failure code.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *IntegrationRepository) CompleteInvitation(ctx context.Context, job jobs.Job, status, code string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := integrationLease(tx, job); err != nil {

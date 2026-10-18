@@ -38,12 +38,28 @@ type packageInfo struct {
 	Functions []function
 }
 
+// expression renders an AST expression for the architecture inventory without evaluating it.
+//
+// Parameters:
+//   - fset: Token positions associated with the parsed Go syntax tree.
+//   - node: Go syntax node to inspect or render.
+//
+// Returns:
+//   - result 1: Rendered Go syntax expression.
 func expression(fset *token.FileSet, node ast.Node) string {
 	var buf bytes.Buffer
 	_ = printer.Fprint(&buf, fset, node)
 	return buf.String()
 }
 
+// fieldNames extracts the field names and types used by the architecture inventory.
+//
+// Parameters:
+//   - fset: Token positions associated with the parsed Go syntax tree.
+//   - fields: Bounded structured diagnostic fields.
+//
+// Returns:
+//   - result 1: The collected string values.
 func fieldNames(fset *token.FileSet, fields *ast.FieldList) []string {
 	result := []string{}
 	for _, field := range fields.List {
@@ -58,6 +74,15 @@ func fieldNames(fset *token.FileSet, fields *ast.FieldList) []string {
 	return result
 }
 
+// inventory parses project packages and builds the static architecture inventory.
+//
+// Parameters:
+//   - root: Root directory limiting the filesystem operation.
+//
+// Returns:
+//   - result 1: The collected *package info values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func inventory(root string) ([]*packageInfo, error) {
 	fset := token.NewFileSet()
 	packages := map[string]*packageInfo{}
@@ -176,6 +201,13 @@ func inventory(root string) ([]*packageInfo, error) {
 	return result, nil
 }
 
+// unique returns the distinct strings in deterministic order.
+//
+// Parameters:
+//   - values: Input strings to deduplicate.
+//
+// Returns:
+//   - result 1: The collected string values.
 func unique(values []string) []string {
 	sort.Strings(values)
 	result := []string{}
@@ -187,6 +219,7 @@ func unique(values []string) []string {
 	return result
 }
 
+// main starts the architecture audit command and reports startup or execution failures.
 func main() {
 	root := flag.String("root", ".", "repository root")
 	flag.Parse()

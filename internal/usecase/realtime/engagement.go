@@ -8,34 +8,53 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// Engagement проверяет допуск участника и публикует временные emoji-реакции.
-// @params:
-//   - repo: постоянное хранилище членства и состояния конференции.
-//   - hub: координатор доставки событий текущим участникам.
+// Engagement checks participant admission before publishing temporary emoji reactions.
 type Engagement struct {
 	repo Repository
 	hub  *Hub
 }
 
-// NewEngagement связывает авторизацию реакций с доставкой событий комнаты.
-// @args repo — хранилище членства; hub — координатор событий.
-// @return сервис временных реакций.
+// NewEngagement constructs the engagement with the dependencies and limits required for physical
+// sessions and realtime event delivery.
+//
+// Parameters:
+//   - repo: Persistence dependency used by the application operation.
+//   - hub: Realtime hub coordinating authorized socket delivery.
+//
+// Returns:
+//   - result 1: The constructed or loaded engagement.
 func NewEngagement(repo Repository, hub *Hub) *Engagement {
 	return &Engagement{repo: repo, hub: hub}
 }
 
-// Authorize проверяет право отправлять реакции до расходования общего лимита комнаты.
-// @args ctx — контекст запроса; conferenceID — конференция; userID — пользователь.
-// @return ошибка доступа или nil для допущенного участника активной встречи.
+// Authorize checks the current identity and saved access state before physical sessions and
+// realtime event delivery.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Engagement) Authorize(ctx context.Context, conferenceID, userID string) error {
 	_, err := s.authorized(ctx, conferenceID, userID)
 	return err
 }
 
-// authorized сверяет сохранённое членство с актуальным составом активной встречи.
-// Повторная проверка не позволяет использовать членство, отозванное после первого запроса.
-// @args ctx — контекст запроса; conferenceID — конференция; userID — пользователь.
-// @return актуальное членство участника и ошибка проверки доступа.
+// authorized rechecks saved membership against the active conference so revoked access cannot be
+// reused.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: The resulting participant.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Engagement) authorized(ctx context.Context, conferenceID, userID string) (conferences.Participant, error) {
 	actor, err := s.repo.Authorize(ctx, conferenceID, userID)
 	if err != nil {
@@ -56,10 +75,18 @@ func (s *Engagement) authorized(ctx context.Context, conferenceID, userID string
 	return actor, apperrors.ErrForbidden
 }
 
-// Reaction публикует одну из разрешённых реакций от имени текущего участника.
-// @args ctx — контекст запроса; conferenceID — конференция; userID — пользователь;
-// emoji — одна из разрешённых реакций 👍, 👏, ❤️ или 😂.
-// @return ошибка проверки или доставки события; nil означает успех.
+// Reaction publishes a supported temporary reaction on behalf of an admitted conference
+// participant.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//   - emoji: One of the protocol-supported temporary reactions.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Engagement) Reaction(ctx context.Context, conferenceID, userID, emoji string) error {
 	if !domain.AllowedReaction(emoji) {
 		return apperrors.New(apperrors.ErrInvalidInput, "unsupported reaction")

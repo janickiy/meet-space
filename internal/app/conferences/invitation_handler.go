@@ -11,11 +11,41 @@ import (
 )
 
 type InvitationService interface {
+	// Search searches conference lifecycle and participant membership using bounded input and the
+	// caller's visibility filters.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the account performing the operation.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Search text or validated query filters.
+	//
+	// Returns:
+	//   - result 1: The collected invitation user values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Search(context.Context, string, string, string) ([]d.InvitationUser, error)
+	// Invite creates or updates conference invitations for the validated recipients.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the account performing the operation.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Validated application request or incoming operation parameters.
+	//
+	// Returns:
+	//   - result 1: The collected invitation result values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Invite(context.Context, string, string, d.InvitationRequest) ([]d.InvitationResult, error)
 }
 type InvitationHandler struct{ Service InvitationService }
 
+// Search searches conference lifecycle and participant membership using bounded input and the
+// caller's visibility filters.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *InvitationHandler) Search(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -29,6 +59,10 @@ func (h *InvitationHandler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": items})
 }
 
+// Invite creates or updates conference invitations for the validated recipients.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *InvitationHandler) Invite(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {

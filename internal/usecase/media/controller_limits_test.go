@@ -11,6 +11,11 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/media"
 )
 
+// TestControllerClampsConfiguredSDPAtProtocolLimit verifies controller clamps configured SDP at
+// protocol limit to prevent regressions in authenticated media-room control.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestControllerClampsConfiguredSDPAtProtocolLimit(t *testing.T) {
 	c := NewController(nil, nil, nil, nil, nil, config.MediaConfig{}, config.RealtimeConfig{SDPBytes: 2 * domain.MaxSDPBytes, ICEBytes: domain.MaxICEBytes})
 	for _, size := range []int{49153, 65536, domain.MaxSDPBytes, domain.MaxSDPBytes + 1} {

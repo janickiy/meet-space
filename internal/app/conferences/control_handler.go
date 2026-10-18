@@ -12,58 +12,60 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// ControlService задаёт контракт зависимого компонента ControlService в жизненном цикле конференций и правах участников; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params:
-//   - Moderate: операция Moderate с контрактом, описанным у метода.
-//   - UpdateMediaState: операция обновление медиа состояние с контрактом, описанным у метода.
+// ControlService defines the replaceable dependency contract for conference lifecycle and
+// participant membership.
 type ControlService interface {
-	// Moderate применяет действие модерации с проверкой роли инициатора и ограничений целевого участника.
+	// Moderate applies a participant moderation action after checking the actor's role and the
+	// target restrictions.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 4 (string): идентификатор членства участника внутри конференции.
-	//   - аргумент 5 (conferences.ModerationRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Conference participant identifier.
+	//   - argument 5: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (conferences.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Moderate(context.Context, string, string, string, conferences.ModerationRequest) (conferences.ParticipantView, error)
-	// UpdateMediaState сохраняет заявленное состояние источников медиа участника.
+	// UpdateMediaState saves the participant's declared media-source state.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 4 (conferences.MediaState): значение state типа conferences.MediaState, используемое согласно назначению этой операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//   - argument 4: Current state or validated state update.
 	//
-	// @return:
-	//   - результат 1 (conferences.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	UpdateMediaState(context.Context, string, string, conferences.MediaState) (conferences.ParticipantView, error)
 }
 
-// ControlHandler обрабатывает HTTP-действия модерации и изменения состояния медиа участника.
-// Состав:
-//   - service: значение service типа ControlService, используемое согласно назначению этой операции.
+// ControlHandler adapts participant moderation and declared media-state changes to authenticated
+// HTTP requests.
 type ControlHandler struct{ service ControlService }
 
-// NewControlHandler создаёт и связывает зависимости компонента ControlHandler, используемого в жизненном цикле конференций и правах участников.
+// NewControlHandler constructs the control handler with the dependencies and limits required for
+// conference lifecycle and participant membership.
 //
-// @args
-//   - service (ControlService): значение service типа ControlService, используемое согласно назначению этой операции.
+// Parameters:
+//   - service: Application service invoked by this adapter.
 //
-// @return:
-//   - результат 1 (*ControlHandler): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded control handler.
 func NewControlHandler(service ControlService) *ControlHandler {
 	return &ControlHandler{service: service}
 }
 
-// Moderate применяет действие модерации с проверкой роли инициатора и ограничений целевого участника.
+// Moderate applies a participant moderation action after checking the actor's role and the
+// target restrictions.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ControlHandler) Moderate(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -86,10 +88,10 @@ func (h *ControlHandler) Moderate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Media принимает новое состояние микрофона, камеры и экрана текущего участника.
+// Media accepts the current participant's microphone, camera and screen state.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *ControlHandler) Media(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {

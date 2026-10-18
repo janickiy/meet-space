@@ -8,7 +8,16 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
+// RegisterPersonalSearchRoutes registers the authenticated personal search endpoints.
+//
 // Registered accounts and current conversation membership are required independently.
+//
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - handler: Callback responsible for processing the scoped operation.
+//   - auth: Authentication middleware or account handler dependency.
+//   - accountOnly: Middleware rejecting guest identities for registered-account-only operations.
+//   - limiter: Shared request-rate limiter.
 func RegisterPersonalSearchRoutes(router gin.IRouter, handler *chatapp.SearchHandler, auth, accountOnly gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	base := APIV1Prefix + "/conversations/:id/messages"
 	rules := []httpmiddleware.Rule{}

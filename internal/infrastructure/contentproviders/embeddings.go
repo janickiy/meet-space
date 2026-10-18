@@ -16,20 +16,37 @@ import (
 	"unicode"
 )
 
-// embeddings использует общий защищённый HTTP клиент без redirects и вывода ответа в логи.
+// embeddings uses the shared protected HTTP client without redirects or response-body logging.
 type embeddings struct{ *provider }
 
-// NewEmbeddingProvider создаёт noop/mock/http адаптер без вызова платного сервиса.
-// @args mode,endpoint,token — операторские настройки; timeout — конечный срок выполнения.
-// @return интерфейс провайдера либо ошибка конфигурации.
+// NewEmbeddingProvider constructs the embedding provider with the dependencies and limits
+// required for transcription, summary and embedding providers.
+//
+// Parameters:
+//   - mode: Validated operation or recording mode.
+//   - endpoint: Operator-configured service endpoint.
+//   - token: Signed credential or operation-ownership token to verify.
+//   - timeout: Maximum time allowed for this operation.
+//
+// Returns:
+//   - result 1: The resulting embedding provider.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func NewEmbeddingProvider(mode, endpoint, token string, timeout time.Duration) (domain.EmbeddingProvider, error) {
 	p, e := newProvider(mode, endpoint, token, "", timeout)
 	return &embeddings{p}, e
 }
 
-// Embed отправляет порцию текста и возвращает только числовые векторы; schema проверяется строго.
-// @args ctx — срок выполнения; request — версия модели и ограниченные входные данные.
-// @return векторы либо безопасная ошибка.
+// Embed computes a bounded batch of text vectors using the configured embedding model.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - result 1: The collected []float32 values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *embeddings) Embed(ctx context.Context, request domain.EmbeddingRequest) ([][]float32, error) {
 	if p.mode == "noop" {
 		return nil, jobs.ErrSkip
@@ -68,9 +85,14 @@ func (p *embeddings) Embed(ctx context.Context, request domain.EmbeddingRequest)
 	return result.Vectors, nil
 }
 
-// mockEmbedding создаёт детерминированный тестовый вектор с небольшим словарём синонимов, а не настоящую семантическую модель.
-// @args text — тестовый текст; dimensions — размерность фикстуры.
-// @return нормированный feature-hash вектор для воспроизводимых интеграционных тестов.
+// mockEmbedding creates deterministic mock vectors for explicitly permitted local provider mode.
+//
+// Parameters:
+//   - text: UTF-8 text to validate, normalize or process.
+//   - dimensions: Expected embedding-vector dimensions.
+//
+// Returns:
+//   - result 1: The collected float32 values.
 func mockEmbedding(text string, dimensions int) []float32 {
 	vector := make([]float32, dimensions)
 	groups := map[string]string{"бюджет": "budget", "стоимость": "budget", "cost": "budget", "budget": "budget", "запуск": "launch", "релиз": "launch", "launch": "launch", "release": "launch", "встреча": "meeting", "совещание": "meeting", "meeting": "meeting"}

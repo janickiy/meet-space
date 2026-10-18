@@ -51,14 +51,19 @@ import (
 	recordingsusecase "github.com/janickiy/meet-space/internal/usecase/recordings"
 )
 
-// RunAPI запускает HTTP API.
-// @return ошибку bootstrap или HTTP server-а.
+// RunAPI starts API with the configured dependencies and propagates startup or shutdown
+// failures.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func RunAPI() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	// Проверяем только при запуске API: recorder-worker и команда миграций не выпускают JWT.
+	// Validate this only when starting the API: recorder workers and the migration command do not
+	// issue JWTs.
 	tokens, err := security.NewTokenService(cfg.JWTSecret)
 	if err != nil {
 		return err
@@ -228,18 +233,10 @@ func RunAPI() error {
 	if err != nil {
 		return err
 	}
-	server := &http.Server{Handler: router, BaseContext: /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
-
-	@args
-	  - аргумент 1 (net.Listener): значение для проверки, нормализации или преобразования.
-
-	@return:
-	  - результат 1 (context.Context): значение, подготовленное операцией для вызывающей стороны. */func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
+	server := &http.Server{Handler: router, BaseContext: func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
 	failed := make(chan error, 1)
 	server.ReadTimeout = cfg.Operations.HTTPReadTimeout
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
-
-	 */func() { failed <- server.Serve(listener) }()
+	go func() { failed <- server.Serve(listener) }()
 	select {
 	case err := <-failed:
 		if !errors.Is(err, http.ErrServerClosed) {
@@ -247,7 +244,7 @@ func RunAPI() error {
 		}
 	case <-ctx.Done():
 	}
-	// Переданные приложению соединения WebSocket не закрываются вызовом http.Server.Shutdown.
+	// http.Server.Shutdown does not close WebSocket connections already handed to the application.
 	ops.Drain()
 	notificationHandler.BeginDrain()
 	_ = listener.Close()
@@ -261,23 +258,17 @@ func RunAPI() error {
 	return err
 }
 
-// rateLimitConfig преобразует общие настройки приложения в конфигурацию HTTP-ограничителя.
+// rateLimitConfig converts application settings into the HTTP rate-limiter configuration.
 //
-// @args
-//   - cfg (config.Config): проверенные настройки соответствующего компонента.
+// Parameters:
+//   - cfg: Operator-controlled configuration and processing limits.
 //
-// @return:
-//   - результат 1 (httpmiddleware.RateLimitConfig): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The resulting rate limit config.
 func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 	window := cfg.RateLimitWindow
 	defaultLimit := cfg.RateLimit.DefaultRPM
-	// Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
-	//
-	// @args
-	//   - value (int): значение для проверки, нормализации или преобразования.
-	//
-	// @return:
-	//   - результат 1 (int): значение, подготовленное операцией для вызывающей стороны.
+
 	limit := func(value int) int {
 		if value > 0 {
 			return value
@@ -285,13 +276,7 @@ func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 
 		return defaultLimit
 	}
-	// Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
-	//
-	// @args
-	//   - route (string): адрес и версия действующего владельца медиа-комнаты.
-	//
-	// @return:
-	//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+
 	path := func(route string) string {
 		return httptransport.APIV1Prefix + route
 	}
@@ -310,9 +295,12 @@ func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 	}
 }
 
-// RunMigrations применяет миграции без запуска API.
-// @args нет.
-// @return ошибку подключения или миграции.
+// RunMigrations starts migrations with the configured dependencies and propagates startup or
+// shutdown failures.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func RunMigrations() error {
 	cfg, err := config.Load()
 	if err != nil {

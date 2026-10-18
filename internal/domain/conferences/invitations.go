@@ -8,6 +8,13 @@ import (
 )
 
 // ValidateInvitationEmail rejects addresses requiring SMTPUTF8 before they enter the queue.
+//
+// Parameters:
+//   - email: Account or delivery email address.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func ValidateInvitationEmail(email string) error {
 	if err := users.ValidateEmail(email); err != nil {
 		return err
@@ -46,6 +53,11 @@ type Invitation struct {
 	SentAt       *time.Time
 }
 
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
+//
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (Invitation) TableName() string { return "conference_invitations" }
 
 // InvitationResult reports acceptance, without claiming that SMTP has delivered the message.

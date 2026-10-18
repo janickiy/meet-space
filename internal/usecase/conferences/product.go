@@ -8,72 +8,75 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/conferences"
 )
 
-// productRepository задаёт контракт зависимого компонента productRepository в жизненном цикле конференций и правах участников; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - DecideAdmission: операция Decide допуск с контрактом, описанным у метода.
-//   - UpdateSchedule: операция обновление расписание с контрактом, описанным у метода.
-//   - Timeline: операция Timeline с контрактом, описанным у метода.
-//   - History: операция история с контрактом, описанным у метода.
+// productRepository defines the replaceable dependency contract for conference lifecycle and
+// participant membership.
 type productRepository interface {
-	// DecideAdmission сериализует решение допуска блокировкой конференции, сохраняет состояние и версию решения.
+	// DecideAdmission records an authorized waiting-room acceptance or rejection.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 4 (string): идентификатор членства участника внутри конференции.
-	//   - аргумент 5 (domain.AdmissionRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
+	//   - argument 3: Acting account identifier used to scope access.
+	//   - argument 4: Conference participant identifier.
+	//   - argument 5: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (domain.Participant): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	DecideAdmission(context.Context, string, string, string, domain.AdmissionRequest) (domain.Participant, error)
-	// UpdateSchedule обновляет расписание только запланированной встречи под той же блокировкой, что используется при старте.
+	// UpdateSchedule saves the authorized conference schedule and its updated synchronization
+	// version.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 4 (domain.ScheduleRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
+	//   - argument 3: Acting account identifier used to scope access.
+	//   - argument 4: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (domain.Conference): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting conference.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	UpdateSchedule(context.Context, string, string, domain.ScheduleRequest) (domain.Conference, error)
-	// Timeline возвращает страницу встреч текущего пользователя с фильтрами будущих, активных и прошедших встреч.
+	// Timeline returns the account's paginated upcoming, active or past conference timeline.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (domain.TimelineQuery): параметры выборки либо SQL-текст выполняемого запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Search text or validated query filters.
 	//
-	// @return:
-	//   - результат 1 ([]domain.Conference): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The collected conference values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Timeline(context.Context, string, domain.TimelineQuery) ([]domain.Conference, error)
-	// History собирает сведения завершённой встречи, историю участников и сводку записей с проверкой доступа.
+	// History builds the authorized completed-conference view with participant history and recording
+	// summaries.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
 	//
-	// @return:
-	//   - результат 1 (domain.HistoryView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting history view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	History(context.Context, string, string) (domain.HistoryView, error)
 }
 
-// Self возвращает собственное членство пользователя, включая состояние ожидания и решение о допуске.
+// Self returns the acting account's membership, including waiting-room and admission state.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - id (string): идентификатор обрабатываемого ресурса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
 //
-// @return:
-//   - результат 1 (domain.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Self(ctx context.Context, userID, id string) (domain.ParticipantView, error) {
 	p, err := s.repository.Membership(ctx, id, userID)
 	if errors.Is(err, apperrors.ErrNotFound) {
@@ -82,18 +85,20 @@ func (s *Service) Self(ctx context.Context, userID, id string) (domain.Participa
 	return p.View(), err
 }
 
-// Admission обрабатывает решение о допуске или отказе с проверкой полномочий организатора.
+// Admission accepts or rejects waiting-room admission after checking the acting member's
+// authority.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - participantID (string): идентификатор членства участника внутри конференции.
-//   - request (domain.AdmissionRequest): входные параметры соответствующего прикладного запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//   - participantID: Conference participant identifier.
+//   - request: Validated application request or incoming operation parameters.
 //
-// @return:
-//   - результат 1 (domain.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Admission(ctx context.Context, userID, id, participantID string, request domain.AdmissionRequest) (domain.ParticipantView, error) {
 	repo, ok := s.repository.(productRepository)
 	if !ok {
@@ -112,17 +117,19 @@ func (s *Service) Admission(ctx context.Context, userID, id, participantID strin
 	return p.View(), nil
 }
 
-// Schedule обновляет расписание запланированной встречи с проверкой полномочий владельца.
+// Schedule updates a planned conference schedule after validating ownership and time
+// constraints.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - request (domain.ScheduleRequest): входные параметры соответствующего прикладного запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//   - request: Validated application request or incoming operation parameters.
 //
-// @return:
-//   - результат 1 (domain.View): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Schedule(ctx context.Context, userID, id string, request domain.ScheduleRequest) (domain.View, error) {
 	repo, ok := s.repository.(productRepository)
 	if !ok {
@@ -136,16 +143,17 @@ func (s *Service) Schedule(ctx context.Context, userID, id string, request domai
 	return c.View(), nil
 }
 
-// Timeline возвращает страницу встреч текущего пользователя с фильтрами будущих, активных и прошедших встреч.
+// Timeline returns the account's paginated upcoming, active or past conference timeline.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - query (domain.TimelineQuery): параметры выборки либо SQL-текст выполняемого запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - query: Search text or validated query filters.
 //
-// @return:
-//   - результат 1 (domain.TimelinePage): страница элементов и метаданные продолжения.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting timeline page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Timeline(ctx context.Context, userID string, query domain.TimelineQuery) (domain.TimelinePage, error) {
 	repo, ok := s.repository.(productRepository)
 	if !ok {
@@ -162,8 +170,8 @@ func (s *Service) Timeline(ctx context.Context, userID string, query domain.Time
 		page.NextCursor = &cursor
 	}
 	for _, c := range rows {
-		// Приглашения не нужны для просмотра списка. Сохраняем приватность ожидающего членства
-		// без отдельного запроса членства для каждой конференции.
+		// Listing does not require invitation data. Preserve waiting-membership privacy without querying
+		// membership separately for every conference.
 		view := c.View()
 		view.InviteCode, view.InviteURL = "", ""
 		page.Items = append(page.Items, view)
@@ -171,16 +179,18 @@ func (s *Service) Timeline(ctx context.Context, userID string, query domain.Time
 	return page, nil
 }
 
-// History собирает сведения завершённой встречи, историю участников и сводку записей с проверкой доступа.
+// History builds the authorized completed-conference view with participant history and recording
+// summaries.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - id (string): идентификатор обрабатываемого ресурса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
 //
-// @return:
-//   - результат 1 (domain.HistoryView): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting history view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) History(ctx context.Context, userID, id string) (domain.HistoryView, error) {
 	repo, ok := s.repository.(productRepository)
 	if !ok {

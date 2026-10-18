@@ -17,8 +17,12 @@ import (
 	"time"
 )
 
-// RunLiveWorker изолирует decoder/STT в отдельном процессе с независимыми ресурсными пределами.
-// @return ошибка запуска/завершения без содержимого речи или токенов.
+// RunLiveWorker starts live worker with the configured dependencies and propagates startup or
+// shutdown failures.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func RunLiveWorker() error {
 	cfg, err := config.Load()
 	if err != nil {

@@ -13,6 +13,15 @@ import (
 )
 
 // AuthorizeLegacy preserves still-valid old credentials unless this browser logged out.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - hash: Previously computed digest used for identity or integrity lookup.
+//   - userID: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AuthSessionRepository) AuthorizeLegacy(ctx context.Context, hash, userID string) error {
 	var enabled bool
 	if err := r.db.WithContext(ctx).Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND password_hash<>'')", userID).Scan(&enabled).Error; err != nil {
@@ -57,10 +66,28 @@ type authLegacyToken struct {
 	RevokedAt *time.Time
 }
 
+// NewAuthSessionRepository constructs the auth session repository with the dependencies and
+// limits required for auth session.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded auth session repository.
 func NewAuthSessionRepository(db *gorm.DB) *AuthSessionRepository {
 	return &AuthSessionRepository{db: db.Session(&gorm.Session{Logger: logger.Discard})}
 }
 
+// Create persists the new server session and refresh-secret digest without storing the raw
+// refresh secret.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AuthSessionRepository) Create(ctx context.Context, session users.AuthSession) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&session).Error; err != nil {
@@ -70,6 +97,16 @@ func (r *AuthSessionRepository) Create(ctx context.Context, session users.AuthSe
 	})
 }
 
+// GetByHash loads the persistent server session by its refresh-secret digest.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - hash: Previously computed digest used for identity or integrity lookup.
+//
+// Returns:
+//   - result 1: The resulting auth session.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AuthSessionRepository) GetByHash(ctx context.Context, hash string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").
@@ -79,17 +116,47 @@ func (r *AuthSessionRepository) GetByHash(ctx context.Context, hash string) (use
 	return session, mapNotFound(err)
 }
 
+// GetByID loads the persistent server session by its session identifier.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting auth session.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AuthSessionRepository) GetByID(ctx context.Context, id string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>''").Where("auth_sessions.id = ?", id).Take(&session).Error
 	return session, mapNotFound(err)
 }
 
+// RevokeByHash revokes the persistent session matching the refresh-secret digest.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - hash: Previously computed digest used for identity or integrity lookup.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AuthSessionRepository) RevokeByHash(ctx context.Context, hash string) error {
 	return r.db.WithContext(ctx).Exec(`UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, now())
   WHERE id IN (SELECT session_id FROM auth_session_tokens WHERE token_hash = ?)`, hash).Error
 }
 
+// RevokeByID revokes only the persistent session belonging to the specified account and session
+// identifier.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - userID: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AuthSessionRepository) RevokeByID(ctx context.Context, id, userID string) error {
 	return r.db.WithContext(ctx).Exec(`UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, now())
   WHERE id = ? AND user_id = ?`, id, userID).Error
@@ -97,6 +164,17 @@ func (r *AuthSessionRepository) RevokeByID(ctx context.Context, id, userID strin
 
 // Bootstrap serializes one legacy JWT's concurrent upgrades and logout marker.
 // Opaque secrets remain unrecoverable; concurrent tabs receive separate hashes for one SID.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - candidate: Candidate session or ICE record to validate before use.
+//   - legacyHash: Digest of the legacy access token used for revocation checks.
+//   - preferredID: Existing account-session identifier preferred when reusing a browser sign-in.
+//
+// Returns:
+//   - result 1: The resulting auth session.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AuthSessionRepository) Bootstrap(ctx context.Context, candidate users.AuthSession, legacyHash, preferredID string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -140,6 +218,15 @@ func (r *AuthSessionRepository) Bootstrap(ctx context.Context, candidate users.A
 }
 
 // RevokeLegacy creates a durable marker even if a concurrent upgrade has not run yet.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - hash: Previously computed digest used for identity or integrity lookup.
+//   - userID: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AuthSessionRepository) RevokeLegacy(ctx context.Context, hash, userID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UTC()

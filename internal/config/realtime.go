@@ -12,26 +12,12 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// PresenceTimeout ограничивает время отсутствия подтверждённой связи: после пяти
-// секунд без pong физическое соединение больше не считается действующим.
+// PresenceTimeout bounds unconfirmed connectivity: a physical connection is no longer active
+// after five seconds without a confirmed pong.
 const PresenceTimeout = 5 * time.Second
 
-// RealtimeConfig задаёт лимиты, сроки жизни, допустимые источники и параметры WebSocket-подключений.
-//   - PingInterval: значение PingInterval типа time.Duration, используемое согласно назначению этой операции.
-//   - PongTimeout: значение PongTimeout типа time.Duration, используемое согласно назначению этой операции.
-//   - WriteTimeout: значение WriteTimeout типа time.Duration, используемое согласно назначению этой операции.
-//   - SessionTTL: значение SessionTTL типа time.Duration, используемое согласно назначению этой операции.
-//   - TicketTTL: значение TicketTTL типа time.Duration, используемое согласно назначению этой операции.
-//   - QueueSize: значение QueueSize типа int, используемое согласно назначению этой операции.
-//   - MessageBytes: значение MessageBytes типа int64, используемое согласно назначению этой операции.
-//   - OutboundBytes: значение OutboundBytes типа int, используемое согласно назначению этой операции.
-//   - SDPBytes: значение SDPBytes типа int, используемое согласно назначению этой операции.
-//   - ICEBytes: значение ICEBytes типа int, используемое согласно назначению этой операции.
-//   - MessagesPerSecond: значение MessagesPerSecond типа int, используемое согласно назначению этой операции.
-//   - Burst: значение Burst типа int, используемое согласно назначению этой операции.
-//   - Namespace: пространство изолированных ключей и каналов Redis.
-//   - AllowedOrigins: набор значений AllowedOrigins для последовательной или пакетной обработки.
-//   - ICE: значение ICE типа realtime.ICEConfig, используемое согласно назначению этой операции.
+// RealtimeConfig bounds WebSocket timing, presence, one-use tickets, queues, messages, origins
+// and ICE settings.
 type RealtimeConfig struct {
 	PingInterval      time.Duration
 	PongTimeout       time.Duration
@@ -52,11 +38,13 @@ type RealtimeConfig struct {
 	MaxConnections    int
 }
 
-// LoadRealtime читает и проверяет ограничения WebSocket, присутствия, сроков и очередей.
+// LoadRealtime loads and validates WebSocket limits, presence deadlines and connection-ticket
+// settings.
 //
-// @return:
-//   - результат 1 (RealtimeConfig): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting realtime config.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func LoadRealtime() (RealtimeConfig, error) {
 	c := RealtimeConfig{
 		PingInterval:      envDuration("WS_PING_INTERVAL", time.Second),
@@ -89,10 +77,11 @@ func LoadRealtime() (RealtimeConfig, error) {
 	return c, c.Validate()
 }
 
-// Validate проверяет ограничения и согласованность полей текущего значения перед его использованием.
+// Validate rejects inconsistent or out-of-range realtime.go fields before the value is used.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c RealtimeConfig) Validate() error {
 	if c.MaxConnections < 0 || c.MaxConnections > 100000 {
 		return fmt.Errorf("invalid WS_MAX_CONNECTIONS")

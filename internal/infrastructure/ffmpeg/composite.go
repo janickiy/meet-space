@@ -11,16 +11,7 @@ import (
 	"time"
 )
 
-// OutputValidation собирает результаты проверки итогового медиафайла через ffprobe.
-// @params
-//   - Duration: плановая длительность или интервал в единицах, заданных типом.
-//   - VideoDuration: значение VideoDuration типа float64, используемое согласно назначению этой операции.
-//   - AudioDuration: значение AudioDuration типа float64, используемое согласно назначению этой операции.
-//   - VideoCodec: значение VideoCodec типа string, используемое согласно назначению этой операции.
-//   - AudioCodec: значение AudioCodec типа string, используемое согласно назначению этой операции.
-//   - Width: ширина видеокадра или области в пикселях.
-//   - Height: высота видеокадра или области в пикселях.
-//   - Size: размер содержимого в байтах.
+// OutputValidation contains ffprobe checks of the generated media artifact.
 type OutputValidation struct {
 	Duration      float64 `json:"duration"`
 	VideoDuration float64 `json:"videoDuration"`
@@ -32,16 +23,16 @@ type OutputValidation struct {
 	Size          int64   `json:"size"`
 }
 
-// concatComposite объединяет готовые фрагменты общей записи в итоговый файл.
-// Внешняя команда или запрос использует контекст операции.
+// concatComposite concatenates validated composite fragments into the final recording artifact.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - listPath (string): значение listPath типа string, используемое согласно назначению этой операции.
-//   - finalPath (string): значение finalPath типа string, используемое согласно назначению этой операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - listPath: Path of the validated FFmpeg concat input list.
+//   - finalPath: Path of the final generated recording artifact.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *PostProcessor) concatComposite(ctx context.Context, listPath, finalPath string) error {
 	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
@@ -52,24 +43,34 @@ func (p *PostProcessor) concatComposite(ctx context.Context, listPath, finalPath
 	return nil
 }
 
-// ValidateOutput проверяет итоговый медиафайл через ffprobe: дорожки, кодеки, длительность и размеры.
-// Внешняя команда или запрос использует контекст операции.
+// ValidateOutput checks that a produced media artifact is nonempty and can be probed.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - path (string): путь к локальному файлу или каталогу операции.
-//   - requireAudio (bool): логический признак requireAudio, управляющий соответствующей веткой обработки.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - path: Validated local filesystem or object path.
+//   - requireAudio: Whether the resulting media must contain an audio stream.
 //
-// @return:
-//   - результат 1 (OutputValidation): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting output validation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *PostProcessor) ValidateOutput(ctx context.Context, path string, requireAudio bool) (OutputValidation, error) {
 	return p.validateOutput(ctx, path, requireAudio, true)
 }
 
-// validateOutput проверяет контейнер и дорожки согласно серверной стратегии.
-// @args ctx — срок выполнения; path — локальный файл; requireAudio/requireVideo — обязательные дорожки.
-// @return метаданные корректного MP4 или ошибка валидации.
+// validateOutput checks the generated media artifact before it is accepted as a successful
+// result.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - path: Validated local filesystem or object path.
+//   - requireAudio: Whether the resulting media must contain an audio stream.
+//   - requireVideo: Whether the resulting media must contain a video stream.
+//
+// Returns:
+//   - result 1: The resulting output validation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *PostProcessor) validateOutput(ctx context.Context, path string, requireAudio, requireVideo bool) (OutputValidation, error) {
 	result := OutputValidation{}
 	info, err := os.Stat(path)

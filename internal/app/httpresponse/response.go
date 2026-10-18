@@ -14,8 +14,12 @@ import (
 // InternalErrorMessage is the safe public message for unexpected server errors.
 const InternalErrorMessage = "internal server error"
 
-// Fail сопоставляет прикладную ошибку с HTTP-статусом и безопасным JSON-ответом.
-// Для Internal всегда используется общий текст без диагностической причины.
+// Fail maps the application error to a safe HTTP status and response body without exposing
+// internal diagnostics.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - err: Error to classify, wrap or report safely.
 func Fail(c *gin.Context, err error) {
 	status, message := http.StatusInternalServerError, InternalErrorMessage
 	switch apperrors.Classify(err) {
@@ -43,9 +47,17 @@ func Fail(c *gin.Context, err error) {
 	c.AbortWithStatusJSON(status, gin.H{"status": "failed", "message": message})
 }
 
-// BindJSON декодирует одно JSON-значение в target с лимитом тела 32 КиБ,
-// запрещая неизвестные поля и данные после значения. optional разрешает пустое
-// тело. При false ответ 400 уже записан и обработка запроса прервана.
+// BindJSON decodes one bounded JSON value, rejecting unknown fields and trailing data; optional
+// input may be empty.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - target: Target state, account or decoded value, as defined by its type.
+//   - optional: Whether an empty request body is permitted.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func BindJSON(c *gin.Context, target any, optional bool) bool {
 	if c.Request.Body == nil {
 		c.Request.Body = http.NoBody
@@ -67,9 +79,17 @@ func BindJSON(c *gin.Context, target any, optional bool) bool {
 	return false
 }
 
-// Pagination возвращает limit, offset и признак успешного разбора query-параметров.
-// По умолчанию limit=20 и offset=0; допустимы limit от 1 до 100 и offset >= 0.
-// При false ответ с ошибкой валидации уже записан.
+// Pagination parses the request page size and offset while rejecting invalid or out-of-range
+// values.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: The resulting count, size or numeric value.
+//   - result 3: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func Pagination(c *gin.Context) (int, int, bool) {
 	limit, offset := 20, 0
 	var err error

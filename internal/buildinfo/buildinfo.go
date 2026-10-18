@@ -1,4 +1,4 @@
-// Пакет buildinfo раскрывает только проверенные публичные сведения об артефакте.
+// Package buildinfo exposes only validated public artifact metadata.
 package buildinfo
 
 import (
@@ -8,19 +8,25 @@ import (
 	"time"
 )
 
-// Version, Commit и BuildTime задаются при сборке через -ldflags -X.
+// Version, Commit and BuildTime are injected at build time with -ldflags -X.
 var Version, Commit, BuildTime string
 
-// Info содержит версию релиза, SHA исходников и время сборки без окружения и путей.
+// Info contains the release version, source commit and build time, never environment values or
+// filesystem paths.
 type Info struct {
 	Version   string `json:"version"`
 	Commit    string `json:"commit"`
 	BuildTime string `json:"buildTime"`
 }
 
-// ValidVersion допускает короткий идентификатор релиза без управляющих символов.
-// @args value — версия или идентификатор сборки.
-// @return true только для безопасного значения длиной до 64 байт.
+// ValidVersion checks whether a build version is safe to expose in public metadata.
+//
+// Parameters:
+//   - value: Value to validate, normalize or convert.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func ValidVersion(value string) bool {
 	if len(value) < 1 || len(value) > 64 {
 		return false
@@ -34,8 +40,10 @@ func ValidVersion(value string) bool {
 	return true
 }
 
-// Current проверяет внедрённые метаданные; при отсутствии SHA использует VCS stamp.
-// @return безопасные поля, где dev/unknown обозначают неполную локальную сборку.
+// Current returns validated build metadata without environment values or local paths.
+//
+// Returns:
+//   - result 1: The resulting info.
 func Current() Info {
 	i := Info{Version: "dev", Commit: "unknown", BuildTime: "unknown"}
 	if ValidVersion(Version) {
@@ -64,8 +72,12 @@ func Current() Info {
 	return i
 }
 
-// Handler возвращает сведения о сборке без секретов, флагов компилятора и внутренних адресов.
-// @args w — ответ; r — запрос, содержимое которого не используется.
+// Handler serves validated public build metadata without secrets, compiler flags or internal
+// addresses.
+//
+// Parameters:
+//   - w: Destination HTTP response writer.
+//   - r: Incoming HTTP request.
 func Handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

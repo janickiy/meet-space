@@ -12,31 +12,28 @@ import (
 	"gorm.io/gorm"
 )
 
-// Moderate применяет действие модерации с проверкой роли инициатора и ограничений целевого участника.
-// Операции с базой данных объединяет в транзакцию.
+// Moderate applies a participant moderation action after checking the actor's role and the
+// target restrictions.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - participantID (string): идентификатор членства участника внутри конференции.
-//   - request (conferences.ModerationRequest): входные параметры соответствующего прикладного запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//   - participantID: Conference participant identifier.
+//   - request: Validated application request or incoming operation parameters.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) Moderate(ctx context.Context, conferenceID, userID, participantID string, request conferences.ModerationRequest) (conferences.Participant, error) {
 	var target conferences.Participant
 	if err := request.Validate(); err != nil {
 		return target, err
 	}
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			conference, err := findConference(tx, conferenceID, true)
 			if err != nil {
 				return err
@@ -96,7 +93,8 @@ func (r *ConferenceRepository) Moderate(ctx context.Context, conferenceID, userI
 					updates["role"] = request.Role
 				}
 			}
-			// Снятие запрета не восстанавливает прежнее состояние другой вкладки, сброшенное модерацией.
+			// Lifting a restriction does not restore another tab's media state that moderation already
+			// cleared.
 			if request.Blocked != nil && *request.Blocked {
 				cleared := map[string]any{}
 				switch request.Action {
@@ -129,13 +127,13 @@ func (r *ConferenceRepository) Moderate(ctx context.Context, conferenceID, userI
 	return target, err
 }
 
-// nullRole представляет отсутствие роли nullable-значением для сохранения в базе.
+// nullRole converts an optional persisted role into the domain role representation.
 //
-// @args
-//   - role (conferences.Role): роль участника, определяющая полномочия.
+// Parameters:
+//   - role: Requested participant or group-member role.
 //
-// @return:
-//   - результат 1 (any): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The resulting any.
 func nullRole(role conferences.Role) any {
 	if role == "" {
 		return nil
@@ -143,13 +141,14 @@ func nullRole(role conferences.Role) any {
 	return role
 }
 
-// membershipError переводит отсутствие или ограничение членства в безопасную прикладную ошибку.
+// membershipError maps a membership or admission failure to its application error.
 //
-// @args
-//   - err (error): ошибка, которую необходимо классифицировать, сохранить или вернуть клиенту.
+// Parameters:
+//   - err: Error to classify, wrap or report safely.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func membershipError(err error) error {
 	if errors.Is(err, apperrors.ErrNotFound) {
 		return apperrors.ErrForbidden
@@ -157,31 +156,27 @@ func membershipError(err error) error {
 	return err
 }
 
-// UpdateMediaState сохраняет заявленное состояние источников медиа участника.
-// Операции с базой данных объединяет в транзакцию.
+// UpdateMediaState saves the participant's declared media-source state.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - state (conferences.MediaState): значение state типа conferences.MediaState, используемое согласно назначению этой операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//   - state: Current state or validated state update.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) UpdateMediaState(ctx context.Context, conferenceID, userID string, state conferences.MediaState) (conferences.Participant, error) {
 	var participant conferences.Participant
 	connectionID, parseErr := uuid.Parse(state.ConnectionID)
 	if parseErr != nil || connectionID == uuid.Nil || state.Sequence < 1 || state.Sequence > 9007199254740991 {
 		return participant, apperrors.New(apperrors.ErrInvalidInput, "connectionId and a positive safe-integer sequence are required")
 	}
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			conference, err := findMediaRoom(tx, conferenceID, true)
 			if err != nil {
 				return err
@@ -219,16 +214,17 @@ func (r *ConferenceRepository) UpdateMediaState(ctx context.Context, conferenceI
 	return participant, err
 }
 
-// MediaPolicy читает действующие серверные ограничения передачи медиа участника.
+// MediaPolicy loads the effective saved media restrictions for a participant.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - participantID (string): идентификатор членства участника внутри конференции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - participantID: Conference participant identifier.
 //
-// @return:
-//   - результат 1 (media.ParticipantPolicy): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant policy.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) MediaPolicy(ctx context.Context, conferenceID, participantID string) (media.ParticipantPolicy, error) {
 	var participant conferences.Participant
 	err := r.db.WithContext(ctx).Where("id = ? AND conference_id = ?", participantID, conferenceID).Take(&participant).Error
@@ -246,16 +242,18 @@ func (r *ConferenceRepository) MediaPolicy(ctx context.Context, conferenceID, pa
 	return policy, nil
 }
 
-// ReconcileParticipants выбирает участников, чью сохранённую политику необходимо повторно применить к медиа.
+// ReconcileParticipants returns participants whose persisted media restrictions need
+// reconciliation.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - after (string): значение after типа string, используемое согласно назначению этой операции.
-//   - limit (int): предел количества обрабатываемых элементов.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - after: Boundary after which results or state are selected.
+//   - limit: Maximum number of results or operations in this batch.
 //
-// @return:
-//   - результат 1 ([]conferences.Participant): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The collected participant values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) ReconcileParticipants(ctx context.Context, after string, limit int) ([]conferences.Participant, error) {
 	items := []conferences.Participant{}
 	query := r.db.WithContext(ctx).Model(&conferences.Participant{}).Joins("JOIN conferences c ON c.id = conference_participants.conference_id").Where("c.status IN ('created','active') AND conference_participants.id > ?", after).Order("conference_participants.id").Limit(limit)
@@ -263,28 +261,26 @@ func (r *ConferenceRepository) ReconcileParticipants(ctx context.Context, after 
 	return items, err
 }
 
-// ClearDisconnectedMedia сбрасывает сохранённые признаки передачи медиа после закрытия последней действующей сессии.
-// Операции с базой данных объединяет в транзакцию.
+// ClearDisconnectedMedia clears declared media state when the participant no longer has an
+// active authorized session.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - participantID (string): идентификатор членства участника внутри конференции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - participantID: Conference participant identifier.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (bool): признак выполнения проверяемого условия или изменения состояния.
-//   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) ClearDisconnectedMedia(ctx context.Context, conferenceID, participantID string) (conferences.Participant, bool, error) {
 	var p conferences.Participant
 	changed := false
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			if _, err := findMediaRoom(tx, conferenceID, true); err != nil {
 				return err
 			}
@@ -298,15 +294,18 @@ func (r *ConferenceRepository) ClearDisconnectedMedia(ctx context.Context, confe
 	return p, changed, err
 }
 
-// aggregateParticipantMedia объединяет признаки медиа нескольких физических соединений одного участника.
+// aggregateParticipantMedia combines active physical sessions into the participant's effective
+// media state.
 //
-// @args
-//   - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-//   - p (*conferences.Participant): байты, переданные по контракту io.Writer.
+// Parameters:
+//   - tx: Current database transaction.
+//   - p: The participant state processed by this operation.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func aggregateParticipantMedia(tx *gorm.DB, p *conferences.Participant) (bool, error) {
 	var aggregate struct {
 		MicrophoneEnabled bool

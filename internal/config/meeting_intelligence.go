@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// StageEightConfig ограничивает вспомогательную обработку речи, векторов и аналитики.
-// Передача аудио и текста провайдерам требует явного включения; имитация запрещена в рабочей среде.
+// StageEightConfig bounds auxiliary speech, vector and analytics processing. Sending audio or
+// text to providers requires explicit opt-in; simulated results are forbidden in production.
 type StageEightConfig struct {
 	LiveEnabled, EmbeddingsEnabled, AnalyticsEnabled                           bool
 	Live, Embeddings                                                           ProviderConfig
@@ -21,9 +21,16 @@ type StageEightConfig struct {
 	LiveMaxDuration, ProviderTimeout, EmbeddingTimeout                         time.Duration
 }
 
-// LoadStageEight читает операторские настройки без вывода токенов в ошибки.
-// @args local — разрешение локальных HTTP/WebSocket и тестовых адаптеров.
-// @return конфигурация с конечными пределами либо ошибка.
+// LoadStageEight loads the limits and opt-in settings for transcription, summaries, embeddings
+// and analytics.
+//
+// Parameters:
+//   - local: Whether explicitly local-only behavior is permitted.
+//
+// Returns:
+//   - result 1: The resulting stage eight config.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func LoadStageEight(local bool) (StageEightConfig, error) {
 	c := StageEightConfig{}
 	var err error

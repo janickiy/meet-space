@@ -16,9 +16,28 @@ import (
 
 type AssetHandler struct{ service *personalusecase.AssetService }
 
+// NewAssetHandler constructs the asset handler with the dependencies and limits required for
+// personal and group conversations.
+//
+// Parameters:
+//   - service: Application service invoked by this adapter.
+//
+// Returns:
+//   - result 1: The constructed or loaded asset handler.
 func NewAssetHandler(service *personalusecase.AssetService) *AssetHandler {
 	return &AssetHandler{service: service}
 }
+
+// assetParameter validates the private asset identifier from the route before accessing storage.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - name: Name of the setting, cookie, resource or provider being addressed.
+//
+// Returns:
+//   - result 1: Validated private-asset identifier.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func assetParameter(c *gin.Context, name string) (string, bool) {
 	id, err := chat.UUID(c.Param(name))
 	if err != nil {
@@ -27,6 +46,12 @@ func assetParameter(c *gin.Context, name string) (string, bool) {
 	}
 	return id, true
 }
+
+// PutAvatar validates and stores a normalized group avatar, then publishes the committed
+// conversation change.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *AssetHandler) PutAvatar(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -43,6 +68,12 @@ func (h *AssetHandler) PutAvatar(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
+
+// DeleteAvatar clears the authorized group avatar and schedules its obsolete private objects for
+// cleanup.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *AssetHandler) DeleteAvatar(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -55,6 +86,12 @@ func (h *AssetHandler) DeleteAvatar(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
+
+// AvatarContent serves a private group avatar only after checking the requesting account's
+// membership.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *AssetHandler) AvatarContent(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -62,6 +99,12 @@ func (h *AssetHandler) AvatarContent(c *gin.Context) {
 	}
 	h.content(c, id, "")
 }
+
+// AttachmentContent serves a visible group-message attachment through the authorized content
+// endpoint.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *AssetHandler) AttachmentContent(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -73,6 +116,14 @@ func (h *AssetHandler) AttachmentContent(c *gin.Context) {
 	}
 	h.content(c, id, attachment)
 }
+
+// content opens an authorized private avatar or attachment and streams it through the HTTP
+// response.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - id: Identifier of the resource addressed by this operation.
+//   - attachment: Private attachment identity or metadata, as defined by its type.
 func (h *AssetHandler) content(c *gin.Context, id, attachment string) {
 	controller := http.NewResponseController(c.Writer)
 	_ = controller.SetWriteDeadline(time.Now().Add(personalusecase.AssetStreamTimeout))

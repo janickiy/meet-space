@@ -1,4 +1,4 @@
-// Пакет operations объединяет безопасные проверки готовности и метрики процесса.
+// Package operations provides safe process readiness checks and metrics.
 package operations
 
 import (
@@ -23,13 +23,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Check проверяет одну критическую зависимость в переданном ограниченном контексте.
-// nil означает готовность; текст ошибки никогда не включается в health-ответ.
+// Check probes one critical dependency within the supplied bounded context. nil means ready; the
+// error text is never exposed in health responses.
 type Check func(context.Context) error
 
-// Runtime хранит состояние завершения работы, кеш готовности и изолированный реестр метрик.
-// Checks выполняются по таймеру, а не каждым HTTP-запросом; Secret нужен только
-// для закрытого /metrics. Счётчики имеют лишь ограниченные технические labels.
+// Runtime owns drain state, cached readiness and an isolated metrics registry. Dependencies are
+// checked by a timer rather than every HTTP request. Secret protects only private metrics.
+// Counters use bounded technical labels.
 type Runtime struct {
 	beginDrain      func()
 	activeWork      func() int
@@ -63,10 +63,17 @@ var current atomic.Pointer[Runtime]
 
 type correlationKey struct{}
 
-// New создаёт независимый реестр и JSON-логгер с service/instance_id.
-// service — фиксированное имя службы, instance — идентичность процесса, cfg —
-// проверенные пределы, checks — именованные проверки зависимостей. Возвращает
-// Runtime; проверка готовности начинается отдельно через Run.
+// New constructs the component with the dependencies and processing limits required for process
+// readiness, bounded metrics and graceful shutdown.
+//
+// Parameters:
+//   - service: Fixed service name used for bounded operational labels.
+//   - instance: Operator-controlled process instance label.
+//   - cfg: Operator-controlled configuration and processing limits.
+//   - checks: Named dependency readiness probes or route checks.
+//
+// Returns:
+//   - result 1: The constructed or loaded runtime.
 func New(service, instance string, cfg config.OperationsConfig, checks map[string]Check) *Runtime {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", service, "instance_id", instance))
 	r := &Runtime{Config: cfg, Checks: checks, Registry: prometheus.NewRegistry(), customNames: map[string]struct{}{}, dependencyState: map[string]bool{}}
@@ -96,9 +103,14 @@ func New(service, instance string, cfg config.OperationsConfig, checks map[strin
 	return r
 }
 
-// Run обновляет кеш проверок до отмены ctx. Каждый цикл ограничен ProbeTimeout,
-// проверки выполняются последовательно с общим дедлайном, исключая размножение
-// зависших горутин. done закрывается после освобождения таймера.
+// Run runs process readiness, bounded metrics and graceful shutdown until the context is
+// canceled or processing fails.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: The bounded event or media channel owned by this operation.
 func (r *Runtime) Run(ctx context.Context) <-chan struct{} {
 	done := make(chan struct{})
 	r.probe(ctx)
@@ -119,8 +131,10 @@ func (r *Runtime) Run(ctx context.Context) <-chan struct{} {
 	return done
 }
 
-// probe проверяет зависимости с единым дедлайном и обновляет технические метрики.
-// ctx задаёт время жизни процесса; подробности ошибок остаются вне HTTP-ответа.
+// probe refreshes bounded dependency readiness results for subsequent health requests.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
 func (r *Runtime) probe(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, r.Config.ProbeTimeout)
 	defer cancel()
@@ -143,14 +157,20 @@ func (r *Runtime) probe(ctx context.Context) {
 	r.ready.Store(ok && !r.draining.Load())
 }
 
-// Drain немедленно снимает readiness перед прекращением приёма новых запросов.
-// Аргументов и результата нет; обратного перехода в ready для этого процесса нет.
+// Drain rejects new work and exposes the active-work state used by graceful deployment.
 func (r *Runtime) Drain() { r.draining.Store(true); r.ready.Store(false) }
 
-// Ready сообщает готовность без обращения к зависимостям и без блокировок.
+// Ready reports whether the component or configured dependency is currently usable.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (r *Runtime) Ready() bool { return r.ready.Load() && !r.draining.Load() }
 
-// DependencyStatuses возвращает только фиксированные имена сервисов и кешированные признаки готовности.
+// DependencyStatuses returns a snapshot of the most recently probed dependency states.
+//
+// Returns:
+//   - result 1: The resulting map[string]bool.
 func (r *Runtime) DependencyStatuses() map[string]bool {
 	r.dependencyMu.RLock()
 	defer r.dependencyMu.RUnlock()
@@ -161,11 +181,18 @@ func (r *Runtime) DependencyStatuses() map[string]bool {
 	return states
 }
 
-// Live отвечает на проверку жизни процесса независимо от состояния зависимостей.
-// w получает JSON; req не используется. Это не доказательство готовности к работе.
+// Live serves the process liveness response without probing external dependencies.
+//
+// Parameters:
+//   - w: Destination HTTP response writer.
+//   - req: Incoming HTTP request.
 func (r *Runtime) Live(w http.ResponseWriter, req *http.Request) { health(w, http.StatusOK, "alive") }
 
-// Readiness отдаёт кеш readiness; w получает 200/503, req не запускает новую пробу.
+// Readiness serves the cached readiness state and accounts for graceful draining.
+//
+// Parameters:
+//   - w: Destination HTTP response writer.
+//   - req: Incoming HTTP request.
 func (r *Runtime) Readiness(w http.ResponseWriter, req *http.Request) {
 	if r.Ready() {
 		health(w, 200, "ready")
@@ -174,8 +201,12 @@ func (r *Runtime) Readiness(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// health формирует минимальный ответ без адресов, SQL-ошибок или секретов.
-// status — HTTP-код, state — фиксированное безопасное состояние.
+// health writes the bounded health response using the selected readiness or liveness checks.
+//
+// Parameters:
+//   - w: Destination HTTP response writer.
+//   - status: Lifecycle state or response status to record.
+//   - state: Current state or validated state update.
 func health(w http.ResponseWriter, status int, state string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -183,14 +214,25 @@ func health(w http.ResponseWriter, status int, state string) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": state})
 }
 
-// Authorized проверяет внутренний Bearer-секрет за постоянное время.
-// req — запрос, secret — серверный ключ; пустой ключ никогда не разрешает доступ.
+// Authorized checks the operator-controlled diagnostic authorization before serving protected
+// operational data.
+//
+// Parameters:
+//   - req: Incoming HTTP request.
+//   - secret: Private key material or raw secret; it must not be logged or exposed.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func Authorized(req *http.Request, secret string) bool {
 	return len(secret) >= 32 && subtle.ConstantTimeCompare([]byte(req.Header.Get("Authorization")), []byte("Bearer "+secret)) == 1
 }
 
-// Metrics открывает реестр только запросу с METRICS_SECRET; иначе возвращает 404.
-// w/req — стандартный HTTP-контракт. Данные об идентичностях не входят в labels.
+// Metrics serves Prometheus metrics without using entity identifiers as labels.
+//
+// Parameters:
+//   - w: Destination HTTP response writer.
+//   - req: Incoming HTTP request.
 func (r *Runtime) Metrics(w http.ResponseWriter, req *http.Request) {
 	if !Authorized(req, r.Config.MetricsSecret) {
 		http.NotFound(w, req)
@@ -199,8 +241,11 @@ func (r *Runtime) Metrics(w http.ResponseWriter, req *http.Request) {
 	promhttp.HandlerFor(r.Registry, promhttp.HandlerOpts{Timeout: 5 * time.Second, MaxRequestsInFlight: 2}).ServeHTTP(w, req)
 }
 
-// Register добавляет health и закрытые метрики к mux внутренней службы.
-// mux — маршрутизатор процесса; публичное проксирование /metrics не требуется.
+// Register adds health, readiness and protected metrics endpoints to the internal service
+// multiplexer.
+//
+// Parameters:
+//   - mux: HTTP request multiplexer to receive the registered routes.
 func (r *Runtime) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /version", buildinfo.Handler)
 	mux.HandleFunc("GET /operations/drain", r.DrainStatus)
@@ -210,8 +255,11 @@ func (r *Runtime) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /metrics", r.Metrics)
 }
 
-// RegisterGin добавляет такие же эксплуатационные маршруты в API Gin.
-// router — уже собранный API-маршрутизатор.
+// RegisterGin registers the operational health, readiness, metrics and drain endpoints on the
+// Gin router.
+//
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
 func (r *Runtime) RegisterGin(router *gin.Engine) {
 	router.GET("/version", gin.WrapF(buildinfo.Handler))
 	router.GET("/operations/drain", gin.WrapF(r.DrainStatus))
@@ -221,9 +269,11 @@ func (r *Runtime) RegisterGin(router *gin.Engine) {
 	router.GET("/metrics", gin.WrapF(r.Metrics))
 }
 
-// Middleware назначает безопасный ID запроса, ограничивает JSON и собирает HTTP
-// метрики по шаблону маршрута. Upload имеет отдельный серверный лимит, поэтому
-// не ограничивается размером JSON. Проверка работоспособности остаётся доступной при завершении работы.
+// Middleware measures HTTP activity using bounded route templates rather than private request
+// paths.
+//
+// Returns:
+//   - result 1: The HTTP handler to register for this operation.
 func (r *Runtime) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -266,15 +316,28 @@ func (r *Runtime) Middleware() gin.HandlerFunc {
 	}
 }
 
-// stringsHasUploadSuffix распознаёт только зарегистрированные шаблоны upload
-// встречи и личной переписки, не пользовательский URL; route получен из Gin FullPath.
+// stringsHasUploadSuffix recognizes the upload route suffix without accepting arbitrary path
+// variants.
+//
+// Parameters:
+//   - route: Current media-room owner and fencing version.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func stringsHasUploadSuffix(route string) bool {
 	return route == "/api/v1/conferences/:id/attachments/:attachmentId/content" ||
 		route == "/api/v1/conversations/:id/attachments/:attachmentId/content"
 }
 
-// WithID переносит ID корреляции в контекст. id принимается только как UUID;
-// ctx сохраняет отмену и дедлайн исходного запроса. Возвращает новый контекст.
+// WithID returns a context carrying the request or operation correlation identifier.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The derived context carrying the operation state or cancellation lifetime.
 func WithID(ctx context.Context, id string) context.Context {
 	if _, err := uuid.Parse(id); err != nil {
 		return ctx
@@ -282,12 +345,21 @@ func WithID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, correlationKey{}, id)
 }
 
-// ID читает идентификатор корреляции из ctx; пустая строка означает отсутствие исходного запроса.
+// ID reads the correlation identifier associated with the current operation context.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: Correlation identifier from the operation context.
 func ID(ctx context.Context) string { id, _ := ctx.Value(correlationKey{}).(string); return id }
 
-// State обновляет снимок фиксированного технического ресурса без ID сущностей.
-// name должен задаваться кодом, value — измеренное значение; новых временных
-// рядов после 64 известных ресурсов не создаётся.
+// State updates a fixed technical resource gauge without introducing entity-specific time
+// series.
+//
+// Parameters:
+//   - name: Name of the setting, cookie, resource or provider being addressed.
+//   - value: Value to validate, normalize or convert.
 func State(name string, value float64) {
 	if r := current.Load(); r != nil {
 		if len(name) > 64 {
@@ -305,14 +377,20 @@ func State(name string, value float64) {
 	}
 }
 
-// WSActive учитывает подключение/отключение; delta должен быть +1 либо -1.
+// WSActive applies a connection or disconnection delta to the active-WebSocket gauge.
+//
+// Parameters:
+//   - delta: Positive or negative lifecycle count adjustment.
 func WSActive(delta float64) {
 	if r := current.Load(); r != nil {
 		r.ws.Add(delta)
 	}
 }
 
-// Event считает только фиксированный набор событий name, исключая идентификаторы сущностей.
+// Event increments one of the fixed operational event counters.
+//
+// Parameters:
+//   - name: Name of the setting, cookie, resource or provider being addressed.
 func Event(name string) {
 	switch name {
 	case "ffmpeg_failed", "recording_failed", "recording_ready", "rabbitmq_dead_letter", "rabbitmq_reconnect", "dependency_failed", "disk_low", "live_reconnect", "live_capacity", "live_audio_dropped", "live_provider_failed", "live_decoder_failed", "live_invalid_event", "live_caption_limit", "live_persist_failed", "live_delivery_failed", "analytics_failed", "caption_partial", "caption_final", "recording_mode_composite", "recording_mode_audio_only", "recording_mode_individual_tracks", "recording_mode_screen_focus":
@@ -324,7 +402,12 @@ func Event(name string) {
 	}
 }
 
-// Observe записывает время seconds для одной фиксированной операции name.
+// Observe records the measured duration of a fixed allowlisted operation without entity-specific
+// metric labels.
+//
+// Parameters:
+//   - name: Name of the setting, cookie, resource or provider being addressed.
+//   - seconds: Measured operation duration in seconds.
 func Observe(name string, seconds float64) {
 	switch name {
 	case "recording", "finalization", "command", "ffmpeg", "search", "transcription", "summary", "email", "push", "calendar", "caption_latency", "caption_partial", "caption_final", "live_decode", "live_decode_cpu", "analytics", "embedding", "hybrid_search":
@@ -336,15 +419,20 @@ func Observe(name string, seconds float64) {
 	}
 }
 
-// FFmpegActive учитывает жизненный цикл дочернего процесса; delta — +1 или -1.
+// FFmpegActive applies a start or stop delta to the active-FFmpeg-process gauge.
+//
+// Parameters:
+//   - delta: Positive or negative lifecycle count adjustment.
 func FFmpegActive(delta float64) {
 	if r := current.Load(); r != nil {
 		r.custom.WithLabelValues("ffmpeg_active").Add(delta)
 	}
 }
 
-// WSMessage классифицирует сообщение фиксированным набором, исключая
-// пользовательские строки из labels. kind — проверяемый тип конверта.
+// WSMessage counts realtime message kinds using the fixed protocol label set.
+//
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
 func WSMessage(kind string) {
 	class := "other"
 	switch kind {
@@ -360,8 +448,15 @@ func WSMessage(kind string) {
 	}
 }
 
-// Profiling запускает pprof только на loopback и только при ненулевом PprofPort.
-// ctx отменяет сервер; ошибка запуска возвращается, а не публикует порт наружу.
+// Profiling runs the profiling endpoint only on loopback when explicitly enabled by the
+// operator.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *Runtime) Profiling(ctx context.Context) error {
 	if r.Config.PprofPort == 0 {
 		return nil
@@ -382,9 +477,14 @@ func (r *Runtime) Profiling(ctx context.Context) error {
 	return server.ListenAndServe()
 }
 
-// boundedProfile ограничивает параметр seconds любой диагностической операции
-// диапазоном (0, 60]. next — стандартный маршрутизатор pprof. Ошибочный параметр получает
-// 400 до запуска профиля, чтобы локальная диагностика не удерживала процесс часами.
+// boundedProfile serves a profiling request with a bounded duration and controlled diagnostic
+// access.
+//
+// Parameters:
+//   - next: Next HTTP handler or newer event, as defined by its type.
+//
+// Returns:
+//   - result 1: The resulting handler.
 func boundedProfile(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if value := req.URL.Query().Get("seconds"); value != "" {

@@ -12,12 +12,44 @@ import (
 )
 
 type Members interface {
+	// Members returns the current member identifiers or member views for the authorized
+	// conversation.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//
+	// Returns:
+	//   - result 1: The collected string values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Members(context.Context, string) ([]string, error)
 }
 type conversationTypes interface {
+	// ConversationType returns whether the persisted conversation is direct or group-scoped.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//
+	// Returns:
+	//   - result 1: Persisted direct or group conversation kind.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	ConversationType(context.Context, string) (string, error)
 }
 type Bus interface {
+	// Publish publishes the saved conversation change through its configured event or command
+	// transport.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Trusted event to publish or process.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Publish(context.Context, string, realtime.Envelope) error
 }
 
@@ -27,6 +59,16 @@ type Events struct {
 	Bus     Bus
 }
 
+// Broadcast publishes a trusted event only to the currently authorized conference or
+// conversation recipients.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - event: Trusted event to publish or process.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (e *Events) Broadcast(ctx context.Context, event realtime.Envelope) error {
 	var m chat.Message
 	if err := json.Unmarshal(event.Data, &m); err != nil {
@@ -38,23 +80,35 @@ func (e *Events) Broadcast(ctx context.Context, event realtime.Envelope) error {
 	}
 	return e.PublishConversation(ctx, m.ConversationID, strings.TrimPrefix(event.Type, "chat."), map[string]any{"conversationId": m.ConversationID, "type": kind, "message": m})
 }
+
+// PublishConversation publishes a committed conversation change to its authorized current
+// members.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - kind: Validated event, job, media or resource category.
+//   - data: Input bytes or structured event payload.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (e *Events) PublishConversation(ctx context.Context, id, kind string, data any) error {
 	return e.PublishConversationTo(ctx, id, kind, data)
 }
 
-// PublishUser доставляет результат личной настройки только вкладкам её владельца.
-// В отличие от PublishConversation, она не раскрывает собеседнику отключение
-// уведомлений, очистку истории или скрытие чата. Авторизацию mutation выполняет
-// обработчик до публикации; отправка в сокет повторно проверяет членство.
+// PublishUser delivers a personal preference or history change only to its owner's tabs; peer
+// accounts do not receive private notification or history settings.
 //
-// @args
-//   - ctx — контекст публикации после сохранения изменения.
-//   - user — владелец личной настройки и персонального канала.
-//   - kind — одно из событий preferences.updated, history.cleared или hidden.
-//   - data — нагрузка с conversationId, type и userId, совпадающим с владельцем.
-//     Группы допускают только preferences.updated; очистка и скрытие остаются личными.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - kind: Validated event, job, media or resource category.
+//   - data: Input bytes or structured event payload.
 //
-// @return ошибка контракта нагрузки или публикации.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (e *Events) PublishUser(ctx context.Context, user, kind string, data any) error {
 	if kind != "conversation.preferences.updated" && kind != "conversation.history.cleared" && kind != "conversation.hidden" {
 		return errors.New("unsupported personal conversation event")
@@ -81,6 +135,17 @@ func (e *Events) PublishUser(ctx context.Context, user, kind string, data any) e
 
 // PublishConversationTo also delivers a minimal lifecycle event to a removed user.
 // Callers persist first; extra recipients must never receive private messages.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - kind: Validated event, job, media or resource category.
+//   - data: Input bytes or structured event payload.
+//   - extraUsers: Additional authorized recipients included in the committed group-change event.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (e *Events) PublishConversationTo(ctx context.Context, id, kind string, data any, extraUsers ...string) error {
 	ids, err := e.Members.Members(ctx, id)
 	if err != nil {
@@ -101,6 +166,19 @@ func (e *Events) PublishConversationTo(ctx context.Context, id, kind string, dat
 	}
 	return err
 }
+
+// SendToParticipant publishes a trusted event to the physical sessions of the selected
+// authorized participant.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - user: Acting account identifier used to scope access.
+//   - event: Trusted event to publish or process.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (e *Events) SendToParticipant(ctx context.Context, id, user string, event realtime.Envelope) error {
 	var state chat.ReadState
 	if err := json.Unmarshal(event.Data, &state); err != nil {
@@ -113,6 +191,17 @@ func (e *Events) SendToParticipant(ctx context.Context, id, user string, event r
 	return e.Bus.Publish(ctx, user, realtime.Event("conversation.read.updated", "", map[string]any{"conversationId": id, "type": kind, "state": state}))
 }
 
+// conversationType resolves the persisted conversation kind before selecting its event-delivery
+// path.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: Persisted direct or group conversation kind.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (e *Events) conversationType(ctx context.Context, id string) (string, error) {
 	if types, ok := e.Members.(conversationTypes); ok {
 		return types.ConversationType(ctx, id)

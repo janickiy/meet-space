@@ -13,8 +13,10 @@ import (
 	"github.com/janickiy/meet-space/internal/operations"
 )
 
-// hostname возвращает идентичность экземпляра для журналов, а не меток метрик.
-// Аргументов нет; при отсутствии hostname используется фиксированное имя.
+// hostname returns the process host label without exposing configuration secrets.
+//
+// Returns:
+//   - result 1: Bounded process host label.
 func hostname() string {
 	value, err := os.Hostname()
 	if err != nil {
@@ -23,16 +25,22 @@ func hostname() string {
 	return value
 }
 
-// runProfiling запускает необязательную loopback-диагностику. ctx прекращает
-// сервер, ops содержит проверенный порт. Ошибка не раскрывает данные профиля.
+// runProfiling runs the restricted profiling listener when diagnostics are explicitly enabled.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - ops: Process operations and readiness runtime.
 func runProfiling(ctx context.Context, ops *operations.Runtime) {
 	if err := ops.Profiling(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("profiling unavailable", "event_type", "profiling.failed")
 	}
 }
 
-// sampleDatabase обновляет размер пула и накопленные ожидания каждые 5 секунд.
-// ctx задаёт время жизни процесса, db — общий SQL-пул; запросы к БД не выполняются.
+// sampleDatabase updates bounded database connection-pool metrics.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - db: Database handle used for the operation or transaction.
 func sampleDatabase(ctx context.Context, db *sql.DB) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -50,8 +58,11 @@ func sampleDatabase(ctx context.Context, db *sql.DB) {
 	}
 }
 
-// sampleMedia снимает агрегированные показатели SFU без идентификаторов комнат.
-// ctx останавливает наблюдение, engine предоставляет согласованный Snapshot.
+// sampleMedia updates bounded media-worker activity metrics.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - engine: Media engine that owns the room and peer resources.
 func sampleMedia(ctx context.Context, engine *sfu.Manager) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()

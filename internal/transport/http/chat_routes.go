@@ -9,25 +9,30 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// RegisterChatRoutes регистрирует HTTP-маршруты соответствующего сценария и подключает авторизацию и ограничения запросов.
+// RegisterChatRoutes registers the chat endpoints with the supplied authentication and request
+// middleware.
 //
-// @args
-//   - router (gin.IRouter): значение router типа gin.IRouter, используемое согласно назначению этой операции.
-//   - handler (*chatapp.Handler): обработчик вызываемой команды или маршрута.
-//   - authentication (gin.HandlerFunc): значение authentication типа gin.HandlerFunc, используемое согласно назначению этой операции.
-//   - limiter (httpmiddleware.Limiter): ограничитель частоты запросов, общий для экземпляров API.
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - handler: Callback responsible for processing the scoped operation.
+//   - authentication: Middleware that resolves the authenticated account identity.
+//   - limiter: Shared request-rate limiter.
 func RegisterChatRoutes(router gin.IRouter, handler *chatapp.Handler, authentication gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	registerMessageRoutes(router, handler, authentication, limiter, "conferences")
 }
 
+// registerMessageRoutes registers message, attachment and read-state routes for the selected
+// conversation scope.
+//
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - handler: Callback responsible for processing the scoped operation.
+//   - authentication: Middleware that resolves the authenticated account identity.
+//   - limiter: Shared request-rate limiter.
+//   - namespace: Namespace isolating this component's distributed keys and channels.
+//   - checks: Named dependency readiness probes or route checks.
 func registerMessageRoutes(router gin.IRouter, handler *chatapp.Handler, authentication gin.HandlerFunc, limiter httpmiddleware.Limiter, namespace string, checks ...gin.HandlerFunc) {
-	// Вложенный обработчик выполняет выделенный шаг обработки в постоянном чате и приватных вложениях, используя состояние окружающей функции.
-	//
-	// @args
-	//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-	//
-	// @return:
-	//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+
 	key := func(c *gin.Context) string {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil || id == uuid.Nil {
@@ -47,10 +52,7 @@ func registerMessageRoutes(router gin.IRouter, handler *chatapp.Handler, authent
 	} {
 		rules = append(rules, httpmiddleware.Rule{Method: rule.method, Path: path + rule.suffix, Scope: namespace + ":" + rule.scope, Limit: rule.limit, Window: time.Minute, Key: key})
 	}
-	// Вложенный обработчик выполняет выделенный шаг обработки в постоянном чате и приватных вложениях, используя состояние окружающей функции.
-	//
-	// @args
-	//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+
 	private := func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")
 		c.Header("X-Content-Type-Options", "nosniff")

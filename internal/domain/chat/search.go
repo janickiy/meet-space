@@ -8,6 +8,14 @@ import (
 )
 
 // NormalizeSearchQuery bounds literal message searches before any database work.
+//
+// Parameters:
+//   - query: Search text or validated query filters.
+//
+// Returns:
+//   - result 1: Bounded normalized search text.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func NormalizeSearchQuery(query string) (string, error) {
 	query = strings.TrimSpace(query)
 	length := utf8.RuneCountInString(query)

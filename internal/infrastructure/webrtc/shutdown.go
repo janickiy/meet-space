@@ -7,9 +7,14 @@ import (
 	"time"
 )
 
-// Shutdown прекращает приём записей и закрывает WebRTC, FFmpeg и ICE ресурсы.
-// ctx ограничивает суммарное ожидание; завершённые фрагменты сохраняются.
-// Возвращает ошибку дедлайна, если процессы не успели завершиться.
+// Shutdown stops new work and waits for the component-owned resources to finish closing.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()
 	if done := m.shutdownDone; done != nil {

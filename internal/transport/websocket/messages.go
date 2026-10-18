@@ -19,6 +19,13 @@ import (
 // handleMessage owns protocol dispatch. false ends the reader; recoverable
 // request failures use the existing error envelope and keep the socket alive.
 // Heartbeat deadlines, rate limiting and connection teardown stay in read.
+//
+// Parameters:
+//   - raw: Untrusted serialized value to decode or validate.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (c *client) handleMessage(raw []byte) bool {
 	event, code := decodeEnvelope(raw, c.session.ConferenceID)
 	if code != "" {
@@ -57,6 +64,10 @@ func (c *client) handleMessage(raw []byte) bool {
 	return true
 }
 
+// handleMedia dispatches a media command bound to the authenticated WebSocket session.
+//
+// Parameters:
+//   - event: Trusted event to publish or process.
 func (c *client) handleMedia(event domain.Envelope) {
 	if c.handler.media == nil {
 		c.failure(event.ID, "media_unavailable")
@@ -70,6 +81,15 @@ func (c *client) handleMedia(event domain.Envelope) {
 	}
 }
 
+// decodeEnvelope strictly decodes the realtime envelope before dispatching its payload.
+//
+// Parameters:
+//   - raw: Untrusted serialized value to decode or validate.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//
+// Returns:
+//   - result 1: The resulting envelope.
+//   - result 2: Safe failure code, or an empty string on success.
 func decodeEnvelope(raw []byte, conferenceID string) (domain.Envelope, string) {
 	var event domain.Envelope
 	if !utf8.Valid(raw) || strictJSON(raw, &event) != nil {
@@ -84,6 +104,15 @@ func decodeEnvelope(raw []byte, conferenceID string) (domain.Envelope, string) {
 
 // decodeSignal validates legacy signaling, normalizes the target, and injects
 // only the authenticated physical session identity. No transport side effects.
+//
+// Parameters:
+//   - event: Trusted event to publish or process.
+//   - session: Persistent or physical session state, as defined by its type.
+//   - cfg: Operator-controlled configuration and processing limits.
+//
+// Returns:
+//   - result 1: The resulting signal.
+//   - result 2: Safe signaling failure code, or an empty string on success.
 func decodeSignal(event domain.Envelope, session domain.Session, cfg config.RealtimeConfig) (domain.Signal, string) {
 	if event.Type != "webrtc.offer" && event.Type != "webrtc.answer" && event.Type != "webrtc.ice" {
 		return domain.Signal{}, "unsupported_event"

@@ -11,6 +11,15 @@ import (
 
 // decorateConversationPins adds the shared marker to already-authorized message
 // projections, including history, search, context and message updates.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - items: Bounded collection of records to process.
+//   - ids: Resource identifiers to process as a bounded batch.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func decorateConversationPins(tx *gorm.DB, items []chat.Message, ids []string) error {
 	var pinned []string
 	if err := tx.Table("conversation_message_pins").
@@ -30,6 +39,18 @@ func decorateConversationPins(tx *gorm.DB, items []chat.Message, ids []string) e
 
 // ConversationPins applies exactly the same membership, hidden-chat and cleared
 // history rules as ordinary message reads. Pins do not recover cleared messages.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//   - cursor: Opaque continuation boundary from the previous page.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The resulting message page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) ConversationPins(ctx context.Context, user, id, cursor string, limit int) (chat.MessagePage, error) {
 	page := chat.MessagePage{Items: []chat.Message{}}
 	if limit < 1 || limit > 100 {
@@ -69,6 +90,18 @@ func (r *PersonalRepository) ConversationPins(ctx context.Context, user, id, cur
 // SetConversationPin serializes pin mutations with message writes, membership
 // changes and history clearing. All current members can manage the shared pins.
 // It returns the authoritative conversation type for a minimal invalidation event.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//   - messageID: Message identifier within the authorized conversation.
+//   - pinned: Whether the selected message should be pinned.
+//
+// Returns:
+//   - result 1: Identifier of the conversation whose pin state changed.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) SetConversationPin(ctx context.Context, user, id, messageID string, pinned bool) (string, error) {
 	var kind string
 	repo := NewDirectChatRepository(r.db)

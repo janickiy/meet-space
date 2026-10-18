@@ -1,11 +1,6 @@
 package records
 
-// Command задаёт согласованное представление данных «Command» для управлении задачами записи и её артефактами.
-// @params
-//   - Type: значение Type типа string, используемое согласно назначению этой операции.
-//   - RecordID: внешний UUID задачи записи.
-//   - Reason: причина завершения, отказа или изменения состояния.
-//   - SegmentDurationSec: плановая длительность сегмента записи в секундах.
+// Command holds the command data used by recording metadata.
 type Command struct {
 	Type               string `json:"type"`
 	RecordID           string `json:"recordId"`
@@ -13,28 +8,20 @@ type Command struct {
 	SegmentDurationSec int    `json:"segmentDurationSec,omitempty"`
 }
 
-// WebRTCOfferRequest передаёт SDP-предложение клиента при установке входа записи.
-//   - Type: значение Type типа string, используемое согласно назначению этой операции.
-//   - SDP: значение SDP типа string, используемое согласно назначению этой операции.
+// WebRTCOfferRequest contains the client SDP offer used to establish recording ingestion.
 type WebRTCOfferRequest struct {
 	Type string `json:"type"`
 	SDP  string `json:"sdp"`
 }
 
-// WebRTCAnswerResponse возвращает SDP-ответ приёмника записи.
-//   - Type: значение Type типа string, используемое согласно назначению этой операции.
-//   - SDP: значение SDP типа string, используемое согласно назначению этой операции.
+// WebRTCAnswerResponse contains the recording receiver's negotiated SDP answer.
 type WebRTCAnswerResponse struct {
 	Type string `json:"type"`
 	SDP  string `json:"sdp"`
 }
 
-// RecordDetails объединяет запись и связанные файлы, сегменты и события для прикладного чтения.
-// @params
-//   - Record: задача записи с её сохранённым состоянием.
-//   - Files: набор файлов или артефактов для обработки.
-//   - Segments: доступные сегменты записи для итоговой сборки.
-//   - Events: получатель или издатель событий прикладного сценария.
+// RecordDetails combines a recording with related files, segments and events for application
+// reads.
 type RecordDetails struct {
 	Record   Record
 	Files    []RecordFile
@@ -42,12 +29,7 @@ type RecordDetails struct {
 	Events   []RecordEvent
 }
 
-// RecordCard возвращает карточку записи с разрешёнными ссылками и связанными артефактами.
-// @params
-//   - Record: встроенный тип, добавляющий свой контракт или данные.
-//   - Files: набор файлов или артефактов для обработки.
-//   - Segments: доступные сегменты записи для итоговой сборки.
-//   - Events: получатель или издатель событий прикладного сценария.
+// RecordCard contains an authorized recording view with permitted links and related artifacts.
 type RecordCard struct {
 	Record
 	Files    []RecordFileView    `json:"files"`
@@ -55,20 +37,13 @@ type RecordCard struct {
 	Events   []RecordEvent       `json:"events,omitempty"`
 }
 
-// RecordFileView добавляет к метаданным файла временную ссылку разрешённого чтения.
-// @params
-//   - RecordFile: встроенный тип, добавляющий свой контракт или данные.
-//   - URL: значение URL типа string, используемое согласно назначению этой операции.
+// RecordFileView adds a temporary authorized read link to persisted file metadata.
 type RecordFileView struct {
 	RecordFile
 	URL string `json:"url,omitempty"`
 }
 
-// RecordSegmentView добавляет к метаданным сегмента бакет и временную ссылку чтения.
-// @params
-//   - RecordSegment: встроенный тип, добавляющий свой контракт или данные.
-//   - Bucket: имя бакета объектного хранилища.
-//   - URL: значение URL типа string, используемое согласно назначению этой операции.
+// RecordSegmentView adds the private bucket and temporary read link to segment metadata.
 type RecordSegmentView struct {
 	RecordSegment
 	Bucket string `json:"bucket,omitempty"`

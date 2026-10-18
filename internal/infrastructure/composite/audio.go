@@ -8,9 +8,17 @@ import (
 	"strings"
 )
 
-// audioArguments собирает только аудиофильтры: видеодекодеры и кодировщики не запускаются.
-// @args dir — приватный каталог; chunk — закрытые источники; output — серверный путь результата.
-// @return аргументы FFmpeg с фиксированными кодеком и лимитами либо ошибка пути.
+// audioArguments builds the FFmpeg audio inputs and filters for the composite timeline.
+//
+// Parameters:
+//   - dir: Validated local directory.
+//   - chunk: Bounded input chunk and its timeline metadata.
+//   - output: Destination or generated result required by this operation.
+//
+// Returns:
+//   - result 1: The collected string values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Composer) audioArguments(dir string, chunk Chunk, output string) ([]string, error) {
 	duration := strconv.FormatFloat(chunk.Duration, 'f', 6, 64)
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-filter_complex_threads", "1"}

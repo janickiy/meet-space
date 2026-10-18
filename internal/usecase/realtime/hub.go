@@ -15,201 +15,213 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// Repository задаёт контракт зависимого компонента Repository в присутствии участников и доставке realtime-событий; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - Authorize: операция Authorize с контрактом, описанным у метода.
-//   - Open: операция открытие с контрактом, описанным у метода.
-//   - Close: операция закрытие с контрактом, описанным у метода.
-//   - Stale: операция устаревший с контрактом, описанным у метода.
-//   - Roster: операция Roster с контрактом, описанным у метода.
+// Repository defines the replaceable dependency contract for physical sessions and realtime
+// event delivery.
 type Repository interface {
-	// Authorize проверяет право пользователя участвовать в операции до работы с защищёнными ресурсами.
+	// Authorize checks the current identity and saved access state before physical sessions and
+	// realtime event delivery.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
+	//   - argument 3: Acting account identifier used to scope access.
 	//
-	// @return:
-	//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Authorize(context.Context, string, string) (conferences.Participant, error)
-	// Open создаёт историческое физическое соединение после проверки права участника.
+	// Open opens the scoped media, recording or session resource required by this component.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (domain.Session): историческая физическая сессия или состояние текущего соединения.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Persistent or physical session state, as defined by its type.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Open(context.Context, domain.Session) error
-	// Close закрывает принадлежащие компоненту ресурсы и завершает связанный жизненный цикл.
+	// Close closes the component-owned resources and ends their lifecycle.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор физического медиа-соединения.
-	//   - аргумент 3 (time.Time): временная отметка seen; указатель допускает отсутствие значения.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Physical media-connection identifier.
+	//   - argument 3: Reference timestamp of confirmed transport activity.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Close(context.Context, string, time.Time) error
-	// Stale находит незакрытые исторические сессии старше контрольной границы.
+	// Stale returns historical physical sessions that remain open beyond the liveness boundary.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (time.Time): временная отметка before; указатель допускает отсутствие значения.
-	//   - аргумент 3 (string): непрозрачная граница продолжения предыдущей страницы.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Boundary before which results or state are selected.
+	//   - argument 3: Opaque continuation boundary from the previous page.
 	//
-	// @return:
-	//   - результат 1 ([]domain.Session): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The collected session values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Stale(context.Context, time.Time, string) ([]domain.Session, error)
-	// Roster читает конференцию и членства для авторизации и построения снимка комнаты.
+	// Roster loads the conference and memberships needed to authorize the current room snapshot.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
 	//
-	// @return:
-	//   - результат 1 (conferences.Status): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 ([]conferences.Participant): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting status.
+	//   - result 2: The collected participant values.
+	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Roster(context.Context, string) (conferences.Status, []conferences.Participant, error)
 }
 
-// Store задаёт контракт зависимого компонента Store в присутствии участников и доставке realtime-событий; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - Register: операция Register с контрактом, описанным у метода.
-//   - Unregister: операция Unregister с контрактом, описанным у метода.
-//   - Touch: операция Touch с контрактом, описанным у метода.
-//   - Get: операция получение с контрактом, описанным у метода.
-//   - Active: операция Active с контрактом, описанным у метода.
-//   - Prune: операция Prune с контрактом, описанным у метода.
-//   - Publish: операция публикация с контрактом, описанным у метода.
-//   - Subscribe: операция подписка с контрактом, описанным у метода.
+// Store defines the replaceable dependency contract for physical sessions and realtime event
+// delivery.
 type Store interface {
-	// Register регистрирует физическое соединение и его ограниченное по времени присутствие.
+	// Register registers the physical connection and its bounded presence lifetime.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (domain.Session): историческая физическая сессия или состояние текущего соединения.
-	//   - аргумент 3 (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Persistent or physical session state, as defined by its type.
+	//   - argument 3: Lifetime assigned to the temporary value or ownership record.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Register(context.Context, domain.Session, time.Duration) error
-	// Unregister закрывает физическую сессию и обновляет распределённое присутствие участника.
+	// Unregister closes the physical session and updates the participant's distributed presence.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор обрабатываемого ресурса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Unregister(context.Context, string) error
-	// Touch продлевает присутствие от момента подтверждённого pong, а не от
-	// момента обработки запроса хранилищем.
+	// Touch renews presence using the supplied confirmed transport activity time.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор обрабатываемого ресурса.
-	//   - аргумент 3 (time.Time): время получения подтверждённого pong транспортом.
-	//   - аргумент 4 (time.Duration): срок присутствия после подтверждённого pong.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//   - argument 3: Timestamp of a transport-confirmed pong or other liveness acknowledgement.
+	//   - argument 4: Lifetime assigned to the temporary value or ownership record.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Touch(context.Context, string, time.Time, time.Duration) error
-	// Get читает состояние физических сессий и событий комнаты для дальнейшей обработки или ответа.
+	// Get loads the requested physical session within the caller's authorized scope.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор обрабатываемого ресурса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
 	//
-	// @return:
-	//   - результат 1 (domain.Session): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting session.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Get(context.Context, string) (domain.Session, error)
 	// Missing returns connections whose route has expired. An error must not be
 	// interpreted as absence: reconciliation then leaves SQL sessions intact.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Resource identifiers to process as a bounded batch.
+	//
+	// Returns:
+	//   - result 1: The collected string values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Missing(context.Context, []string) ([]string, error)
-	// Active возвращает действующие сессии, учитывая срок их активности.
+	// Active returns physical sessions whose presence has not expired.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier whose active sessions should be loaded.
 	//
-	// @return:
-	//   - результат 1 ([]domain.Session): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The collected session values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Active(context.Context, string) ([]domain.Session, error)
-	// Prune удаляет просроченные сессии и возвращает сведения для восстановления присутствия.
+	// Prune removes expired physical sessions and returns the state needed to reconcile presence.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Prune(context.Context) error
-	// Publish передаёт сохранённое изменение через транспорт событий или внутренних команд.
+	// Publish publishes the saved physical session change through its configured event or command
+	// transport.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (domain.Bus): транспорт публикации и подписки на доверенные события.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Scoped publication and subscription transport.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Publish(context.Context, domain.Bus) error
-	// Subscribe открывает ограниченную по времени подписку на изолированный канал событий.
+	// Subscribe opens a scoped event subscription whose lifetime is bounded by the supplied context.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
 	//
-	// @return:
-	//   - результат 1 (domain.Subscription): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting subscription.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Subscribe(context.Context) (domain.Subscription, error)
 }
 
-// Socket задаёт контракт зависимого компонента Socket в присутствии участников и доставке realtime-событий; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - Offer: операция SDP-предложение с контрактом, описанным у метода.
-//   - Stop: операция остановка с контрактом, описанным у метода.
+// Socket defines the replaceable dependency contract for physical sessions and realtime event
+// delivery.
 type Socket interface {
-	// Offer обрабатывает или передаёт SDP-предложение действующего WebRTC-подключения.
+	// Offer enqueues the event in the socket's bounded queue according to its priority and reports
+	// whether it was accepted.
 	//
-	// @args
-	//   - аргумент 1 (domain.Envelope): конверт входящего или публикуемого события.
+	// Parameters:
+	//   - argument 1: Trusted event to publish or process.
 	//
-	// @return:
-	//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+	// Returns:
+	//   - result 1: Whether the operation's documented condition holds or its conditional state
+	//     change succeeded.
 	Offer(domain.Envelope) bool
-	// Stop останавливает активную обработку физических сессий и событий комнаты и освобождает связанные ресурсы.
+	// Stop stops the active physical session operation and releases its owned resources.
 	//
-	// @args
-	//   - аргумент 1 (string): причина завершения, отказа или изменения состояния.
+	// Parameters:
+	//   - argument 1: Bounded reason code sent when closing the socket.
 	Stop(string)
 }
 
-// DisconnectObserver задаёт контракт зависимого компонента DisconnectObserver в присутствии участников и доставке realtime-событий; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - Disconnected: операция отключённый с контрактом, описанным у метода.
+// DisconnectObserver defines the replaceable dependency contract for physical sessions and
+// realtime event delivery.
 type DisconnectObserver interface {
-	// Disconnected обрабатывает закрытие физического соединения и запускает связанное освобождение ресурсов.
+	// Disconnected handles closure of a physical connection and releases only the resources owned by
+	// that connection.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (domain.Session): историческая физическая сессия или состояние текущего соединения.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Persistent or physical session state, as defined by its type.
 	Disconnected(context.Context, domain.Session)
 }
 
-// DisconnectObservers объединяет ограниченные обработчики очистки, сохраняя независимость
-// жизненных циклов отдельных подсистем.
+// DisconnectObservers combines bounded cleanup observers while preserving independent subsystem
+// lifecycles.
 type DisconnectObservers []DisconnectObserver
 
-// Disconnected обрабатывает закрытие физического соединения и запускает связанное освобождение ресурсов.
+// Disconnected handles closure of a physical connection and releases only the resources owned by
+// that connection.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (domain.Session): историческая физическая сессия или состояние текущего соединения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
 func (observers DisconnectObservers) Disconnected(ctx context.Context, session domain.Session) {
 	for _, observer := range observers {
 		if observer != nil {
@@ -218,32 +230,15 @@ func (observers DisconnectObservers) Disconnected(ctx context.Context, session d
 	}
 }
 
-// localSocket связывает локальный сокет с его сессией и управлением временем жизни.
-//   - session: историческая физическая сессия или состояние текущего соединения.
-//   - socket: значение socket типа Socket, используемое согласно назначению этой операции.
-//   - ready: логический признак ready, управляющий соответствующей веткой обработки.
+// localSocket binds a local transport to its physical session and lifetime state.
 type localSocket struct {
 	session domain.Session
 	socket  Socket
 	ready   bool
 }
 
-// Hub координирует локальные сокеты, распределённое присутствие и события с фильтрацией доступа и отдельными приоритетами.
-// @params
-//   - repo: хранилище постоянных данных прикладного сценария.
-//   - store: значение store типа Store, используемое согласно назначению этой операции.
-//   - ttl: срок жизни сохраняемого значения или выданного разрешения.
-//   - logger: значение logger типа *slog.Logger, используемое согласно назначению этой операции.
-//   - ctx: контекст отмены, дедлайна и времени жизни операции.
-//   - cancel: отмена контекста, завершающая принадлежащие ресурсу операции.
-//   - sub: значение sub типа domain.Subscription, используемое согласно назначению этой операции.
-//   - mu: блокировка согласованного доступа к разделяемому состоянию.
-//   - closing: логический признак closing, управляющий соответствующей веткой обработки.
-//   - local: индекс значений local для поиска и согласования состояния.
-//   - sockets: значение sockets типа sync.WaitGroup, используемое согласно назначению этой операции.
-//   - workers: значение workers типа sync.WaitGroup, используемое согласно назначению этой операции.
-//   - disconnectObserver: значение disconnectObserver типа DisconnectObserver, используемое согласно назначению этой операции.
-//   - lowEvents: канал «low события» для передачи данных или завершения ожидания.
+// Hub coordinates local sockets, distributed presence and access-filtered event delivery with
+// independent priorities.
 type Hub struct {
 	repo               Repository
 	store              Store
@@ -261,21 +256,23 @@ type Hub struct {
 	workers            sync.WaitGroup
 	disconnectObserver DisconnectObserver
 	lowEvents          chan domain.Bus
-	shutdownOnce       sync.Once // завершение запускается один раз при повторных вызовах
+	shutdownOnce       sync.Once // Start shutdown only once, even when callers repeat the request.
 	shutdownDone       chan struct{}
 }
 
-// NewHub создаёт и связывает зависимости компонента Hub, используемого в присутствии участников и доставке realtime-событий.
+// NewHub constructs the hub with the dependencies and limits required for physical sessions and
+// realtime event delivery.
 //
-// @args
-//   - repo (Repository): хранилище постоянных данных прикладного сценария.
-//   - store (Store): значение store типа Store, используемое согласно назначению этой операции.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
-//   - logger (*slog.Logger): значение logger типа *slog.Logger, используемое согласно назначению этой операции.
+// Parameters:
+//   - repo: Persistence dependency used by the application operation.
+//   - store: Distributed physical-session and event store.
+//   - ttl: Lifetime assigned to the temporary value or ownership record.
+//   - logger: Bounded diagnostic logger.
 //
-// @return:
-//   - результат 1 (*Hub): созданный компонент с переданными зависимостями.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The constructed or loaded hub.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func NewHub(repo Repository, store Store, ttl time.Duration, logger *slog.Logger) (*Hub, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	if logger == nil {
@@ -298,24 +295,50 @@ func NewHub(repo Repository, store Store, ttl time.Duration, logger *slog.Logger
 	return h, nil
 }
 
-// Authorize проверяет право пользователя участвовать в операции до работы с защищёнными ресурсами.
+// Authorize checks the current identity and saved access state before physical sessions and
+// realtime event delivery.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) Authorize(ctx context.Context, conferenceID, userID string) (conferences.Participant, error) {
 	return h.repo.Authorize(ctx, conferenceID, userID)
 }
 
 // AuthorizeClient additionally scopes private calls to the initiating/accepting
 // client. Ordinary conference repositories preserve their existing contract.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//   - clientID: Physical browser or socket client identifier.
+//
+// Returns:
+//   - result 1: The resulting participant.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) AuthorizeClient(ctx context.Context, conferenceID, userID, clientID string) (conferences.Participant, error) {
 	if repo, ok := h.repo.(interface {
+		// AuthorizeClient validates conference access for the specified account and physical client
+		// identity.
+		//
+		// Parameters:
+		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+		//   - argument 2: Conference identifier limiting the operation scope.
+		//   - argument 3: Acting account identifier used to scope access.
+		//   - argument 4: Physical browser or socket client identifier.
+		//
+		// Returns:
+		//   - result 1: The resulting participant.
+		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+		//     failure.
 		AuthorizeClient(context.Context, string, string, string) (conferences.Participant, error)
 	}); ok {
 		return repo.AuthorizeClient(ctx, conferenceID, userID, clientID)
@@ -325,6 +348,13 @@ func (h *Hub) AuthorizeClient(ctx context.Context, conferenceID, userID, clientI
 
 // Check includes the live subscription in API readiness; a healthy Redis Ping
 // alone does not establish that this Hub can receive conference events.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) Check(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -337,25 +367,26 @@ func (h *Hub) Check(ctx context.Context) error {
 	return nil
 }
 
-// SetDisconnectObserver подключает обработчик завершения физической сессии до запуска обслуживания сокетов.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// SetDisconnectObserver updates disconnect observer for physical sessions and realtime event
+// delivery.
 //
-// @args
-//   - observer (DisconnectObserver): получатель сохранённых изменений конференции или закрытия сессии.
+// Parameters:
+//   - observer: Observer notified after a persisted lifecycle change.
 func (h *Hub) SetDisconnectObserver(observer DisconnectObserver) {
 	h.mu.Lock()
 	h.disconnectObserver = observer
 	h.mu.Unlock()
 }
 
-// ValidateSession связывает медиа-команду с действующей разрешённой физической WebSocket-сессией.
+// ValidateSession binds the media operation to a current, authorized physical WebSocket session.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (domain.Session): историческая физическая сессия или состояние текущего соединения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) ValidateSession(ctx context.Context, session domain.Session) error {
 	p, err := h.AuthorizeClient(ctx, session.ConferenceID, session.UserID, session.ClientID)
 	if err != nil {
@@ -371,21 +402,33 @@ func (h *Hub) ValidateSession(ctx context.Context, session domain.Session) error
 	return nil
 }
 
-// Prepare подготавливает состояние WebRTC-приёма конкретной записи до обмена SDP.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// Prepare prepares the authorized physical session state before media negotiation begins.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
 //
-// @return:
-//   - результат 1 (domain.Session): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting session.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) Prepare(ctx context.Context, conferenceID, userID string) (domain.Session, error) {
 	return h.PrepareClient(ctx, conferenceID, userID, "")
 }
 
+// PrepareClient authorizes and prepares the physical client session before socket registration.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//   - clientID: Physical browser or socket client identifier.
+//
+// Returns:
+//   - result 1: The resulting session.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) PrepareClient(ctx context.Context, conferenceID, userID, clientID string) (domain.Session, error) {
 	h.mu.Lock()
 	closing := h.closing
@@ -406,26 +449,27 @@ func (h *Hub) PrepareClient(ctx context.Context, conferenceID, userID, clientID 
 	return s, h.repo.Open(ctx, s)
 }
 
-// Abort закрывает неудачно зарегистрированную физическую сессию и освобождает её присутствие.
+// Abort closes a physical session whose registration failed and removes its distributed
+// presence.
 //
-// @args
-//   - session (domain.Session): историческая физическая сессия или состояние текущего соединения.
+// Parameters:
+//   - session: Persistent or physical session state, as defined by its type.
 func (h *Hub) Abort(session domain.Session) {
 	ctx, c := context.WithTimeout(context.Background(), 5*time.Second)
 	defer c()
 	_ = h.repo.Close(ctx, session.ConnectionID, session.LastSeenAt)
 }
 
-// Register регистрирует физическое соединение и его ограниченное по времени присутствие.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// Register registers the physical connection and its bounded presence lifetime.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (domain.Session): историческая физическая сессия или состояние текущего соединения.
-//   - socket (Socket): значение socket типа Socket, используемое согласно назначению этой операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
+//   - socket: Physical socket transport registered with its verified session.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) Register(ctx context.Context, session domain.Session, socket Socket) error {
 	h.mu.Lock()
 	if h.closing || h.unavailable {
@@ -444,7 +488,8 @@ func (h *Hub) Register(ctx context.Context, session domain.Session, socket Socke
 		h.Unregister(session)
 		return err
 	}
-	// Учитываем завершение или выход одновременно с upgrade соединения и регистрацией в Redis.
+	// Handle conference completion or member departure racing the socket upgrade and Redis
+	// registration.
 	if _, err := h.AuthorizeClient(ctx, session.ConferenceID, session.UserID, session.ClientID); err != nil {
 		h.Unregister(session)
 		return err
@@ -469,11 +514,10 @@ func (h *Hub) Register(ctx context.Context, session domain.Session, socket Socke
 	return nil
 }
 
-// Unregister закрывает физическую сессию и обновляет распределённое присутствие участника.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// Unregister closes the physical session and updates the participant's distributed presence.
 //
-// @args
-//   - session (domain.Session): историческая физическая сессия или состояние текущего соединения.
+// Parameters:
+//   - session: Persistent or physical session state, as defined by its type.
 func (h *Hub) Unregister(session domain.Session) {
 	h.mu.Lock()
 	_, exists := h.local[session.ConnectionID]
@@ -496,28 +540,29 @@ func (h *Hub) Unregister(session domain.Session) {
 	if err := h.repo.Close(ctx, session.ConnectionID, seen); err != nil {
 		h.log(session, "history_cleanup_failed")
 	}
-	// Обработчики видят уже закрытую сессию. Две одновременно закрывающиеся вкладки
-	// не могут обе принять другую вкладку за последнюю активную сессию.
+	// Observers see the session as already closed. Two tabs closing together cannot both mistake the
+	// other for the last active session.
 	if observer != nil {
 		observer.Disconnected(ctx, session)
 	}
 	h.log(session, "disconnected")
 }
 
-// Touch продлевает срок активности зарегистрированной физической сессии.
+// Touch renews presence using the supplied confirmed transport activity time.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (domain.Session): историческая физическая сессия или состояние текущего соединения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) Touch(ctx context.Context, session domain.Session) error {
 	if _, err := h.AuthorizeClient(ctx, session.ConferenceID, session.UserID, session.ClientID); err != nil {
 		return err
 	}
-	// Проверка членства не должна добавлять своё время к пятисекундному окну.
-	// Источник LastSeenAt — только принятый транспортом подтверждённый pong.
+	// Membership checks must not add time to the five-second liveness window. LastSeenAt comes only
+	// from a transport-confirmed received pong.
 	remaining := h.ttl - time.Since(session.LastSeenAt)
 	if session.LastSeenAt.IsZero() || remaining <= 0 || remaining > h.ttl {
 		return apperrors.ErrNotFound
@@ -525,55 +570,61 @@ func (h *Hub) Touch(ctx context.Context, session domain.Session) error {
 	return h.store.Touch(ctx, session.ConnectionID, session.LastSeenAt, h.ttl)
 }
 
-// GetActiveSessions возвращает действующие физические сессии для проверки медиа-команд.
+// GetActiveSessions returns the current physical sessions used to authorize media commands.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
 //
-// @return:
-//   - результат 1 ([]domain.Session): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The collected session values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) GetActiveSessions(ctx context.Context, conferenceID string) ([]domain.Session, error) {
 	return h.store.Active(ctx, conferenceID)
 }
 
-// Broadcast публикует доверенное событие для разрешённых получателей конференции.
+// Broadcast publishes a trusted event only to the currently authorized conference or
+// conversation recipients.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - event (domain.Envelope): конверт входящего или публикуемого события.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - event: Trusted event to publish or process.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) Broadcast(ctx context.Context, event domain.Envelope) error {
 	return h.store.Publish(ctx, domain.Bus{Kind: "event", ConferenceID: event.ConferenceID, Event: &event})
 }
 
-// SendToParticipant публикует адресное событие физическим сессиям указанного участника.
+// SendToParticipant publishes a trusted event to the physical sessions of the selected
+// authorized participant.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - participantID (string): идентификатор членства участника внутри конференции.
-//   - event (domain.Envelope): конверт входящего или публикуемого события.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - participantID: Conference participant identifier.
+//   - event: Trusted event to publish or process.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) SendToParticipant(ctx context.Context, conferenceID, participantID string, event domain.Envelope) error {
 	return h.store.Publish(ctx, domain.Bus{Kind: "event", ConferenceID: conferenceID, ParticipantID: participantID, Event: &event})
 }
 
-// SendToConnection публикует доверенное адресное событие конкретному физическому соединению.
+// SendToConnection publishes a trusted event to one authorized physical socket connection.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (domain.Session): историческая физическая сессия или состояние текущего соединения.
-//   - targetID (string): идентификатор связанного ресурса, заданного параметром targetID.
-//   - event (domain.Envelope): конверт входящего или публикуемого события.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
+//   - targetID: Identifier of the target account or resource.
+//   - event: Trusted event to publish or process.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) SendToConnection(ctx context.Context, session domain.Session, targetID string, event domain.Envelope) error {
 	if _, err := h.AuthorizeClient(ctx, session.ConferenceID, session.UserID, session.ClientID); err != nil {
 		return err
@@ -602,11 +653,12 @@ func (h *Hub) SendToConnection(ctx context.Context, session domain.Session, targ
 	return err
 }
 
-// ConferenceChanged уведомляет подключённые сессии о сохранённом изменении состояния конференции.
+// ConferenceChanged notifies connected sessions or observers of the conference's committed state
+// change.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
 func (h *Hub) ConferenceChanged(ctx context.Context, conferenceID string) {
 	ctx, c := context.WithTimeout(ctx, 3*time.Second)
 	defer c()
@@ -616,6 +668,15 @@ func (h *Hub) ConferenceChanged(ctx context.Context, conferenceID string) {
 }
 
 // state aggregates physical connections by persisted participant membership.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
+//
+// Returns:
+//   - result 1: The resulting state.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) state(ctx context.Context, session domain.Session) (domain.State, error) {
 	status, roster, err := h.repo.Roster(ctx, session.ConferenceID)
 	if err != nil {
@@ -642,6 +703,13 @@ func (h *Hub) state(ctx context.Context, session domain.Session) (domain.State, 
 }
 
 // stateFor hides the waiting roster from non-moderators and sets the recipient identity.
+//
+// Parameters:
+//   - state: Current state or validated state update.
+//   - session: Persistent or physical session state, as defined by its type.
+//
+// Returns:
+//   - result 1: The resulting state.
 func stateFor(state domain.State, session domain.Session) domain.State {
 	state.ConnectionID, state.ParticipantID = session.ConnectionID, session.ParticipantID
 	isModerator := false
@@ -664,14 +732,16 @@ func stateFor(state domain.State, session domain.Session) domain.State {
 	return state
 }
 
-// stateAllows проверяет, допускает ли актуальный снимок подключение данной сессии к комнате.
+// stateAllows checks whether the current conference snapshot still permits the physical session
+// to participate.
 //
-// @args
-//   - state (domain.State): значение state типа domain.State, используемое согласно назначению этой операции.
-//   - participantID (string): идентификатор членства участника внутри конференции.
+// Parameters:
+//   - state: Current state or validated state update.
+//   - participantID: Conference participant identifier.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func stateAllows(state domain.State, participantID string) bool {
 	if state.Status != conferences.Created && state.Status != conferences.Active {
 		return false
@@ -684,7 +754,8 @@ func stateAllows(state domain.State, participantID string) bool {
 	return false
 }
 
-// receive читает входящие события или пакеты и передаёт их соответствующим обработчикам.
+// receive reads incoming physical session events and forwards them to the corresponding bounded
+// delivery path.
 func (h *Hub) receive() {
 	defer h.workers.Done()
 	sub, generation := h.sub, h.generation // Set before this worker starts.
@@ -708,7 +779,7 @@ func (h *Hub) receive() {
 			select {
 			case h.lowEvents <- bus:
 			default:
-			} // Сохранённая история восстанавливает события после переполнения.
+			} // Persisted history recovers events lost to queue overflow.
 		} else {
 			h.deliver(bus)
 		}
@@ -718,6 +789,9 @@ func (h *Hub) receive() {
 // breakBroker invalidates only the generation whose operation failed. A slow
 // Prune result from an old connection must not close its healthy replacement.
 // Network close and socket notifications run outside the registry lock.
+//
+// Parameters:
+//   - generation: Content generation used to reject stale results.
 func (h *Hub) breakBroker(generation uint64) {
 	h.mu.Lock()
 	if h.closing || h.unavailable || h.generation != generation {
@@ -739,6 +813,12 @@ func (h *Hub) breakBroker(generation uint64) {
 
 // recoverSubscription runs in the existing receive worker. Each attempt owns
 // its timeout and the next subscription is acknowledged before admission opens.
+//
+// Returns:
+//   - result 1: The resulting subscription.
+//   - result 2: The resulting count, size or numeric value.
+//   - result 3: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (h *Hub) recoverSubscription() (domain.Subscription, uint64, bool) {
 	backoff := 100 * time.Millisecond
 	for {
@@ -773,7 +853,8 @@ func (h *Hub) recoverSubscription() (domain.Subscription, uint64, bool) {
 	}
 }
 
-// receiveLowPriority доставляет события чата и реакций через отдельную ограниченную очередь.
+// receiveLowPriority delivers chat and reaction events through the independent bounded
+// low-priority queue.
 func (h *Hub) receiveLowPriority() {
 	defer h.workers.Done()
 	for {
@@ -786,14 +867,13 @@ func (h *Hub) receiveLowPriority() {
 	}
 }
 
-// entries снимает список локальных сокетов под блокировкой для дальнейшей работы вне неё.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// entries copies the local socket entries while holding the registry lock.
 //
-// @args
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// Parameters:
+//   - conferenceID: Conference identifier limiting the operation scope.
 //
-// @return:
-//   - результат 1 ([]*localSocket): собранные элементы результата; состав ограничивается параметрами операции.
+// Returns:
+//   - result 1: The collected *local socket values.
 func (h *Hub) entries(conferenceID string) []*localSocket {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -806,11 +886,11 @@ func (h *Hub) entries(conferenceID string) []*localSocket {
 	return rows
 }
 
-// deliver проверяет получателей события и ставит его в соответствующие локальные очереди сокетов.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// deliver checks the current recipient authorization immediately before the saved event or
+// command is delivered.
 //
-// @args
-//   - bus (domain.Bus): транспорт публикации и подписки на доверенные события.
+// Parameters:
+//   - bus: Scoped publication and subscription transport.
 func (h *Hub) deliver(bus domain.Bus) {
 	ctx, c := context.WithTimeout(h.ctx, 5*time.Second)
 	defer c()
@@ -828,8 +908,8 @@ func (h *Hub) deliver(bus domain.Bus) {
 		return
 	}
 	if bus.Kind == "event" && bus.Event != nil {
-		// Заново проверяем получателей по текущему сохранённому членству, а не кешу сокета.
-		// Удаление участника или завершение может зафиксироваться до доставки события изменения.
+		// Recheck recipients against current persisted membership, not the socket cache. Removal or
+		// completion may commit before the state-change event is delivered.
 		kind := bus.Event.Type
 		restricted := strings.HasPrefix(kind, "caption.") || strings.HasPrefix(kind, "chat.") || strings.HasPrefix(kind, "recording.") || strings.HasPrefix(kind, "reaction.") || strings.HasPrefix(kind, "participant.")
 		allowed := map[string]bool{}
@@ -865,7 +945,7 @@ func (h *Hub) deliver(bus domain.Bus) {
 	if len(entries) == 0 {
 		return
 	}
-	// Один снимок на событие конференции вместо отдельного обращения к БД и Redis для каждого сокета.
+	// Use one conference snapshot per event rather than a database and Redis lookup per socket.
 	state, err := h.state(ctx, entries[0].session)
 	if err != nil {
 		for _, e := range entries {
@@ -894,7 +974,8 @@ func (h *Hub) deliver(bus domain.Bus) {
 	}
 }
 
-// janitor периодически очищает истёкшие присутствия и закрывает утратившие авторизацию сокеты.
+// janitor periodically prunes expired presence and closes sockets whose authorization has been
+// revoked.
 func (h *Hub) janitor() {
 	defer h.workers.Done()
 	interval := h.ttl / 4
@@ -916,7 +997,7 @@ func (h *Hub) janitor() {
 			if err := h.store.Prune(ctx); err != nil {
 				h.breakBroker(generation)
 			}
-			// Восстанавливаем и сбой между открытием сессии в SQL и регистрацией в Redis.
+			// Also recover failures between opening the SQL session and registering its Redis presence.
 			rows, err := h.repo.Stale(ctx, time.Now().Add(-2*h.ttl), cursor)
 			if err == nil {
 				h.closeMissingSessions(ctx, rows)
@@ -934,6 +1015,10 @@ func (h *Hub) janitor() {
 // closeMissingSessions checks one bounded SQL page in a Redis request batch.
 // Live routes need no JSON decoding; SQL is changed only after a successful
 // presence check, preserving the failure behavior of the former GET loop.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - rows: Persisted or local state snapshot to reconcile.
 func (h *Hub) closeMissingSessions(ctx context.Context, rows []domain.Session) {
 	if len(rows) == 0 {
 		return
@@ -957,11 +1042,11 @@ func (h *Hub) closeMissingSessions(ctx context.Context, rows []domain.Session) {
 	}
 }
 
-// stopSockets закрывает выбранные локальные сокеты после отзыва доступа или смены состояния конференции.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// stopSockets closes the selected physical sockets after their access or conference state
+// changes.
 //
-// @args
-//   - reason (string): причина завершения, отказа или изменения состояния.
+// Parameters:
+//   - reason: Bounded lifecycle or failure reason.
 func (h *Hub) stopSockets(reason string) {
 	h.mu.Lock()
 	h.closing = true
@@ -975,17 +1060,22 @@ func (h *Hub) stopSockets(reason string) {
 	}
 }
 
-// Shutdown останавливает менеджер и ожидает завершения принадлежащих ему ресурсов.
+// Shutdown stops new work and waits for the component-owned resources to finish closing.
 func (h *Hub) Shutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	_ = h.ShutdownContext(ctx)
 }
 
-// ShutdownContext запрещает новые сокеты и ожидает завершения сокетов, PubSub и
-// фоновых задач. ctx ограничивает ожидание при плавном развёртывании; при его
-// отмене принудительно отменяется контекст Hub и возвращается ctx.Err(). Повторные
-// вызовы ждут ту же остановку, не запускают дополнительные горутины очистки.
+// ShutdownContext stops accepting new sockets and waits for owned subscriptions and tasks until
+// the shutdown context expires.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *Hub) ShutdownContext(ctx context.Context) error {
 	h.shutdownOnce.Do(func() {
 		h.shutdownDone = make(chan struct{})
@@ -1010,18 +1100,17 @@ func (h *Hub) ShutdownContext(ctx context.Context) error {
 	}
 }
 
-// LocalCount возвращает число зарегистрированных локальных сокетов под блокировкой Hub.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// LocalCount returns the number of locally registered sockets under the registry lock.
 //
-// @return:
-//   - результат 1 (int): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
 func (h *Hub) LocalCount() int { h.mu.Lock(); defer h.mu.Unlock(); return len(h.local) }
 
-// log записывает ограниченную диагностику компонента с указанными параметрами.
+// log records a bounded component diagnostic without private signaling content.
 //
-// @args
-//   - s (domain.Session): значение s типа domain.Session, используемое согласно назначению этой операции.
-//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
+// Parameters:
+//   - s: The session state processed by this operation.
+//   - kind: Validated event, job, media or resource category.
 func (h *Hub) log(s domain.Session, kind string) {
 	h.logger.Info("realtime event", "conference_id", s.ConferenceID, "participant_id", s.ParticipantID, "user_id", s.UserID, "connection_id", s.ConnectionID, "event_type", kind)
 }

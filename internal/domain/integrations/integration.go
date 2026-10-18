@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-// Preferences определяет категории личных уведомлений и разрешение внешних каналов; email/push по умолчанию выключены.
+// Preferences selects personal notification categories and external channels; email and push are
+// disabled by default.
 type Preferences struct {
 	UserID     string    `json:"-" gorm:"type:uuid;primaryKey"`
 	Invitation bool      `json:"invitation"`
@@ -17,20 +18,32 @@ type Preferences struct {
 	UpdatedAt  time.Time `json:"-"`
 }
 
-// TableName привязывает пользовательские настройки к постоянной таблице.
-// @return: имя таблицы PostgreSQL.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
+//
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (Preferences) TableName() string { return "notification_preferences" }
 
-// DefaultPreferences включает полезные внутренние события, но не передаёт данные внешним провайдерам без согласия.
-// @args userID — владелец настроек.
-// @return: первоначальные настройки пользователя.
+// DefaultPreferences returns the initial notification preferences for an account.
+//
+// Parameters:
+//   - userID: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: The resulting preferences.
 func DefaultPreferences(userID string) Preferences {
 	return Preferences{UserID: userID, Invitation: true, Reminder: true, Recording: true, Summary: true}
 }
 
-// Allows проверяет разрешённую категорию события без изменения настроек.
-// @args kind — техническое имя события.
-// @return: true для включённой категории; неизвестные события запрещены.
+// Allows reports whether the current policy permits the requested operation or source.
+//
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (p Preferences) Allows(kind string) bool {
 	switch kind {
 	case "conference.invited", "conference.rescheduled", "conference.cancelled":
@@ -47,7 +60,8 @@ func (p Preferences) Allows(kind string) bool {
 	return false
 }
 
-// Device хранит регистрацию устройства; зашифрованный токен и fingerprint никогда не входят в API-ответ.
+// Device persists a device registration; its encrypted token and fingerprint are never included
+// in API responses.
 type Device struct {
 	ID               string     `json:"id" gorm:"type:uuid;primaryKey"`
 	UserID           string     `json:"-"`
@@ -61,17 +75,21 @@ type Device struct {
 	DisabledAt       *time.Time `json:"disabledAt,omitempty"`
 }
 
-// TableName возвращает имя безопасного хранилища регистраций push.
-// @return: имя таблицы.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
+//
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (Device) TableName() string { return "push_devices" }
 
-// DeviceRequest содержит токен от доверенного приложения устройства; произвольные URL провайдера не принимаются.
+// DeviceRequest accepts a token from a trusted device application, never arbitrary provider
+// URLs.
 type DeviceRequest struct {
 	Platform string `json:"platform"`
 	Token    string `json:"token"`
 }
 
-// CalendarConnection связывает внешний календарь с владельцем; OAuth-секреты доступны только серверу.
+// CalendarConnection binds an external calendar to its owner; OAuth secrets remain server-only.
 type CalendarConnection struct {
 	ID                string     `json:"id" gorm:"type:uuid;primaryKey"`
 	UserID            string     `json:"-"`
@@ -86,11 +104,14 @@ type CalendarConnection struct {
 	UpdatedAt         time.Time  `json:"updatedAt"`
 }
 
-// TableName возвращает имя таблицы подключений, отдельной от независимого от поставщика расписания.
-// @return: имя таблицы.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
+//
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (CalendarConnection) TableName() string { return "calendar_connections" }
 
-// CalendarMapping сохраняет единственный внешний event для пары конференция/подключение.
+// CalendarMapping stores one external event for each conference and connection pair.
 type CalendarMapping struct {
 	ID                 string     `json:"-" gorm:"type:uuid;primaryKey"`
 	ConferenceID       string     `json:"conferenceId"`
@@ -103,11 +124,14 @@ type CalendarMapping struct {
 	LastSyncedAt       *time.Time `json:"lastSyncedAt,omitempty"`
 }
 
-// TableName возвращает имя таблицы соответствий внешних календарей.
-// @return: имя таблицы.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
+//
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (CalendarMapping) TableName() string { return "calendar_event_mappings" }
 
-// OAuthState сохраняет короткоживущее одноразовое состояние и зашифрованное проверочное значение PKCE.
+// OAuthState persists short-lived one-use state and an encrypted PKCE verifier.
 type OAuthState struct {
 	ID                 string
 	UserID             string
@@ -118,11 +142,14 @@ type OAuthState struct {
 	UsedAt             *time.Time
 }
 
-// TableName возвращает имя таблицы одноразовых запросов OAuth.
-// @return: имя таблицы.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
+//
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (OAuthState) TableName() string { return "calendar_oauth_states" }
 
-// EmailMessage несёт минимальные данные письма; идентификатор стабилен для повторной доставки.
+// EmailMessage contains minimal delivery data and an identifier stable across retries.
 type EmailMessage struct {
 	IdempotencyKey string `json:"idempotencyKey"`
 	To             string `json:"to"`
@@ -131,7 +158,7 @@ type EmailMessage struct {
 	Text           string `json:"text"`
 }
 
-// PushMessage не содержит расшифровок встреч и содержит лишь ссылку и безопасный текст события.
+// PushMessage contains a frontend link and safe event text, never conference transcripts.
 type PushMessage struct {
 	IdempotencyKey string `json:"idempotencyKey"`
 	Token          string `json:"token"`
@@ -140,7 +167,7 @@ type PushMessage struct {
 	URL            string `json:"url"`
 }
 
-// CalendarEvent представляет внешний event без импорта SDK конкретного производителя.
+// CalendarEvent represents an external event without importing a provider-specific SDK.
 type CalendarEvent struct {
 	IdempotencyKey string    `json:"idempotencyKey"`
 	ID             string    `json:"id,omitempty"`
@@ -153,7 +180,7 @@ type CalendarEvent struct {
 	SourceVersion  int64     `json:"sourceVersion"`
 }
 
-// CalendarCredentials передаёт OAuth-токен только внутри сервера, вне публичного JSON и журналов.
+// CalendarCredentials carries OAuth tokens only inside the server, never in public JSON or logs.
 type CalendarCredentials struct {
 	AccessToken  string     `json:"-"`
 	RefreshToken string     `json:"-"`
@@ -161,64 +188,144 @@ type CalendarCredentials struct {
 	Scopes       string     `json:"-"`
 }
 
-// EmailProvider отделяет прикладную доставку от конкретного сервиса со стабильным ключом сообщения.
-// HTTP gateway дедуплицирует ключ; SMTP сохраняет Message-ID, но допускает повтор после потерянного ответа.
+// EmailProvider isolates delivery behind a stable message key. The HTTP gateway deduplicates it;
+// SMTP preserves Message-ID but may redeliver after a lost acknowledgement.
 type EmailProvider interface {
-	// Send доставляет письмо с одним IdempotencyKey для всех попыток одной операции.
-	// @args контекст — срок выполнения; письмо — получатель, HTML с экранированием и обычный текст.
-	// @return: классифицированная ошибка либо nil после приёма провайдером.
+	// Send delivers the bounded email with a stable message identity; the configured transport
+	// determines retry deduplication.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Persisted or outgoing chat message.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Send(context.Context, EmailMessage) error
 }
 
-// PushProvider отделяет платформенную отправку push от SDK конкретного поставщика.
+// PushProvider isolates platform delivery from provider-specific SDKs.
 type PushProvider interface {
-	// Send отправляет минимальное push-событие конкретному устройству.
-	// @args контекст — срок выполнения; сообщение — секретный токен, текст, ссылка и ключ дедупликации.
-	// @return: классифицированная ошибка либо nil.
+	// Send delivers a minimal notification to the selected registered device without transcript text
+	// or provider secrets.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Persisted or outgoing chat message.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Send(context.Context, PushMessage) error
 }
 
-// CalendarProvider задаёт контракт создания, обновления, отмены и чтения; CreateEvent соблюдает идемпотентность по ключу.
+// CalendarProvider defines event creation, update, cancellation and lookup; CreateEvent must
+// honor its idempotency key.
 type CalendarProvider interface {
-	// CreateEvent создаёт не более одного события для стабильного ключа идемпотентности.
-	// @args контекст — срок выполнения; credentials — серверное разрешение OAuth; event — расписание и версия.
-	// @return: внешний event со стабильным ID либо ошибка.
+	// CreateEvent creates an idempotent calendar event through the configured provider.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: The calendar credentials value required by the contract.
+	//   - argument 3: Trusted event to publish or process.
+	//
+	// Returns:
+	//   - result 1: The resulting calendar event.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	CreateEvent(context.Context, CalendarCredentials, CalendarEvent) (CalendarEvent, error)
-	// UpdateEvent меняет существующий event; более старая SourceVersion не должна вытеснять новую.
-	// @args контекст — срок выполнения; credentials — серверное разрешение; event — прежний ID и новое расписание.
-	// @return: актуальный event либо ошибка.
+	// UpdateEvent updates the mapped external calendar event for the current conference schedule.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: The calendar credentials value required by the contract.
+	//   - argument 3: Trusted event to publish or process.
+	//
+	// Returns:
+	//   - result 1: The resulting calendar event.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	UpdateEvent(context.Context, CalendarCredentials, CalendarEvent) (CalendarEvent, error)
-	// CancelEvent идемпотентно отменяет ранее сопоставленный event.
-	// @args контекст — срок выполнения; credentials — серверное разрешение; event — существующий ID.
-	// @return: безопасная ошибка отмены либо nil.
+	// CancelEvent cancels the external calendar event associated with the saved mapping.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: The calendar credentials value required by the contract.
+	//   - argument 3: Trusted event to publish or process.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	CancelEvent(context.Context, CalendarCredentials, CalendarEvent) error
-	// GetEvent читает событие для восстановления либо диагностики соответствия внешнего ресурса.
-	// @args контекст — срок выполнения; credentials — серверное разрешение; event — внешний ID.
-	// @return: актуальный event либо ошибка.
+	// GetEvent reads the mapped external calendar event for reconciliation.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: The calendar credentials value required by the contract.
+	//   - argument 3: Trusted event to publish or process.
+	//
+	// Returns:
+	//   - result 1: The resulting calendar event.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	GetEvent(context.Context, CalendarCredentials, CalendarEvent) (CalendarEvent, error)
 }
 
-// OAuthProvider реализует серверную авторизацию, refresh и revoke с ограниченными настроенными scopes.
+// OAuthProvider performs server-side authorization, refresh and revocation using bounded
+// operator-configured scopes.
 type OAuthProvider interface {
-	// AuthorizeURL формирует перенаправление без секрета клиента в строке запроса.
-	// @args state — одноразовое состояние; challenge — проверочное значение PKCE по методу S256.
-	// @return: authorization URL либо ошибка.
+	// AuthorizeURL builds the provider authorization redirect with one-time state and S256 PKCE
+	// challenge, without exposing a client secret.
+	//
+	// Parameters:
+	//   - argument 1: Current state or validated state update.
+	//   - argument 2: S256 PKCE challenge sent to the authorization provider.
+	//
+	// Returns:
+	//   - result 1: Provider authorization URL without a client secret.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	AuthorizeURL(string, string) (string, error)
-	// Exchange выполняет обмен кода авторизации на токены на сервере.
-	// @args контекст — срок выполнения; code — одноразовый код; verifier — секрет PKCE.
-	// @return: credentials, которые должны быть зашифрованы перед сохранением, либо ошибка.
+	// Exchange exchanges the one-time authorization code and PKCE verifier for provider credentials
+	// on the server.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Bounded public status or failure code.
+	//   - argument 3: Token verifier or private PKCE verifier, as defined by its type.
+	//
+	// Returns:
+	//   - result 1: The resulting calendar credentials.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Exchange(context.Context, string, string) (CalendarCredentials, error)
-	// Refresh обновляет токен доступа и обрабатывает смену токена обновления.
-	// @args контекст — срок выполнения; token — серверный токен обновления.
-	// @return: новые credentials либо ошибка.
+	// Refresh renews the short-lived access credential using the current provider or account refresh
+	// session.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Untrusted serialized value to decode or validate.
+	//
+	// Returns:
+	//   - result 1: The resulting calendar credentials.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Refresh(context.Context, string) (CalendarCredentials, error)
-	// Revoke отзывает внешнее разрешение, не изменяя локальную политику подключения.
-	// @args контекст — срок выполнения; token — токен доступа или обновления, хранящийся только на сервере.
-	// @return: ошибка провайдера либо nil.
+	// Revoke revokes the stored provider authorization without changing the account's local delivery
+	// preferences.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Signed credential or operation-ownership token to verify.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Revoke(context.Context, string) error
 }
 
-// Capabilities описывает реально настроенные адаптеры; noop не выдаётся за успешную внешнюю доставку.
+// Capabilities identifies actually configured adapters; a no-op is not reported as successful
+// external delivery.
 type Capabilities struct {
 	Email                   string `json:"email"`
 	Push                    string `json:"push"`
@@ -227,7 +334,7 @@ type Capabilities struct {
 	MockConnectAllowed      bool   `json:"mockConnectAllowed"`
 }
 
-// Providers собирает заменяемые адаптеры и доступные способы подключения.
+// Providers groups replaceable adapters and available connection methods.
 type Providers struct {
 	Email        EmailProvider
 	Push         PushProvider

@@ -2,30 +2,26 @@ package records
 
 import "time"
 
-// ConferenceStartRequest передаёт настройки общей записи защищённой конференции.
-//   - SegmentDurationSec: плановая длительность сегмента записи в секундах.
+// ConferenceStartRequest contains recording settings for an authorized conference.
 type ConferenceStartRequest struct {
 	SegmentDurationSec int    `json:"segmentDurationSec,omitempty"`
 	Mode               string `json:"mode,omitempty"`
 }
 
-// ValidConferenceMode ограничивает стратегии записи серверным перечнем.
-// @args mode — запрошенный режим.
-// @return true для поддерживаемой стратегии.
+// ValidConferenceMode checks that the requested conference recording mode is supported.
+//
+// Parameters:
+//   - mode: Validated operation or recording mode.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func ValidConferenceMode(mode string) bool {
 	return mode == ModeComposite || mode == ModeAudioOnly || mode == ModeIndividualTracks || mode == ModeScreenFocus
 }
 
-// OutboxCommand сохраняет команду записи для надёжной доставки из PostgreSQL в RabbitMQ с арендами повторных попыток.
-// @params
-//   - ID: уникальный идентификатор данной сущности.
-//   - RecordID: внешний UUID задачи записи.
-//   - CommandType: значение CommandType типа string, используемое согласно назначению этой операции.
-//   - Reason: причина завершения, отказа или изменения состояния.
-//   - ClaimToken: значение ClaimToken типа *string, используемое согласно назначению этой операции.
-//   - ClaimedUntil: временная отметка ClaimedUntil; указатель допускает отсутствие значения.
-//   - PublishedAt: момент подтверждённой публикации; nil сохраняет необходимость доставки.
-//   - CreatedAt: время создания значения.
+// OutboxCommand persists reliable PostgreSQL-to-RabbitMQ recording delivery with versioned retry
+// leases.
 type OutboxCommand struct {
 	ID           int64
 	RecordID     string
@@ -37,30 +33,33 @@ type OutboxCommand struct {
 	CreatedAt    time.Time
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (OutboxCommand) TableName() string { return "recording_outbox" }
 
-// IsComposite определяет, относится ли задача к общей записи конференции через SFU.
+// IsComposite reports whether the recording belongs to the composite conference-recording
+// pipeline.
 //
-// @args
-//   - record (Record): задача записи с её сохранённым состоянием.
+// Parameters:
+//   - record: Recording and its persisted lifecycle metadata.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func IsComposite(record Record) bool {
 	return ValidConferenceMode(record.Mode) || record.SourceType == "conference" || record.PlatformConferenceID != nil
 }
 
-// PublicStatus переводит внутреннее состояние записи в состояние, используемое внешним API.
+// PublicStatus converts the stored recording status to its client-facing lifecycle state.
 //
-// @args
-//   - status (string): состояние ресурса, ответа или фильтра выборки.
+// Parameters:
+//   - status: Lifecycle state or response status to record.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: Client-facing recording lifecycle status.
 func PublicStatus(status string) string {
 	if status == StatusFinalizing || status == StatusUploading {
 		return "processing"

@@ -11,92 +11,102 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/users"
 )
 
-// userRepository задаёт контракт зависимого компонента userRepository в авторизации и учётных записях пользователей; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - Create: операция создание с контрактом, описанным у метода.
-//   - GetByID: получение объекта по идентификатору с контрактом, описанным у метода.
-//   - GetByEmail: получение пользователя по адресу электронной почты с контрактом, описанным у метода.
+// userRepository defines the replaceable dependency contract for account authentication and
+// persistent sessions.
 type userRepository interface {
-	// Create создаёт новое состояние ресурсов компонента по переданным параметрам.
+	// Create persists the validated account identity and protected password hash.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (users.User): создаваемая учётная запись с уже вычисленным хешем пароля.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
 	//
-	// @return:
-	//   - результат 1 (users.User): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting user.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Create(context.Context, users.User) (users.User, error)
-	// GetByID читает учётную запись по её идентификатору.
+	// GetByID loads the account by ID.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): UUID искомого пользователя.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
 	//
-	// @return:
-	//   - результат 1 (users.User): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting user.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	GetByID(context.Context, string) (users.User, error)
-	// GetByEmail читает учётную запись по нормализованному адресу электронной почты.
+	// GetByEmail loads the account by email.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): адрес электронной почты пользователя.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Account or delivery email address.
 	//
-	// @return:
-	//   - результат 1 (users.User): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting user.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	GetByEmail(context.Context, string) (users.User, error)
+	// UpdateDisplayName updates only the public name of the account resolved from the authenticated
+	// subject.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Name of the setting, cookie, resource or provider being addressed.
+	//
+	// Returns:
+	//   - result 1: The resulting user.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	UpdateDisplayName(context.Context, string, string) (users.User, error)
 }
 
-// passwordHasher задаёт контракт зависимого компонента passwordHasher в авторизации и учётных записях пользователей; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params:
-//   - Hash: операция Hash с контрактом, описанным у метода.
-//   - Verify: операция Verify с контрактом, описанным у метода.
+// passwordHasher defines the replaceable dependency contract for account authentication and
+// persistent sessions.
 type passwordHasher interface {
-	// Hash вычисляет защищённый хеш пароля для сохранения вместо открытого текста.
+	// Hash hashes the content to obtain a stable integrity or cache key.
 	//
-	// @args
-	//   - аргумент 1 (string): открытый пароль для хеширования или проверки; не предназначен для журналирования.
+	// Parameters:
+	//   - argument 1: UTF-8 text to validate, normalize or process.
 	//
-	// @return:
-	//   - результат 1 (string): строка Argon2id, содержащая версию, параметры, соль и хеш пароля.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: Protected password hash or content digest, according to this component.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Hash(string) (string, error)
-	// Verify сравнивает открытый пароль с защищённым хешем.
+	// Verify compares a plaintext password with the stored encoded hash using the bounded supported
+	// hash parameters.
 	//
-	// @args
-	//   - аргумент 1 (string): открытый пароль для хеширования или проверки; не предназначен для журналирования.
-	//   - аргумент 2 (string): сохранённая строка Argon2id с параметрами, солью и ожидаемым хешем.
+	// Parameters:
+	//   - argument 1: Plaintext password accepted only for validation or hashing.
+	//   - argument 2: Stored encoded password hash or token value.
 	//
-	// @return:
-	//   - результат 1 (bool): true при совпадении пароля с хешем; false при несовпадении.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: Whether the operation's documented condition holds or its conditional state
+	//     change succeeded.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Verify(string, string) (bool, error)
 }
 
-// tokenIssuer задаёт контракт зависимого компонента tokenIssuer в авторизации и учётных записях пользователей; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params:
-//   - Issue: операция Issue с контрактом, описанным у метода.
+// tokenIssuer defines the replaceable dependency contract for account authentication and
+// persistent sessions.
 type tokenIssuer interface {
-	// Issue выпускает подписанный JWT пользователя с настроенным сроком действия.
+	// Issue creates a signed token bound to the supplied identity and expiry.
 	//
-	// @args
-	//   - аргумент 1 (string): идентификатор пользователя, для которого выполняется операция.
+	// Parameters:
+	//   - argument 1: Acting account identifier used to scope access.
 	//
-	// @return:
-	//   - результат 1 (string): подписанный JWT авторизации указанного пользователя.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: Signed short-lived credential for the verified identity.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Issue(string) (string, error)
 }
 
-// Service объединяет зависимости прикладного сценария и координирует его операции.
-// @params:
-//   - repository: хранилище постоянных данных прикладного сценария.
-//   - passwords: сервис хеширования и проверки паролей.
-//   - tokens: сервис выпуска или проверки JWT авторизации.
-//   - dummyHash: хеш фиктивного пароля для выравнивания времени проверки неизвестной и существующей учётной записи.
+// Service coordinates account authentication and persistent sessions through its configured
+// persistence and transport dependencies.
 type Service struct {
 	repository userRepository
 	passwords  passwordHasher
@@ -105,16 +115,18 @@ type Service struct {
 	dummyHash  string
 }
 
-// NewService создаёт и связывает зависимости компонента Service, используемого в авторизации и учётных записях пользователей.
+// NewService constructs the service with the dependencies and limits required for account
+// authentication and persistent sessions.
 //
-// @args
-//   - repository (userRepository): хранилище постоянных данных прикладного сценария.
-//   - passwords (passwordHasher): сервис хеширования и проверки паролей.
-//   - tokens (tokenIssuer): сервис выпуска или проверки JWT авторизации.
+// Parameters:
+//   - repository: Persistence dependency used by the application operation.
+//   - passwords: Password hashing and verification dependency.
+//   - tokens: Token issuer or verifier used for trusted identity checks.
 //
-// @return:
-//   - результат 1 (*Service): созданный компонент с переданными зависимостями.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The constructed or loaded service.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func NewService(repository userRepository, passwords passwordHasher, tokens tokenIssuer) (*Service, error) {
 	dummy, err := passwords.Hash("dummy-password-for-login-timing")
 	if err != nil {
@@ -123,15 +135,17 @@ func NewService(repository userRepository, passwords passwordHasher, tokens toke
 	return &Service{repository: repository, passwords: passwords, tokens: tokens, dummyHash: dummy}, nil
 }
 
-// Register проверяет данные регистрации, хеширует пароль и создаёт новую учётную запись.
+// Register validates registration fields, hashes the password and creates a new account without
+// returning private credential data.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - request (users.RegisterRequest): входные параметры соответствующего прикладного запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - request: Validated application request or incoming operation parameters.
 //
-// @return:
-//   - результат 1 (users.View): публичные сведения созданного пользователя без пароля и его хеша.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (users.View, error) {
 	request, err := users.NormalizeRegister(request)
 	if err != nil {
@@ -151,19 +165,21 @@ func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (
 	return user.View(), nil
 }
 
-// Login проверяет учётные данные и возвращает безопасные сведения пользователя и токен входа.
+// Login checks the supplied credentials and returns the safe account view and access token.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - request (users.LoginRequest): входные параметры соответствующего прикладного запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - request: Validated application request or incoming operation parameters.
 //
-// @return:
-//   - результат 1 (users.LoginResponse): токен авторизации, его срок действия и публичные сведения пользователя.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting login response.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.LoginResponse, error) {
 	request.Email = users.NormalizeEmail(request.Email)
-	// Старые учётные записи могут иметь менее восьми символов из-за прежней проверки длины в байтах.
-	// Новый минимум применяется только при регистрации; действующий прежний пароль не отклоняется.
+	// Legacy accounts may have passwords shorter than eight characters because the old rule counted
+	// bytes. Apply the new minimum only during registration; do not reject an otherwise valid legacy
+	// password.
 	if users.ValidateEmail(request.Email) != nil || request.Password == "" || !utf8.ValidString(request.Password) || utf8.RuneCountInString(request.Password) > users.MaxPasswordCharacters {
 		return users.LoginResponse{}, invalidCredentials()
 	}
@@ -189,15 +205,16 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 	return s.signIn(ctx, user)
 }
 
-// Me читает публичные сведения текущего авторизованного пользователя.
+// Me returns the public view of the currently authenticated account.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
 //
-// @return:
-//   - результат 1 (users.View): публичные сведения текущего пользователя без пароля и его хеша.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 	user, err := s.repository.GetByID(ctx, userID)
 	if errors.Is(err, apperrors.ErrNotFound) {
@@ -209,7 +226,17 @@ func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 	return user.View(), nil
 }
 
-// UpdateProfile обновляет только имя текущего пользователя, сохраняя пароль, email, роль и JWT.
+// UpdateProfile updates only the authenticated account's validated public profile fields.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - result 1: The resulting view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) UpdateProfile(ctx context.Context, userID string, request users.UpdateProfileRequest) (users.View, error) {
 	name, err := users.NormalizeDisplayName(request.DisplayName)
 	if err != nil {
@@ -225,10 +252,11 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, request user
 	return user.View(), nil
 }
 
-// invalidCredentials создаёт одинаковую безопасную ошибку для неизвестного пользователя и неверного пароля.
+// invalidCredentials returns the same safe authentication error for invalid account credentials.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func invalidCredentials() error {
 	return apperrors.New(apperrors.ErrUnauthorized, "invalid email or password")
 }

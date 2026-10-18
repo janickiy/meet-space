@@ -1,4 +1,4 @@
-// Пакет search координирует ограниченную индексацию и поиск с проверкой прав в репозитории.
+// Package search coordinates bounded indexing and search with repository-level authorization.
 package search
 
 import (
@@ -19,17 +19,87 @@ import (
 	"time"
 )
 
-// Repository сохраняет результаты только с актуальными арендой и поколением и фильтрует доступ внутри SQL.
+// Repository accepts results only for the current lease and generation and filters access inside
+// SQL.
 type Repository interface {
+	// Available checks whether the backing capability needed for authorized transcript indexing and
+	// search is usable.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//
+	// Returns:
+	//   - result 1: Whether the operation's documented condition holds or its conditional state
+	//     change succeeded.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Available(context.Context) (bool, error)
+	// Source loads the persisted inputs needed to process authorized transcript indexing and search.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Leased background job and its generation or ownership token.
+	//
+	// Returns:
+	//   - result 1: The resulting transcript.
+	//   - result 2: The collected segment values.
+	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Source(context.Context, jobs.Job) (content.Transcript, []content.Segment, error)
+	// Cached loads reusable vectors by content hash and the complete embedding-model identity.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Configured provider model identifier.
+	//   - argument 3: Content digests to look up in the model-specific vector cache.
+	//
+	// Returns:
+	//   - result 1: The resulting map[string][]float32.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Cached(context.Context, string, []string) (map[string][]float32, error)
+	// Save persists search results while checking the current job or resource identity.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Leased background job and its generation or ownership token.
+	//   - argument 3: Operator-controlled configuration and processing limits.
+	//   - argument 4: Bounded transcript search chunks.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Save(context.Context, jobs.Job, config.StageEightConfig, []domain.Chunk) error
+	// Fail records a safe search failure and starts the owned-resource cleanup path.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Leased background job and its generation or ownership token.
+	//   - argument 3: Operator-controlled configuration and processing limits.
+	//   - argument 4: Bounded public status or failure code.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Fail(context.Context, jobs.Job, config.StageEightConfig, string) error
+	// Search searches authorized transcript indexing and search using bounded input and the caller's
+	// visibility filters.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Search text or validated query filters.
+	//   - argument 4: Configured provider model identifier.
+	//   - argument 5: Validated embedding vector.
+	//
+	// Returns:
+	//   - result 1: The resulting search page.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Search(context.Context, string, content.SearchQuery, string, []float32) (content.SearchPage, error)
 }
 
-// Service разделяет обработку постоянных заданий и ограниченное векторизование поискового запроса.
+// Service separates durable indexing jobs from bounded query-vector generation.
 type Service struct {
 	Repo       Repository
 	Provider   domain.EmbeddingProvider
@@ -37,29 +107,54 @@ type Service struct {
 	querySlots chan struct{}
 }
 
-// New ограничивает число одновременных вычислений векторов поисковых запросов.
-// @args repo — SQL; provider — внешний adapter; cfg — лимиты и идентичность модели.
-// @return сервис, не выполняющий сеть при создании.
+// New constructs the component with the dependencies and processing limits required for
+// authorized transcript indexing and search.
+//
+// Parameters:
+//   - repo: Persistence dependency used by the application operation.
+//   - provider: Configured external-provider adapter.
+//   - cfg: Operator-controlled configuration and processing limits.
+//
+// Returns:
+//   - result 1: The constructed or loaded service.
 func New(repo Repository, provider domain.EmbeddingProvider, cfg config.StageEightConfig) *Service {
 	return &Service{repo, provider, cfg, make(chan struct{}, cfg.EmbeddingWorkers)}
 }
 
-// ModelKey включает модель, версию и размерность, исключая смешивание разных пространств.
-// @args cfg — настройки embedding модели.
-// @return стабильный SHA-256 идентичности.
+// ModelKey hashes the embedding model identity so vectors from incompatible models are never
+// mixed.
+//
+// Parameters:
+//   - cfg: Operator-controlled configuration and processing limits.
+//
+// Returns:
+//   - result 1: Stable SHA-256 identity of the complete embedding-model space.
 func ModelKey(cfg config.StageEightConfig) string {
 	raw, _ := json.Marshal([]any{cfg.EmbeddingModel, cfg.EmbeddingVersion, cfg.EmbeddingDimensions})
 	return Hash(string(raw))
 }
 
-// Hash вычисляет идентичность содержимого без включения исходного текста в задания и журналы.
-// @args text — ограниченный UTF-8 фрагмент.
-// @return hex SHA-256.
+// Hash hashes the content to obtain a stable integrity or cache key.
+//
+// Parameters:
+//   - text: UTF-8 text to validate, normalize or process.
+//
+// Returns:
+//   - result 1: Protected password hash or content digest, according to this component.
 func Hash(text string) string { sum := sha256.Sum256([]byte(text)); return hex.EncodeToString(sum[:]) }
 
-// Chunks детерминированно разделяет каждый сегмент, сохраняя speaker и timestamps.
-// @args transcript — поколение; segments — ordered источники; cfg — предел и модель.
-// @return chunks не более 20000 либо ошибка бюджета.
+// Chunks deterministically splits transcript segments into bounded search chunks while
+// preserving speaker and time references.
+//
+// Parameters:
+//   - transcript: Current transcript generation and its metadata.
+//   - segments: Ordered transcript or media segments.
+//   - cfg: Operator-controlled configuration and processing limits.
+//
+// Returns:
+//   - result 1: The collected chunk values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func Chunks(transcript content.Transcript, segments []content.Segment, cfg config.StageEightConfig) ([]domain.Chunk, error) {
 	result := []domain.Chunk{}
 	model := ModelKey(cfg)
@@ -83,9 +178,17 @@ func Chunks(transcript content.Transcript, segments []content.Segment, cfg confi
 	return result, nil
 }
 
-// ValidVectors отклоняет неверный batch, NaN/Infinity и нулевые векторы до pgvector.
-// @args vectors — непроверенный результат; count,dimensions — ожидаемая форма.
-// @return true при корректном конечном результате.
+// ValidVectors checks vector count, dimensions and finite nonzero values before storage or
+// search.
+//
+// Parameters:
+//   - vectors: Untrusted vectors returned by the embedding provider.
+//   - count: Expected or maximum number of items.
+//   - dimensions: Expected embedding-vector dimensions.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func ValidVectors(vectors [][]float32, count, dimensions int) bool {
 	if len(vectors) != count {
 		return false
@@ -108,9 +211,15 @@ func ValidVectors(vectors [][]float32, count, dimensions int) bool {
 	return true
 }
 
-// Handle переиспользует кеш хешей содержимого и обрабатывает ограниченные порции вне жизненного цикла записи.
-// @args ctx — срок выполнения арендованного задания; job — поколение расшифровки и токен.
-// @return ошибка провайдера, потеря актуальности аренды либо успешная атомарная публикация индекса.
+// Handle dispatches the validated search operation to its application handler.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	started := time.Now()
 	defer func() { operations.Observe("embedding", time.Since(started).Seconds()) }()
@@ -171,16 +280,33 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	return s.Repo.Save(ctx, job, s.Config, chunks)
 }
 
-// FailJob фиксирует только безопасный код отказа индекса, не меняя расшифровку.
-// @args ctx — срок выполнения; job — аренда; code — классификация.
-// @return ошибка SQL.
+// FailJob records a bounded job failure without exposing provider responses or replacing a newer
+// generation.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//   - code: Bounded public status or failure code.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) FailJob(ctx context.Context, job jobs.Job, code string) error {
 	return s.Repo.Fail(ctx, job, s.Config, code)
 }
 
-// Search векторизует только поисковый запрос; при недоступности использует тот же авторизованный FTS.
-// @args ctx — срок выполнения HTTP-запроса; user — действующий пользователь; query — уже проверенные фильтры.
-// @return результаты с явным effectiveMode/fallbackReason.
+// Search searches authorized transcript indexing and search using bounded input and the caller's
+// visibility filters.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - query: Search text or validated query filters.
+//
+// Returns:
+//   - result 1: The resulting search page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Search(ctx context.Context, user string, query content.SearchQuery) (content.SearchPage, error) {
 	started := time.Now()
 	defer func() { operations.Observe("hybrid_search", time.Since(started).Seconds()) }()

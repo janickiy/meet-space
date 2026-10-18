@@ -12,6 +12,15 @@ import (
 
 // DeleteAccount erases credentials and personal configuration atomically. Shared history
 // retains an anonymous reference so another participant's messages are not destroyed.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - verifiedHash: Previously verified password hash used to fence the account deletion.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var user users.User
@@ -71,7 +80,13 @@ func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash str
 		if err == nil {
 			return nil
 		}
-		var state interface{ SQLState() string }
+		var state interface {
+			// SQLState returns the PostgreSQL SQLSTATE code used to classify a database constraint failure.
+			//
+			// Returns:
+			//   - result 1: Five-character PostgreSQL SQLSTATE error code.
+			SQLState() string
+		}
 		if !errors.As(err, &state) || state.SQLState() != "23503" {
 			return err
 		}

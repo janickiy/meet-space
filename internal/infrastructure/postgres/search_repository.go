@@ -19,26 +19,48 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// SearchRepository хранит отдельные поколения векторов и выполняет точный косинусный поиск после проверки прав в SQL.
+// SearchRepository stores separate vector generations and performs exact cosine search after SQL
+// authorization.
 type SearchRepository struct{ db *gorm.DB }
 
-// NewSearchRepository создаёт репозиторий, не требующий pgvector для обычного FTS.
-// @args db — SQL pool.
-// @return repository поиска.
+// NewSearchRepository constructs the search repository with the dependencies and limits required
+// for authorized transcript indexing and search.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded search repository.
 func NewSearchRepository(db *gorm.DB) *SearchRepository { return &SearchRepository{db} }
 
-// Available проверяет расширение и готовую схему, не полагаясь на предполагаемый образ сервера.
-// @args ctx — срок выполнения.
-// @return доступность vector capability и ошибка SQL.
+// Available checks whether the backing capability needed for authorized transcript indexing and
+// search is usable.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *SearchRepository) Available(ctx context.Context) (bool, error) {
 	var ok bool
 	err := r.db.WithContext(ctx).Raw(`SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='vector') AND to_regclass('content_embeddings') IS NOT NULL`).Scan(&ok).Error
 	return ok, err
 }
 
-// Source выдаёт только актуальную готовую расшифровку и ограниченный текст для арендованного задания.
-// @args ctx — срок выполнения; job — поколение и аренда.
-// @return согласованные метаданные и сегменты, пропуск обработки либо ошибку актуальности аренды.
+// Source loads the persisted inputs needed to process authorized transcript indexing and search.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//
+// Returns:
+//   - result 1: The resulting transcript.
+//   - result 2: The collected segment values.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *SearchRepository) Source(ctx context.Context, job jobs.Job) (content.Transcript, []content.Segment, error) {
 	var t content.Transcript
 	segments := []content.Segment{}
@@ -60,9 +82,17 @@ func (r *SearchRepository) Source(ctx context.Context, job jobs.Job) (content.Tr
 	return t, segments, err
 }
 
-// Cached переиспользует неизменный вектор по хешу содержимого и полному ключу модели.
-// @args ctx — срок выполнения; model — версия пространства; hashes — порция ограниченного размера.
-// @return найденные векторы без исходного текста.
+// Cached loads reusable vectors by content hash and the complete embedding-model identity.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - model: Configured provider model identifier.
+//   - hashes: Content digests to look up in the model-specific vector cache.
+//
+// Returns:
+//   - result 1: The resulting map[string][]float32.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *SearchRepository) Cached(ctx context.Context, model string, hashes []string) (map[string][]float32, error) {
 	var rows []struct{ ContentHash, VectorText string }
 	result := map[string][]float32{}
@@ -76,9 +106,13 @@ func (r *SearchRepository) Cached(ctx context.Context, model string, hashes []st
 	return result, err
 }
 
-// vectorLiteral сериализует только проверенные числа для параметра pgvector.
-// @args vector — проверенные конечные значения float32.
-// @return литерал, передаваемый bind-параметром, не фрагмент пользовательского SQL.
+// vectorLiteral serializes a finite vector to the PostgreSQL vector representation.
+//
+// Parameters:
+//   - vector: Validated embedding vector.
+//
+// Returns:
+//   - result 1: Validated PostgreSQL vector literal.
 func vectorLiteral(vector []float32) string {
 	var b strings.Builder
 	b.WriteByte('[')
@@ -92,9 +126,17 @@ func vectorLiteral(vector []float32) string {
 	return b.String()
 }
 
-// Save публикует всё поколение атомарно и сохраняет cache; старые версии не участвуют в запросах.
-// @args ctx — срок выполнения; job — актуальная аренда; cfg — идентичность модели; chunks — проверенные векторы.
-// @return ошибка commit либо потеря аренды.
+// Save persists search results while checking the current job or resource identity.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//   - cfg: Operator-controlled configuration and processing limits.
+//   - chunks: Bounded transcript search chunks.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *SearchRepository) Save(ctx context.Context, job jobs.Job, cfg config.StageEightConfig, chunks []domain.Chunk) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if e := contentLease(tx, job); e != nil {
@@ -126,9 +168,17 @@ func (r *SearchRepository) Save(ctx context.Context, job jobs.Job, cfg config.St
 	})
 }
 
-// Fail фиксирует окончательный отказ только для действующего поколения индекса.
-// @args ctx — срок выполнения; job — аренда; cfg — модель; code — безопасный код.
-// @return ошибка SQL или потеря актуальности аренды.
+// Fail records a safe search failure and starts the owned-resource cleanup path.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//   - cfg: Operator-controlled configuration and processing limits.
+//   - code: Bounded public status or failure code.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *SearchRepository) Fail(ctx context.Context, job jobs.Job, cfg config.StageEightConfig, code string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if e := contentLease(tx, job); e != nil {
@@ -140,8 +190,9 @@ func (r *SearchRepository) Fail(ctx context.Context, job jobs.Job, cfg config.St
 	})
 }
 
-// hybridSQL материализует только разрешённые актуальные векторы до вычисления косинусного расстояния.
-// Точный поиск сохраняет полноту отфильтрованных результатов; ANN добавляется после измерений на корпусе.
+// hybridSQL materializes only current authorized vectors before cosine-distance evaluation.
+// Exact search preserves filtered-result completeness; add ANN only after measuring the target
+// corpus.
 const hybridSQL = `, permitted_vectors AS MATERIALIZED (
  SELECT e.*,c.title FROM content_embeddings e JOIN permitted c ON c.id=e.conference_id
  JOIN transcripts t ON t.id=e.transcript_id AND t.generation=e.generation AND t.status='ready'
@@ -162,9 +213,20 @@ const hybridSQL = `, permitted_vectors AS MATERIALIZED (
  ), combined AS (SELECT * FROM semantic_candidates UNION ALL SELECT * FROM lexical_candidates),
  ranked AS (SELECT DISTINCT ON(type,conference_id,recording_id,segment_id) * FROM combined ORDER BY type,conference_id,recording_id,segment_id,rank DESC) `
 
-// Search вычисляет число, рейтинг и страницу после проверки прав, исключая старые модели, поколения и логически удалённые записи.
-// @args ctx — срок выполнения; user — действующий пользователь; query — проверенные фильтры; model — полный ключ; vector — вектор запроса.
-// @return ограниченная страница plain-text результатов.
+// Search searches authorized transcript indexing and search using bounded input and the caller's
+// visibility filters.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - query: Search text or validated query filters.
+//   - model: Configured provider model identifier.
+//   - vector: Validated embedding vector.
+//
+// Returns:
+//   - result 1: The resulting search page.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *SearchRepository) Search(ctx context.Context, user string, query content.SearchQuery, model string, vector []float32) (content.SearchPage, error) {
 	if query.Mode == "keyword" || len(vector) == 0 {
 		return NewContentRepository(r.db).Search(ctx, user, query)
@@ -181,9 +243,19 @@ func (r *SearchRepository) Search(ctx context.Context, user string, query conten
 	return page, err
 }
 
-// Reindex явно ставит переиндексацию текущей версии модели с cooldown; исторический backfill не автоматический.
-// @args ctx — срок выполнения; user,cid,rid — область доступа; cfg — новая модель; cooldown — бюджет повторов.
-// @return ошибка прав/лимита либо успешная постановка.
+// Reindex queues a bounded transcript reindex after checking the actor's management permission.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - cid: Conference identifier limiting the operation scope.
+//   - rid: Recording identifier used by the current operation.
+//   - cfg: Operator-controlled configuration and processing limits.
+//   - cooldown: Minimum interval between expensive retriable processing requests.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *SearchRepository) Reindex(ctx context.Context, user, cid, rid string, cfg config.StageEightConfig, cooldown time.Duration) error {
 	if !cfg.EmbeddingsEnabled {
 		return apperrors.ErrUnavailable
@@ -213,7 +285,7 @@ func (r *SearchRepository) Reindex(ctx context.Context, user, cid, rid string, c
 		if recent > 0 {
 			return apperrors.ErrConflict
 		}
-		// Ключ поколения+модели исключает бесконечные платные reindex неизменного текста.
+		// A generation-and-model key prevents repeatedly charging for reindexing unchanged text.
 		key := "content.reindex:" + t.ID + ":" + strconv.FormatInt(t.Generation, 10) + ":" + search.ModelKey(cfg)
 		result := tx.Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,dedup_key) VALUES('content.embed',?,?,?,?) ON CONFLICT(dedup_key) DO NOTHING`, t.ID, cid, t.Generation, key)
 		if result.Error == nil && result.RowsAffected == 0 {

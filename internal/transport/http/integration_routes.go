@@ -7,24 +7,28 @@ import (
 	"time"
 )
 
-// RegisterIntegrationRoutes подключает preferences/devices/calendar только с общей Bearer авторизацией.
-// @args router — HTTP transport; handler — прикладные обработчики; auth — проверка пользовательского токена;
-// limiters — необязательный общий ограничитель Redis, отключаемый только в изолированных тестах.
+// RegisterIntegrationRoutes registers the integration endpoints with the supplied authentication
+// and request middleware.
+//
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - handler: Callback responsible for processing the scoped operation.
+//   - auth: Authentication middleware or account handler dependency.
+//   - limiters: Shared limiter implementations for the registered endpoints.
 func RegisterIntegrationRoutes(router gin.IRouter, handler *app.Handler, auth gin.HandlerFunc, limiters ...middleware.Limiter) {
 	var limiter middleware.Limiter
 	if len(limiters) > 0 {
 		limiter = limiters[0]
 	}
-	// Middleware исключает caching любых интеграционных ответов, включая ошибки.
-	// @args c — HTTP запрос/ответ текущей цепочки.
+	// Disable caching for all integration responses, including failures. c is the current middleware
+	// request and response context.
 	private := func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Next()
 	}
-	// Ключ использует только проверенную идентичность Bearer, а не пользовательские данные.
-	// @args c — authenticated запрос.
-	// @return: идентификатор владельца rate limit bucket.
+	// Build the rate-limit bucket key only from the verified Bearer identity, never user-supplied
+	// fields. c is the authenticated request; the result is the bucket owner identifier.
 	key := func(c *gin.Context) string { return middleware.UserID(c) }
 	rules := []middleware.Rule{}
 	for _, rule := range []struct {
@@ -55,6 +59,7 @@ func RegisterIntegrationRoutes(router gin.IRouter, handler *app.Handler, auth gi
 	integration.GET("/calendars/:provider/connect", handler.Connect)
 	integration.POST("/calendars/:provider/callback", handler.Callback)
 	integration.DELETE("/calendars/:provider", handler.Disconnect)
-	// Gin использует одно имя шаблона маршрута для подключения и возврата провайдера и удаления по UUID; обработчик отдельно проверяет UUID.
+	// Gin uses one route-template name for provider connection, callback and UUID deletion; the
+	// handler validates UUIDs separately.
 	router.GET(APIV1Prefix+"/conferences/:id/calendar", private, auth, handler.CalendarMappings)
 }

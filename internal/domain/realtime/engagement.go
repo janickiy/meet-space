@@ -1,23 +1,25 @@
 package realtime
 
-// AllowedReaction проверяет, входит ли эмодзи в список разрешённых реакций 👍, 👏, ❤️ и 😂.
+// AllowedReaction checks whether a reaction belongs to the fixed set supported by the protocol.
 //
-// @args
-//   - emoji (string): одна из разрешённых временных реакций.
+// Parameters:
+//   - emoji: One of the protocol-supported temporary reactions.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func AllowedReaction(emoji string) bool {
 	return emoji == "👍" || emoji == "👏" || emoji == "❤️" || emoji == "😂"
 }
 
-// LowPriorityEvent отделяет восстанавливаемые события чата и реакций от критичных событий управления звонком.
+// LowPriorityEvent identifies events that may use the bounded low-priority realtime queue.
 //
-// @args
-//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func LowPriorityEvent(kind string) bool {
 	switch kind {
 	case "caption.partial", "caption.final", "caption.status", "reaction.created", "chat.message.created", "chat.message.updated", "chat.message.deleted", "chat.read.updated":

@@ -1,4 +1,4 @@
-// Пакет analytics строит ограниченные агрегаты присутствия и очередь фонового пересчёта.
+// Package analytics builds bounded presence aggregates and queues background recalculation.
 package analytics
 
 import (
@@ -10,23 +10,75 @@ import (
 	"time"
 )
 
-// Repository предоставляет интервалы и атомарную публикацию с проверкой действующей аренды задания.
+// Repository supplies observed intervals and atomically publishes results only for the current
+// job lease.
 type Repository interface {
+	// Source loads the persisted inputs needed to process conference technical aggregates.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Leased background job and its generation or ownership token.
+	//
+	// Returns:
+	//   - result 1: The timestamp or validity boundary associated with the result.
+	//   - result 2: The timestamp or validity boundary associated with the result.
+	//   - result 3: The collected interval values.
+	//   - result 4: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Source(context.Context, jobs.Job) (time.Time, time.Time, []domain.Interval, error)
+	// Save persists analytics results while checking the current job or resource identity.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Leased background job and its generation or ownership token.
+	//   - argument 3: Value to validate, normalize or convert.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Save(context.Context, jobs.Job, domain.Conference) error
+	// Read reads the analytics state or stream required by the caller.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Conference identifier limiting the operation scope.
+	//
+	// Returns:
+	//   - result 1: The resulting conference.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Read(context.Context, string, string) (domain.Conference, error)
+	// Tick performs one bounded maintenance or delivery iteration after persisted state is
+	// available.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Tick(context.Context) error
 }
 
-// Service не зависит от STT; отказ распознавания не отменяет технические показатели встречи.
+// Service does not depend on speech recognition; transcription failures do not invalidate
+// technical conference metrics.
 type Service struct {
 	Repo    Repository
 	Enabled bool
 }
 
-// Aggregate объединяет перекрывающиеся вкладки одного участника и ограничивает timeline 600 точками.
-// @args conferenceID — встреча; start,end — её границы; intervals — ограниченный набор интервалов присутствия.
-// @return агрегаты с хронологией, без сортировки участников по времени речи.
+// Aggregate computes the bounded technical aggregates of a conference from its persisted source
+// data.
+//
+// Parameters:
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - start: Start of the time interval in the units defined by the signature.
+//   - end: End of the time interval in the units defined by the signature.
+//   - intervals: Ordered participant activity intervals.
+//
+// Returns:
+//   - result 1: The resulting conference.
 func Aggregate(conferenceID string, start, end time.Time, intervals []domain.Interval) domain.Conference {
 	result := domain.Conference{ConferenceID: conferenceID, Enabled: true, ApproximateSpeaking: true, Timeline: []domain.Point{}, Participants: []domain.Participant{}, DurationMS: max(int64(0), end.Sub(start).Milliseconds())}
 	intervalsByParticipant := map[string][]domain.Interval{}
@@ -90,9 +142,15 @@ func Aggregate(conferenceID string, start, end time.Time, intervals []domain.Int
 	return result
 }
 
-// Handle пересчитывает агрегат одной конференции в отдельном product-worker.
-// @args ctx — срок выполнения; job — постоянное задание.
-// @return ошибка SQL, потеря актуальности аренды либо осознанный пропуск обработки.
+// Handle dispatches the validated analytics operation to its application handler.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	if !s.Enabled {
 		return jobs.ErrSkip

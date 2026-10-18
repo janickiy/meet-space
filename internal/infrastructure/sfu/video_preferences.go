@@ -8,6 +8,15 @@ import (
 // receiveVideoPreference controls only this peer's incoming video. Keeping the
 // negotiated senders intact allows resuming camera/screen reception without
 // stopping local publications or audio and without allocating new receivers.
+//
+// Parameters:
+//   - raw: Untrusted serialized value to decode or validate.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func receiveVideoPreference(raw string) (bool, error) {
 	var description sdp.SessionDescription
 	if err := description.UnmarshalString(raw); err != nil {

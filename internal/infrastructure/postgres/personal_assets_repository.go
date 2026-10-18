@@ -14,6 +14,14 @@ import (
 
 type PersonalAssetRepository struct{ db *gorm.DB }
 
+// NewPersonalAssetRepository constructs the personal asset repository with the dependencies and
+// limits required for personal assets.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded personal asset repository.
 func NewPersonalAssetRepository(db *gorm.DB) *PersonalAssetRepository {
 	return &PersonalAssetRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
 }
@@ -24,6 +32,17 @@ type assetConversation struct {
 	AvatarKey, AvatarVersion *string
 }
 
+// lockAssetConversation locks the authorized group before changing its avatar metadata.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - id: Identifier of the resource addressed by this operation.
+//   - lock: Lock mode or lock requirement for the database operation.
+//
+// Returns:
+//   - result 1: The resulting asset conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func lockAssetConversation(tx *gorm.DB, id, lock string) (assetConversation, error) {
 	var row assetConversation
 	// The lock mode is an internal constant, never request input. Membership is
@@ -37,6 +56,18 @@ func lockAssetConversation(tx *gorm.DB, id, lock string) (assetConversation, err
 	}
 	return row, nil
 }
+
+// authorizeAsset checks group membership before serving a private avatar or attachment.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - user: Acting account identifier used to scope access.
+//   - row: The asset conversation state processed by this operation.
+//   - manage: Whether the operation requires group-management permission.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func authorizeAsset(tx *gorm.DB, user string, row assetConversation, manage bool) error {
 	if row.Type != "group" || row.DeletedAt != nil {
 		return apperrors.ErrNotFound
@@ -52,6 +83,18 @@ func authorizeAsset(tx *gorm.DB, user string, row assetConversation, manage bool
 	}
 	return nil
 }
+
+// BeginAvatar creates a pending avatar publication after locking the authorized group.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//   - asset: Private avatar or attachment metadata.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalAssetRepository) BeginAvatar(ctx context.Context, user, id string, asset assets.Asset) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := lockAssetConversation(tx, id, "UPDATE")
@@ -65,6 +108,19 @@ func (r *PersonalAssetRepository) BeginAvatar(ctx context.Context, user, id stri
 		 VALUES(?,?,?,?,?,?)`, asset.Version, id, asset.Key, asset.ContentType, asset.Size, asset.Checksum).Error
 	})
 }
+
+// ActivateAvatar atomically makes the current avatar upload visible in the group conversation.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//   - version: Version or fencing value used to reject stale ownership.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalAssetRepository) ActivateAvatar(ctx context.Context, user, id, version string) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -100,6 +156,21 @@ func (r *PersonalAssetRepository) ActivateAvatar(ctx context.Context, user, id, 
 	})
 	return item, err
 }
+
+// ClearAvatar clears the group's active avatar metadata and identifies obsolete objects for
+// cleanup.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalAssetRepository) ClearAvatar(ctx context.Context, user, id string) (personal.Conversation, bool, error) {
 	var item personal.Conversation
 	changed := false
@@ -126,6 +197,18 @@ func (r *PersonalAssetRepository) ClearAvatar(ctx context.Context, user, id stri
 	return item, changed, err
 }
 
+// attachedGroupAsset loads a finalized attachment that is actually attached to a visible group
+// message.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - conversation: Conversation identifier limiting the operation scope.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting asset.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func attachedGroupAsset(tx *gorm.DB, conversation, id string) (assets.Asset, error) {
 	var item assets.Asset
 	result := tx.Raw(`SELECT a.object_key AS key,a.filename,a.mime_type AS content_type,a.size,a.checksum,a.conversation_id
@@ -139,6 +222,21 @@ func attachedGroupAsset(tx *gorm.DB, conversation, id string) (assets.Asset, err
 	}
 	return item, nil
 }
+
+// GroupAttachment loads a finalized attachment only when a visible group message references it.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - conversation: Conversation identifier limiting the operation scope.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: The resulting asset.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalAssetRepository) GroupAttachment(ctx context.Context, user, conversation, id string) (bool, assets.Asset, error) {
 	handled := true
 	var item assets.Asset
@@ -159,6 +257,20 @@ func (r *PersonalAssetRepository) GroupAttachment(ctx context.Context, user, con
 	})
 	return handled, item, err
 }
+
+// VisitAsset runs a scoped asset operation while its authorization and resource identity remain
+// valid.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - conversation: Conversation identifier limiting the operation scope.
+//   - attachment: Private attachment identity or metadata, as defined by its type.
+//   - visit: Callback invoked while asset authorization and identity remain valid.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalAssetRepository) VisitAsset(ctx context.Context, user, conversation, attachment string, visit func(assets.Asset) error) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := lockAssetConversation(tx, conversation, "SHARE")
@@ -189,6 +301,16 @@ func (r *PersonalAssetRepository) VisitAsset(ctx context.Context, user, conversa
 	})
 }
 
+// AvatarCleanupCandidates returns a bounded batch of obsolete group-avatar objects.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The collected string values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalAssetRepository) AvatarCleanupCandidates(ctx context.Context, limit int) ([]string, error) {
 	if limit < 1 || limit > 25 {
 		return nil, apperrors.ErrInvalidInput
@@ -210,6 +332,18 @@ func (r *PersonalAssetRepository) AvatarCleanupCandidates(ctx context.Context, l
 	 ORDER BY a.cleanup_after,a.id LIMIT ?`, limit).Scan(&ids).Error
 	return ids, err
 }
+
+// ClaimAvatarCleanup claims one obsolete avatar object so concurrent workers cannot delete a
+// current avatar.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - version: Version or fencing value used to reject stale ownership.
+//
+// Returns:
+//   - result 1: The constructed or loaded asset.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalAssetRepository) ClaimAvatarCleanup(ctx context.Context, version string) (*assets.Asset, error) {
 	var item *assets.Asset
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -256,6 +390,17 @@ func (r *PersonalAssetRepository) ClaimAvatarCleanup(ctx context.Context, versio
 	})
 	return item, err
 }
+
+// FinishAvatarCleanup records whether the claimed avatar object was successfully removed.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - item: The asset state processed by this operation.
+//   - success: Whether the claimed object cleanup completed successfully.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalAssetRepository) FinishAvatarCleanup(ctx context.Context, item assets.Asset, success bool) error {
 	state := "retired"
 	if success {

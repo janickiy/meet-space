@@ -23,10 +23,11 @@ type Session struct {
 	LastSeenAt     time.Time  `json:"lastSeenAt"`
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName returns the explicit database table name so GORM does not infer a different plural
+// form.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// Returns:
+//   - result 1: Exact database table name used by GORM.
 func (Session) TableName() string { return "participant_sessions" }
 
 // Identity carries verified user identity, token expiry and an optional durable auth session.
@@ -49,17 +50,20 @@ type Envelope struct {
 }
 
 // Event creates a server envelope with a fresh ID and UTC timestamp.
+//
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - data: Input bytes or structured event payload.
+//
+// Returns:
+//   - result 1: The resulting envelope.
 func Event(kind, conferenceID string, data any) Envelope {
 	raw, _ := json.Marshal(data)
 	return Envelope{Version: 1, ID: uuid.NewString(), Type: kind, ConferenceID: conferenceID, Timestamp: time.Now().UTC(), Data: raw}
 }
 
-// Presence передаёт агрегированное присутствие участника и число его действующих соединений.
-// @params:
-//   - conferences.ParticipantView: встроенный тип, добавляющий свой контракт или данные.
-//   - Online: логический признак Online, управляющий соответствующей веткой обработки.
-//   - Connections: значение Connections типа int, используемое согласно назначению этой операции.
-//   - ConnectionIDs: идентификаторы связанных ресурсов для пакетной операции.
+// Presence contains aggregate participant liveness and the count of active physical connections.
 type Presence struct {
 	conferences.ParticipantView
 	Online        bool     `json:"online"`
@@ -67,12 +71,7 @@ type Presence struct {
 	ConnectionIDs []string `json:"connectionIds"`
 }
 
-// State собирает начальный снимок комнаты: конференцию и видимых участников.
-// @params:
-//   - ConnectionID: идентификатор физического медиа-соединения.
-//   - ParticipantID: идентификатор членства участника внутри конференции.
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - Participants: набор значений Participants для последовательной или пакетной обработки.
+// State contains the initial conference and visible-participant snapshot for a room.
 type State struct {
 	ConnectionID  string             `json:"connectionId"`
 	ParticipantID string             `json:"participantId"`
@@ -80,13 +79,7 @@ type State struct {
 	Participants  []Presence         `json:"participants"`
 }
 
-// Signal содержит ограниченную нагрузку сигнализации; доверенная идентичность назначается сервером.
-// @params:
-//   - TargetConnectionID: идентификатор связанного ресурса, заданного параметром TargetConnectionID.
-//   - SDP: значение SDP типа string, используемое согласно назначению этой операции.
-//   - Candidate: проверенный кандидат ICE для WebRTC-соединения.
-//   - SenderConnectionID: идентификатор связанного ресурса, заданного параметром SenderConnectionID.
-//   - SenderParticipantID: идентификатор связанного ресурса, заданного параметром SenderParticipantID.
+// Signal contains a bounded signaling payload whose trusted identity is assigned by the server.
 type Signal struct {
 	TargetConnectionID  string          `json:"targetConnectionId"`
 	SDP                 string          `json:"sdp,omitempty"`
@@ -95,34 +88,21 @@ type Signal struct {
 	SenderParticipantID string          `json:"senderParticipantId,omitempty"`
 }
 
-// ICEConfig задаёт список ICE-серверов, необходимый для установки WebRTC-соединения.
-// @params:
-//   - ICEServers: набор значений ICEServers для последовательной или пакетной обработки.
+// ICEConfig contains the ICE servers needed to establish a WebRTC connection.
 type ICEConfig struct {
 	ICEServers         []ICEServer `json:"iceServers"`
 	ICETransportPolicy string      `json:"iceTransportPolicy,omitempty"`
 	ExpiresAt          int64       `json:"expiresAt,omitempty"`
 }
 
-// ICEServer описывает адреса и при необходимости учётные данные одного ICE-сервера.
-// @params:
-//   - URLs: набор значений URLs для последовательной или пакетной обработки.
-//   - Username: значение Username типа string, используемое согласно назначению этой операции.
-//   - Credential: значение Credential типа string, используемое согласно назначению этой операции.
+// ICEServer contains one ICE service's endpoints and optional credentials.
 type ICEServer struct {
 	URLs       []string `json:"urls"`
 	Username   string   `json:"username,omitempty"`
 	Credential string   `json:"credential,omitempty"`
 }
 
-// Bus передаёт доверенное событие и параметры адресации между экземплярами API.
-// @params:
-//   - Kind: тип события, ошибки или медиа, определяющий ветку обработки.
-//   - Session: историческая физическая сессия или состояние текущего соединения.
-//   - ConferenceID: идентификатор конференции, ограничивающий область операции.
-//   - ParticipantID: идентификатор членства участника внутри конференции.
-//   - ConnectionID: идентификатор физического медиа-соединения.
-//   - Event: конверт входящего или публикуемого события.
+// Bus carries a trusted event and its recipient routing between API instances.
 type Bus struct {
 	Kind          string    `json:"kind"`
 	Session       *Session  `json:"session,omitempty"`
@@ -135,7 +115,19 @@ type Bus struct {
 // Subscription receives inter-instance events until cancellation or Close.
 type Subscription interface {
 	// Receive waits for the next event using the caller's context.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//
+	// Returns:
+	//   - result 1: The resulting bus.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Receive(context.Context) (Bus, error)
 	// Close releases the subscription and unblocks Receive.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Close() error
 }

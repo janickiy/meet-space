@@ -12,6 +12,18 @@ import (
 
 // Delete checks the same ownership policy as Stop and serializes with recording
 // workers, retention, and conference moderation before touching storage.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - recordID: External recording UUID.
+//   - remove: Callback removing the authorized recording's owned storage objects.
+//
+// Returns:
+//   - result 1: The resulting record.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRecordingRepository) Delete(ctx context.Context, userID, conferenceID, recordID string, remove func(context.Context, records.Record) error) (records.Record, error) {
 	var record records.Record
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

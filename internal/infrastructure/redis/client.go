@@ -8,13 +8,19 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// NewClient создает Redis-клиент и проверяет соединение.
-// @args
-// - ctx: контекст подключения.
-// - addr: адрес Redis в формате хост:порт.
-// - password: пароль Redis, если задан.
-// - db: номер базы Redis.
-// @return Redis client или ошибку подключения.
+// NewClient constructs the client with the dependencies and limits required for distributed
+// presence and ownership.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - addr: Operator-controlled network address.
+//   - password: Plaintext password accepted only for validation or hashing.
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded client.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func NewClient(ctx context.Context, addr string, password string, db int) (*goredis.Client, error) {
 	client := goredis.NewClient(&goredis.Options{
 		Addr:                  addr,

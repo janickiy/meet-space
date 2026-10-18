@@ -13,7 +13,15 @@ import (
 	pion "github.com/pion/webrtc/v4"
 )
 
+// fortySlotOffer builds the synthetic forty-slot SDP fixture for protocol-boundary checks.
+//
 // Model Firefox's forty bundled receive slots without user identifiers or ICE secrets.
+//
+// Parameters:
+//   - size: Content size in bytes or the requested bounded capacity.
+//
+// Returns:
+//   - result 1: Synthetic forty-slot SDP offer without real user or ICE secrets.
 func fortySlotOffer(size int) string {
 	var mids []string
 	for i := 0; i < 40; i++ {
@@ -39,6 +47,11 @@ func fortySlotOffer(size int) string {
 	return raw
 }
 
+// TestFortySlotSDPLimits verifies forty slot SDP limits to prevent regressions in SFU peers and
+// media forwarding.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestFortySlotSDPLimits(t *testing.T) {
 	for _, size := range []int{49152, 49153, 65535, 65536, 65537, media.MaxSDPBytes - 1, media.MaxSDPBytes, media.MaxSDPBytes + 1} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
@@ -58,6 +71,11 @@ func TestFortySlotSDPLimits(t *testing.T) {
 	}
 }
 
+// TestLargeSDPPreservesPublicationAndBundleChecks verifies large SDP preserves publication and
+// bundle checks to prevent regressions in SFU peers and media forwarding.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestLargeSDPPreservesPublicationAndBundleChecks(t *testing.T) {
 	raw := fortySlotOffer(51212)
 	for _, tc := range []struct {
@@ -79,6 +97,11 @@ func TestLargeSDPPreservesPublicationAndBundleChecks(t *testing.T) {
 	}
 }
 
+// TestLargePionOfferNegotiatesFortySlots verifies large pion offer negotiates forty slots to
+// prevent regressions in SFU peers and media forwarding.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestLargePionOfferNegotiatesFortySlots(t *testing.T) {
 	manager, err := NewManager(Options{MaxPeers: 10, MaxRooms: 1, NegotiationTimeout: time.Minute})
 	if err != nil {

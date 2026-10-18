@@ -20,14 +20,66 @@ import (
 )
 
 type UserBus interface {
+	// Subscribe opens a scoped event subscription whose lifetime is bounded by the supplied context.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//
+	// Returns:
+	//   - result 1: The constructed or loaded pub sub.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Subscribe(context.Context, string) (*goredis.PubSub, error)
+	// Publish publishes the saved websocket change through its configured event or command
+	// transport.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Trusted event to publish or process.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Publish(context.Context, string, domain.Envelope) error
 }
 type UserPresence interface {
+	// Touch renews presence using the supplied confirmed transport activity time.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Current account integration or physical transport connection.
+	//
+	// Returns:
+	//   - result 1: The resulting count, size or numeric value.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Touch(context.Context, string, string) (int64, error)
+	// Remove removes the specified physical client from the account's presence set.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Current account integration or physical transport connection.
+	//
+	// Returns:
+	//   - result 1: The resulting count, size or numeric value.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Remove(context.Context, string, string) (int64, error)
 }
 type AccountChecker interface {
+	// Account checks that the acting identity is a registered non-guest account.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Account identifier to validate before opening the user socket.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Account(context.Context, string) error
 }
 
@@ -44,14 +96,43 @@ type UserHandler struct {
 	wg       sync.WaitGroup
 }
 
+// NewUserHandler constructs the user handler with the dependencies and limits required for
+// websocket.
+//
+// Parameters:
+//   - verifier: Token verifier or private PKCE verifier, as defined by its type.
+//   - tickets: One-use or signed media-ticket issuer and verifier.
+//   - limiter: Shared request-rate limiter.
+//   - cfg: Operator-controlled configuration and processing limits.
+//   - bus: Scoped publication and subscription transport.
+//   - presence: Distributed account-presence reader or writer.
+//   - accounts: Account presence or account-validation dependency.
+//
+// Returns:
+//   - result 1: The constructed or loaded user handler.
 func NewUserHandler(verifier Verifier, tickets Tickets, limiter Limiter, cfg config.RealtimeConfig, bus UserBus, presence UserPresence, accounts AccountChecker) *UserHandler {
 	return &UserHandler{auth: NewHandler(nil, verifier, tickets, limiter, cfg), bus: bus, presence: presence, accounts: accounts, clients: map[*ws.Conn]context.CancelFunc{}}
 }
+
+// RegisterRoutes registers the authenticated realtime endpoints and their request limits.
+//
+// Parameters:
+//   - r: Router on which the authenticated realtime endpoints are registered.
 func (h *UserHandler) RegisterRoutes(r gin.IRouter) {
 	r.POST("/api/v1/ws-ticket", h.Ticket)
 	r.GET("/api/v1/ws", h.Connect)
 }
+
+// LocalCount returns the number of locally registered sockets under the registry lock.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
 func (h *UserHandler) LocalCount() int { h.mu.Lock(); defer h.mu.Unlock(); return h.reserved }
+
+// BeginDrain stops accepting new work while existing operations finish.
+//
+// Parameters:
+//   - v: Requested boolean state.
 func (h *UserHandler) BeginDrain(v bool) {
 	h.mu.Lock()
 	h.draining = v
@@ -63,7 +144,20 @@ func (h *UserHandler) BeginDrain(v bool) {
 	}
 	h.mu.Unlock()
 }
+
+// Shutdown stops new work and waits for the component-owned resources to finish closing.
 func (h *UserHandler) Shutdown() { h.BeginDrain(true); h.wg.Wait() }
+
+// valid checks that the account, physical client and current conversation authorization still
+// permit socket use.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *UserHandler) valid(ctx context.Context, id domain.Identity) error {
 	if id.AuthSessionID != "" {
 		v, ok := h.auth.verifier.(PersistentVerifier)
@@ -78,6 +172,11 @@ func (h *UserHandler) valid(ctx context.Context, id domain.Identity) error {
 	}
 	return h.accounts.Account(ctx, id.UserID)
 }
+
+// Ticket issues a short-lived one-use connection ticket after authorization succeeds.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *UserHandler) Ticket(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -115,6 +214,11 @@ func (h *UserHandler) Ticket(c *gin.Context) {
 	}
 	c.JSON(201, gin.H{"ticket": ticket, "expiresAt": time.Now().UTC().Add(ttl)})
 }
+
+// Connect opens the configured dependency or starts its authorized connection flow.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *UserHandler) Connect(c *gin.Context) {
 	h.mu.Lock()
 	if h.draining || (h.auth.cfg.MaxConnections > 0 && h.reserved >= h.auth.cfg.MaxConnections) {
@@ -174,6 +278,11 @@ func (h *UserHandler) Connect(c *gin.Context) {
 	handed = true
 	go h.run(lifetime, stop, conn, sub, id)
 }
+
+// release releases only the websocket resource owned by the matching operation or token.
+//
+// Parameters:
+//   - conn: Connection owned by the current operation.
 func (h *UserHandler) release(conn *ws.Conn) {
 	h.mu.Lock()
 	delete(h.clients, conn)
@@ -181,6 +290,15 @@ func (h *UserHandler) release(conn *ws.Conn) {
 	h.mu.Unlock()
 	h.wg.Done()
 }
+
+// run runs websocket until the context is canceled or processing fails.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - cancel: Cancellation function for the component-owned context.
+//   - conn: Connection owned by the current operation.
+//   - sub: Owned Redis event subscription.
+//   - id: Identifier of the resource addressed by this operation.
 func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *ws.Conn, sub *goredis.PubSub, id domain.Identity) {
 	operations.WSActive(1)
 	defer operations.WSActive(-1)

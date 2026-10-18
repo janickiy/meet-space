@@ -8,9 +8,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// lockDirectConversation сериализует персональные действия и отправку сообщений.
-// @args: tx — транзакция; user — текущий аккаунт; id — идентификатор переписки.
-// @return: ошибка доступа, типа переписки или запроса.
+// lockDirectConversation locks the caller's direct-conversation membership before changing
+// personal preferences or history.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func lockDirectConversation(tx *gorm.DB, user, id string) error {
 	if err := authorizeDirect(tx, user, id, true); err != nil {
 		return err
@@ -25,9 +33,19 @@ func lockDirectConversation(tx *gorm.DB, user, id string) error {
 	return nil
 }
 
-// SetConversationPreferences сохраняет уведомления только текущего участника.
-// @args: ctx — контекст; user — владелец настройки; id — переписка; enabled — разрешение уведомлений.
-// @return: актуальная персональная проекция переписки и ошибка.
+// SetConversationPreferences updates only the acting member's conversation notification
+// preference.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//   - enabled: Whether the requested feature or preference should be enabled.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) SetConversationPreferences(ctx context.Context, user, id string, enabled bool) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -45,10 +63,18 @@ func (r *PersonalRepository) SetConversationPreferences(ctx context.Context, use
 	return item, err
 }
 
-// clearDirectHistory ставит персональную границу истории без удаления общих данных.
-// Блокировка переписки гарантирует, что параллельная отправка окажется до или после границы.
-// @args: tx — транзакция с блокировкой; user — владелец истории; id — переписка; hide — скрыть также сам чат.
-// @return: ошибка сохранения; повторная очистка без новых сообщений безопасна.
+// clearDirectHistory advances the member-specific history boundary without deleting the other
+// participant's messages.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//   - hide: Whether the member-specific conversation view should also be hidden.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func clearDirectHistory(tx *gorm.DB, user, id string, hide bool) error {
 	var latest struct {
 		ID       string
@@ -70,9 +96,18 @@ func clearDirectHistory(tx *gorm.DB, user, id string, hide bool) error {
 	return tx.Table("conversation_members").Where("conversation_id=? AND user_id=?", id, user).Updates(updates).Error
 }
 
-// ClearDirectHistory очищает видимую историю только у вызвавшего действие аккаунта.
-// @args: ctx — контекст; user — текущий аккаунт; id — личная переписка.
-// @return: переписка без старых превью и непрочитанных сообщений, либо ошибка.
+// ClearDirectHistory moves only the acting member's direct-chat history boundary without
+// deleting the peer's history.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) ClearDirectHistory(ctx context.Context, user, id string) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -89,10 +124,18 @@ func (r *PersonalRepository) ClearDirectHistory(ctx context.Context, user, id st
 	return item, err
 }
 
-// HideDirectConversation убирает чат и прежнюю историю только у текущего аккаунта.
-// Новое сообщение или явное создание диалога возвращает чат, но не очищенную историю.
-// @args: ctx — контекст; user — текущий аккаунт; id — личная переписка.
-// @return: точная персональная граница скрытой истории и ошибка; повторное скрытие идемпотентно.
+// HideDirectConversation hides the direct conversation for the acting account and retains the
+// peer's saved history.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) HideDirectConversation(ctx context.Context, user, id string) (int64, error) {
 	var cutoff int64
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

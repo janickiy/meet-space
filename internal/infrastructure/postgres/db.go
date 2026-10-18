@@ -14,10 +14,15 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// Connect открывает подключение к PostgreSQL через GORM.
-// @args
-// - dsn: строка подключения PostgreSQL.
-// @return *gorm.DB или ошибку подключения.
+// Connect opens the configured dependency or starts its authorized connection flow.
+//
+// Parameters:
+//   - dsn: Operator-controlled database connection string.
+//
+// Returns:
+//   - result 1: The constructed or loaded db.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func Connect(dsn string) (*gorm.DB, error) {
 	cfg, err := pgx.ParseConfig(dsn)
 	if err != nil {

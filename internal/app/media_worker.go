@@ -23,10 +23,12 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
-// RunMediaWorker собирает SFU, реестр владения и внутренний сервер медиа-воркера.
+// RunMediaWorker starts media worker with the configured dependencies and propagates startup or
+// shutdown failures.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func RunMediaWorker() error {
 	base, err := config.Load()
 	if err != nil {
@@ -65,12 +67,7 @@ func RunMediaWorker() error {
 	}
 	var engine *sfu.Manager
 	failedPeers := make(chan string, 128)
-	// Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
-	//
-	// @args
-	//   - binding (media.Binding): проверенная идентичность медиа-подключения, назначенная сервером.
-	//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
-	//   - data (any): полезная нагрузка события или байты обрабатываемого содержимого.
+
 	emit := func(binding media.Binding, kind string, data any) {
 		op, stop := context.WithTimeout(ctx, cfg.OperationTimeout)
 		event := realtime.Event(kind, binding.ConferenceID, data)
@@ -78,7 +75,8 @@ func RunMediaWorker() error {
 		stop()
 		if err != nil {
 			logger.Warn("media signaling delivery failed", "conference_id", binding.ConferenceID, "participant_id", binding.ParticipantID, "session_id", binding.SessionID, "event_type", kind)
-			// Один ограниченный обработчик очистки позволяет не ожидать завершения вызывающего обработчика событий соединения.
+			// One bounded cleanup worker avoids waiting for cleanup inside the connection event callback
+			// that requested it.
 			select {
 			case failedPeers <- binding.ConnectionID:
 			default:
@@ -94,9 +92,7 @@ func RunMediaWorker() error {
 		return err
 	}
 	cleanupDone := make(chan struct{})
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
-
-	 */func() {
+	go func() {
 		defer close(cleanupDone)
 		for {
 			select {
@@ -109,14 +105,10 @@ func RunMediaWorker() error {
 			}
 		}
 	}()
-	handler := mediaworker.NewHandler(cfg, registry, store, tickets, engine, /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
+	handler := mediaworker.NewHandler(cfg, registry, store, tickets, engine,
 
-
-		@return:
-		  - результат 1 (any): значение, подготовленное операцией для вызывающей стороны. */func() any { return engine.Snapshot() }, logger)
-	defer /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
-
-	 */func() {
+		func() any { return engine.Snapshot() }, logger)
+	defer func() {
 		cancel()
 		<-cleanupDone
 		shutdown, done := context.WithTimeout(context.Background(), 10*time.Second)
@@ -147,9 +139,7 @@ func RunMediaWorker() error {
 	mux.Handle("/", handler.Routes())
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: cfg.OperationTimeout + 5*time.Second, WriteTimeout: cfg.OperationTimeout + 5*time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
 	failed := make(chan error, 1)
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и запуске компонентов приложения, используя состояние окружающей функции.
-
-	 */func() { failed <- server.Serve(listener) }()
+	go func() { failed <- server.Serve(listener) }()
 	logger.Info("media worker ready", "worker_id", cfg.WorkerID, "internal_port", cfg.HTTPPort, "max_peers", cfg.MaxPeers, "udp_mux_port", cfg.UDPPort, "tcp_mux_port", cfg.TCPPort)
 	select {
 	case <-signalCtx.Done():
@@ -175,8 +165,8 @@ func RunMediaWorker() error {
 	<-done
 	shutdown, stop := context.WithTimeout(context.Background(), base.Operations.ShutdownTimeout)
 	defer stop()
-	// Длительный выходной поток записи закрывается до ожидания активных HTTP-запросов;
-	// иначе остановка сервера всегда исчерпывает весь отведённый срок.
+	// Close long-lived recording egress before waiting for active HTTP requests; otherwise server
+	// shutdown always consumes the entire grace period.
 	mediaErr := handler.Stop(shutdown)
 	return errors.Join(mediaErr, server.Shutdown(shutdown))
 }

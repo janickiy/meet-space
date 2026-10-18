@@ -13,17 +13,30 @@ import (
 	"gorm.io/gorm"
 )
 
-// CaptionsRepository хранит только финальные реплики, настройки и ограниченные агрегаты активности.
+// CaptionsRepository stores only final utterances, settings and bounded activity aggregates.
 type CaptionsRepository struct{ db *gorm.DB }
 
-// NewCaptionsRepository подключает хранилище без запуска распознавания.
-// @args db — SQL pool.
-// @return репозиторий live-обработки.
+// NewCaptionsRepository constructs the captions repository with the dependencies and limits
+// required for live captions.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded captions repository.
 func NewCaptionsRepository(db *gorm.DB) *CaptionsRepository { return &CaptionsRepository{db} }
 
-// Read возвращает состояние после актуальной проверки допуска к истории встречи.
-// @args ctx — срок выполнения; user,cid — актор и конференция.
-// @return состояние, включая право управления, либо ошибка доступа.
+// Read reads the captions state or stream required by the caller.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - cid: Conference identifier limiting the operation scope.
+//
+// Returns:
+//   - result 1: The resulting state.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Read(ctx context.Context, user, cid string) (domain.State, error) {
 	db := r.db.WithContext(ctx)
 	if _, err := findConference(db, cid, false); err != nil {
@@ -43,9 +56,19 @@ func (r *CaptionsRepository) Read(ctx context.Context, user, cid string) (domain
 	return state, row.Error
 }
 
-// Set меняет согласие только для участвующего организатора или соорганизатора и прекращает прежнюю аренду.
-// @args ctx — срок выполнения; user,cid — актор и встреча; enabled — отправка провайдеру; language — auto/ru/en.
-// @return новое состояние либо ошибка роли/состояния.
+// Set updates the persisted captions settings after validating the request.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - cid: Conference identifier limiting the operation scope.
+//   - enabled: Whether the requested feature or preference should be enabled.
+//   - language: Requested speech language within the supported provider contract.
+//
+// Returns:
+//   - result 1: The resulting state.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Set(ctx context.Context, user, cid string, enabled bool, language string) (domain.State, error) {
 	if language != "auto" && language != "ru" && language != "en" {
 		return domain.State{}, apperrors.ErrInvalidInput
@@ -78,9 +101,20 @@ func (r *CaptionsRepository) Set(ctx context.Context, user, cid string, enabled 
 	return r.Read(ctx, user, cid)
 }
 
-// Finals выдаёт курсорную страницу, применяя права внутри запроса до выборки текста.
-// @args ctx — срок выполнения; user,cid — область доступа; after — постоянный курсор; limit — 1..200.
-// @return финальные реплики всех live-поколений, восстановимые после потери WS.
+// Finals returns a cursor-bounded page of saved final captions so clients can recover missed
+// realtime events.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - cid: Conference identifier limiting the operation scope.
+//   - after: Boundary after which results or state are selected.
+//   - limit: Maximum number of results or operations in this batch.
+//
+// Returns:
+//   - result 1: The collected caption values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Finals(ctx context.Context, user, cid string, after int64, limit int) ([]domain.Caption, error) {
 	if after < 0 || limit < 1 || limit > 200 {
 		return nil, apperrors.ErrInvalidInput
@@ -95,9 +129,18 @@ func (r *CaptionsRepository) Finals(ctx context.Context, user, cid string, after
 	return items, err
 }
 
-// Claim атомарно получает одну конференцию с ограничением активных аренд во всём кластере.
-// @args ctx — срок выполнения; analytics — автоматическое локальное наблюдение; maximum — число конференций; attempts — предел перезапусков.
-// @return аренда либо gorm.ErrRecordNotFound при отсутствии доступной работы.
+// Claim atomically acquires the current captions lease or ownership record.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - analytics: Whether the requested processing lease includes technical activity aggregation.
+//   - maximum: Maximum permitted size or number of characters.
+//   - attempts: Maximum permitted job attempts or the current retry count.
+//
+// Returns:
+//   - result 1: The resulting lease.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Claim(ctx context.Context, analytics bool, maximum, attempts int) (live.Lease, error) {
 	lease := live.Lease{}
 	if err := r.db.WithContext(ctx).Exec(`UPDATE live_transcription_sessions SET status='failed',lease_until=NULL,lease_token=NULL,error_code='restart_limit',updated_at=clock_timestamp() WHERE attempts>=? AND (lease_until IS NULL OR lease_until<clock_timestamp()) AND status IN ('queued','active','degraded')`, attempts).Error; err != nil {
@@ -136,18 +179,33 @@ func (r *CaptionsRepository) Claim(ctx context.Context, analytics bool, maximum,
 	return lease, err
 }
 
-// Renew продлевает только текущую аренду активной конференции и поколения.
-// @args ctx — срок выполнения; lease — захваченная версия.
-// @return true пока обработка разрешена.
+// Renew extends the captions lease only while its owner and fencing identity still match.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - lease: Current lease identity used to fence stale workers.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Renew(ctx context.Context, lease live.Lease) (bool, error) {
 	result := r.db.WithContext(ctx).Exec(`UPDATE live_transcription_sessions SET lease_until=clock_timestamp()+interval '15 seconds'
  WHERE id=? AND generation=? AND lease_token=? AND lease_until>clock_timestamp() AND EXISTS(SELECT 1 FROM conferences c WHERE c.id=conference_id AND c.kind='meeting' AND c.status='active')`, lease.SessionID, lease.Generation, lease.Token)
 	return result.RowsAffected == 1, result.Error
 }
 
-// Finish завершает текущую аренду; ошибки субтитров не изменяют конференцию или запись.
-// @args ctx — срок выполнения; lease — актуальная аренда; status — completed/failed.
-// @return ошибка SQL.
+// Finish records completion of the leased captions operation.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - lease: Current lease identity used to fence stale workers.
+//   - status: Lifecycle state or response status to record.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Finish(ctx context.Context, lease live.Lease, status string) error {
 	if status != "completed" && status != "failed" && status != "queued" {
 		return apperrors.ErrInvalidInput
@@ -155,9 +213,16 @@ func (r *CaptionsRepository) Finish(ctx context.Context, lease live.Lease, statu
 	return r.db.WithContext(ctx).Exec(`UPDATE live_transcription_sessions SET status=?,lease_until=NULL,lease_token=NULL,updated_at=clock_timestamp() WHERE id=? AND generation=? AND lease_token=?`, status, lease.SessionID, lease.Generation, lease.Token).Error
 }
 
-// Status сохраняет видимую деградацию только при действующей аренде.
-// @args ctx — срок выполнения; lease — актуальная аренда; status — active/degraded.
-// @return ошибка SQL.
+// Status records the bounded processing status associated with the current caption lease.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - lease: Current lease identity used to fence stale workers.
+//   - status: Lifecycle state or response status to record.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Status(ctx context.Context, lease live.Lease, status string) error {
 	if status != "active" && status != "degraded" {
 		return apperrors.ErrInvalidInput
@@ -165,9 +230,18 @@ func (r *CaptionsRepository) Status(ctx context.Context, lease live.Lease, statu
 	return r.db.WithContext(ctx).Exec(`UPDATE live_transcription_sessions SET status=?,updated_at=clock_timestamp() WHERE id=? AND generation=? AND lease_token=? AND lease_until>clock_timestamp()`, status, lease.SessionID, lease.Generation, lease.Token).Error
 }
 
-// SaveFinal фиксирует принятую финальную ревизию до публикации события.
-// @args ctx — срок выполнения; lease — текущее поколение/аренда; caption — проверенная реплика; maximum — предел строк на конференцию.
-// @return сохранённая реплика с курсором либо безопасный отказ.
+// SaveFinal persists a final live-caption event only for the current lease and revision.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - lease: Current lease identity used to fence stale workers.
+//   - caption: Validated caption event to persist.
+//   - maximum: Maximum permitted size or number of characters.
+//
+// Returns:
+//   - result 1: The resulting caption.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) SaveFinal(ctx context.Context, lease live.Lease, caption domain.Caption, maximum int) (domain.Caption, error) {
 	caption.SessionID = lease.SessionID
 	caption.ConferenceID = lease.ConferenceID
@@ -210,9 +284,17 @@ func (r *CaptionsRepository) SaveFinal(ctx context.Context, lease live.Lease, ca
 	return caption, err
 }
 
-// Speaker проверяет серверную принадлежность дорожки допущенному участнику.
-// @args ctx — срок выполнения; cid,pid — конференция и участник.
-// @return отображаемое имя либо ошибка доступа.
+// Speaker resolves the public speaker label for the caption's authorized participant.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - cid: Conference identifier limiting the operation scope.
+//   - pid: Participant identifier whose speaker information is requested.
+//
+// Returns:
+//   - result 1: Verified public speaker label.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Speaker(ctx context.Context, cid, pid string) (string, error) {
 	var p conferences.Participant
 	err := r.db.WithContext(ctx).Where("id=? AND conference_id=? AND admission_state='admitted' AND status='joined'", pid, cid).Take(&p).Error
@@ -222,9 +304,19 @@ func (r *CaptionsRepository) Speaker(ctx context.Context, cid, pid string) (stri
 	return p.DisplayName, err
 }
 
-// Observe добавляет одну порцию агрегированной активности, проверяя аренду и принадлежность участника.
-// @args ctx — срок выполнения; lease — актуальная аренда; pid — участник; speech,observed — приращения в миллисекундах за небольшой интервал.
-// @return ошибка фиксации без влияния на звук.
+// Observe persists bounded activity observations for the currently leased conference-caption
+// run.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - lease: Current lease identity used to fence stale workers.
+//   - pid: Participant identifier whose speaker information is requested.
+//   - speech: Observed speech duration in milliseconds.
+//   - observed: Total observed audio duration in milliseconds.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *CaptionsRepository) Observe(ctx context.Context, lease live.Lease, pid string, speech, observed int64) error {
 	if speech < 0 || speech > 30000 || observed < 0 || observed > 30000 {
 		return apperrors.ErrInvalidInput

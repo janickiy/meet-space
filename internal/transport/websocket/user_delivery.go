@@ -13,6 +13,19 @@ import (
 )
 
 type conversationAccessChecker interface {
+	// HasActiveMembership checks the account's current conversation membership immediately before
+	// protected access or delivery.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//   - argument 3: Acting account identifier used to scope access.
+	//
+	// Returns:
+	//   - result 1: Whether the operation's documented condition holds or its conditional state
+	//     change succeeded.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	HasActiveMembership(context.Context, string, string) (bool, error)
 }
 
@@ -20,32 +33,80 @@ type conversationAccessChecker interface {
 // Concurrent deliveries take a shared lock; membership changes take an exclusive
 // lock. A completed removal therefore cannot be followed by a queued message.
 type conversationDeliveryGuard interface {
+	// WithConversationDelivery attaches conversation delivery to the component before its operations
+	// are served.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//   - argument 3: Acting account identifier used to scope access.
+	//   - argument 4: Delivery callback invoked only while the recipient or resource authorization
+	//     remains valid.
+	//
+	// Returns:
+	//   - result 1: Whether the operation's documented condition holds or its conditional state
+	//     change succeeded.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	WithConversationDelivery(context.Context, string, string, func() error) (bool, error)
 }
 
-// conversationMessageDeliveryGuard защищает отправку сообщения от запоздалой
-// очереди после очистки истории и передаёт текущие личные настройки получателя.
+// conversationMessageDeliveryGuard prevents a delayed queued message from bypassing history
+// clearing and supplies the recipient's current personal preferences.
 type conversationMessageDeliveryGuard interface {
+	// WithConversationMessageDelivery attaches conversation message delivery to the component before
+	// its operations are served.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//   - argument 3: Acting account identifier used to scope access.
+	//   - argument 4: Message identifier within the authorized conversation.
+	//   - argument 5: Delivery callback invoked only while the recipient or resource authorization
+	//     remains valid.
+	//
+	// Returns:
+	//   - result 1: Whether the operation's documented condition holds or its conditional state
+	//     change succeeded.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	WithConversationMessageDelivery(context.Context, string, string, string, func(bool, int64) error) (bool, error)
 }
 
-// conversationActionDeliveryGuard заменяет запоздалую личную нагрузку текущей
-// проекцией владельца и отклоняет скрытие уже восстановленной беседы.
+// conversationActionDeliveryGuard replaces delayed personal payloads with the owner's current
+// view and rejects hiding a conversation that has already been restored.
 type conversationActionDeliveryGuard interface {
+	// WithConversationActionDelivery attaches conversation action delivery to the component before
+	// its operations are served.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//   - argument 3: Acting account identifier used to scope access.
+	//   - argument 4: Validated event, job, media or resource category.
+	//   - argument 5: Delivery callback invoked only while the recipient or resource authorization
+	//     remains valid.
+	//
+	// Returns:
+	//   - result 1: Whether the operation's documented condition holds or its conditional state
+	//     change succeeded.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	WithConversationActionDelivery(context.Context, string, string, string, func(*personal.Conversation) error) (bool, error)
 }
 
-// deliver проверяет право на событие непосредственно перед записью в сокет.
-// Под блокировкой беседы она дополняет сообщение актуальным флагом уведомлений
-// и удаляет цитату из очищенной истории, не подавляя сами новые сообщения.
+// deliver checks the current recipient authorization immediately before the saved event or
+// command is delivered.
 //
-// @args
-//   - ctx — контекст проверки и ограниченной записи.
-//   - user — авторизованный получатель сокета.
-//   - data — сериализованный конверт из персонального серверного канала.
-//   - write — запись проверенного и при необходимости очищенного конверта.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - data: Input bytes or structured event payload.
+//   - write: Callback that writes the authorized serialized event to the receiving socket.
 //
-// @return ошибка проверки или записи; недоступное событие молча пропускается.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (h *UserHandler) deliver(ctx context.Context, user string, data []byte, write func([]byte) error) error {
 	var event domain.Envelope
 	if json.Unmarshal(data, &event) != nil {
@@ -82,7 +143,7 @@ func (h *UserHandler) deliver(ctx context.Context, user string, data []byte, wri
 		return write(data)
 	}
 	if event.Type == "conversation.preferences.updated" || event.Type == "conversation.history.cleared" || event.Type == "conversation.hidden" {
-		// Персональные настройки и очистка не публикуются собеседнику.
+		// Never publish personal preferences or history clearing to the conversation peer.
 		if payload.UserID != user || (payload.Type == "group" && event.Type != "conversation.preferences.updated") {
 			return nil
 		}

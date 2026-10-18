@@ -8,9 +8,17 @@ import (
 	"time"
 )
 
-// FinalizeAudio объединяет аудиосегменты без видеопроцесса и без искусственного превью.
-// @args ctx — срок выполнения; dir — приватный каталог закрытых сегментов.
-// @return проверенный AAC/MP4, контрольная сумма и метаданные либо ошибка.
+// FinalizeAudio converts the recorded input into the bounded audio artifact required by
+// downstream processing.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - dir: Validated local directory.
+//
+// Returns:
+//   - result 1: The resulting result.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *PostProcessor) FinalizeAudio(ctx context.Context, dir string) (Result, error) {
 	paths, err := findSegments(dir)
 	if err != nil {

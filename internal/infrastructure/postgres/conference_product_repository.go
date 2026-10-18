@@ -9,31 +9,27 @@ import (
 	"gorm.io/gorm"
 )
 
-// DecideAdmission сериализует решение допуска блокировкой конференции, сохраняет состояние и версию решения.
-// Операции с базой данных объединяет в транзакцию.
+// DecideAdmission records an authorized waiting-room acceptance or rejection.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - participantID (string): идентификатор членства участника внутри конференции.
-//   - request (conferences.AdmissionRequest): входные параметры соответствующего прикладного запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//   - participantID: Conference participant identifier.
+//   - request: Validated application request or incoming operation parameters.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting participant.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) DecideAdmission(ctx context.Context, conferenceID, userID, participantID string, request conferences.AdmissionRequest) (conferences.Participant, error) {
 	var target conferences.Participant
 	if err := request.Validate(); err != nil {
 		return target, err
 	}
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			c, err := findConference(tx, conferenceID, true)
 			if err != nil {
 				return err
@@ -82,27 +78,24 @@ func (r *ConferenceRepository) DecideAdmission(ctx context.Context, conferenceID
 	return target, err
 }
 
-// UpdateSchedule обновляет расписание только запланированной встречи под той же блокировкой, что используется при старте.
-// Операции с базой данных объединяет в транзакцию.
+// UpdateSchedule saves the authorized conference schedule and its updated synchronization
+// version.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - request (conferences.ScheduleRequest): входные параметры соответствующего прикладного запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
+//   - request: Validated application request or incoming operation parameters.
 //
-// @return:
-//   - результат 1 (conferences.Conference): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting conference.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) UpdateSchedule(ctx context.Context, conferenceID, userID string, request conferences.ScheduleRequest) (conferences.Conference, error) {
 	var c conferences.Conference
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			var err error
 			c, err = findConference(tx, conferenceID, true)
 			if err != nil {
@@ -126,18 +119,19 @@ func (r *ConferenceRepository) UpdateSchedule(ctx context.Context, conferenceID,
 	return c, err
 }
 
-// ParticipantsVisible возвращает страницу членств, скрывая недопущенных участников от обычного пользователя.
+// ParticipantsVisible returns only the participant information visible to the acting account.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - limit (int): максимальное число элементов страницы или порции обработки.
-//   - offset (int): число элементов, пропускаемых перед началом страницы.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - userID: Acting account identifier used to scope access.
+//   - limit: Maximum number of results or operations in this batch.
+//   - offset: Number of results skipped before the requested page.
 //
-// @return:
-//   - результат 1 ([]conferences.Participant): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The collected participant values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) ParticipantsVisible(ctx context.Context, id, userID string, limit, offset int) ([]conferences.Participant, error) {
 	rows := []conferences.Participant{}
 	actor, err := findMembership(r.db.WithContext(ctx), id, userID)
@@ -157,16 +151,17 @@ func (r *ConferenceRepository) ParticipantsVisible(ctx context.Context, id, user
 
 const timelineDate = "COALESCE(conferences.finished_at, conferences.scheduled_at, conferences.created_at)"
 
-// Timeline возвращает страницу встреч текущего пользователя с фильтрами будущих, активных и прошедших встреч.
+// Timeline returns the account's paginated upcoming, active or past conference timeline.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - query (conferences.TimelineQuery): параметры выборки либо SQL-текст выполняемого запроса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - query: Search text or validated query filters.
 //
-// @return:
-//   - результат 1 ([]conferences.Conference): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The collected conference values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) Timeline(ctx context.Context, userID string, query conferences.TimelineQuery) ([]conferences.Conference, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
@@ -211,28 +206,25 @@ func (r *ConferenceRepository) Timeline(ctx context.Context, userID string, quer
 	return rows, err
 }
 
-// History собирает сведения завершённой встречи, историю участников и сводку записей с проверкой доступа.
-// Операции с базой данных объединяет в транзакцию.
+// History builds the authorized completed-conference view with participant history and recording
+// summaries.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - userID: Acting account identifier used to scope access.
 //
-// @return:
-//   - результат 1 (conferences.HistoryView): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting history view.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *ConferenceRepository) History(ctx context.Context, conferenceID, userID string) (conferences.HistoryView, error) {
 	var result conferences.HistoryView
-	// Общая блокировка жизненного цикла конференции не позволяет удалению, завершению или
-	// допуску менять права во время сборки ограниченного снимка истории.
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	// The shared conference lifecycle lock prevents deletion, completion or admission from changing
+	// access while the bounded history snapshot is assembled.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			c, err := findConference(tx, conferenceID, true)
 			if err != nil {
 				return err

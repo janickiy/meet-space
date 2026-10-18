@@ -8,36 +8,35 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// NotificationBus изолирует личные уведомления в Redis-каналах пользователей.
-// @params
-//   - client: клиент внешнего сервиса или транспорта компонента.
-//   - prefix: ограниченный префикс объектов, относящихся к одной операции.
+// NotificationBus isolates personal notifications in account-specific Redis channels.
 type NotificationBus struct {
 	client *goredis.Client
 	prefix string
 }
 
-// NewNotificationBus создаёт и связывает зависимости компонента NotificationBus, используемого в личных уведомлениях и их фоновой доставке.
+// NewNotificationBus constructs the notification bus with the dependencies and limits required
+// for distributed presence and ownership.
 //
-// @args
-//   - client (*goredis.Client): клиент внешнего сервиса или транспорта компонента.
-//   - namespace (string): изолированное пространство Redis-ключей и каналов приложения или теста.
+// Parameters:
+//   - client: Browser media-client identity or transport dependency, as defined by its type.
+//   - namespace: Namespace isolating this component's distributed keys and channels.
 //
-// @return:
-//   - результат 1 (*NotificationBus): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded notification bus.
 func NewNotificationBus(client *goredis.Client, namespace string) *NotificationBus {
 	return &NotificationBus{client: client, prefix: namespace + ":notification:"}
 }
 
-// Publish сериализует доверенное событие и публикует его в изолированном Redis-канале.
+// Publish publishes the saved redis change through its configured event or command transport.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - event (domain.Envelope): конверт входящего или публикуемого события.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - event: Trusted event to publish or process.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (b *NotificationBus) Publish(ctx context.Context, userID string, event domain.Envelope) error {
 	data, err := json.Marshal(event)
 	if err != nil {
@@ -46,15 +45,16 @@ func (b *NotificationBus) Publish(ctx context.Context, userID string, event doma
 	return b.client.Publish(ctx, b.prefix+userID, data).Err()
 }
 
-// Subscribe открывает ограниченную по времени подписку на изолированный канал событий.
+// Subscribe opens a scoped event subscription whose lifetime is bounded by the supplied context.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
 //
-// @return:
-//   - результат 1 (*goredis.PubSub): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The constructed or loaded pub sub.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (b *NotificationBus) Subscribe(ctx context.Context, userID string) (*goredis.PubSub, error) {
 	sub := b.client.Subscribe(ctx, b.prefix+userID)
 	if _, err := sub.Receive(ctx); err != nil {

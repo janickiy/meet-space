@@ -13,55 +13,55 @@ import (
 	usecase "github.com/janickiy/meet-space/internal/usecase/realtime"
 )
 
-// Limiter задаёт контракт зависимого компонента Limiter во временных реакциях участников; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params:
-//   - Allow: операция Allow с контрактом, описанным у метода.
+// Limiter defines the replaceable dependency contract for temporary conference reactions.
 type Limiter interface {
-	// Allow проверяет ограничение частоты и возвращает решение, остаток и время сброса.
+	// Allow evaluates the rate limit and returns the remaining budget and reset boundary.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
-	//   - аргумент 3 (int): предел количества обрабатываемых элементов.
-	//   - аргумент 4 (time.Duration): значение window типа time.Duration, используемое согласно назначению этой операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Storage, cache or cryptographic key used by the operation.
+	//   - argument 3: Maximum number of results or operations in this batch.
+	//   - argument 4: Duration of the rate-limit or observation window.
 	//
-	// @return
-	//   - результат 1 (ratelimit.Result): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting result.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Allow(context.Context, string, int, time.Duration) (ratelimit.Result, error)
 }
 
-// Handler связывает транспортный запрос с прикладным сценарием, проверкой входных данных и формированием ответа.
-//   - service: значение service типа *usecase.Engagement, используемое согласно назначению этой операции.
-//   - limiter: ограничитель частоты запросов, общий для экземпляров API.
-//   - namespace: пространство изолированных ключей и каналов Redis.
+// Handler adapts HTTP requests to temporary conference reactions, validates input and writes the
+// response.
 type Handler struct {
 	service   *usecase.Engagement
 	limiter   Limiter
 	namespace string
 }
 
-// NewHandler создаёт и связывает зависимости компонента Handler, используемого во временных реакциях участников.
+// NewHandler constructs the handler with the dependencies and limits required for temporary
+// conference reactions.
 //
-// @args
-//   - service (*usecase.Engagement): значение service типа *usecase.Engagement, используемое согласно назначению этой операции.
-//   - limiter (Limiter): ограничитель частоты запросов, общий для экземпляров API.
-//   - namespace (string): пространство изолированных ключей и каналов Redis.
+// Parameters:
+//   - service: Application service invoked by this adapter.
+//   - limiter: Shared request-rate limiter.
+//   - namespace: Namespace isolating this component's distributed keys and channels.
 //
-// @return
-//   - результат 1 (*Handler): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func NewHandler(service *usecase.Engagement, limiter Limiter, namespace string) *Handler {
 	return &Handler{service: service, limiter: limiter, namespace: namespace}
 }
 
-// id проверяет и нормализует идентификатор ресурса из HTTP-маршрута.
+// id validates the resource UUID from the HTTP route before an application or database
+// operation.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 //
-// @return
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Validated resource UUID.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func id(c *gin.Context) (string, bool) {
 	v, err := uuid.Parse(c.Param("id"))
 	if err != nil || v == uuid.Nil {
@@ -71,17 +71,18 @@ func id(c *gin.Context) (string, bool) {
 	return v.String(), true
 }
 
-// limit проверяет отдельные пользовательские и комнатные ограничения частоты действия.
+// limit checks the independent per-user and per-conference reaction budgets.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
-//   - n (int): значение n типа int, используемое согласно назначению этой операции.
-//   - window (time.Duration): значение window типа time.Duration, используемое согласно назначению этой операции.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - kind: Validated event, job, media or resource category.
+//   - n: Number of items or operations requested.
+//   - window: Duration of the rate-limit or observation window.
 //
-// @return
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (h *Handler) limit(c *gin.Context, conferenceID, kind string, n int, window time.Duration) bool {
 	if h.limiter == nil {
 		return true
@@ -90,7 +91,7 @@ func (h *Handler) limit(c *gin.Context, conferenceID, kind string, n int, window
 	for i, key := range keys {
 		count := n
 		if i == 1 {
-			// Посторонний пользователь не должен расходовать общий лимит чужой конференции.
+			// An unauthorized account must not consume another conference's shared reaction budget.
 			if err := h.service.Authorize(c.Request.Context(), conferenceID, httpmiddleware.UserID(c)); err != nil {
 				httpresponse.Fail(c, err)
 				return false
@@ -112,10 +113,11 @@ func (h *Handler) limit(c *gin.Context, conferenceID, kind string, n int, window
 	return true
 }
 
-// Reaction публикует разрешённую временную реакцию допущенного участника.
+// Reaction publishes a supported temporary reaction on behalf of an admitted conference
+// participant.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Reaction(c *gin.Context) {
 	conf, ok := id(c)
 	if !ok {

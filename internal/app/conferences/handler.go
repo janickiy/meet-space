@@ -12,204 +12,212 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// Service задаёт контракт зависимого компонента Service в жизненном цикле конференций и правах участников; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params:
-//   - Create: операция создание с контрактом, описанным у метода.
-//   - List: операция список с контрактом, описанным у метода.
-//   - Read: операция чтение с контрактом, описанным у метода.
-//   - Transition: операция переход с контрактом, описанным у метода.
-//   - Participants: операция Participants с контрактом, описанным у метода.
-//   - Join: операция Join с контрактом, описанным у метода.
-//   - Leave: операция Leave с контрактом, описанным у метода.
-//   - LookupInvite: поиск приглашения с контрактом, описанным у метода.
-//   - JoinInvite: присоединение к конференции по приглашению с контрактом, описанным у метода.
-//   - Self: операция Self с контрактом, описанным у метода.
-//   - Admission: операция допуск с контрактом, описанным у метода.
-//   - Schedule: операция расписание с контрактом, описанным у метода.
-//   - Timeline: операция Timeline с контрактом, описанным у метода.
-//   - History: операция история с контрактом, описанным у метода.
+// Service defines the replaceable dependency contract for conference lifecycle and participant
+// membership.
 type Service interface {
-	// Create создаёт новое состояние конференций и членств участников по переданным параметрам.
+	// Create creates and persists a new conference for the acting account.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (conferences.CreateRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (conferences.View): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Create(context.Context, string, conferences.CreateRequest) (conferences.View, error)
-	// List возвращает ограниченный список конференций и членств участников с принятыми в данном слое фильтрами.
+	// List returns a bounded page of conference records using the supplied pagination and filters.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (int): предел количества обрабатываемых элементов.
-	//   - аргумент 4 (int): число элементов, пропускаемых перед началом страницы.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Maximum number of results or operations in this batch.
+	//   - argument 4: Number of results skipped before the requested page.
 	//
-	// @return:
-	//   - результат 1 ([]conferences.View): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The collected view values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	List(context.Context, string, int, int) ([]conferences.View, error)
-	// Read читает состояние конференций и членств участников для дальнейшей обработки или ответа.
+	// Read reads the conference state or stream required by the caller.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (string): идентификатор обрабатываемого ресурса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
 	//
-	// @return:
-	//   - результат 1 (conferences.View): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Read(context.Context, string, string) (conferences.View, error)
-	// Transition выполняет разрешённый переход состояния конференции или записи.
+	// Transition applies an allowed conference lifecycle transition without overwriting a newer
+	// state.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор обрабатываемого ресурса.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 4 (conferences.Status): целевой объект, участник или состояние операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
+	//   - argument 4: Target state, account or decoded value, as defined by its type.
 	//
-	// @return:
-	//   - результат 1 (conferences.View): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Transition(context.Context, string, string, conferences.Status) (conferences.View, error)
-	// Participants возвращает разрешённую страницу участников конференции.
+	// Participants returns the conference participants visible to the acting account.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (string): идентификатор обрабатываемого ресурса.
-	//   - аргумент 4 (int): предел количества обрабатываемых элементов.
-	//   - аргумент 5 (int): число элементов, пропускаемых перед началом страницы.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
+	//   - argument 4: Maximum number of results or operations in this batch.
+	//   - argument 5: Number of results skipped before the requested page.
 	//
-	// @return:
-	//   - результат 1 ([]conferences.ParticipantView): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The collected participant view values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Participants(context.Context, string, string, int, int) ([]conferences.ParticipantView, error)
-	// Join создаёт или восстанавливает членство участника, учитывая приглашение, состояние встречи и зал ожидания.
+	// Join creates or resumes the authorized membership or media-room connection, preserving its
+	// current identity.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (string): идентификатор обрабатываемого ресурса.
-	//   - аргумент 4 (conferences.JoinRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
+	//   - argument 4: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (conferences.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Join(context.Context, string, string, conferences.JoinRequest) (conferences.ParticipantView, error)
-	// Leave фиксирует выход участника, сохраняя историю членства и состояние допуска.
+	// Leave removes the active membership or media connection while preserving the saved
+	// conversation or conference history.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор обрабатываемого ресурса.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
 	//
-	// @return:
-	//   - результат 1 (conferences.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Leave(context.Context, string, string) (conferences.ParticipantView, error)
-	// LookupInvite находит ограниченные сведения о конференции по коду приглашения.
+	// LookupInvite returns the limited conference information associated with a valid invitation
+	// code.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): код приглашения или машинный код результата.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Bounded public status or failure code.
 	//
-	// @return:
-	//   - результат 1 (conferences.InviteView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting invite view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	LookupInvite(context.Context, string) (conferences.InviteView, error)
-	// JoinInvite присоединяет авторизованного пользователя по коду приглашения с сохранением существующего членства.
+	// JoinInvite joins an authenticated account through a valid invitation while preserving existing
+	// membership.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (string): код приглашения или машинный код результата.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Bounded public status or failure code.
 	//
-	// @return:
-	//   - результат 1 (conferences.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	JoinInvite(context.Context, string, string) (conferences.ParticipantView, error)
-	// Self возвращает собственное членство пользователя, включая состояние ожидания и решение о допуске.
+	// Self returns the acting account's membership, including waiting-room and admission state.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (string): идентификатор обрабатываемого ресурса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
 	//
-	// @return:
-	//   - результат 1 (conferences.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Self(context.Context, string, string) (conferences.ParticipantView, error)
-	// Admission обрабатывает решение о допуске или отказе с проверкой полномочий организатора.
+	// Admission accepts or rejects waiting-room admission after checking the acting member's
+	// authority.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (string): идентификатор обрабатываемого ресурса.
-	//   - аргумент 4 (string): идентификатор членства участника внутри конференции.
-	//   - аргумент 5 (conferences.AdmissionRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
+	//   - argument 4: Conference participant identifier.
+	//   - argument 5: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (conferences.ParticipantView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Admission(context.Context, string, string, string, conferences.AdmissionRequest) (conferences.ParticipantView, error)
-	// Schedule обновляет расписание запланированной встречи с проверкой полномочий владельца.
+	// Schedule updates a planned conference schedule after validating ownership and time
+	// constraints.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (string): идентификатор обрабатываемого ресурса.
-	//   - аргумент 4 (conferences.ScheduleRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
+	//   - argument 4: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (conferences.View): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Schedule(context.Context, string, string, conferences.ScheduleRequest) (conferences.View, error)
-	// Timeline возвращает страницу встреч текущего пользователя с фильтрами будущих, активных и прошедших встреч.
+	// Timeline returns the account's paginated upcoming, active or past conference timeline.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
-	//   - аргумент 3 (conferences.TimelineQuery): параметры выборки либо SQL-текст выполняемого запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Search text or validated query filters.
 	//
-	// @return:
-	//   - результат 1 (conferences.TimelinePage): страница элементов и метаданные продолжения.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting timeline page.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Timeline(context.Context, string, conferences.TimelineQuery) (conferences.TimelinePage, error)
-	// History собирает сведения завершённой встречи, историю участников и сводку записей с проверкой доступа.
+	// History builds the authorized completed-conference view with participant history and recording
+	// summaries.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор пользователя, для которого выполняется операция.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
 	//
-	// @return:
-	//   - результат 1 (conferences.HistoryView): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting history view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	History(context.Context, string, string) (conferences.HistoryView, error)
 }
 
-// Handler связывает транспортный запрос с прикладным сценарием, проверкой входных данных и формированием ответа.
-// @params:
-//   - service: значение service типа Service, используемое согласно назначению этой операции.
+// Handler adapts HTTP requests to conference lifecycle and participant membership, validates
+// input and writes the response.
 type Handler struct{ service Service }
 
-// NewHandler создаёт и связывает зависимости компонента Handler, используемого в жизненном цикле конференций и правах участников.
+// NewHandler constructs the handler with the dependencies and limits required for conference
+// lifecycle and participant membership.
 //
-// @args
-//   - service (Service): значение service типа Service, используемое согласно назначению этой операции.
+// Parameters:
+//   - service: Application service invoked by this adapter.
 //
-// @return:
-//   - результат 1 (*Handler): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func NewHandler(service Service) *Handler { return &Handler{service: service} }
 
-// Create создаёт новое состояние конференций и членств участников по переданным параметрам.
+// Create validates the request and returns the newly created conference for the acting account.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Create(c *gin.Context) {
 	var request conferences.CreateRequest
 	if !httpresponse.BindJSON(c, &request, false) {
@@ -223,10 +231,10 @@ func (h *Handler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"status": "success", "item": item})
 }
 
-// List возвращает ограниченный список конференций и членств участников с принятыми в данном слое фильтрами.
+// List returns a bounded page of conference records using the supplied pagination and filters.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) List(c *gin.Context) {
 	limit, offset, ok := httpresponse.Pagination(c)
 	if !ok {
@@ -240,10 +248,10 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": items})
 }
 
-// Read читает состояние конференций и членств участников для дальнейшей обработки или ответа.
+// Read reads the conference state or stream required by the caller.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Read(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -257,18 +265,16 @@ func (h *Handler) Read(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Transition выполняет разрешённый переход состояния конференции или записи.
+// Transition applies an allowed conference lifecycle transition without overwriting a newer
+// state.
 //
-// @args
-//   - target (conferences.Status): целевой объект, участник или состояние операции.
+// Parameters:
+//   - target: Target state, account or decoded value, as defined by its type.
 //
-// @return:
-//   - результат 1 (gin.HandlerFunc): обработчик Gin для включения в HTTP-маршруты.
+// Returns:
+//   - result 1: The HTTP handler to register for this operation.
 func (h *Handler) Transition(target conferences.Status) gin.HandlerFunc {
-	// Вложенный обработчик выполняет выделенный шаг обработки в жизненном цикле конференций и правах участников, используя состояние окружающей функции.
-	//
-	// @args
-	//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+
 	return func(c *gin.Context) {
 		id, ok := conferenceID(c)
 		if !ok {
@@ -286,10 +292,10 @@ func (h *Handler) Transition(target conferences.Status) gin.HandlerFunc {
 	}
 }
 
-// Participants возвращает разрешённую страницу участников конференции.
+// Participants returns the conference participants visible to the acting account.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Participants(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -307,10 +313,11 @@ func (h *Handler) Participants(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": items})
 }
 
-// Join создаёт или восстанавливает членство участника, учитывая приглашение, состояние встречи и зал ожидания.
+// Join creates or resumes the authorized membership or media-room connection, preserving its
+// current identity.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Join(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -328,10 +335,11 @@ func (h *Handler) Join(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Leave фиксирует выход участника, сохраняя историю членства и состояние допуска.
+// Leave removes the active membership or media connection while preserving the saved
+// conversation or conference history.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Leave(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -348,10 +356,11 @@ func (h *Handler) Leave(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// LookupInvite находит ограниченные сведения о конференции по коду приглашения.
+// LookupInvite returns the limited conference information associated with a valid invitation
+// code.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) LookupInvite(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	item, err := h.service.LookupInvite(c.Request.Context(), c.Param("code"))
@@ -362,10 +371,11 @@ func (h *Handler) LookupInvite(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// JoinInvite присоединяет авторизованного пользователя по коду приглашения с сохранением существующего членства.
+// JoinInvite joins an authenticated account through a valid invitation while preserving existing
+// membership.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) JoinInvite(c *gin.Context) {
 	if !httpresponse.BindJSON(c, &struct{}{}, true) {
 		return
@@ -378,14 +388,15 @@ func (h *Handler) JoinInvite(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// conferenceID проверяет и нормализует идентификатор конференции из HTTP-маршрута.
+// conferenceID validates and normalizes the conference identifier from the request route.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Validated conference UUID.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func conferenceID(c *gin.Context) (string, bool) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil || id == uuid.Nil {

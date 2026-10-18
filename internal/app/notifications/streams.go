@@ -2,14 +2,21 @@ package notificationsapp
 
 import "sync"
 
-// syncCounts ограничивает число SSE-подключений каждого пользователя.
-// Общий лимит подключений отдельно контролирует eventStreams.streams.
+// syncCounts bounds each account's SSE connections. eventStreams.streams separately enforces the
+// overall connection limit.
 type syncCounts struct {
 	mu     sync.Mutex
 	values map[string]int
 }
 
-// acquire резервирует слот, если у пользователя меньше четырёх подключений.
+// acquire reserves a bounded per-user connection slot before the stream is opened.
+//
+// Parameters:
+//   - userID: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (s *syncCounts) acquire(userID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -20,7 +27,11 @@ func (s *syncCounts) acquire(userID string) bool {
 	return true
 }
 
-// release освобождает слот, полученный успешным вызовом acquire.
+// release releases only the personal notification resource owned by the matching operation or
+// token.
+//
+// Parameters:
+//   - userID: Acting account identifier used to scope access.
 func (s *syncCounts) release(userID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -6,6 +6,11 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/media"
 )
 
+// TestRealtimeDefaultsAllowBoundedFirefoxSDP verifies realtime defaults allow bounded firefox
+// SDP to prevent regressions in realtime limits test.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestRealtimeDefaultsAllowBoundedFirefoxSDP(t *testing.T) {
 	for _, name := range []string{"WS_MAX_MESSAGE_BYTES", "WS_MAX_OUTBOUND_BYTES", "WS_MAX_SDP_BYTES", "TURN_URLS", "TURN_FORCE_RELAY", "WEBRTC_ICE_SERVERS_JSON"} {
 		t.Setenv(name, "")
@@ -22,6 +27,11 @@ func TestRealtimeDefaultsAllowBoundedFirefoxSDP(t *testing.T) {
 	}
 }
 
+// TestRealtimePreservesSmallerOperatorLimits verifies realtime preserves smaller operator limits
+// to prevent regressions in realtime limits test.
+//
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestRealtimePreservesSmallerOperatorLimits(t *testing.T) {
 	t.Setenv("TURN_URLS", "")
 	t.Setenv("TURN_FORCE_RELAY", "")

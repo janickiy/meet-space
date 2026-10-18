@@ -2,9 +2,20 @@ package postgres
 
 import "gorm.io/gorm"
 
+// createConversationNotifications creates idempotent notifications for eligible conversation
+// recipients after a new message is stored.
+//
 // Notifications share the message transaction: retries, failures and attachments
 // cannot create a notice without a committed message. Groups are bounded by the
 // existing member limit; mute, inactive members and the sender are excluded.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - messageID: Message identifier within the authorized conversation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func createConversationNotifications(tx *gorm.DB, messageID string) error {
 	return tx.Exec(`INSERT INTO notifications(id,user_id,type,payload,dedup_key,created_at)
 		SELECT gen_random_uuid(),member.user_id,'chat.message',
@@ -21,9 +32,18 @@ func createConversationNotifications(tx *gorm.DB, messageID string) error {
 		ON CONFLICT(user_id,dedup_key) DO NOTHING`, messageID).Error
 }
 
+// notificationVisibilitySQL builds the access predicate used to hide notifications whose source
+// is no longer visible.
+//
 // Resource IDs are compared as text so malformed historical JSON fails closed
 // rather than breaking the whole notification feed. Payloads carry no message
 // text or attachments; opening the target always checks the current permissions.
+//
+// Parameters:
+//   - alias: Server-controlled SQL relation alias.
+//
+// Returns:
+//   - result 1: Server-constructed notification access predicate.
 func notificationVisibilitySQL(alias string) string {
 	return `NOT EXISTS (SELECT 1 FROM conference_chat_preferences cp
 		WHERE cp.user_id=` + alias + `.user_id AND cp.conference_id::text=` + alias + `.payload->>'conferenceId'

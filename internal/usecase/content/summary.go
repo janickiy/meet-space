@@ -14,11 +14,18 @@ import (
 	"unicode/utf8"
 )
 
-// ChunkSegments детерминированно разбивает текст UTF-8 с сохранением исходных ID.
-// Длинный сегмент делится на части без создания вымышленных ID источника.
-// @args segments — хронологический transcript; maximum — rune-budget;
-// maxChunks — абсолютный предел стоимости.
-// @return ограниченный набор фрагментов либо ошибку превышения бюджета.
+// ChunkSegments splits validated transcript segments into bounded summary inputs while
+// preserving their order.
+//
+// Parameters:
+//   - segments: Ordered transcript or media segments.
+//   - maximum: Maximum permitted size or number of characters.
+//   - maxChunks: Maximum number of processing chunks.
+//
+// Returns:
+//   - result 1: The collected segment values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func ChunkSegments(segments []domain.Segment, maximum, maxChunks int) ([][]domain.Segment, error) {
 	if maximum < 1 || maxChunks < 1 {
 		return nil, fmt.Errorf("invalid chunk budget")
@@ -60,9 +67,17 @@ func ChunkSegments(segments []domain.Segment, maximum, maxChunks int) ([][]domai
 	return chunks, nil
 }
 
-// ValidateSummary проверяет JSON-схему, refs и отсутствие выдуманных assignee/date.
-// @args data — недоверенный результат провайдера; source — разрешённые исходные сегменты.
-// @return нормализованный результат; сомнительные необязательные факты очищаются до null.
+// ValidateSummary checks the summary schema and verifies references against the source
+// transcript.
+//
+// Parameters:
+//   - data: Input bytes or structured event payload.
+//   - source: Media or content source belonging to the current operation.
+//
+// Returns:
+//   - result 1: The resulting summary output.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func ValidateSummary(data json.RawMessage, source []domain.Segment) (domain.SummaryOutput, error) {
 	var out domain.SummaryOutput
 	if len(data) > 256<<10 {
@@ -130,9 +145,16 @@ func ValidateSummary(data json.RawMessage, source []domain.Segment) (domain.Summ
 	return out, nil
 }
 
-// explicitAssignee требует явную отметку назначения исполнителя, а не простое упоминание имени.
-// @args evidence — цитируемый недоверенный текст; name — предлагаемый исполнитель.
-// @return true при буквальном маркере «ответственный/исполнитель/assignee: NAME».
+// explicitAssignee accepts an action-item assignee only when it is explicitly supported by the
+// source text.
+//
+// Parameters:
+//   - evidence: Source text that must explicitly support the extracted claim.
+//   - name: Name of the setting, cookie, resource or provider being addressed.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func explicitAssignee(evidence, name string) bool {
 	text := strings.ToLower(evidence)
 	name = strings.ToLower(strings.TrimSpace(name))
@@ -144,9 +166,16 @@ func explicitAssignee(evidence, name string) bool {
 	return false
 }
 
-// explicitDeadline требует явную отметку срока с датой ISO, а не дату обычной встречи.
-// @args evidence — cited text; date — YYYY-MM-DD из проверяемого JSON.
-// @return true для «срок/deadline/due: DATE» или «до DATE».
+// explicitDeadline accepts an action-item deadline only when it is explicitly supported by the
+// source text.
+//
+// Parameters:
+//   - evidence: Source text that must explicitly support the extracted claim.
+//   - date: Proposed deadline text to verify against the source evidence.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func explicitDeadline(evidence, date string) bool {
 	text := strings.ToLower(evidence)
 	for _, marker := range []string{"срок:", "deadline:", "due:"} {
@@ -157,16 +186,32 @@ func explicitDeadline(evidence, date string) bool {
 	return strings.Contains(text, "до "+date)
 }
 
-// validText ограничивает строку UTF-8 и запрещает встроенный NUL для PostgreSQL.
-// @args text — проверяемая строка; maximum — rune-limit; empty — допустимость пустоты.
-// @return true для безопасного строкового значения.
+// validText checks that text is valid UTF-8 and remains within its allowed budget.
+//
+// Parameters:
+//   - text: UTF-8 text to validate, normalize or process.
+//   - maximum: Maximum permitted size or number of characters.
+//   - empty: Whether an empty text value is permitted.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func validText(text string, maximum int, empty bool) bool {
 	return utf8.ValidString(text) && !strings.ContainsRune(text, 0) && utf8.RuneCountInString(text) <= maximum && (empty || strings.TrimSpace(text) != "")
 }
 
-// summarize выполняет ограниченную обработку частей и иерархическое объединение, отделяя инструкции от входных данных.
-// @args ctx — общий срок выполнения ИИ; key — стабильный ключ идемпотентности; segments — исходные данные.
-// @return проверенный результат либо ошибку с возможностью повтора или без неё.
+// summarize processes bounded transcript chunks and hierarchical merges while separating model
+// instructions from source data.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - key: Storage, cache or cryptographic key used by the operation.
+//   - segments: Ordered transcript or media segments.
+//
+// Returns:
+//   - result 1: The resulting summary output.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) summarize(ctx context.Context, key string, segments []domain.Segment) (domain.SummaryOutput, error) {
 	chunks, err := ChunkSegments(segments, s.cfg.ChunkRunes, s.cfg.MaxChunks)
 	if err != nil {
@@ -206,8 +251,8 @@ schedule:
 	if len(results) == 1 {
 		return results[0], nil
 	}
-	// Группы объединения ограничены тем же входным бюджетом. Если провайдер
-	// чрезмерно расширил текст, обработка завершается без неограниченных платных вызовов.
+	// Merge groups use the same input budget. If the provider expands text excessively, stop rather
+	// than issuing unbounded paid requests.
 	for level := 0; len(results) > 1; level++ {
 		if level > 16 {
 			return domain.SummaryOutput{}, &jobs.Error{Code: "ai_merge_limit", Retryable: false}
@@ -248,10 +293,20 @@ schedule:
 	return results[0], nil
 }
 
-// aiCall передаёт недоверенный JSON отдельно от неизменного запроса к модели и строго проверяет ответ.
-// @args ctx — срок выполнения; key — ключ дедупликации фрагмента; input — ограниченный JSON;
-// merge задаёт стадию объединения; source содержит разрешённый список исходных ссылок.
-// @return результат, проверенный по схеме и подтверждающим фрагментам, или классифицированную ошибку.
+// aiCall sends untrusted JSON separately from the fixed model instructions and strictly
+// validates the response schema.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - key: Storage, cache or cryptographic key used by the operation.
+//   - input: Input data required by this operation.
+//   - merge: Whether the request merges summaries rather than summarizes source segments.
+//   - source: Media or content source belonging to the current operation.
+//
+// Returns:
+//   - result 1: The resulting summary output.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) aiCall(ctx context.Context, key, input string, merge bool, source []domain.Segment) (domain.SummaryOutput, error) {
 	data, err := s.ai.Summarize(ctx, domain.AIRequest{PromptVersion: PromptVersion, SchemaVersion: SchemaVersion, Instructions: SummaryInstructions, InputJSON: input, IdempotencyKey: key, Merge: merge})
 	if err != nil {

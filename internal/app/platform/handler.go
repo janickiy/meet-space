@@ -1,4 +1,5 @@
-// Пакет platformapp предоставляет безопасный просмотр возможностей и операционных данных администратора.
+// Package platformapp exposes safe product capabilities and administrator-only operational
+// views.
 package platformapp
 
 import (
@@ -11,7 +12,24 @@ import (
 )
 
 type Service interface {
+	// Capabilities returns the product or integration capabilities actually enabled by the operator.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//
+	// Returns:
+	//   - result 1: The resulting capabilities.
 	Capabilities(context.Context) domain.Capabilities
+	// Summary returns bounded administrator-only operational aggregates and safe failure codes
+	// without user content.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//
+	// Returns:
+	//   - result 1: The resulting summary.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Summary(context.Context) (domain.Summary, error)
 }
 
@@ -20,12 +38,19 @@ type Handler struct {
 	BuildVersion string
 }
 
-// Capabilities возвращает только действующие переключатели функций и безопасный идентификатор сборки.
+// Capabilities returns the product or integration capabilities actually enabled by the operator.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Capabilities(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "capabilities": h.Service.Capabilities(c.Request.Context()), "buildVersion": h.BuildVersion})
 }
 
-// Summary возвращает операционные агрегаты после проверки сохранённых прав администратора.
+// Summary returns bounded administrator-only operational aggregates and safe failure codes
+// without user content.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Summary(c *gin.Context) {
 	value, err := h.Service.Summary(c.Request.Context())
 	if err != nil {

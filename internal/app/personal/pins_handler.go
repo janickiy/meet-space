@@ -12,6 +12,9 @@ import (
 )
 
 // Pins lists shared pins using the current member's visible message history.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Pins(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -36,6 +39,12 @@ func (h *Handler) Pins(c *gin.Context) {
 
 // SetPin persists shared pin state before telling current members to refresh it.
 // The event contains no message ID, text or preview from another member's history.
+//
+// Parameters:
+//   - pinned: Whether the selected message should be pinned.
+//
+// Returns:
+//   - result 1: The HTTP handler to register for this operation.
 func (h *Handler) SetPin(pinned bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := uuidParameter(c, "id")

@@ -16,6 +16,11 @@ type GuestHandler struct {
 	Tokens  httpmiddleware.SessionVerifier
 }
 
+// Join creates or resumes the authorized membership or media-room connection, preserving its
+// current identity.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *GuestHandler) Join(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	var request struct {

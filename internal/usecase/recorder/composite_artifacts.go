@@ -15,11 +15,46 @@ import (
 )
 
 type compositeArtifactStorage interface {
+	// UploadFile uploads a local recording artifact and returns its stored object metadata.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Server-generated private object-storage key.
+	//   - argument 3: Validated local filesystem or object path.
+	//   - argument 4: Declared or detected MIME type of the content.
+	//
+	// Returns:
+	//   - result 1: The resulting uploaded object.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	UploadFile(context.Context, string, string, string) (s3storage.UploadedObject, error)
+	// RemovePrefix removes objects only within the validated server-owned recording prefix.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Server-controlled object or key prefix.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	RemovePrefix(context.Context, string) error
 }
 
 type compositeArtifactRepository interface {
+	// SaveCompositeArtifacts commits composite artifacts only for the recording generation still
+	// owned by the worker.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Identifier of the resource addressed by this operation.
+	//   - argument 3: Signed credential or operation-ownership token to verify.
+	//   - argument 4: Whether this is the final chunk and the archive must be closed.
+	//   - argument 5: Optional preview-file metadata associated with the recording.
+	//   - argument 6: Ordered transcript or media segments.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	SaveCompositeArtifacts(context.Context, string, string, records.RecordFile, *records.RecordFile, []records.RecordSegment) error
 }
 
@@ -50,12 +85,26 @@ type compositeArtifactPublication struct {
 	closed    bool
 }
 
+// begin creates the artifact-publication state bound to the current recording command.
+//
+// Parameters:
+//   - command: Validated internal recording or media command.
+//
+// Returns:
+//   - result 1: The constructed or loaded composite artifact publication.
 func (p compositeArtifactPublisher) begin(command compositeArtifactCommand) *compositeArtifactPublication {
 	return &compositeArtifactPublication{publisher: p, command: command}
 }
 
 // Publish stages immutable artifacts and commits their metadata under the lease.
 // Close owns rollback on every pre-commit failure; no retry is performed here.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (p *compositeArtifactPublication) Publish(ctx context.Context) error {
 	if p.publisher.storage == nil {
 		return fmt.Errorf("recording storage is unavailable")

@@ -9,6 +9,14 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
+// RegisterChatActionRoutes registers the chat action endpoints with the supplied authentication
+// and request middleware.
+//
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - handler: Callback responsible for processing the scoped operation.
+//   - auth: Authentication middleware or account handler dependency.
+//   - limiter: Shared request-rate limiter.
 func RegisterChatActionRoutes(router gin.IRouter, handler *chatapp.ActionHandler, auth gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	base := APIV1Prefix + "/conferences/:id/chat"
 	key := func(c *gin.Context) string {

@@ -22,12 +22,7 @@ import (
 	"github.com/pion/webrtc/v4/pkg/media/samplebuilder"
 )
 
-// CaptureOptions задаёт ограничения фрагментов, буферов и кодирования захватываемых источников.
-// @params
-//   - SegmentDuration: значение SegmentDuration типа time.Duration, используемое согласно назначению этой операции.
-//   - MaxBytes: значение MaxBytes типа int64, используемое согласно назначению этой операции.
-//   - MaxTracks: значение MaxTracks типа int, используемое согласно назначению этой операции.
-//   - OnStarted: операция OnStarted с контрактом, описанным у метода.
+// CaptureOptions bounds source fragments, packet buffering and encoded track capture.
 type CaptureOptions struct {
 	Mode            string
 	SegmentDuration time.Duration
@@ -38,18 +33,25 @@ type CaptureOptions struct {
 
 var ErrEgressEnded = errors.New("media egress ended")
 
-// OnlyEgressEnded отличает нормальное завершение входящего потока от совместной ошибки записи или композиции.
+// OnlyEgressEnded distinguishes a normal media-egress completion from a recording failure.
 //
-// @args
-//   - err (error): ошибка, которую необходимо классифицировать, сохранить или вернуть клиенту.
+// Parameters:
+//   - err: Error to classify, wrap or report safely.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func OnlyEgressEnded(err error) bool {
 	if err == nil {
 		return false
 	}
-	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+	if joined, ok := err.(interface {
+		// Unwrap returns the underlying cause so errors.Is and errors.As can inspect it.
+		//
+		// Returns:
+		//   - result 1: The wrapped diagnostic cause, retained for errors.Is and errors.As inspection.
+		Unwrap() []error
+	}); ok {
 		children := joined.Unwrap()
 		if len(children) == 0 {
 			return false
@@ -64,17 +66,18 @@ func OnlyEgressEnded(err error) bool {
 	return errors.Is(err, ErrEgressEnded)
 }
 
-// Capture сохраняет закодированные медиа в ограниченные по времени устойчивые фрагменты; давление записи не должно останавливать SFU.
+// Capture captures encoded media into per-source recording archives for later composition.
 //
-// @args
-//   - captureCtx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - workCtx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - reader (io.Reader): источник содержимого либо читатель карточек записи согласно типу.
-//   - dir (string): значение dir типа string, используемое согласно назначению этой операции.
-//   - options (CaptureOptions): зависимости и настройки создаваемого компонента.
+// Parameters:
+//   - captureCtx: Context controlling cancellation, deadlines and operation lifetime.
+//   - workCtx: Context controlling cancellation, deadlines and operation lifetime.
+//   - reader: Source content stream or recording-card reader, as defined by its type.
+//   - dir: Validated local directory.
+//   - options: Validated component construction or execution options.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Composer) Capture(captureCtx, workCtx context.Context, reader io.Reader, dir string, options CaptureOptions) error {
 	if options.SegmentDuration < time.Second || options.SegmentDuration > 30*time.Second {
 		return fmt.Errorf("invalid segment duration")
@@ -91,9 +94,7 @@ func (c *Composer) Capture(captureCtx, workCtx context.Context, reader io.Reader
 	jobs := make(chan Chunk, 4)
 	composed := make(chan error, 1)
 	composeFailed := make(chan error, 1)
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и проверке аудио- и видеозаписи, используя состояние окружающей функции.
-
-	 */func() {
+	go func() {
 		var result error
 		for chunk := range jobs {
 			if result == nil {
@@ -113,20 +114,13 @@ func (c *Composer) Capture(captureCtx, workCtx context.Context, reader io.Reader
 	var bytesReceived int64
 	index := 0
 	started := false
-	// Вложенный обработчик выполняет выделенный шаг обработки в сборке и проверке аудио- и видеозаписи, используя состояние окружающей функции.
-	//
-	// @args
-	//   - end (int64): значение end типа int64, используемое согласно назначению этой операции.
-	//   - final (bool): логический признак final, управляющий соответствующей веткой обработки.
-	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+
 	closeChunk := func(end int64, final bool) error {
 		chunk := Chunk{Index: index, Mode: options.Mode, StartedAtNS: epoch, Duration: float64(end-epoch) / 1e9, Sources: []Source{}}
 		var closeErr error
-		// Действующий источник видео браузера может не передавать пакеты в течение целого сегмента
-		// (например, при статичном экране). Сохраняем последнюю декодируемую группу кадров;
-		// отсутствие свежего пакета не означает завершение источника.
+		// An active browser video source may send no packets for an entire segment, for example for a
+		// static screen. Retain the last decodable frame group; no recent packet does not mean the
+		// source ended.
 		for id, track := range active {
 			if track.Kind != media.KindVideo || writers[id] != nil || states[id] == nil {
 				continue
@@ -140,8 +134,8 @@ func (c *Composer) Capture(captureCtx, workCtx context.Context, reader io.Reader
 		}
 		for id, writer := range writers {
 			_, stillActive := active[id]
-			// Передаём последний полный кадр редко обновляемого видео после окна компенсации
-			// джиттера; SampleBuilder обычно ждёт следующую временную отметку RTP.
+			// Flush the last complete frame of infrequently updated video after the jitter window;
+			// SampleBuilder normally waits for the next RTP timestamp.
 			quietVideo := writer.track.Kind == media.KindVideo && end-writer.state.lastPacketAt >= int64(sourceJitterWindow)
 			if err := writer.closeChunk(final || !stillActive || quietVideo); err != nil {
 				closeErr = errors.Join(closeErr, err)
@@ -167,14 +161,9 @@ func (c *Composer) Capture(captureCtx, workCtx context.Context, reader io.Reader
 		if chunk.Duration < 0.05 {
 			return nil
 		}
-		sort.Slice(chunk.Sources, /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и проверке аудио- и видеозаписи, используя состояние окружающей функции.
+		sort.Slice(chunk.Sources,
 
-			@args
-			  - i (int): значение i типа int, используемое согласно назначению этой операции.
-			  - j (int): значение j типа int, используемое согласно назначению этой операции.
-
-			@return:
-			  - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния. */func(i, j int) bool { return chunk.Sources[i].Track.ID < chunk.Sources[j].Track.ID })
+			func(i, j int) bool { return chunk.Sources[i].Track.ID < chunk.Sources[j].Track.ID })
 		tracks := make([]media.Track, 0, len(chunk.Sources))
 		for _, source := range chunk.Sources {
 			tracks = append(tracks, source.Track)
@@ -202,20 +191,16 @@ func (c *Composer) Capture(captureCtx, workCtx context.Context, reader io.Reader
 		epoch = end
 		return nil
 	}
-	// Читаем и декодируем вперёд в ограниченную очередь. Закрытие HTTP-запроса при остановке
-	// не должно отбрасывать кадры, полученные во время закрытия файла источника.
-	// Эта очередь служит только записи; дисковый ввод-вывод не выполняется в пути SFU.
+	// Read and decode ahead into a bounded queue. Closing the HTTP stream must not discard frames
+	// received while a source file is closing. This queue is recording-only; disk I/O never runs in
+	// the SFU forwarding path.
 	readCtx, stopReading := context.WithCancel(workCtx)
 	defer stopReading()
 	frames := make(chan media.EgressFrame, 512)
 	readDone := make(chan error, 1)
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и проверке аудио- и видеозаписи, используя состояние окружающей функции.
-
-	 */func() {
+	go func() {
 		var readErr error
-		defer /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и проверке аудио- и видеозаписи, используя состояние окружающей функции.
-
-		 */func() { readDone <- readErr; close(frames) }()
+		defer func() { readDone <- readErr; close(frames) }()
 		scanner := bufio.NewScanner(reader)
 		scanner.Buffer(make([]byte, 64<<10), 256<<10)
 		for scanner.Scan() {
@@ -223,7 +208,7 @@ func (c *Composer) Capture(captureCtx, workCtx context.Context, reader io.Reader
 			if json.Unmarshal(scanner.Bytes(), &frame) != nil {
 				if captureCtx.Err() != nil {
 					return
-				} // остановка может оборвать один HTTP-кадр
+				} // Stopping may interrupt one HTTP frame.
 				readErr = fmt.Errorf("invalid egress frame")
 				return
 			}
@@ -275,8 +260,8 @@ readLoop:
 			started = true
 			continue
 		}
-		// Параллельные издатели SFU могут поставить время до захвата блокировки потока.
-		// Выравниваем небольшие нарушения порядка поступления по часам упорядоченного потока.
+		// Concurrent SFU publishers may timestamp before acquiring the stream lock. Clamp minor
+		// arrival-order inversions to the ordered stream clock.
 		if frame.CapturedAt < last {
 			frame.CapturedAt = last
 		}
@@ -336,9 +321,8 @@ readLoop:
 			}
 			writer := writers[track.ID]
 			if writer == nil {
-				// Завершённые дорожки могут сохранять обработчик записи до закрытия сегмента. Учитываем
-				// также эти буферы, чтобы быстрая смена устройств не обходила предел активных дорожек
-				// и не создавала неограниченное число SampleBuilder.
+				// Ended tracks may retain a writer until the segment closes. Count those buffers too, so rapid
+				// device changes cannot bypass the active-track limit or allocate unbounded SampleBuilders.
 				if states[track.ID] == nil && len(states) >= options.MaxTracks {
 					captureErr = fmt.Errorf("recording retained track limit reached")
 					break readLoop
@@ -359,8 +343,8 @@ readLoop:
 		case "track.end":
 			track, exists := active[frame.TrackID]
 			if exists && track.Kind == media.KindVideo && writers[frame.TrackID] == nil && states[frame.TrackID] != nil {
-				// Сохраняем тихий источник до его явного завершения, а не только до последнего
-				// пакета, принятого в предыдущем сегменте.
+				// Retain a quiet source until it explicitly ends, not merely until the last packet in the
+				// previous segment.
 				writer, err := newSourceWriterState(dir, index, track, states[frame.TrackID])
 				if err != nil {
 					captureErr = err
@@ -372,8 +356,8 @@ readLoop:
 				writer.endedAt = frame.CapturedAt
 			}
 			delete(active, frame.TrackID)
-			// Тихая дорожка может завершиться после закрытия прежнего обработчика записи.
-			// В таком случае текущий сегмент не содержит данных, ради которых нужен сохранённый начальный кадр.
+			// A quiet track may end after its previous writer closes. The current segment then has no data
+			// that needs the retained initial frame.
 			if writers[frame.TrackID] == nil {
 				delete(states, frame.TrackID)
 			}
@@ -402,31 +386,19 @@ readLoop:
 	return captureErr
 }
 
-// validCodec проверяет, поддерживается ли кодек для сохранения данного источника.
+// validCodec checks whether the track codec is supported by the archive writer.
 //
-// @args
-//   - track (media.EgressTrack): медиа-дорожка, которую обрабатывает или подписывает компонент.
+// Parameters:
+//   - track: Media-track metadata or negotiated track instance.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func validCodec(track media.EgressTrack) bool {
 	return (track.Kind == media.KindVideo && strings.EqualFold(track.MimeType, "video/VP8") && track.ClockRate == 90000) || (track.Kind == media.KindAudio && strings.EqualFold(track.MimeType, "audio/opus") && track.ClockRate == 48000 && track.Channels <= 2)
 }
 
-// sourceWriter собирает элементарный поток одного источника в устойчивый фрагмент записи.
-// @params
-//   - track: медиа-дорожка, которую обрабатывает или подписывает компонент.
-//   - path: путь к локальному файлу или каталогу операции.
-//   - state: значение state типа *sourceState, используемое согласно назначению этой операции.
-//   - file: значение file типа *os.File, используемое согласно назначению этой операции.
-//   - ogg: значение ogg типа *oggwriter.OggWriter, используемое согласно назначению этой операции.
-//   - firstTimestamp: значение firstTimestamp типа uint32, используемое согласно назначению этой операции.
-//   - firstAt: значение firstAt типа int64, используемое согласно назначению этой операции.
-//   - lastAt: значение lastAt типа int64, используемое согласно назначению этой операции.
-//   - endedAt: время завершения записи или физической сессии.
-//   - lastDuration: значение lastDuration типа time.Duration, используемое согласно назначению этой операции.
-//   - samples: значение samples типа uint32, используемое согласно назначению этой операции.
-//   - keyframe: логический признак keyframe, управляющий соответствующей веткой обработки.
+// sourceWriter assembles one encoded elementary source stream into durable recording fragments.
 type sourceWriter struct {
 	track          media.EgressTrack
 	path           string
@@ -442,12 +414,7 @@ type sourceWriter struct {
 	keyframe       bool
 }
 
-// encodedSample хранит закодированный образец с временными параметрами для записи в контейнер.
-// @params
-//   - data: полезная нагрузка события или байты обрабатываемого содержимого.
-//   - timestamp: значение timestamp типа uint32, используемое согласно назначению этой операции.
-//   - at: однозначное время планируемой операции; nil означает отсутствие значения, если это допускает тип.
-//   - duration: плановая длительность или интервал в единицах, заданных типом.
+// encodedSample contains encoded media and its container timing metadata.
 type encodedSample struct {
 	data      []byte
 	timestamp uint32
@@ -455,13 +422,7 @@ type encodedSample struct {
 	duration  time.Duration
 }
 
-// sourceState сохраняет состояние источника между пакетами и границами фрагментов.
-// @params
-//   - builder: значение builder типа *samplebuilder.SampleBuilder, используемое согласно назначению этой операции.
-//   - arrivals: индекс значений arrivals для поиска и согласования состояния.
-//   - preroll: набор значений preroll для последовательной или пакетной обработки.
-//   - bytes: значение bytes типа int, используемое согласно назначению этой операции.
-//   - lastPacketAt: значение lastPacketAt типа int64, используемое согласно назначению этой операции.
+// sourceState retains source state across packets and fragment boundaries.
 type sourceState struct {
 	builder      *samplebuilder.SampleBuilder
 	arrivals     map[uint32]int64
@@ -477,17 +438,19 @@ const sourceJitterWindow = 200 * time.Millisecond
 // Keep enough frames between periodic keyframes without relaxing the byte cap.
 const maxPrerollFrames = 4096
 
-// newSourceWriterState инициализирует состояние кодирования и сборки фрагментов одного источника.
+// newSourceWriterState creates the per-source state used to assemble incoming RTP into media
+// samples.
 //
-// @args
-//   - dir (string): значение dir типа string, используемое согласно назначению этой операции.
-//   - index (int): значение index типа int, используемое согласно назначению этой операции.
-//   - track (media.EgressTrack): медиа-дорожка, которую обрабатывает или подписывает компонент.
-//   - state (*sourceState): значение state типа *sourceState, используемое согласно назначению этой операции.
+// Parameters:
+//   - dir: Validated local directory.
+//   - index: Index of the item being processed.
+//   - track: Media-track metadata or negotiated track instance.
+//   - state: Current state or validated state update.
 //
-// @return:
-//   - результат 1 (*sourceWriter): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The constructed or loaded source writer.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func newSourceWriterState(dir string, index int, track media.EgressTrack, state *sourceState) (*sourceWriter, error) {
 	w := &sourceWriter{track: track, state: state}
 	ext := ".ivf"
@@ -527,9 +490,8 @@ func newSourceWriterState(dir string, index int, track media.EgressTrack, state 
 			return nil, err
 		}
 	}
-	// Повторное использование начальных закодированных данных исключает ожидание ключевого кадра
-	// и потерю состояния пропуска начальных отсчётов Opus при смене раскладки. Отрицательные
-	// смещения обрезаются и выравниваются независимым процессом композиции.
+	// Reusing initial encoded data avoids waiting for a keyframe and losing Opus pre-skip state when
+	// layouts change. The independent compositor trims and aligns negative offsets.
 	for _, sample := range w.state.preroll {
 		if err := w.writeSample(sample); err != nil {
 			if w.file != nil {
@@ -544,14 +506,15 @@ func newSourceWriterState(dir string, index int, track media.EgressTrack, state 
 	return w, nil
 }
 
-// WriteRTP принимает RTP-пакет и добавляет его к собираемому элементарному потоку.
+// WriteRTP queues an RTP packet for ordered sample assembly and track archiving.
 //
-// @args
-//   - packet (*rtp.Packet): закодированный RTP- или управляющий пакет.
-//   - capturedAt (int64): значение capturedAt типа int64, используемое согласно назначению этой операции.
+// Parameters:
+//   - packet: Encoded RTP or media packet.
+//   - capturedAt: Capture timestamp used to align the encoded media.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (w *sourceWriter) WriteRTP(packet *rtp.Packet, capturedAt int64) error {
 	w.state.lastPacketAt = max(w.state.lastPacketAt, capturedAt)
 	if len(w.state.arrivals) > 256 {
@@ -566,10 +529,11 @@ func (w *sourceWriter) WriteRTP(packet *rtp.Packet, capturedAt int64) error {
 	return w.pop()
 }
 
-// pop извлекает следующий готовый закодированный образец из буфера источника.
+// pop removes the next available item from the component-owned queue.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (w *sourceWriter) pop() error {
 	for sample := w.state.builder.Pop(); sample != nil; sample = w.state.builder.Pop() {
 		at := w.state.arrivals[sample.PacketTimestamp]
@@ -605,13 +569,14 @@ func (w *sourceWriter) pop() error {
 	return nil
 }
 
-// writeSample записывает закодированный образец в текущий фрагмент источника.
+// writeSample writes one assembled media sample into the active recording chunk.
 //
-// @args
-//   - sample (encodedSample): значение sample типа encodedSample, используемое согласно назначению этой операции.
+// Parameters:
+//   - sample: Assembled encoded media sample.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (w *sourceWriter) writeSample(sample encodedSample) error {
 	if w.track.Kind == media.KindVideo && !w.keyframe {
 		if len(sample.data) < 10 || sample.data[0]&1 != 0 {
@@ -651,21 +616,23 @@ func (w *sourceWriter) writeSample(sample encodedSample) error {
 	return nil
 }
 
-// Close закрывает принадлежащие компоненту ресурсы и завершает связанный жизненный цикл.
+// Close closes the component-owned resources and ends their lifecycle.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (w *sourceWriter) Close() error {
 	return w.closeChunk(true)
 }
 
-// closeChunk закрывает потоки фрагмента и публикует устойчивый манифест после успешного завершения файлов.
+// closeChunk finalizes the current media chunk and records its metadata.
 //
-// @args
-//   - final (bool): логический признак final, управляющий соответствующей веткой обработки.
+// Parameters:
+//   - final: Whether this is the final chunk and the archive must be closed.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (w *sourceWriter) closeChunk(final bool) error {
 	var err error
 	if final {
@@ -684,9 +651,9 @@ func (w *sourceWriter) closeChunk(final bool) error {
 		count := make([]byte, 4)
 		binary.LittleEndian.PutUint32(count, w.samples)
 		_, countErr := w.file.WriteAt(count, 24)
-		// Синхронизация диска вынесена из цикла приёма: процесс композиции синхронизирует
-		// закрытые файлы источников перед чтением. Иначе fsync в macOS может задержать
-		// чтение пакетов настолько, что будет потерян хвост записи при остановке.
+		// Keep disk synchronization out of packet reception: the compositor syncs closed source files
+		// before reading them. Otherwise macOS fsync can delay packet reads enough to lose the recording
+		// tail during stop.
 		err = errors.Join(err, countErr, w.file.Close())
 	}
 	return err

@@ -20,22 +20,50 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// Subscriber открывает персональный канал уведомлений для SSE.
+// Subscriber opens the account-specific notification channel used by SSE.
 type Subscriber interface {
-	// Subscribe использует контекст для подключения к каналу пользователя.
-	// После успешного подключения вызывающая сторона закрывает PubSub сама.
+	// Subscribe opens a scoped event subscription whose lifetime is bounded by the supplied context.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//
+	// Returns:
+	//   - result 1: The constructed or loaded pub sub.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Subscribe(context.Context, string) (*goredis.PubSub, error)
 }
 
-// Verifier проверяет токен и определяет предельный срок SSE-подключения.
+// Verifier validates the token and determines the maximum lifetime of the SSE connection.
 type Verifier interface {
-	// VerifyWithExpiry принимает JWT и возвращает ID пользователя и срок действия.
+	// VerifyWithExpiry verifies an access token and returns the account identity and token deadline.
+	//
+	// Parameters:
+	//   - argument 1: Untrusted serialized value to decode or validate.
+	//
+	// Returns:
+	//   - result 1: Authenticated account identifier.
+	//   - result 2: The timestamp or validity boundary associated with the result.
+	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	VerifyWithExpiry(string) (string, time.Time, error)
 }
 
-// Limiter ограничивает частоту попыток открыть SSE-подключение.
+// Limiter bounds attempts to open an SSE connection.
 type Limiter interface {
-	// Allow проверяет число обращений по ключу за указанное временное окно.
+	// Allow evaluates the rate limit and returns the remaining budget and reset boundary.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Storage, cache or cryptographic key used by the operation.
+	//   - argument 3: Maximum number of results or operations in this batch.
+	//   - argument 4: Duration of the rate-limit or observation window.
+	//
+	// Returns:
+	//   - result 1: The resulting result.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Allow(context.Context, string, int, time.Duration) (ratelimit.Result, error)
 }
 
@@ -54,6 +82,7 @@ type eventStreams struct {
 	drainOnce sync.Once
 }
 
+// beginDrain stops accepting new work while existing operations finish.
 func (s *eventStreams) beginDrain() {
 	s.drainOnce.Do(func() {
 		if s.drain != nil {
@@ -63,7 +92,33 @@ func (s *eventStreams) beginDrain() {
 }
 
 type persistentVerifier interface {
+	// VerifyAuthorization verifies the authorization token and resolves its user, session, guest
+	// scope and expiry.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Untrusted serialized value to decode or validate.
+	//
+	// Returns:
+	//   - result 1: Verified account identifier.
+	//   - result 2: Guest conference scope, or an empty string for a registered account.
+	//   - result 3: Persistent server-session identifier, or an empty string for a guest or legacy
+	//     token.
+	//   - result 4: The timestamp or validity boundary associated with the result.
+	//   - result 5: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	VerifyAuthorization(context.Context, string) (string, string, string, time.Time, error)
+	// AuthorizeSession checks that the server session is current, unrevoked and bound to the
+	// requested account.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Persistent or physical session identifier, as defined by the operation.
+	//
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	AuthorizeSession(context.Context, string, string) error
 }
 
@@ -74,6 +129,14 @@ type streamIdentity struct {
 }
 
 // authorize checks the same header credential already bound to the HTTP actor.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
+//
+// Returns:
+//   - result 1: The resulting stream identity.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *eventStreams) authorize(c *gin.Context) (streamIdentity, error) {
 	// Credentials remain in the header, never in URLs or access logs.
 	fields := strings.Fields(c.GetHeader("Authorization"))
@@ -98,6 +161,10 @@ func (s *eventStreams) authorize(c *gin.Context) (streamIdentity, error) {
 	return identity, nil
 }
 
+// serve serves the authorized notification event stream until cancellation, expiry or drain.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (s *eventStreams) serve(c *gin.Context) {
 	identity, err := s.authorize(c)
 	if err != nil {
@@ -148,12 +215,18 @@ func (s *eventStreams) serve(c *gin.Context) {
 
 // pump owns the write deadline and ticker until the stream finishes. Returning
 // unwinds serve's subscription, request context and admission-slot defers.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - writer: Destination response or content writer.
+//   - identity: Verified account and physical-session identity.
+//   - messages: Incoming scoped event stream.
 func (s *eventStreams) pump(ctx context.Context, writer gin.ResponseWriter, identity streamIdentity, messages <-chan *goredis.Message) {
 	controller := http.NewResponseController(writer)
 	defer controller.SetWriteDeadline(time.Time{})
 	write := func(value string) bool {
-		// Обёртка Gin не всегда поддерживает сроки записи. Ограниченная очередь SSE
-		// не позволяет медленному читателю блокировать сигнализацию комнаты.
+		// The Gin wrapper does not always support write deadlines. A bounded SSE queue prevents a slow
+		// reader from blocking room signaling.
 		if err := controller.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil && err != http.ErrNotSupported {
 			return false
 		}
@@ -200,6 +273,14 @@ func (s *eventStreams) pump(ctx context.Context, writer gin.ResponseWriter, iden
 }
 
 // active rechecks persistent-session revocation before each delivery/keepalive.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - identity: Verified account and physical-session identity.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (s *eventStreams) active(ctx context.Context, identity streamIdentity) bool {
 	if identity.sessionID == "" {
 		return true
@@ -212,6 +293,17 @@ func (s *eventStreams) active(ctx context.Context, identity streamIdentity) bool
 
 // visible preserves the notification event allowlist and reauthorizes created
 // notifications at delivery time, so queued events cannot bypass current ACLs.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//   - payload: Structured event or command payload.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *eventStreams) visible(ctx context.Context, userID, payload string) (bool, error) {
 	var event domain.Envelope
 	if len(payload) > 8192 {

@@ -4,24 +4,22 @@ import "sync"
 
 const maxStderrBytes = 64 * 1024
 
-// logTail сохраняет только ограниченный хвост вывода внешнего процесса.
-// @params
-//   - mu: блокировка согласованного доступа к разделяемому состоянию.
-//   - data: полезная нагрузка события или байты обрабатываемого содержимого.
+// logTail retains only a bounded tail of external-process diagnostic output.
 type logTail struct {
 	mu   sync.Mutex
 	data []byte
 }
 
-// Write принимает байты вывода в ограниченный буфер и соблюдает контракт io.Writer.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// Write accepts output bytes through the io.Writer contract while enforcing the component's
+// buffering rules.
 //
-// @args
-//   - p ([]byte): байты, переданные по контракту io.Writer.
+// Parameters:
+//   - p: Input bytes consumed by this operation.
 //
-// @return:
-//   - результат 1 (int): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting count, size or numeric value.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (b *logTail) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -37,11 +35,10 @@ func (b *logTail) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// String возвращает строковое представление накопленного значения или ограниченного диагностического вывода.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// String returns the buffered diagnostic text in its bounded string representation.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: Bounded buffered diagnostic output.
 func (b *logTail) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()

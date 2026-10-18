@@ -26,17 +26,26 @@ import (
 	"gorm.io/gorm"
 )
 
-// productServices объединяет продуктовые сценарии, не изменяя жизненный цикл RTP/FFmpeg записи.
+// productServices groups product operations without changing the RTP or FFmpeg recording
+// lifecycle.
 type productServices struct {
 	content      *content.Service
 	integrations *integrations.Service
 	search       *searchusecase.Service
 }
 
-// newProductServices создаёт одни и те же проверенные зависимости API и отдельного worker.
-// API использует только чтение/постановку задач; аудио и провайдеры вызывает worker.
-// @args cfg — серверная конфигурация; db — ограниченный SQL-пул; storage — приватный MinIO.
-// @return сценарии продукта либо безопасная ошибка конфигурации.
+// newProductServices constructs the shared validated product dependencies; the API only reads or
+// queues work, while the separate worker invokes media and external providers.
+//
+// Parameters:
+//   - cfg: Operator-controlled configuration and processing limits.
+//   - db: Database handle used for the operation or transaction.
+//   - storage: Private object or file storage dependency.
+//
+// Returns:
+//   - result 1: The resulting product services.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func newProductServices(cfg config.Config, db *gorm.DB, storage *s3.Client) (productServices, error) {
 	c := cfg.StageSeven
 	local := cfg.IsLocal() || cfg.AppEnv == "test"
@@ -92,9 +101,12 @@ func newProductServices(cfg config.Config, db *gorm.DB, storage *s3.Client) (pro
 	return productServices{contentService, integrationService, searchService}, nil
 }
 
-// RunProductWorker запускает независимый процесс медленных внешних операций с постоянными очередями.
-// Отмена останавливает новые захваты, прерывает запросы к провайдеру и ограничивает финальную запись.
-// @return ошибка конфигурации/старта либо nil после корректного завершения.
+// RunProductWorker starts product worker with the configured dependencies and propagates startup
+// or shutdown failures.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func RunProductWorker() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -211,8 +223,15 @@ func RunProductWorker() error {
 	return errors.Join(serveErr, serverErr)
 }
 
-// runProductTicks создаёт наступившие напоминания и измеряет размер очереди одним общим таймером.
-// @args ctx — время жизни; service — планировщик интеграций; repo — очередь; interval — период опроса.
+// runProductTicks runs periodic product maintenance independently of the media recording
+// lifecycle.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - service: Application service invoked by this adapter.
+//   - repo: Persistence dependency used by the application operation.
+//   - interval: Interval between bounded maintenance iterations.
+//   - extra: Additional bounded event fields or callbacks.
 func runProductTicks(ctx context.Context, service *integrations.Service, repo *pg.JobRepository, interval time.Duration, extra func(context.Context)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

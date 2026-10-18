@@ -7,24 +7,21 @@ import (
 	"github.com/pion/sdp/v3"
 )
 
-// bundleOnlySections отличает активные BUNDLE-секции с нулевым портом от
-// отключённых дорожек. Firefox использует port 0 + bundle-only для камеры в
-// первоначальном предложении: её транспорт задаётся первой секцией BUNDLE.
-// Проверка не разрешает дорожку без существующего транспорта, повторные MID,
-// неоднозначное членство в группах или произвольный атрибут bundle-only.
+// bundleOnlySections validates BUNDLE-only media sections before they are admitted as sources.
 //
-// @args
-//   - description: разобранное SDP-предложение либо SDP-ответ.
+// Parameters:
+//   - description: Parsed SDP session description to validate.
 //
-// @return
-//   - множество секций, у которых нулевой порт допустим благодаря BUNDLE;
-//   - media.ErrInvalid, если структура BUNDLE некорректна.
+// Returns:
+//   - result 1: The resulting media description]bool.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func bundleOnlySections(description *sdp.SessionDescription) (map[*sdp.MediaDescription]bool, error) {
 	sections := map[string]*sdp.MediaDescription{}
 	only := map[*sdp.MediaDescription]bool{}
 	for _, attr := range description.Attributes {
 		if attr.Key == "bundle-only" {
-			return nil, media.ErrInvalid // Этот атрибут разрешён только на уровне m-секции.
+			return nil, media.ErrInvalid // This attribute is allowed only at media-section level.
 		}
 	}
 	for _, section := range description.MediaDescriptions {

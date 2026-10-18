@@ -10,17 +10,32 @@ import (
 	"time"
 )
 
-// AnalyticsRepository хранит агрегаты без отдельных строк SQL для частых кадров RTP и детекции речи.
+// AnalyticsRepository persists aggregates rather than one SQL row per RTP frame or
+// speech-detection sample.
 type AnalyticsRepository struct{ db *gorm.DB }
 
-// NewAnalyticsRepository связывает техническую аналитику с постоянным хранилищем.
-// @args db — SQL pool.
-// @return repository агрегатов.
+// NewAnalyticsRepository constructs the analytics repository with the dependencies and limits
+// required for conference technical aggregates.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded analytics repository.
 func NewAnalyticsRepository(db *gorm.DB) *AnalyticsRepository { return &AnalyticsRepository{db} }
 
-// Source читает ограниченный набор интервалов подключений, отсекая время до допуска из зала ожидания.
-// @args ctx — срок выполнения; job — конференция и аренда.
-// @return начало/конец встречи, интервалы и ошибка.
+// Source loads the persisted inputs needed to process conference technical aggregates.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//
+// Returns:
+//   - result 1: The timestamp or validity boundary associated with the result.
+//   - result 2: The timestamp or validity boundary associated with the result.
+//   - result 3: The collected interval values.
+//   - result 4: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AnalyticsRepository) Source(ctx context.Context, job jobs.Job) (time.Time, time.Time, []domain.Interval, error) {
 	var bounds struct{ Start, End time.Time }
 	rows := []domain.Interval{}
@@ -37,9 +52,16 @@ func (r *AnalyticsRepository) Source(ctx context.Context, job jobs.Job) (time.Ti
 	return bounds.Start, bounds.End, rows, err
 }
 
-// Save сохраняет snapshot присутствия, не перезаписывая одновременно накопленную речь и демонстрацию экрана.
-// @args ctx — срок выполнения; job — актуальная аренда; value — рассчитанные агрегаты.
-// @return ошибка commit.
+// Save persists analytics results while checking the current job or resource identity.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//   - value: Value to validate, normalize or convert.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AnalyticsRepository) Save(ctx context.Context, job jobs.Job, value domain.Conference) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := contentLease(tx, job); err != nil {
@@ -60,9 +82,17 @@ func (r *AnalyticsRepository) Save(ctx context.Context, job jobs.Job, value doma
 	})
 }
 
-// Read повторно проверяет доступ к истории в обоих запросах и возвращает только технические значения.
-// @args ctx — срок выполнения; user,cid — актор/встреча.
-// @return snapshot с понятной приближённостью speaking-time.
+// Read reads the analytics state or stream required by the caller.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - user: Acting account identifier used to scope access.
+//   - cid: Conference identifier limiting the operation scope.
+//
+// Returns:
+//   - result 1: The resulting conference.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AnalyticsRepository) Read(ctx context.Context, user, cid string) (domain.Conference, error) {
 	if _, err := findConference(r.db.WithContext(ctx), cid, false); err != nil {
 		return domain.Conference{}, err
@@ -102,9 +132,15 @@ func (r *AnalyticsRepository) Read(ctx context.Context, user, cid string) (domai
 	return result, err
 }
 
-// Tick ставит coarse пересчёт каждые 30 секунд для активных и недавно завершённых встреч.
-// @args ctx — короткий срок выполнения планировщика.
-// @return ошибка очереди; payload не содержит персональные данные.
+// Tick performs one bounded maintenance or delivery iteration after persisted state is
+// available.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *AnalyticsRepository) Tick(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,dedup_key,max_attempts)
  SELECT 'analytics.aggregate',id,id,1,'analytics:'||id::text||':'||floor(extract(epoch FROM clock_timestamp())/30)::text,3

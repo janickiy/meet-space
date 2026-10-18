@@ -7,15 +7,16 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 )
 
-// ReadComposite читает карточку общей записи после проверки доступа на уровне сценария конференции.
+// ReadComposite loads an authorized composite-recording card.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
 //
-// @return:
-//   - результат 1 (records.RecordCard): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting record card.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) ReadComposite(ctx context.Context, id string) (records.RecordCard, error) {
 	details, err := s.repository.FindDetailsByUUID(ctx, id)
 	if err != nil {
@@ -29,8 +30,27 @@ func (s *Service) ReadComposite(ctx context.Context, id string) (records.RecordC
 
 // ReadComposites builds an already-authorized page while retaining the single
 // record availability and mode checks. Older repository adapters keep working.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - ids: Resource identifiers to process as a bounded batch.
+//
+// Returns:
+//   - result 1: The collected record card values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (s *Service) ReadComposites(ctx context.Context, ids []string) ([]records.RecordCard, error) {
 	batch, ok := s.repository.(interface {
+		// FindDetailsByUUIDs loads details by uui ds from the recording repository.
+		//
+		// Parameters:
+		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+		//   - argument 2: Resource identifiers to process as a bounded batch.
+		//
+		// Returns:
+		//   - result 1: The collected record details values.
+		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+		//     failure.
 		FindDetailsByUUIDs(context.Context, []string) ([]records.RecordDetails, error)
 	})
 	if !ok {

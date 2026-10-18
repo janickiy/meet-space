@@ -11,17 +11,50 @@ import (
 
 // ConversationReader returns the conversation projection authorized for the actor.
 type ConversationReader interface {
+	// Get loads the requested conversation within the caller's authorized scope.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Identifier of the resource addressed by this operation.
+	//
+	// Returns:
+	//   - result 1: The resulting conversation.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Get(context.Context, string, string) (domain.Conversation, error)
 }
 
 // PresenceReader reads online state without creating or extending a session.
 type PresenceReader interface {
+	// Online returns the currently live presence state for the requested account identifiers.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Account identifiers or account repository, as defined by its type.
+	//
+	// Returns:
+	//   - result 1: The resulting map[string]bool.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Online(context.Context, []string) (map[string]bool, error)
 }
 
 // ReadPeerPresence authorizes a direct conversation before looking up its server-selected peer.
 // The caller supplies normalized actor and conversation UUIDs. Unknown presence is
 // unavailable, never offline; cancellation is checked before and after each read.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conversations: Authorized conversation reader.
+//   - presence: Distributed account-presence reader or writer.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting peer presence.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func ReadPeerPresence(ctx context.Context, conversations ConversationReader, presence PresenceReader, actor, id string) (domain.PeerPresence, error) {
 	if ctx.Err() != nil {
 		return domain.PeerPresence{}, apperrors.ErrUnavailable

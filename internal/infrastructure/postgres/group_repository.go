@@ -11,7 +11,19 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// lockGroup locks a group conversation and the acting member before a membership change.
+//
 // Every mutation takes this row lock before a fresh membership/role query.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The resulting role.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func lockGroup(tx *gorm.DB, actor, id string) (personal.Role, error) {
 	var row struct {
 		ID, Type  string
@@ -34,11 +46,41 @@ func lockGroup(tx *gorm.DB, actor, id string) (personal.Role, error) {
 	}
 	return member.Role, err
 }
+
+// groupManager checks whether the current member may manage the group.
+//
+// Parameters:
+//   - role: Requested participant or group-member role.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func groupManager(role personal.Role) bool { return role == personal.Owner || role == personal.Admin }
+
+// groupTouch updates the group revision metadata after a committed change.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func groupTouch(tx *gorm.DB, id string) error {
 	return tx.Table("conversations").Where("id=?", id).Updates(map[string]any{"updated_at": gorm.Expr("clock_timestamp()"), "metadata_version": gorm.Expr("metadata_version+1")}).Error
 }
 
+// groupWriteView loads the updated member-specific group response within the transaction.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - item: The conversation state processed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func groupWriteView(tx *gorm.DB, actor, id string, item *personal.Conversation) error {
 	view, err := personalView(tx, actor, id)
 	if err == nil {
@@ -46,6 +88,17 @@ func groupWriteView(tx *gorm.DB, actor, id string, item *personal.Conversation) 
 	}
 	return err
 }
+
+// registeredGroupUsers resolves the registered non-guest accounts requested for group
+// membership.
+//
+// Parameters:
+//   - tx: Current database transaction.
+//   - ids: Resource identifiers to process as a bounded batch.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func registeredGroupUsers(tx *gorm.DB, ids []string) error {
 	var rows []struct{ ID string }
 	if err := tx.Table("users").Select("id").Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id IN ? AND guest_conference_id IS NULL AND password_hash<>''", ids).Order("id").Find(&rows).Error; err != nil {
@@ -57,6 +110,18 @@ func registeredGroupUsers(tx *gorm.DB, ids []string) error {
 	return nil
 }
 
+// CreateGroup creates a group conversation with validated registered members and an owner.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: Whether this request created new state rather than reusing an idempotent result.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) CreateGroup(ctx context.Context, actor string, request personal.CreateGroupRequest) (personal.Conversation, bool, error) {
 	request, fingerprint, err := personal.NormalizeCreateGroup(actor, request)
 	if err != nil {
@@ -113,6 +178,18 @@ func (r *PersonalRepository) CreateGroup(ctx context.Context, actor string, requ
 	return item, created, nil
 }
 
+// UpdateGroup updates the group's validated metadata after checking management permission.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - request: Validated application request or incoming operation parameters.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) UpdateGroup(ctx context.Context, actor, id string, request personal.UpdateGroupRequest) (personal.Conversation, error) {
 	request, err := personal.NormalizeUpdateGroup(request)
 	if err != nil {
@@ -145,6 +222,17 @@ func (r *PersonalRepository) UpdateGroup(ctx context.Context, actor, id string, 
 	return item, nil
 }
 
+// GroupMembers returns the group members visible to the acting account.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The collected member values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) GroupMembers(ctx context.Context, actor, id string) ([]personal.Member, error) {
 	items := []personal.Member{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -156,6 +244,20 @@ func (r *PersonalRepository) GroupMembers(ctx context.Context, actor, id string)
 	return items, err
 }
 
+// AddGroupMembers adds validated registered accounts after checking the group membership and
+// management rules.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - rawIDs: Untrusted member identifiers to validate and deduplicate.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: The collected member values.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) AddGroupMembers(ctx context.Context, actor, id string, rawIDs []string) (personal.Conversation, []personal.Member, error) {
 	ids, err := personal.NormalizeMemberIDs(rawIDs)
 	if err != nil || len(ids) == 0 {
@@ -219,6 +321,21 @@ func (r *PersonalRepository) AddGroupMembers(ctx context.Context, actor, id stri
 	return item, added, nil
 }
 
+// RemoveGroupMember removes a group member while enforcing ownership and management
+// restrictions.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - target: Target state, account or decoded value, as defined by its type.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) RemoveGroupMember(ctx context.Context, actor, id, target string) (personal.Conversation, bool, error) {
 	changed := false
 	var item personal.Conversation
@@ -265,6 +382,19 @@ func (r *PersonalRepository) RemoveGroupMember(ctx context.Context, actor, id, t
 	return item, changed, nil
 }
 
+// ChangeGroupRole changes a group member's role within the acting manager's authority.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - target: Target state, account or decoded value, as defined by its type.
+//   - newRole: Validated role to assign to the target group member.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) ChangeGroupRole(ctx context.Context, actor, id, target string, newRole personal.Role) (personal.Conversation, error) {
 	if newRole != personal.Admin && newRole != personal.MemberRole {
 		return personal.Conversation{}, apperrors.ErrInvalidInput
@@ -303,6 +433,18 @@ func (r *PersonalRepository) ChangeGroupRole(ctx context.Context, actor, id, tar
 	return item, nil
 }
 
+// TransferGroupOwnership atomically transfers group ownership to an eligible current member.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//   - target: Target state, account or decoded value, as defined by its type.
+//
+// Returns:
+//   - result 1: The resulting conversation.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) TransferGroupOwnership(ctx context.Context, actor, id, target string) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -337,6 +479,16 @@ func (r *PersonalRepository) TransferGroupOwnership(ctx context.Context, actor, 
 	return item, nil
 }
 
+// LeaveGroup leaves a group only when its ownership rules permit the acting member to exit.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) LeaveGroup(ctx context.Context, actor, id string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		role, err := lockGroup(tx, actor, id)
@@ -362,6 +514,18 @@ func (r *PersonalRepository) LeaveGroup(ctx context.Context, actor, id string) e
 	})
 }
 
+// DeleteGroup deletes the group for its authorized owner and returns the affected recipients for
+// event delivery.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - actor: Identifier of the account performing the operation.
+//   - id: Identifier of the resource addressed by this operation.
+//
+// Returns:
+//   - result 1: The collected string values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PersonalRepository) DeleteGroup(ctx context.Context, actor, id string) ([]string, error) {
 	former := []string{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

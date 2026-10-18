@@ -9,19 +9,18 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/media"
 )
 
-// firefoxBundleOffer задаёт минимальную структуру предложения Firefox без
-// сетевых адресов, ICE-паролей и браузерных идентификаторов пользователя.
+// firefoxBundleOffer contains the minimal Firefox offer structure without network addresses, ICE
+// passwords or browser user identifiers.
 const firefoxBundleOffer = "v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n" +
 	"a=group:BUNDLE 0 1\r\n" +
 	"m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:0\r\na=sendrecv\r\na=rtpmap:111 opus/48000/2\r\na=ssrc:100 cname:microphone\r\n" +
 	"m=video 0 UDP/TLS/RTP/SAVPF 96\r\na=mid:1\r\na=bundle-only\r\na=sendrecv\r\na=rtpmap:96 VP8/90000\r\na=ssrc:200 cname:camera\r\n"
 
-// TestFirefoxBundleOnlySources проверяет камеру и микрофон Firefox, приёмные
-// слоты и отключённые дорожки. Проверки кодеков, типов источников и лимитов
-// должны продолжать работать и для секций с общим транспортом.
+// TestFirefoxBundleOnlySources verifies firefox bundle only sources to prevent regressions in
+// SFU peers and media forwarding.
 //
-// @args
-//   - t: контекст проверки и сообщения об ошибках.
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestFirefoxBundleOnlySources(t *testing.T) {
 	publications := []media.Publication{{MID: "0", Source: media.SourceMicrophone}, {MID: "1", Source: media.SourceCamera}}
 	want := map[string]media.Source{"0": media.SourceMicrophone, "1": media.SourceCamera}
@@ -63,12 +62,11 @@ func TestFirefoxBundleOnlySources(t *testing.T) {
 	}
 }
 
-// TestBundleOnlyRejectsMalformedGroups не даёт превратить отключённую секцию
-// в активную подстановкой одного атрибута или неоднозначными MID и группами.
-// Один и тот же защитный разбор применяется к предложению и к ответу.
+// TestBundleOnlyRejectsMalformedGroups verifies bundle only rejects malformed groups to prevent
+// regressions in SFU peers and media forwarding.
 //
-// @args
-//   - t: контекст проверки и сообщения об ошибках.
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestBundleOnlyRejectsMalformedGroups(t *testing.T) {
 	for _, tc := range []struct{ name, raw string }{
 		{"нет BUNDLE", strings.Replace(firefoxBundleOffer, "a=group:BUNDLE 0 1\r\n", "", 1)},
@@ -98,12 +96,11 @@ func TestBundleOnlyRejectsMalformedGroups(t *testing.T) {
 	}
 }
 
-// TestAnsweredSSRCsIncludesBundleOnly проверяет, что общий транспорт не
-// блокирует разрешение SSRC после Ready, но отключённые, приёмные и ремонтные
-// SSRC по-прежнему не открывают передачу медиа подписчику.
+// TestAnsweredSSRCsIncludesBundleOnly verifies answered ssr cs includes bundle only to prevent
+// regressions in SFU peers and media forwarding.
 //
-// @args
-//   - t: контекст проверки и сообщения об ошибках.
+// Parameters:
+//   - t: Test handle used for assertions, cleanup and failure reporting.
 func TestAnsweredSSRCsIncludesBundleOnly(t *testing.T) {
 	raw := firefoxBundleOffer + "a=ssrc:201 cname:camera\r\na=ssrc-group:FID 200 201\r\n"
 	got, err := answeredSSRCs(raw)

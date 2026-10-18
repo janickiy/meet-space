@@ -9,12 +9,11 @@ import (
 	"time"
 )
 
-// OperationsConfig задаёт эксплуатационные границы одного процесса.
-// ProbeTimeout ограничивает проверку зависимости, ProbeInterval объединяет частые
-// обращения к readiness, ShutdownTimeout ограничивает завершение работы.
-// DBMaxOpen/DBMaxIdle/DBLifetime управляют пулом БД; HTTPBodyBytes ограничивает JSON.
-// InternalSecret защищает recorder HTTP, MetricsSecret — Prometheus; PprofPort=0
-// отключает диагностику, иначе она слушает только loopback внутри контейнера.
+// OperationsConfig defines per-process operational limits. ProbeTimeout bounds dependency
+// checks; ProbeInterval coalesces readiness probes; ShutdownTimeout bounds shutdown. DBMaxOpen,
+// DBMaxIdle and DBLifetime control the database pool; HTTPBodyBytes bounds JSON. InternalSecret
+// protects recorder HTTP and MetricsSecret protects Prometheus. PprofPort=0 disables profiling;
+// enabled profiling listens only on loopback.
 type OperationsConfig struct {
 	ProbeTimeout, ProbeInterval, ShutdownTimeout time.Duration
 	DBMaxOpen, DBMaxIdle                         int
@@ -26,9 +25,16 @@ type OperationsConfig struct {
 	HTTPReadTimeout                              time.Duration
 }
 
-// loadOperations читает пределы из окружения и отвергает опасные значения.
-// Аргумент local разрешает только локальную производную внутреннего секрета;
-// результат содержит проверенную конфигурацию либо ошибку без значения секрета.
+// loadOperations loads process-level readiness, shutdown, connection-pool and diagnostics
+// limits.
+//
+// Parameters:
+//   - local: Whether explicitly local-only behavior is permitted.
+//
+// Returns:
+//   - result 1: The resulting operations config.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func loadOperations(local bool) (OperationsConfig, error) {
 	c := OperationsConfig{
 		ProbeTimeout: envDuration("HEALTH_PROBE_TIMEOUT", time.Second), ProbeInterval: envDuration("HEALTH_PROBE_INTERVAL", 2*time.Second),
@@ -59,9 +65,15 @@ func loadOperations(local bool) (OperationsConfig, error) {
 	return c, nil
 }
 
-// validateProduction проверяет настройки при запуске в рабочей среде, не раскрывая
-// секреты в ошибках. cfg содержит уже загруженные адреса, ключи и ограничения.
-// Возвращает nil для допустимой конфигурации или причину отказа запуска.
+// validateProduction rejects insecure or incomplete settings before starting a production
+// process.
+//
+// Parameters:
+//   - cfg: Operator-controlled configuration and processing limits.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func validateProduction(cfg Config) error {
 	if cfg.IsLocal() || cfg.AppEnv == "test" {
 		return nil
@@ -111,9 +123,12 @@ func validateProduction(cfg Config) error {
 	return nil
 }
 
-// validateTypedEnvironment предотвращает молчаливое применение значения по
-// умолчанию при опечатке в числовом, логическом или временном параметре env.
-// Аргументов нет; ошибка содержит только имя параметра, а не его значение.
+// validateTypedEnvironment rejects malformed typed environment values instead of silently using
+// defaults.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func validateTypedEnvironment() error {
 	for _, key := range []string{"HTTP_READ_TIMEOUT", "DB_QUERY_TIMEOUT"} {
 		if raw := os.Getenv(key); raw != "" {

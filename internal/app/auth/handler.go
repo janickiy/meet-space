@@ -11,49 +11,59 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// Service задаёт контракт зависимого компонента Service в авторизации и учётных записях пользователей; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//
-//	@params:
-//
-// - Register: операция Register с контрактом, описанным у метода.
-// - Login: операция Login с контрактом, описанным у метода.
-// - Me: операция Me с контрактом, описанным у метода.
+// Service defines the replaceable dependency contract for account authentication and persistent
+// sessions.
 type Service interface {
-	// Register проверяет данные регистрации, хеширует пароль и создаёт новую учётную запись.
+	// Register validates registration fields, hashes the password and creates a new account without
+	// returning private credential data.
 	//
-	// @parameters:
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (users.RegisterRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (users.View): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Register(context.Context, users.RegisterRequest) (users.View, error)
-	// Login проверяет учётные данные и возвращает безопасные сведения пользователя и токен входа.
+	// Login checks the supplied credentials and returns the safe account view and access token.
 	//
-	// @parameters:
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (users.LoginRequest): входные параметры соответствующего прикладного запроса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Validated application request or incoming operation parameters.
 	//
-	// @return:
-	//   - результат 1 (users.LoginResponse): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting login response.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Login(context.Context, users.LoginRequest) (users.LoginResponse, error)
-	// Me читает публичные сведения текущего авторизованного пользователя.
+	// Me returns the public view of the currently authenticated account.
 	//
-	// @parameters:
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор пользователя, для которого выполняется операция.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
 	//
-	// @return:
-	//   - результат 1 (users.View): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Me(context.Context, string) (users.View, error)
+	// UpdateProfile updates only the authenticated account's validated public profile fields.
+	//
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Acting account identifier used to scope access.
+	//   - argument 3: Validated application request or incoming operation parameters.
+	//
+	// Returns:
+	//   - result 1: The resulting view.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	UpdateProfile(context.Context, string, users.UpdateProfileRequest) (users.View, error)
 }
 
-// Handler связывает транспортный запрос с прикладным сценарием, проверкой входных данных и формированием ответа.
-//   - service: значение service типа Service, используемое согласно назначению этой операции.
+// Handler adapts HTTP requests to account authentication and persistent sessions, validates
+// input and writes the response.
 type Handler struct {
 	service            Service
 	publicOrigin       string
@@ -61,19 +71,21 @@ type Handler struct {
 	persistentSessions bool
 }
 
-// NewHandler создаёт и связывает зависимости компонента Handler, используемого в авторизации и учётных записях пользователей.
+// NewHandler constructs the handler with the dependencies and limits required for account
+// authentication and persistent sessions.
 //
-// @parameters:
-//   - service (Service): значение service типа Service, используемое согласно назначению этой операции.
+// Parameters:
+//   - service: Application service invoked by this adapter.
 //
-// @return:
-//   - результат 1 (*Handler): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded handler.
 func NewHandler(service Service) *Handler { return &Handler{service: service} }
 
-// Register проверяет данные регистрации, хеширует пароль и создаёт новую учётную запись.
+// Register validates registration fields, hashes the password and creates a new account without
+// returning private credential data.
 //
-// @parameters:
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Register(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return
@@ -91,10 +103,10 @@ func (h *Handler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"status": "success", "user": user})
 }
 
-// Login проверяет учётные данные и возвращает безопасные сведения пользователя и токен входа.
+// Login checks the supplied credentials and returns the safe account view and access token.
 //
-// @parameters:
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Login(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return
@@ -121,10 +133,10 @@ func (h *Handler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// Me читает публичные сведения текущего авторизованного пользователя.
+// Me returns the public view of the currently authenticated account.
 //
-// @parameters:
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Me(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	user, err := h.service.Me(c.Request.Context(), httpmiddleware.UserID(c))
@@ -135,7 +147,10 @@ func (h *Handler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "user": user})
 }
 
-// UpdateProfile принимает только новое имя и использует идентичность из Bearer JWT.
+// UpdateProfile updates only the authenticated account's validated public profile fields.
+//
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) UpdateProfile(c *gin.Context) {
 	var request users.UpdateProfileRequest
 	if !httpresponse.BindJSON(c, &request, false) {
@@ -149,10 +164,11 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "user": user})
 }
 
-// Logout обрабатывает завершение клиентской авторизации по принятому API-контракту.
+// Logout revokes the selected persistent session and invalidates the supplied access-session
+// binding.
 //
-// @parameters:
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// Parameters:
+//   - c: Gin request and response context, including the authenticated identity.
 func (h *Handler) Logout(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return

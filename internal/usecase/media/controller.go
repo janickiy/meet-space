@@ -17,143 +17,130 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// Registry задаёт контракт зависимого компонента Registry в защищённом управлении медиа-комнатой; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-// @params
-//   - Workers: операция Workers с контрактом, описанным у метода.
-//   - Claim: операция Claim с контрактом, описанным у метода.
-//   - GetOwner: операция получение владелец с контрактом, описанным у метода.
+// Registry defines the replaceable dependency contract for authenticated media-room control.
 type Registry interface {
-	// Workers возвращает действующие медиа-воркеры для распределения комнаты.
+	// Workers returns the currently live media workers eligible to own a room.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
 	//
-	// @return:
-	//   - результат 1 ([]domain.Worker): собранные элементы результата; состав ограничивается параметрами операции.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The collected worker values.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Workers(context.Context) ([]domain.Worker, error)
-	// Claim пытается закрепить распределённое владение ресурсом за указанным воркером.
+	// Claim atomically acquires the current media-room connection lease or ownership record.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор воркера-владельца операции.
-	//   - аргумент 4 (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
+	//   - argument 3: Identity of the worker owning this operation.
+	//   - argument 4: Lifetime assigned to the temporary value or ownership record.
 	//
-	// @return:
-	//   - результат 1 (domain.Route): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting route.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Claim(context.Context, string, string, time.Duration) (domain.Route, error)
-	// GetOwner читает актуального владельца медиа-комнаты и его версию владения.
+	// GetOwner loads the current distributed owner and fencing version of the media room.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
 	//
-	// @return:
-	//   - результат 1 (domain.Route): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting route.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	GetOwner(context.Context, string) (domain.Route, error)
 }
 
-// Tickets задаёт контракт зависимого компонента Tickets в защищённом управлении медиа-комнатой; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - Issue: операция Issue с контрактом, описанным у метода.
+// Tickets defines the replaceable dependency contract for authenticated media-room control.
 type Tickets interface {
-	// Issue выпускает подписанный JWT пользователя с настроенным сроком действия.
+	// Issue creates a signed token bound to the supplied identity and expiry.
 	//
-	// @args
-	//   - аргумент 1 (domain.Binding): проверенная идентичность медиа-подключения, назначенная сервером.
-	//   - аргумент 2 (domain.Route): адрес и версия действующего владельца медиа-комнаты.
+	// Parameters:
+	//   - argument 1: Verified account, session and media-connection identity.
+	//   - argument 2: Current media-room owner and fencing version.
 	//
-	// @return:
-	//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: Signed short-lived credential for the verified identity.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Issue(domain.Binding, domain.Route) (string, error)
 }
 
-// Transport задаёт контракт зависимого компонента Transport в защищённом управлении медиа-комнатой; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - Call: операция Call с контрактом, описанным у метода.
+// Transport defines the replaceable dependency contract for authenticated media-room control.
 type Transport interface {
-	// Call выполняет защищённый внутренний HTTP-вызов выбранной операции медиа-воркера.
+	// Call performs the authenticated internal HTTP operation against the selected media worker.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): действие управления, которое необходимо проверить или исполнить.
-	//   - аргумент 3 (domain.Command): внутренняя команда с типом операции и серверной идентичностью ресурса.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Requested lifecycle or moderation action.
+	//   - argument 3: Validated internal recording or media command.
 	//
-	// @return:
-	//   - результат 1 (domain.Result): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting result.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Call(context.Context, string, domain.Command) (domain.Result, error)
 }
 
-// Sessions задаёт контракт зависимого компонента Sessions в защищённом управлении медиа-комнатой; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - ValidateSession: операция Validate сессия с контрактом, описанным у метода.
+// Sessions defines the replaceable dependency contract for authenticated media-room control.
 type Sessions interface {
-	// ValidateSession связывает медиа-команду с действующей разрешённой физической WebSocket-сессией.
+	// ValidateSession binds the media operation to a current, authorized physical WebSocket session.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (realtime.Session): историческая физическая сессия или состояние текущего соединения.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Persistent or physical session state, as defined by its type.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	ValidateSession(context.Context, realtime.Session) error
 }
 
-// Publisher задаёт контракт зависимого компонента Publisher в защищённом управлении медиа-комнатой; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - Publish: операция публикация с контрактом, описанным у метода.
+// Publisher defines the replaceable dependency contract for authenticated media-room control.
 type Publisher interface {
-	// Publish передаёт сохранённое изменение через транспорт событий или внутренних команд.
+	// Publish publishes the saved media-room connection change through its configured event or
+	// command transport.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (realtime.Bus): транспорт публикации и подписки на доверенные события.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Scoped publication and subscription transport.
 	//
-	// @return:
-	//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	Publish(context.Context, realtime.Bus) error
 }
 
-// PolicyProvider задаёт контракт зависимого компонента PolicyProvider в защищённом управлении медиа-комнатой; позволяет заменять реализацию хранилища или транспорта без изменения вызывающего кода.
-//   - MediaPolicy: операция медиа политика с контрактом, описанным у метода.
+// PolicyProvider defines the replaceable dependency contract for authenticated media-room
+// control.
 type PolicyProvider interface {
-	// MediaPolicy читает действующие серверные ограничения передачи медиа участника.
+	// MediaPolicy loads the effective saved media restrictions for a participant.
 	//
-	// @args
-	//   - аргумент 1 (context.Context): контекст отмены, дедлайна и времени жизни операции.
-	//   - аргумент 2 (string): идентификатор конференции, ограничивающий область операции.
-	//   - аргумент 3 (string): идентификатор членства участника внутри конференции.
+	// Parameters:
+	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	//   - argument 2: Conference identifier limiting the operation scope.
+	//   - argument 3: Conference participant identifier.
 	//
-	// @return:
-	//   - результат 1 (domain.ParticipantPolicy): значение, подготовленное операцией для вызывающей стороны.
-	//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+	// Returns:
+	//   - result 1: The resulting participant policy.
+	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+	//     failure.
 	MediaPolicy(context.Context, string, string) (domain.ParticipantPolicy, error)
 }
 
-// endpoint задаёт согласованное представление данных «адрес сервиса» для защищённом управлении медиа-комнатой.
-// @params
-//   - binding: проверенная идентичность медиа-подключения, назначенная сервером.
-//   - route: адрес и версия действующего владельца медиа-комнаты.
-//   - peerID: идентификатор связанного ресурса, заданного параметром peerID.
+// endpoint holds the endpoint data used by authenticated media-room control.
 type endpoint struct {
 	binding domain.Binding
 	route   domain.Route
 	peerID  string
 }
 
-// Controller связывает клиентскую сигнализацию с авторизацией сессии, владельцем комнаты и внутренним медиа-транспортом.
-// @params
-//   - registry: распределённый реестр воркеров и владения комнатами.
-//   - tickets: сервис выпуска и проверки ограниченных билетов подключения.
-//   - transport: клиент защищённого внутреннего медиа-транспорта.
-//   - sessions: хранилище и авторизация физических сессий подключения.
-//   - publisher: транспорт публикации событий после сохранения состояния.
-//   - cfg: проверенные настройки соответствующего компонента.
-//   - limits: настройки ограничений размера, частоты и количества ресурсов.
-//   - mu: блокировка согласованного доступа к разделяемому состоянию.
-//   - peers: индекс значений peers для поиска и согласования состояния.
-//   - policyProvider: значение policyProvider типа PolicyProvider, используемое согласно назначению этой операции.
+// Controller binds client signaling to physical-session authorization, room ownership and
+// internal media transport.
 type Controller struct {
 	registry       Registry
 	tickets        Tickets
@@ -167,21 +154,22 @@ type Controller struct {
 	policyProvider PolicyProvider
 }
 
-// SetPolicyProvider подключает источник сохранённых полномочий участников до начала обработки запросов.
+// SetPolicyProvider updates policy provider for authenticated media-room control.
 //
-// @args
-//   - provider (PolicyProvider): источник актуальной сохранённой политики участника.
+// Parameters:
+//   - provider: Configured external-provider adapter.
 func (c *Controller) SetPolicyProvider(provider PolicyProvider) { c.policyProvider = provider }
 
-// policy получает серверные ограничения медиа участника из сохранённой модели.
+// policy loads the participant's effective server-side media restrictions.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - binding (domain.Binding): проверенная идентичность медиа-подключения, назначенная сервером.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - binding: Verified account, session and media-connection identity.
 //
-// @return:
-//   - результат 1 (*domain.ParticipantPolicy): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The constructed or loaded participant policy.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Controller) policy(ctx context.Context, binding domain.Binding) (*domain.ParticipantPolicy, error) {
 	if c.policyProvider == nil {
 		return nil, nil
@@ -193,16 +181,17 @@ func (c *Controller) policy(ctx context.Context, binding domain.Binding) (*domai
 	return &policy, nil
 }
 
-// SetParticipantPolicy передаёт актуальную политику участника владельцу медиа-комнаты.
+// SetParticipantPolicy updates participant policy for authenticated media-room control.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - participantID (string): идентификатор членства участника внутри конференции.
-//   - policy (domain.ParticipantPolicy): актуальные ограничения медиа и версия модерации участника.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - participantID: Conference participant identifier.
+//   - policy: Effective server-side media policy.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Controller) SetParticipantPolicy(ctx context.Context, conferenceID, participantID string, policy domain.ParticipantPolicy) error {
 	if !validUUID(conferenceID) || !validUUID(participantID) || policy.Version < 0 {
 		return domain.ErrInvalid
@@ -220,14 +209,15 @@ func (c *Controller) SetParticipantPolicy(ctx context.Context, conferenceID, par
 	return err
 }
 
-// CloseConference закрывает все медиа-подключения и ресурсы конкретной конференции.
+// CloseConference closes the media peers and owned resources of one conference.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Controller) CloseConference(ctx context.Context, conferenceID string) error {
 	if !validUUID(conferenceID) {
 		return domain.ErrInvalid
@@ -245,36 +235,37 @@ func (c *Controller) CloseConference(ctx context.Context, conferenceID string) e
 	return err
 }
 
-// NewController создаёт и связывает зависимости компонента Controller, используемого в защищённом управлении медиа-комнатой.
+// NewController constructs the controller with the dependencies and limits required for
+// authenticated media-room control.
 //
-// @args
-//   - registry (Registry): распределённый реестр воркеров и владения комнатами.
-//   - tickets (Tickets): сервис выпуска и проверки ограниченных билетов подключения.
-//   - transport (Transport): клиент защищённого внутреннего медиа-транспорта.
-//   - sessions (Sessions): хранилище и авторизация физических сессий подключения.
-//   - publisher (Publisher): транспорт публикации событий после сохранения состояния.
-//   - cfg (config.MediaConfig): проверенные настройки соответствующего компонента.
-//   - limits (config.RealtimeConfig): настройки ограничений размера, частоты и количества ресурсов.
+// Parameters:
+//   - registry: Dependency or metrics registry used to locate or register the component.
+//   - tickets: One-use or signed media-ticket issuer and verifier.
+//   - transport: Transport implementation or RTP receiver for this operation.
+//   - sessions: Physical-session authorization dependency.
+//   - publisher: Trusted event publisher.
+//   - cfg: Operator-controlled configuration and processing limits.
+//   - limits: Configured protocol, queue and execution limits.
 //
-// @return:
-//   - результат 1 (*Controller): созданный компонент с переданными зависимостями.
+// Returns:
+//   - result 1: The constructed or loaded controller.
 func NewController(registry Registry, tickets Tickets, transport Transport, sessions Sessions, publisher Publisher, cfg config.MediaConfig, limits config.RealtimeConfig) *Controller {
 	limits.SDPBytes = min(limits.SDPBytes, domain.MaxSDPBytes)
 	limits.ICEBytes = min(limits.ICEBytes, domain.MaxICEBytes)
 	return &Controller{registry: registry, tickets: tickets, transport: transport, sessions: sessions, publisher: publisher, cfg: cfg, limits: limits, peers: map[string]endpoint{}}
 }
 
-// Handle обрабатывает проверенное событие сигнализации в рамках живой серверной сессии.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// Handle dispatches the validated media-room connection operation to its application handler.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (realtime.Session): историческая физическая сессия или состояние текущего соединения.
-//   - expiresAt (time.Time): момент окончания действия сессии, токена или аренды.
-//   - event (realtime.Envelope): конверт входящего или публикуемого события.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
+//   - expiresAt: Absolute expiration of the verified access credential.
+//   - event: Trusted event to publish or process.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Controller) Handle(ctx context.Context, session realtime.Session, expiresAt time.Time, event realtime.Envelope) error {
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.OperationTimeout)
 	defer cancel()
@@ -298,9 +289,9 @@ func (c *Controller) Handle(ctx context.Context, session realtime.Session, expir
 		}
 		return domain.ErrPeerNotFound
 	}
-	// Пустая команда media.leave отменяет присоединение, поставленное в очередь до получения
-	// браузером ID соединения. Единственный читатель WS выполняет её после ответа на join;
-	// очищать разрешено только авторизованную сессию отправителя.
+	// An empty media.leave cancels a queued join before the browser received its connection
+	// identifier. The single WebSocket reader executes it after the join response; cleanup is
+	// restricted to the sender's authorized session.
 	if signal.MediaPeerID != peer.peerID && !(event.Type == "media.leave" && signal.MediaPeerID == "") {
 		return domain.ErrUnauthorized
 	}
@@ -339,16 +330,17 @@ func (c *Controller) Handle(ctx context.Context, session realtime.Session, expir
 	return c.emit(ctx, binding, "ack", event.ID, map[string]string{"type": event.Type})
 }
 
-// join назначает владельца медиа-комнаты и создаёт подключение для проверенной физической сессии.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// join selects the fenced media-room owner and prepares a connection for the verified physical
+// session.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - binding (domain.Binding): проверенная идентичность медиа-подключения, назначенная сервером.
-//   - requestID (string): идентификатор запроса сигнализации для сопоставления ответа.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - binding: Verified account, session and media-connection identity.
+//   - requestID: Client-supplied idempotency key for a retriable operation.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Controller) join(ctx context.Context, binding domain.Binding, requestID string) error {
 	policy, err := c.policy(ctx, binding)
 	if err != nil {
@@ -361,8 +353,8 @@ func (c *Controller) join(ctx context.Context, binding domain.Binding, requestID
 	if err != nil || len(workers) == 0 {
 		return domain.ErrUnavailable
 	}
-	// Небольшой стабильный хеш распределяет новые конференции; Claim сохраняет текущего
-	// работающего владельца. Это маршрутизация, а не распределённый планировщик.
+	// A small stable hash routes new conferences; Claim preserves a live existing owner. This is
+	// routing, not a distributed scheduler.
 	conf, _ := uuid.Parse(binding.ConferenceID)
 	index := int(conf[0]) % len(workers)
 	route, err := c.registry.Claim(ctx, binding.ConferenceID, workers[index].ID, c.cfg.OwnershipTTL)
@@ -382,8 +374,8 @@ func (c *Controller) join(ctx context.Context, binding domain.Binding, requestID
 	}
 	video := result.VideoCapture
 	if video.MaxWidth < 1 || video.MaxWidth > 1280 || video.MaxHeight < 1 || video.MaxHeight > 720 || video.MaxFrameRate < 1 || video.MaxFrameRate > 30 {
-		// Воркер подготовил соединение, но неверный источник захвата может не дойти до браузера.
-		// Освобождаем подготовленное медиа-соединение, чтобы не оставить его без владельца.
+		// The worker prepared a connection, but an invalid capture source may never reach the browser.
+		// Release the prepared media connection rather than leaving it ownerless.
 		cleanup, cancel := context.WithTimeout(context.Background(), min(c.cfg.OperationTimeout, 3*time.Second))
 		_, _ = c.transport.Call(cleanup, "leave", domain.Command{RequestID: uuid.NewString(), Binding: binding, Route: route, MediaPeerID: result.MediaPeerID})
 		cancel()
@@ -406,17 +398,18 @@ func (c *Controller) join(ctx context.Context, binding domain.Binding, requestID
 	return err
 }
 
-// emit формирует и передаёт исходящее событие через принадлежащий компоненту канал доставки.
+// emit sends a trusted lifecycle event through the component-owned bounded delivery path.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - binding (domain.Binding): проверенная идентичность медиа-подключения, назначенная сервером.
-//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
-//   - replyTo (string): идентификатор исходного запроса или сообщения, на которое даётся ответ.
-//   - data (any): полезная нагрузка события или байты обрабатываемого содержимого.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - binding: Verified account, session and media-connection identity.
+//   - kind: Validated event, job, media or resource category.
+//   - replyTo: Validated client correlation identifier for the error response.
+//   - data: Input bytes or structured event payload.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Controller) emit(ctx context.Context, binding domain.Binding, kind, replyTo string, data any) error {
 	event := realtime.Event(kind, binding.ConferenceID, data)
 	event.ReplyTo = replyTo
@@ -426,12 +419,12 @@ func (c *Controller) emit(ctx context.Context, binding domain.Binding, kind, rep
 	return nil
 }
 
-// Disconnected обрабатывает закрытие физического соединения и запускает связанное освобождение ресурсов.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// Disconnected handles closure of a physical connection and releases only the resources owned by
+// that connection.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - session (realtime.Session): историческая физическая сессия или состояние текущего соединения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - session: Persistent or physical session state, as defined by its type.
 func (c *Controller) Disconnected(ctx context.Context, session realtime.Session) {
 	c.mu.Lock()
 	peer, exists := c.peers[session.ConnectionID]
@@ -445,14 +438,15 @@ func (c *Controller) Disconnected(ctx context.Context, session realtime.Session)
 	_, _ = c.transport.Call(ctx, "leave", domain.Command{RequestID: uuid.NewString(), Binding: peer.binding, Route: peer.route, MediaPeerID: peer.peerID})
 }
 
-// strictDecode разбирает JSON без неизвестных полей, чтобы клиент не передавал неподдерживаемые параметры.
+// strictDecode decodes exactly one JSON value and rejects unknown fields or trailing input.
 //
-// @args
-//   - raw ([]byte): исходные байты JSON, пакета или сериализованного значения.
-//   - target (any): целевой объект, участник или состояние операции.
+// Parameters:
+//   - raw: Untrusted serialized value to decode or validate.
+//   - target: Target state, account or decoded value, as defined by its type.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func strictDecode(raw []byte, target any) error {
 	if !utf8.Valid(raw) {
 		return domain.ErrInvalid
@@ -468,27 +462,29 @@ func strictDecode(raw []byte, target any) error {
 	return nil
 }
 
-// validUUID проверяет корректность и ненулевое значение UUID.
+// validUUID checks that an identifier is a nonzero UUID before it is used in storage or routing.
 //
-// @args
-//   - id (string): идентификатор обрабатываемого ресурса.
+// Parameters:
+//   - id: Identifier of the resource addressed by this operation.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func validUUID(id string) bool {
 	parsed, err := uuid.Parse(id)
 	return err == nil && parsed != uuid.Nil && parsed.String() == id
 }
 
-// decode строго разбирает нагрузку разрешённого вида медиа-сигнализации.
+// decode strictly decodes the payload of an allowed media-signaling command.
 //
-// @args
-//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
-//   - raw (json.RawMessage): исходные байты JSON, пакета или сериализованного значения.
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
+//   - raw: Untrusted serialized value to decode or validate.
 //
-// @return:
-//   - результат 1 (domain.Signal): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting signal.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Controller) decode(kind string, raw json.RawMessage) (domain.Signal, error) {
 	var signal domain.Signal
 	trimmed := bytes.TrimSpace(raw)

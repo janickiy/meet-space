@@ -5,9 +5,15 @@ import (
 	"math"
 )
 
-// AudioActive оценивает энергию PCM, не выдавая открытый микрофон за произнесённую речь.
-// @args pcm — mono signed PCM16LE.
-// @return true при RMS выше -42 dBFS; шум и музыка могут давать ложное срабатывание.
+// AudioActive classifies whether a PCM audio frame contains activity above the configured
+// detection threshold.
+//
+// Parameters:
+//   - pcm: Input bytes consumed by this operation.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func AudioActive(pcm []byte) bool {
 	var sum float64
 	n := len(pcm) / 2

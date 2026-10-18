@@ -7,8 +7,16 @@ import (
 	"os"
 )
 
-// ValidateStorage проверяет существование, права записи и запас диска в path.
-// minimum — обязательный запас в байтах; пробный файл удаляется сразу.
+// ValidateStorage checks that the configured recording directory is usable before processing
+// starts.
+//
+// Parameters:
+//   - path: Validated local filesystem or object path.
+//   - minimum: Minimum required free storage in bytes.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func ValidateStorage(path string, minimum uint64) error {
 	if path == "" {
 		return fmt.Errorf("STORAGE_PATH must not be empty")
@@ -25,8 +33,14 @@ func ValidateStorage(path string, minimum uint64) error {
 	return DiskCheck(path, minimum)(context.Background())
 }
 
-// DiskCheck создаёт readiness-проверку локального диска. path — каталог записи,
-// minimum — минимальный запас; контекст проверяется до короткого Statfs.
+// DiskCheck creates the readiness probe for the configured storage free-space reserve.
+//
+// Parameters:
+//   - path: Validated local filesystem or object path.
+//   - minimum: Minimum required free storage in bytes.
+//
+// Returns:
+//   - result 1: The resulting check.
 func DiskCheck(path string, minimum uint64) Check {
 	return func(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {

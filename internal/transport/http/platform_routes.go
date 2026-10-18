@@ -7,13 +7,14 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/conferences"
 )
 
-// RegisterPlatformRoutes регистрирует HTTP-маршруты соответствующего сценария и подключает авторизацию и ограничения запросов.
+// RegisterPlatformRoutes registers the platform endpoints with the supplied authentication and
+// request middleware.
 //
-// @args
-//   - router (gin.IRouter): значение router типа gin.IRouter, используемое согласно назначению этой операции.
-//   - auth (*authapp.Handler): значение auth типа *authapp.Handler, используемое согласно назначению этой операции.
-//   - conference (*conferencesapp.Handler): конференция либо её идентификатор, ограничивающий область операции.
-//   - authentication (gin.HandlerFunc): значение authentication типа gin.HandlerFunc, используемое согласно назначению этой операции.
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - auth: Authentication middleware or account handler dependency.
+//   - conference: Conference HTTP handler whose endpoints are being registered.
+//   - authentication: Middleware that resolves the authenticated account identity.
 func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conference *conferencesapp.Handler, authentication gin.HandlerFunc) {
 	public := router.Group(APIV1Prefix + "/auth")
 	public.POST("/register", auth.Register)
@@ -49,18 +50,20 @@ func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conferenc
 	conferenceRoutes.GET("/:id/history", conference.History)
 	router.GET(APIV1Prefix+"/me/conferences", authentication, conference.Timeline)
 
-	// Отдельный префикс предотвращает конфликт шаблонов :id/:inviteCode и открывает только ограниченное представление.
+	// A separate prefix avoids conflicting :id and :inviteCode route templates and exposes only a
+	// limited invitation view.
 	invites := router.Group(APIV1Prefix + "/conference-invites")
 	invites.GET("/:code", conference.LookupInvite)
 	invites.POST("/:code/join", authentication, conference.JoinInvite)
 }
 
-// RegisterControlRoutes регистрирует HTTP-маршруты соответствующего сценария и подключает авторизацию и ограничения запросов.
+// RegisterControlRoutes registers the control endpoints with the supplied authentication and
+// request middleware.
 //
-// @args
-//   - router (gin.IRouter): значение router типа gin.IRouter, используемое согласно назначению этой операции.
-//   - handler (*conferencesapp.ControlHandler): обработчик вызываемой команды или маршрута.
-//   - authentication (gin.HandlerFunc): значение authentication типа gin.HandlerFunc, используемое согласно назначению этой операции.
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - handler: Callback responsible for processing the scoped operation.
+//   - authentication: Middleware that resolves the authenticated account identity.
 func RegisterControlRoutes(router gin.IRouter, handler *conferencesapp.ControlHandler, authentication gin.HandlerFunc) {
 	routes := router.Group(APIV1Prefix+"/conferences", authentication)
 	routes.PUT("/:id/participants/me/media", handler.Media)

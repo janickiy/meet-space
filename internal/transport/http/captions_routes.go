@@ -7,8 +7,14 @@ import (
 	"time"
 )
 
-// RegisterCaptionRoutes защищает чтение и ограничивает частоту переключения платного распознавания.
-// @args router — HTTP; handler — сценарии; auth — JWT; limiter — общая Redis квота.
+// RegisterCaptionRoutes registers the caption endpoints with the supplied authentication and
+// request middleware.
+//
+// Parameters:
+//   - router: HTTP router on which the component endpoints are registered.
+//   - handler: Callback responsible for processing the scoped operation.
+//   - auth: Authentication middleware or account handler dependency.
+//   - limiter: Shared request-rate limiter.
 func RegisterCaptionRoutes(router gin.IRouter, handler *app.Handler, auth gin.HandlerFunc, limiter middleware.Limiter) {
 	base := APIV1Prefix + "/conferences/:id/captions"
 	limited := middleware.RateLimit(limiter, middleware.RateLimitConfig{Enabled: limiter != nil, Rules: []middleware.Rule{{Method: "PUT", Path: base, Scope: "live_caption_control", Limit: 6, Window: time.Minute, Key: func(c *gin.Context) string { return middleware.UserID(c) }}}})

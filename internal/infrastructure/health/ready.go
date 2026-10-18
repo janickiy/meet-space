@@ -1,4 +1,4 @@
-// Пакет health проверяет готовность доверенных внутренних сервисов без раскрытия адресов.
+// Package health checks trusted internal dependency readiness without exposing addresses.
 package health
 
 import (
@@ -8,12 +8,20 @@ import (
 	"time"
 )
 
-// HTTPReady обращается к заданному внутреннему маршруту готовности без прокси и перенаправлений.
+// HTTPReady calls the configured internal readiness endpoint without proxies or redirects.
 type HTTPReady struct {
 	url    string
 	client *http.Client
 }
 
+// NewHTTPReady constructs the HTTP ready with the dependencies and limits required for
+// dependency readiness.
+//
+// Parameters:
+//   - baseURL: Operator-configured base URL of the dependency.
+//
+// Returns:
+//   - result 1: The constructed or loaded HTTP ready.
 func NewHTTPReady(baseURL string) *HTTPReady {
 	return &HTTPReady{url: strings.TrimRight(baseURL, "/") + "/health/ready", client: &http.Client{
 		Timeout:       1500 * time.Millisecond,
@@ -22,6 +30,14 @@ func NewHTTPReady(baseURL string) *HTTPReady {
 	}}
 }
 
+// Ready reports whether the component or configured dependency is currently usable.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (h *HTTPReady) Ready(ctx context.Context) bool {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url, nil)
 	if err != nil {
@@ -35,4 +51,5 @@ func (h *HTTPReady) Ready(ctx context.Context) bool {
 	return response.StatusCode == http.StatusOK
 }
 
+// Close closes the component-owned resources and ends their lifecycle.
 func (h *HTTPReady) Close() { h.client.CloseIdleConnections() }

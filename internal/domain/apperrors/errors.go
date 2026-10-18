@@ -14,19 +14,24 @@ var (
 	ErrInternal     = errors.New("internal")
 )
 
-// Error связывает категорию прикладной ошибки с безопасным сообщением для клиента.
-// Kind определяет категорию, Message — публичный текст, Cause — диагностическую
-// причину, которую Error() не раскрывает.
+// Error binds an application category to a safe client message. Kind is the category, Message is
+// public text and Cause is the diagnostic error that Error() does not disclose.
 type Error struct {
 	Kind    error
 	Message string
 	Cause   error
 }
 
-// Error возвращает текст ошибки без раскрытия внутренних диагностических данных.
+// Error returns the error text required by the error interface.
+//
+// Returns:
+//   - result 1: Error text exposed by this error implementation.
 func (e *Error) Error() string { return e.Message }
 
-// Unwrap возвращает Cause, а при её отсутствии — Kind для errors.Is и errors.As.
+// Unwrap returns the underlying cause so errors.Is and errors.As can inspect it.
+//
+// Returns:
+//   - result 1: The wrapped diagnostic cause, retained for errors.Is and errors.As inspection.
 func (e *Error) Unwrap() error {
 	if e.Cause != nil {
 		return e.Cause
@@ -35,14 +40,38 @@ func (e *Error) Unwrap() error {
 }
 
 // Is preserves the application category independently of the diagnostic cause.
+//
+// Parameters:
+//   - target: Target state, account or decoded value, as defined by its type.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (e *Error) Is(target error) bool { return errors.Is(e.Kind, target) }
 
 // Wrap retains a diagnostic cause without exposing it through Error().
+//
+// Parameters:
+//   - kind: Application error category used for errors.Is matching and transport classification.
+//   - cause: Underlying error that caused the operation to fail.
+//   - message: Safe public error message that excludes the underlying diagnostic cause.
+//
+// Returns:
+//   - result 1: The constructed application error with its safe public message and preserved
+//     category or cause.
 func Wrap(kind, cause error, message string) error {
 	return &Error{Kind: kind, Message: message, Cause: cause}
 }
 
-// New создаёт прикладную ошибку с категорией и безопасным сообщением.
+// New creates an application error with its category and safe public message.
+//
+// Parameters:
+//   - kind: Application error category used for errors.Is matching and transport classification.
+//   - message: Safe public error message that excludes the underlying diagnostic cause.
+//
+// Returns:
+//   - result 1: The constructed application error with its safe public message and preserved
+//     category or cause.
 func New(kind error, message string) error { return &Error{Kind: kind, Message: message} }
 
 // Category is independent of transport status codes and human error messages.
@@ -62,6 +91,12 @@ const (
 
 // Classify only promotes explicit application errors. A raw deadline/DB failure
 // stays Internal until its owning operation deliberately classifies it.
+//
+// Parameters:
+//   - err: Error to classify, wrap or report safely.
+//
+// Returns:
+//   - result 1: The resulting category.
 func Classify(err error) Category {
 	var applicationError *Error
 	if errors.As(err, &applicationError) {

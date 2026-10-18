@@ -9,18 +9,32 @@ import (
 	"gorm.io/gorm"
 )
 
-// JobRepository хранит независимую продуктовую очередь; медиакоманды RabbitMQ не изменяются.
+// JobRepository stores the independent product queue without changing RabbitMQ media commands.
 type JobRepository struct{ db *gorm.DB }
 
-// NewJobRepository связывает очередь с существующим ограниченным пулом PostgreSQL.
-// @args db — подключение к базе с настроенными таймаутами.
-// @return репозиторий фоновых заданий.
+// NewJobRepository constructs the job repository with the dependencies and limits required for
+// job.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded job repository.
 func NewJobRepository(db *gorm.DB) *JobRepository { return &JobRepository{db: db} }
 
-// Claim атомарно получает одно задание, не ожидая блокировок другого работника.
-// Последний просроченный захват допускает фиксацию окончательного отказа, но не вызов провайдера.
-// @args ctx — предел SQL; kind — фиксированная категория; lease — срок владения.
-// @return задание, признак наличия работы и ошибка базы.
+// Claim atomically acquires the current job lease or ownership record.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - kind: Validated event, job, media or resource category.
+//   - lease: Current lease identity used to fence stale workers.
+//
+// Returns:
+//   - result 1: The resulting job.
+//   - result 2: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 3: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *JobRepository) Claim(ctx context.Context, kind string, lease time.Duration) (jobs.Job, bool, error) {
 	var job jobs.Job
 	result := r.db.WithContext(ctx).Raw(`UPDATE background_jobs SET state='processing',attempts=attempts+1,
@@ -31,10 +45,18 @@ func (r *JobRepository) Claim(ctx context.Context, kind string, lease time.Durat
 	return job, result.RowsAffected != 0, result.Error
 }
 
-// Finish фиксирует результат с проверкой актуальности UUID аренды и её срока.
-// @args ctx — срок записи; job — захваченная версия; state/code — безопасный исход;
-// retryAt — время следующей попытки либо nil для окончательного завершения.
-// @return ошибка SQL или ErrLeaseLost, если владение уже прекратилось.
+// Finish records completion of the leased job operation.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - job: Leased background job and its generation or ownership token.
+//   - state: Current state or validated state update.
+//   - code: Bounded public status or failure code.
+//   - retryAt: Next eligible retry time; nil means no scheduled retry.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *JobRepository) Finish(ctx context.Context, job jobs.Job, state, code string, retryAt *time.Time) error {
 	query := `UPDATE background_jobs SET state=?,error_code=NULLIF(?,''),updated_at=clock_timestamp(),
         lease_token=NULL,lease_until=NULL,finished_at=clock_timestamp()
@@ -56,9 +78,15 @@ func (r *JobRepository) Finish(ctx context.Context, job jobs.Job, state, code st
 	return nil
 }
 
-// Counts читает размер очереди по ограниченному набору категорий без содержимого заданий.
-// @args ctx — общий срок SQL-запроса.
-// @return агрегаты очереди и ошибка базы.
+// Counts returns the bounded queue-state counts used by operational monitoring.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: The collected count values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *JobRepository) Counts(ctx context.Context) ([]jobs.Count, error) {
 	items := []jobs.Count{}
 	err := r.db.WithContext(ctx).Raw(`SELECT kind,state,count(*) AS count FROM background_jobs

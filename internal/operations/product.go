@@ -8,9 +8,14 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/jobs"
 )
 
-// productKind допускает только категории, заданные исходным кодом, а не пользовательскими данными.
-// @args kind — технический вид задания.
-// @return признак принадлежности ограниченному набору меток.
+// productKind maps a product job kind to the bounded label used by operational metrics.
+//
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func productKind(kind string) bool {
 	switch kind {
 	case "integrations.conference", "integrations.event", "integrations.delivery", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate":
@@ -19,8 +24,12 @@ func productKind(kind string) bool {
 	return false
 }
 
-// Product учитывает исход и продолжительность законченной попытки отдельного worker.
-// @args kind — фиксированная категория; outcome — безопасное состояние; duration — время работы.
+// Product records the bounded outcome of a product background-job category.
+//
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
+//   - outcome: Fixed operational outcome label.
+//   - duration: Duration or validity window used by the operation.
 func Product(kind, outcome string, duration time.Duration) {
 	if !productKind(kind) {
 		return
@@ -36,8 +45,12 @@ func Product(kind, outcome string, duration time.Duration) {
 	}
 }
 
-// ProductQueue обновляет снимок очереди; идентификаторы сущностей, пользователей и URL провайдеров не становятся метками.
-// @args kind — фиксированная категория; state — queued/processing/failed; count — число заданий.
+// ProductQueue updates the bounded queue-depth metrics for a fixed product-job category.
+//
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
+//   - state: Current state or validated state update.
+//   - count: Expected or maximum number of items.
 func ProductQueue(kind, state string, count int64) {
 	if !productKind(kind) || (state != "queued" && state != "processing" && state != "failed") {
 		return
@@ -47,9 +60,13 @@ func ProductQueue(kind, state string, count int64) {
 	}
 }
 
-// ProviderCall учитывает реальную попытку адаптера без содержимого и идентификаторов встречи.
-// @args provider — один из пяти фиксированных каналов; duration — длительность;
-// err — классифицированная ошибка, текст которой не становится меткой или журналом.
+// ProviderCall records a provider-call outcome using fixed technical labels rather than private
+// request data.
+//
+// Parameters:
+//   - provider: Operator-selected provider identifier or fixed technical provider label.
+//   - duration: Duration or validity window used by the operation.
+//   - err: Error to classify, wrap or report safely.
 func ProviderCall(provider string, duration time.Duration, err error) {
 	switch provider {
 	case "email", "push", "calendar", "stt", "ai", "embedding", "live_stt":
@@ -83,8 +100,12 @@ func ProviderCall(provider string, duration time.Duration, err error) {
 	}
 }
 
-// Search учитывает время запроса и безопасный класс ответа без поисковой строки.
-// @args duration — полное время обработчика; failed — признак HTTP-отказа.
+// Search records search latency and a bounded success or failure label without retaining the
+// query text.
+//
+// Parameters:
+//   - duration: Duration or validity window used by the operation.
+//   - failed: Whether the bounded operation failed.
 func Search(duration time.Duration, failed bool) {
 	outcome := "success"
 	if failed {

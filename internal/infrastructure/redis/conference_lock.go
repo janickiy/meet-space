@@ -31,29 +31,38 @@ end
 return 0
 `)
 
-// ConferenceLock управляет Redis-блокировкой одной активной записи на конференцию.
-//   - client: клиент внешнего сервиса или транспорта компонента.
-//   - ttl: срок жизни сохраняемого значения или выданного разрешения.
+// ConferenceLock maintains the Redis lock for one active recording per conference.
 type ConferenceLock struct {
 	client *goredis.Client
 	ttl    time.Duration
 }
 
-// NewConferenceLock создаёт блокировку Redis для conferenceId.
-// @args
-// - client: клиент Redis.
-// - ttl: срок жизни lock-а.
-// @return ConferenceLock.
+// NewConferenceLock constructs the conference lock with the dependencies and limits required for
+// distributed presence and ownership.
+//
+// Parameters:
+//   - client: Browser media-client identity or transport dependency, as defined by its type.
+//   - ttl: Lifetime assigned to the temporary value or ownership record.
+//
+// Returns:
+//   - result 1: The constructed or loaded conference lock.
 func NewConferenceLock(client *goredis.Client, ttl time.Duration) *ConferenceLock {
 	return &ConferenceLock{client: client, ttl: ttl}
 }
 
-// Acquire пытается установить блокировку conferenceId со значением recordId.
-// @args
-// - ctx: контекст операции.
-// - conferenceID: UUID конференции.
-// - recordID: UUID записи-владельца lock-а.
-// @return true, если блокировка успешно установлена.
+// Acquire atomically acquires a conference recording lock with the specified recording as its
+// owner.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - recordID: External recording UUID.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (l *ConferenceLock) Acquire(ctx context.Context, conferenceID string, recordID string) (bool, error) {
 	if l == nil || l.client == nil {
 		return true, nil
@@ -70,12 +79,16 @@ func (l *ConferenceLock) Acquire(ctx context.Context, conferenceID string, recor
 	return result == 1, nil
 }
 
-// Release снимает lock только если им владеет текущая запись.
-// @args
-// - ctx: контекст операции.
-// - conferenceID: UUID конференции.
-// - recordID: UUID записи-владельца lock-а.
-// @return ошибку Redis.
+// Release releases only the redis resource owned by the matching operation or token.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - conferenceID: Conference identifier limiting the operation scope.
+//   - recordID: External recording UUID.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (l *ConferenceLock) Release(ctx context.Context, conferenceID string, recordID string) error {
 	if l == nil || l.client == nil || strings.TrimSpace(conferenceID) == "" || strings.TrimSpace(recordID) == "" {
 		return nil
@@ -87,13 +100,13 @@ func (l *ConferenceLock) Release(ctx context.Context, conferenceID string, recor
 	return nil
 }
 
-// lockKey строит Redis-ключ блокировки одной конференции.
+// lockKey builds the namespaced Redis key for a conference recording lock.
 //
-// @args
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// Parameters:
+//   - conferenceID: Conference identifier limiting the operation scope.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: Namespaced conference recording-lock key.
 func lockKey(conferenceID string) string {
 	return conferenceLockPrefix + strings.TrimSpace(conferenceID) + ":lock"
 }

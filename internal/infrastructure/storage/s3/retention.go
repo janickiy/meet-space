@@ -11,6 +11,14 @@ import (
 
 // recordingPrefixes derives narrow namespaces from canonical UUIDs, never from
 // an arbitrary stored object key. This excludes chat attachments and other rooms.
+//
+// Parameters:
+//   - record: Recording and its persisted lifecycle metadata.
+//
+// Returns:
+//   - result 1: The collected string values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func recordingPrefixes(record records.Record) ([]string, error) {
 	rid, err := uuid.Parse(record.UUID)
 	if err != nil || rid.String() != record.UUID {
@@ -29,6 +37,14 @@ func recordingPrefixes(record records.Record) ([]string, error) {
 
 // RemoveRecording removes every artifact generation, including historical object
 // versions. Missing objects are safe on retry; listing/deletion failures propagate.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - record: Recording and its persisted lifecycle metadata.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (c *Client) RemoveRecording(ctx context.Context, record records.Record) error {
 	if record.StorageBucket != nil && *record.StorageBucket != c.bucket {
 		return fmt.Errorf("recording storage bucket mismatch")

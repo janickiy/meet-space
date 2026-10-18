@@ -8,19 +8,48 @@ import (
 	"gorm.io/gorm"
 )
 
-// PlatformRepository читает глобальные полномочия и операционные данные без приватного содержимого.
+// PlatformRepository reads global privileges and operational aggregates without private user
+// content.
 type PlatformRepository struct{ db *gorm.DB }
 
+// NewPlatformRepository constructs the platform repository with the dependencies and limits
+// required for read-only product capabilities and operational status.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//
+// Returns:
+//   - result 1: The constructed or loaded platform repository.
 func NewPlatformRepository(db *gorm.DB) *PlatformRepository { return &PlatformRepository{db: db} }
 
-// IsAdmin проверяет текущие сохранённые полномочия, поэтому отзыв роли лишает доступа и с действующим JWT.
+// IsAdmin checks the configured administrative identity without exposing the administrator
+// configuration.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - userID: Acting account identifier used to scope access.
+//
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PlatformRepository) IsAdmin(ctx context.Context, userID string) (bool, error) {
 	var allowed bool
 	err := r.db.WithContext(ctx).Raw(`SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND is_admin)`, userID).Scan(&allowed).Error
 	return allowed, err
 }
 
-// Summary читает ограниченные агрегаты и недавние безопасные коды сбоев, без полезной нагрузки и содержимого.
+// Summary returns bounded administrator-only operational aggregates and safe failure codes
+// without user content.
+//
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//
+// Returns:
+//   - result 1: The resulting summary.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (r *PlatformRepository) Summary(ctx context.Context) (platform.Summary, error) {
 	var counts struct {
 		ActiveConferences       int64 `gorm:"column:active_conferences"`
@@ -67,7 +96,14 @@ func (r *PlatformRepository) Summary(ctx context.Context) (platform.Summary, err
 	return value, nil
 }
 
-// safeOperationCode не позволяет некорректному сохранённому значению стать произвольным сообщением интерфейса.
+// safeOperationCode bounds an operational status code before exposing it in an administrator
+// response.
+//
+// Parameters:
+//   - value: Value to validate, normalize or convert.
+//
+// Returns:
+//   - result 1: Allowlisted bounded operational status code.
 func safeOperationCode(value string) string {
 	if len(value) == 0 || len(value) > 64 {
 		return "failed"

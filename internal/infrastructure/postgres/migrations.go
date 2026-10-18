@@ -14,14 +14,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// migration хранит неизменяемый файл и контрольную сумму его точных байтов.
+// migration contains an immutable migration file and the checksum of its exact bytes.
 type migration struct {
 	name, checksum, sql string
 }
 
-// migrationFiles читает упорядоченный набор SQL и отклоняет пустую поставку.
-// @args dir — каталог миграций из проверенного артефакта.
-// @return файлы либо ошибка чтения; SQL и пути подключения в ошибку не включаются.
+// migrationFiles loads ordered migration definitions and their checksums.
+//
+// Parameters:
+//   - dir: Validated local directory.
+//
+// Returns:
+//   - result 1: The collected migration values.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func migrationFiles(dir string) ([]migration, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "*.up.sql"))
 	if err != nil || len(paths) == 0 {
@@ -42,9 +48,16 @@ func migrationFiles(dir string) ([]migration, error) {
 	return files, nil
 }
 
-// RunStartupMigrations применяет миграции в разработке или проверяет журнал релиза.
-// @args db — подключение; dir — каталог; AUTO_MIGRATE=false запрещает DDL при запуске.
-// @return ошибка неизвестного значения настройки, несовпадения или неприменённой миграции.
+// RunStartupMigrations starts startup migrations with the configured dependencies and propagates
+// startup or shutdown failures.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//   - dir: Validated local directory.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func RunStartupMigrations(db *gorm.DB, dir string) error {
 	automatic := true
 	if value := os.Getenv("AUTO_MIGRATE"); value != "" {
@@ -66,10 +79,15 @@ func RunStartupMigrations(db *gorm.DB, dir string) error {
 	return verifyMigrations(db.WithContext(ctx), files)
 }
 
-// verifyMigrations проверяет все известные этому артефакту миграции без DDL.
-// Более новые записи допускаются: совместимость отката отдельно проверяет оператор.
-// @args db — подключение со сроком; files — ожидаемые имена и суммы.
-// @return ошибка отсутствия журнала, файла или изменения уже применённого SQL.
+// verifyMigrations compares the applied migration ledger with the checked-in migration files.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//   - files: Ordered migration or artifact files included in this operation.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func verifyMigrations(db *gorm.DB, files []migration) error {
 	var rows []struct{ Name, Checksum string }
 	if err := db.Table("release_schema_migrations").Select("name, checksum").Find(&rows).Error; err != nil {
@@ -91,12 +109,16 @@ func verifyMigrations(db *gorm.DB, files []migration) error {
 	return nil
 }
 
-// RunMigrations последовательно применяет новые SQL-файлы и фиксирует их суммы.
-// Существующая БД без журнала проходит прежние идемпотентные миграции один раз;
-// запись появляется только после успешного SQL, слепое заполнение журнала запрещено.
-// Все изменения атомарны, параллельные исполнители сериализуются advisory-lock.
-// @args db — GORM-подключение; dir — каталог миграций релизного артефакта.
-// @return ошибка чтения, изменения применённого файла, блокировки или выполнения.
+// RunMigrations starts migrations with the configured dependencies and propagates startup or
+// shutdown failures.
+//
+// Parameters:
+//   - db: Database handle used for the operation or transaction.
+//   - dir: Validated local directory.
+//
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func RunMigrations(db *gorm.DB, dir string) error {
 	files, err := migrationFiles(dir)
 	if err != nil {

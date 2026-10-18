@@ -15,46 +15,13 @@ import (
 	pion "github.com/pion/webrtc/v4"
 )
 
-// outboundEvent передаёт событие пира в ограниченную очередь исходящей сигнализации.
-//   - kind: тип события, ошибки или медиа, определяющий ветку обработки.
-//   - data: полезная нагрузка события или байты обрабатываемого содержимого.
+// outboundEvent carries a peer event through the bounded outgoing signaling queue.
 type outboundEvent struct {
 	kind string
 	data any
 }
 
-// peer хранит физическое WebRTC-соединение, сигнализацию, политику и подписки участника.
-// @params
-//   - id: идентификатор обрабатываемого ресурса.
-//   - binding: проверенная идентичность медиа-подключения, назначенная сервером.
-//   - manager: значение manager типа *Manager, используемое согласно назначению этой операции.
-//   - room: значение room типа *room, используемое согласно назначению этой операции.
-//   - pc: значение pc типа *pion.PeerConnection, используемое согласно назначению этой операции.
-//   - ctx: контекст отмены, дедлайна и времени жизни операции.
-//   - cancel: отмена контекста, завершающая принадлежащие ресурсу операции.
-//   - negotiation: значение negotiation типа sync.Mutex, используемое согласно назначению этой операции.
-//   - offers: значение offers типа sync.Mutex, используемое согласно назначению этой операции.
-//   - mu: блокировка согласованного доступа к разделяемому состоянию.
-//   - closing: логический признак closing, управляющий соответствующей веткой обработки.
-//   - publications: индекс значений publications для поиска и согласования состояния.
-//   - subscriptions: индекс значений subscriptions для поиска и согласования состояния.
-//   - events: получатель или издатель событий прикладного сценария.
-//   - notify: канал «notify» для передачи данных или завершения ожидания.
-//   - revision: значение revision типа atomic.Uint64, используемое согласно назначению этой операции.
-//   - wg: счётчик принадлежащих компоненту фоновых горутин для ожидания завершения.
-//   - closeOnce: значение closeOnce типа sync.Once, используемое согласно назначению этой операции.
-//   - stopRequested: значение stopRequested типа atomic.Bool, используемое согласно назначению этой операции.
-//   - allowedSources: индекс значений allowedSources для поиска и согласования состояния.
-//   - receivers: индекс значений receivers для поиска и согласования состояния.
-//   - suspendedSources: индекс значений suspendedSources для поиска и согласования состояния.
-//   - offeredTrackIDs: идентификаторы связанных ресурсов для пакетной операции.
-//   - pendingRemoteICE: набор значений pendingRemoteICE для последовательной или пакетной обработки.
-//   - remoteICECount: значение remoteICECount типа int, используемое согласно назначению этой операции.
-//   - ready: значение ready типа atomic.Bool, используемое согласно назначению этой операции.
-//   - forwarding: значение forwarding типа sync.RWMutex, используемое согласно назначению этой операции.
-//   - pendingSubscriptions: набор значений pendingSubscriptions для последовательной или пакетной обработки.
-//   - negotiationID: идентификатор связанного ресурса, заданного параметром negotiationID.
-//   - pendingReadyAt: временная отметка pendingReadyAt; указатель допускает отсутствие значения.
+// peer owns a physical WebRTC connection, signaling state, participant policy and subscriptions.
 type peer struct {
 	id      string
 	binding media.Binding
@@ -63,10 +30,10 @@ type peer struct {
 	pc      *pion.PeerConnection
 	ctx     context.Context
 	cancel  context.CancelFunc
-	// negotiation сериализует все операции AddTrack/RemoveTrack и согласование SDP.
+	// negotiation serializes AddTrack, RemoveTrack and SDP negotiation.
 	negotiation sync.Mutex
-	// offers защищает очистку публикации без удержания negotiation при работе с отправителями
-	// других соединений, что предотвращает взаимоблокировки между соединениями.
+	// offers protects publication cleanup without holding negotiation while touching other peers'
+	// senders, preventing cross-peer deadlocks.
 	offers               sync.Mutex
 	mu                   sync.Mutex
 	closing              bool
@@ -78,37 +45,37 @@ type peer struct {
 	wg                   sync.WaitGroup
 	closeOnce            sync.Once
 	stopRequested        atomic.Bool
-	failed               atomic.Bool // исключает двойной учёт ошибки callback-ом и watchdog-ом
-	classified           atomic.Bool // маршрут ICE учитывается один раз для физического подключения
+	failed               atomic.Bool // Prevents the callback and watchdog from counting the same failure twice.
+	classified           atomic.Bool // Count the ICE route once per physical connection.
 	allowedSources       map[string]media.Source
 	receivers            map[string]*receiver
 	suspendedSources     map[string]string
 	offeredTrackIDs      map[string]string
-	pendingRemoteICE     []pion.ICECandidateInit // защищено negotiation
-	remoteICECount       int                     // защищено negotiation; число ограничено для данного PeerConnection
+	pendingRemoteICE     []pion.ICECandidateInit // Protected by negotiation.
+	remoteICECount       int                     // Protected by negotiation; bounded per PeerConnection.
 	ready                atomic.Bool
-	forwarding           sync.RWMutex    // защищает изменения готовности от параллельных записей RTP
-	pendingSubscriptions []*subscription // точный набор из ответа, защищённый negotiation
-	negotiationID        string          // защищено mu
-	pendingReadyAt       time.Time       // защищено mu
+	forwarding           sync.RWMutex    // Protects readiness changes against concurrent RTP writes.
+	pendingSubscriptions []*subscription // Exact negotiated answer set; protected by negotiation.
+	negotiationID        string          // Protected by mu.
+	pendingReadyAt       time.Time       // Protected by mu.
 }
 
-// view собирает внешний снимок текущего состояния без раскрытия внутренних ресурсов.
+// view builds the public, member-specific view of the stored resource.
 //
-// @return:
-//   - результат 1 (media.PeerView): значение, подготовленное операцией для вызывающей стороны.
+// Returns:
+//   - result 1: The resulting peer view.
 func (p *peer) view() media.PeerView {
 	return media.PeerView{MediaPeerID: p.id, ConferenceID: p.binding.ConferenceID, ParticipantID: p.binding.ParticipantID, SessionID: p.binding.SessionID, ConnectionID: p.binding.ConnectionID}
 }
 
-// start запускает обработку ресурсов компонента и подготавливает связанные ресурсы.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// start starts the peer-owned background processing and prepares its transport callbacks.
 //
-// @args
-//   - fn (func()): вызываемый обработчик «fn» с контрактом, указанным в типе.
+// Parameters:
+//   - fn: Callback executed within the component-owned lifecycle.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// Returns:
+//   - result 1: Whether the operation's documented condition holds or its conditional state
+//     change succeeded.
 func (p *peer) start(fn func()) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -120,8 +87,7 @@ func (p *peer) start(fn func()) bool {
 	return true
 }
 
-// install устанавливает обработчики Pion для сигнализации и изменений дорожек.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// install installs Pion callbacks for signaling, transport changes and incoming tracks.
 func (p *peer) install() {
 	p.start(p.emitLoop)
 	p.start(p.negotiationNotifications)
@@ -193,18 +159,14 @@ func (p *peer) install() {
 	})
 }
 
-// markFailure отмечает сбой физического подключения ровно один раз. Аргументов
-// нет; нормальный выход после stopRequested не считается аварией. Метод нужен
-// и обработчику Pion, и сторожевому таймеру, который может закрыть соединение в состоянии disconnected до перехода в failed.
+// markFailure records a terminal peer failure and starts the peer cleanup path.
 func (p *peer) markFailure() {
 	if !p.stopRequested.Load() && p.failed.CompareAndSwap(false, true) {
 		p.manager.failures.Add(1)
 	}
 }
 
-// classifyTransport учитывает выбранную ICE-пару без адресов и идентификаторов
-// в метриках. Аргументов нет; relay означает TURN на любой стороне пары, direct
-// объединяет host/srflx/prflx. Повторный connected не дублирует физическое соединение.
+// classifyTransport maps a transport error to the bounded media error classification.
 func (p *peer) classifyTransport() {
 	for _, receiver := range p.pc.GetReceivers() {
 		transport := receiver.Transport()
@@ -226,11 +188,11 @@ func (p *peer) classifyTransport() {
 	}
 }
 
-// emit формирует и передаёт исходящее событие через принадлежащий компоненту канал доставки.
+// emit sends a trusted lifecycle event through the component-owned bounded delivery path.
 //
-// @args
-//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
-//   - data (any): полезная нагрузка события или байты обрабатываемого содержимого.
+// Parameters:
+//   - kind: Validated event, job, media or resource category.
+//   - data: Input bytes or structured event payload.
 func (p *peer) emit(kind string, data any) {
 	select {
 	case <-p.ctx.Done():
@@ -244,14 +206,14 @@ func (p *peer) emit(kind string, data any) {
 	}
 }
 
-// stopAsync запускает остановку пира без блокировки вызывающего обработчика.
+// stopAsync starts peer teardown without blocking a transport callback.
 func (p *peer) stopAsync() {
 	if p.stopRequested.CompareAndSwap(false, true) {
 		go func() { _ = p.manager.Leave(context.Background(), p.id) }()
 	}
 }
 
-// emitLoop последовательно доставляет события пира из ограниченной очереди.
+// emitLoop delivers queued peer events without blocking the media callback that produced them.
 func (p *peer) emitLoop() {
 	for {
 		select {
@@ -265,7 +227,7 @@ func (p *peer) emitLoop() {
 	}
 }
 
-// changed сообщает зависимым обработчикам об изменении локального или сохранённого состояния.
+// changed notifies the component observer after local or persisted state changes.
 func (p *peer) changed() {
 	p.revision.Add(1)
 	select {
@@ -274,11 +236,10 @@ func (p *peer) changed() {
 	}
 }
 
-// tracks собирает снимок дорожек, доступных текущему пиру.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// tracks builds a snapshot of the media tracks visible to the current peer.
 //
-// @return:
-//   - результат 1 ([]media.Track): собранные элементы результата; состав ограничивается параметрами операции.
+// Returns:
+//   - result 1: The collected track values.
 func (p *peer) tracks() []media.Track {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -289,15 +250,15 @@ func (p *peer) tracks() []media.Track {
 	return tracks
 }
 
-// negotiationNotifications уведомляет о необходимости повторного согласования WebRTC при изменении подписок.
+// negotiationNotifications coalesces track changes into bounded peer-negotiation notifications.
 func (p *peer) negotiationNotifications() {
 	for {
 		select {
 		case <-p.ctx.Done():
 			return
 		case <-p.notify:
-			// Объединение уведомлений — лишь оптимизация. Ревизия растёт монотонно, и каждое
-			// изменение во время незавершённого предложения оставляет новое ожидающее уведомление.
+			// Notification coalescing is only an optimization. Revision increases monotonically; every
+			// change during a pending offer leaves a new notification pending.
 			timer := time.NewTimer(30 * time.Millisecond)
 			select {
 			case <-p.ctx.Done():
@@ -316,8 +277,7 @@ func (p *peer) negotiationNotifications() {
 	}
 }
 
-// close закрывает принадлежащие компоненту ресурсы и завершает связанный жизненный цикл.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// close closes the component-owned resources and ends their lifecycle.
 func (p *peer) close() {
 	p.closeOnce.Do(func() {
 		p.mu.Lock()
@@ -332,8 +292,8 @@ func (p *peer) close() {
 		}
 		p.mu.Unlock()
 		p.cancel()
-		// Первым закрываем транспорт, освобождая все чтения RTP и RTCP. При закрытии сетевых
-		// транспортов Pion блокировки соединения и комнаты не удерживаются.
+		// Close the transport first to unblock RTP and RTCP reads. Never hold peer or room locks while
+		// closing Pion network transports.
 		_ = p.pc.Close()
 		for _, t := range pubs {
 			p.manager.unpublish(t)
@@ -345,34 +305,35 @@ func (p *peer) close() {
 	})
 }
 
-// Offer обрабатывает или передаёт SDP-предложение действующего WebRTC-подключения.
+// Offer processes an SDP offer for the currently bound WebRTC connection.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - negotiationID (string): идентификатор связанного ресурса, заданного параметром negotiationID.
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - negotiationID: Identifier correlating this offer with its negotiation cycle.
+//   - raw: Untrusted serialized value to decode or validate.
 //
-// @return:
-//   - результат 1 (pion.SessionDescription): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting session description.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (m *Manager) Offer(ctx context.Context, id, negotiationID, raw string) (pion.SessionDescription, error) {
 	return m.OfferSources(ctx, id, negotiationID, raw, nil)
 }
 
-// OfferSources обрабатывает SDP-предложение с привязкой секций к заявленным источникам медиа.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// OfferSources processes an SDP offer with its explicit media-source declarations.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - negotiationID (string): идентификатор связанного ресурса, заданного параметром negotiationID.
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
-//   - publications ([]media.Publication): набор значений publications для последовательной или пакетной обработки.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - negotiationID: Identifier correlating this offer with its negotiation cycle.
+//   - raw: Untrusted serialized value to decode or validate.
+//   - publications: Validated declarations of the peer's media sources.
 //
-// @return:
-//   - результат 1 (pion.SessionDescription): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting session description.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (m *Manager) OfferSources(ctx context.Context, id, negotiationID, raw string, publications []media.Publication) (pion.SessionDescription, error) {
 	if parsed, err := uuid.Parse(negotiationID); err != nil || parsed == uuid.Nil {
 		return pion.SessionDescription{}, media.ErrInvalid
@@ -423,8 +384,8 @@ func (m *Manager) OfferSources(ctx context.Context, id, negotiationID, raw strin
 	}
 	p.forwarding.Lock()
 	p.mu.Lock()
-	// Отправка ответа не доказывает, что получатель применил его. Новые SSRC блокируются
-	// до соответствующего Ready, отправленного после SetRemoteDescription.
+	// Sending an answer does not prove the receiver applied it. Block new SSRCs until the matching
+	// Ready sent after SetRemoteDescription.
 	p.ready.Store(false)
 	p.pendingSubscriptions = nil
 	for _, sub := range p.subscriptions {
@@ -438,8 +399,8 @@ func (m *Manager) OfferSources(ctx context.Context, id, negotiationID, raw strin
 	p.forwarding.Unlock()
 	if err = p.pc.SetRemoteDescription(pion.SessionDescription{Type: pion.SDPTypeOffer, SDP: raw}); err != nil {
 		p.negotiation.Unlock()
-		// Неудачный SetRemoteDescription может частично изменить состояние сигнализации или ICE в Pion.
-		// Транспорт с неопределённым состоянием согласования не сохраняется.
+		// Failed SetRemoteDescription may partially change Pion signaling or ICE state. Do not retain a
+		// transport whose negotiation state is uncertain.
 		p.stopAsync()
 		return pion.SessionDescription{}, media.ErrInvalid
 	}
@@ -476,9 +437,9 @@ func (m *Manager) OfferSources(ctx context.Context, id, negotiationID, raw strin
 	}
 	p.mu.Lock()
 	for _, sub := range p.subscriptions {
-		// SSRC выделяются параметрами отправителя до привязки и не подтверждают согласование.
-		// Защиту применения ответа проходит только основной SSRC, явно объявленный в активной
-		// передающей секции уже применённого ответа.
+		// Sender parameters allocate SSRCs before binding and do not prove negotiation. Only the primary
+		// SSRC explicitly declared in an active sending section of the applied answer passes the
+		// answer-applied gate.
 		parameters := sub.sender.GetParameters()
 		if len(parameters.Encodings) > 0 && declared[uint32(parameters.Encodings[0].SSRC)] && (receiveVideo || sub.source.metadata.Kind != "video") {
 			p.pendingSubscriptions = append(p.pendingSubscriptions, sub)
@@ -486,9 +447,8 @@ func (m *Manager) OfferSources(ctx context.Context, id, negotiationID, raw strin
 	}
 	p.mu.Unlock()
 	p.negotiation.Unlock()
-	// Сверка не выполняется при удержании publisher.negotiation: удаление публикации
-	// также блокирует подписчиков. Два параллельных предложения не должны создавать
-	// взаимоблокировки A → B и B → A.
+	// Never reconcile while holding publisher.negotiation: publication removal also locks
+	// subscribers. Parallel offers must not create A-to-B and B-to-A lock cycles.
 	p.mu.Lock()
 	retire := []*publishedTrack{}
 	for _, t := range p.publications {
@@ -503,16 +463,17 @@ func (m *Manager) OfferSources(ctx context.Context, id, negotiationID, raw strin
 	return result, nil
 }
 
-// Ready принимает подтверждение установки SDP-ответа клиентом и разрешает дорожки только для текущего согласования.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// Ready accepts confirmation that the client applied the SDP answer and enables tracks only for
+// the matching current negotiation.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - negotiationID (string): идентификатор связанного ресурса, заданного параметром negotiationID.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - negotiationID: Identifier correlating this offer with its negotiation cycle.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (m *Manager) Ready(ctx context.Context, id, negotiationID string) error {
 	p, err := m.get(id)
 	if err != nil {
@@ -561,16 +522,16 @@ func (m *Manager) Ready(ctx context.Context, id, negotiationID string) error {
 	return nil
 }
 
-// ICE передаёт проверенного кандидата ICE действующему медиа-соединению.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// ICE applies a validated ICE candidate to the current media connection.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - candidate (*pion.ICECandidateInit): проверенный кандидат ICE для WebRTC-соединения.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - candidate: Candidate session or ICE record to validate before use.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (m *Manager) ICE(ctx context.Context, id string, candidate *pion.ICECandidateInit) error {
 	p, err := m.get(id)
 	if err != nil {
@@ -615,8 +576,8 @@ func (m *Manager) ICE(ctx context.Context, id string, candidate *pion.ICECandida
 		if len(p.pendingRemoteICE) >= 64 {
 			return media.ErrLimit
 		}
-		// Копируем структуру и переданные вызывающей стороной необязательные указатели,
-		// чтобы буфер не сохранял изменяемые объекты HTTP-декодера между запросами.
+		// Copy the structure and caller-owned optional pointers so the buffer cannot retain mutable HTTP
+		// decoder objects between requests.
 		buffered := *candidate
 		if candidate.SDPMid != nil {
 			value := *candidate.SDPMid
@@ -641,16 +602,16 @@ func (m *Manager) ICE(ctx context.Context, id string, candidate *pion.ICECandida
 	return nil
 }
 
-// Unpublish останавливает публикацию указанного медиа-источника.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// Unpublish stops publishing the specified authorized media source.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - trackID (string): идентификатор связанного ресурса, заданного параметром trackID.
+// Parameters:
+//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+//   - id: Identifier of the resource addressed by this operation.
+//   - trackID: Identifier of the published media track.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func (m *Manager) Unpublish(ctx context.Context, id, trackID string) error {
 	p, err := m.get(id)
 	if err != nil {
@@ -675,19 +636,21 @@ func (m *Manager) Unpublish(ctx context.Context, id, trackID string) error {
 	return nil
 }
 
-// validateSourceOffer проверяет соответствие SDP-секций заявленным источникам и действующей политике.
+// validateSourceOffer validates that declared sources match the negotiated SDP and publication
+// limits.
 //
-// @args
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
-//   - maxPeers (int): значение maxPeers типа int, используемое согласно назначению этой операции.
-//   - publications ([]media.Publication): набор значений publications для последовательной или пакетной обработки.
-//   - maxTracks (int): значение maxTracks типа int, используемое согласно назначению этой операции.
-//   - maxAudio (int): значение maxAudio типа int, используемое согласно назначению этой операции.
-//   - maxVideo (int): значение maxVideo типа int, используемое согласно назначению этой операции.
+// Parameters:
+//   - raw: Untrusted serialized value to decode or validate.
+//   - maxPeers: Maximum peers permitted by the room budget.
+//   - publications: Validated declarations of the peer's media sources.
+//   - maxTracks: Maximum media tracks permitted by the publication budget.
+//   - maxAudio: Maximum published audio sources.
+//   - maxVideo: Maximum published video sources.
 //
-// @return:
-//   - результат 1 (map[string]media.Source): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting source.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func validateSourceOffer(raw string, maxPeers int, publications []media.Publication, maxTracks, maxAudio, maxVideo int) (map[string]media.Source, error) {
 	if len(raw) == 0 || len(raw) > media.MaxSDPBytes {
 		return nil, media.ErrInvalid
@@ -707,10 +670,9 @@ func validateSourceOffer(raw string, maxPeers int, publications []media.Publicat
 	if err != nil {
 		return nil, err
 	}
-	// Проверяем встроенные кандидаты до передачи недоверенного SDP в Pion
-	// (иначе Pion может лишь предупредить и проигнорировать неверные значения). Полные
-	// SDP-предложения включают избыточные кандидаты component-2 даже при rtcp-mux;
-	// поштучная передача допускает только component-1, полный SDP — component-1 или component-2.
+	// Validate embedded candidates before passing untrusted SDP to Pion, which might only warn and
+	// ignore invalid values. Full offers may include redundant component-2 candidates with rtcp-mux.
+	// Trickle input permits only component-1; full SDP permits component-1 or component-2.
 	attributes := [][]sdp.Attribute{description.Attributes}
 	for _, section := range description.MediaDescriptions {
 		attributes = append(attributes, section.Attributes)
@@ -810,14 +772,15 @@ func validateSourceOffer(raw string, maxPeers int, publications []media.Publicat
 	return active, nil
 }
 
-// answeredSSRCs извлекает согласованные идентификаторы RTP-источников из SDP-ответа.
+// answeredSSRCs extracts the negotiated media SSRCs, including valid BUNDLE-only sections.
 //
-// @args
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
+// Parameters:
+//   - raw: Untrusted serialized value to decode or validate.
 //
-// @return:
-//   - результат 1 (map[uint32]bool): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// Returns:
+//   - result 1: The resulting map[uint32]bool.
+//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+//     failure.
 func answeredSSRCs(raw string) (map[uint32]bool, error) {
 	var description sdp.SessionDescription
 	if err := description.UnmarshalString(raw); err != nil {

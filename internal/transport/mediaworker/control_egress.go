@@ -10,13 +10,14 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/media"
 )
 
-// serviceCommand обрабатывает доверенную команду модерации или закрытия медиа-комнаты.
+// serviceCommand executes a trusted room moderation or closure command after its identity
+// checks.
 //
-// @args
-//   - w (http.ResponseWriter): получатель HTTP-ответа.
-//   - r (*http.Request): входящий HTTP-запрос.
-//   - operation (string): имя внутренней операции обработки.
-//   - cmd (media.Command): значение cmd типа media.Command, используемое согласно назначению этой операции.
+// Parameters:
+//   - w: Destination HTTP response writer.
+//   - r: Incoming HTTP request.
+//   - operation: Fixed allowlisted provider or protocol operation.
+//   - cmd: Validated internal media command.
 func (h *Handler) serviceCommand(w http.ResponseWriter, r *http.Request, operation string, cmd media.Command) {
 	if !validUUID(cmd.ConferenceID) || !validUUID(cmd.Route.LeaseID) || cmd.Route.WorkerID != h.cfg.WorkerID || cmd.Route.Endpoint != h.cfg.WorkerInternalURL || cmd.MediaPeerID != "" || cmd.SDP != "" || len(cmd.Candidate) > 0 || cmd.Ticket != "" {
 		h.fail(w, media.ErrInvalid)
@@ -46,6 +47,17 @@ func (h *Handler) serviceCommand(w http.ResponseWriter, r *http.Request, operati
 			return
 		}
 		engine, ok := h.engine.(interface {
+			// SetPolicy updates policy for mediaworker.
+			//
+			// Parameters:
+			//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+			//   - argument 2: Conference identifier limiting the operation scope.
+			//   - argument 3: Conference participant identifier.
+			//   - argument 4: Effective server-side media policy.
+			//
+			// Returns:
+			//   - result 1: nil on success; otherwise the validation, access, transport or persistence
+			//     failure.
 			SetPolicy(context.Context, string, string, media.ParticipantPolicy) error
 		})
 		if !ok {
@@ -63,12 +75,12 @@ func (h *Handler) serviceCommand(w http.ResponseWriter, r *http.Request, operati
 	h.json(w, http.StatusOK, media.Result{})
 }
 
-// egress открывает защищённый поток закодированных медиа для общей записи и контролирует владение комнатой.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// egress opens the protected encoded-media stream for a recording while enforcing current room
+// ownership.
 //
-// @args
-//   - w (http.ResponseWriter): получатель HTTP-ответа.
-//   - r (*http.Request): входящий HTTP-запрос.
+// Parameters:
+//   - w: Destination HTTP response writer.
+//   - r: Incoming HTTP request.
 func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 	var req media.EgressRequest
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
@@ -78,6 +90,18 @@ func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	engine, ok := h.engine.(interface {
+		// SubscribeRecording opens a passive bounded subscription to the SFU's encoded media for
+		// recording.
+		//
+		// Parameters:
+		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+		//   - argument 2: Conference identifier limiting the operation scope.
+		//   - argument 3: External recording UUID.
+		//
+		// Returns:
+		//   - result 1: The resulting egress subscription.
+		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+		//     failure.
 		SubscribeRecording(context.Context, string, string) (media.EgressSubscription, error)
 	})
 	if req.Purpose != "" && req.Purpose != "recording" && req.Purpose != "captions" {
@@ -127,6 +151,18 @@ func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 	var sub media.EgressSubscription
 	if req.Purpose == "captions" {
 		if audio, available := h.engine.(interface {
+			// SubscribeAudio opens a separate bounded audio-only subscription without consuming the
+			// recording subscription slot.
+			//
+			// Parameters:
+			//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+			//   - argument 2: Conference identifier limiting the operation scope.
+			//   - argument 3: Persistent or physical session identifier, as defined by the operation.
+			//
+			// Returns:
+			//   - result 1: The resulting egress subscription.
+			//   - result 2: nil on success; otherwise the validation, access, transport or persistence
+			//     failure.
 			SubscribeAudio(context.Context, string, string) (media.EgressSubscription, error)
 		}); available {
 			sub, err = audio.SubscribeAudio(setup, req.ConferenceID, req.RecordingID)
@@ -151,13 +187,7 @@ func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Request-ID", req.RequestID)
 	control := http.NewResponseController(w)
 	encoder := json.NewEncoder(w)
-	// Вложенный обработчик выполняет выделенный шаг обработки в защищённом управлении медиа-комнатой, используя состояние окружающей функции.
-	//
-	// @args
-	//   - frame (media.EgressFrame): значение frame типа media.EgressFrame, используемое согласно назначению этой операции.
-	//
-	// @return:
-	//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+
 	write := func(frame media.EgressFrame) bool {
 		if err := control.SetWriteDeadline(time.Now().Add(h.cfg.OperationTimeout)); err != nil {
 			return false
