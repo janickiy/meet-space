@@ -51,12 +51,10 @@ import (
 	recordingsusecase "github.com/janickiy/meet-space/internal/usecase/recordings"
 )
 
-// RunAPI starts API with the configured dependencies and propagates startup or shutdown
-// failures.
+// RunAPI запускает API с настроенными зависимостями и сообщает о сбоях при запуске или завершении работы.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
 func RunAPI() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -258,13 +256,13 @@ func RunAPI() error {
 	return err
 }
 
-// rateLimitConfig converts application settings into the HTTP rate-limiter configuration.
+// rateLimitConfig преобразует настройки приложения в конфигурацию HTTP-ограничителя скорости.
 //
-// Parameters:
-//   - cfg: Operator-controlled configuration and processing limits.
+// Параметры:
+//   - cfg: управляемая оператором конфигурация и ограничения на обработку.
 //
-// Returns:
-//   - result 1: The resulting rate limit config.
+// Возвращает:
+//   - result 1: результирующая конфигурация ограничения скорости.
 func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 	window := cfg.RateLimitWindow
 	defaultLimit := cfg.RateLimit.DefaultRPM
@@ -295,12 +293,12 @@ func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 	}
 }
 
-// RunMigrations starts migrations with the configured dependencies and propagates startup or
-// shutdown failures.
+// RunMigrations запускает миграции с настроенными зависимостями и распространяет ошибки запуска или
+// завершения работы.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func RunMigrations() error {
 	cfg, err := config.Load()
 	if err != nil {

@@ -27,12 +27,10 @@ import (
 	"github.com/janickiy/meet-space/internal/usecase/recorder"
 )
 
-// RunWorker starts worker with the configured dependencies and propagates startup or shutdown
-// failures.
+// RunWorker запускает воркер с настроенными зависимостями и сообщает о сбоях при запуске или завершении работы.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
 func RunWorker() error {
 	cfg, err := config.Load()
 	if err != nil {

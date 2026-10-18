@@ -5,15 +5,15 @@ import (
 	"math"
 )
 
-// AudioActive classifies whether a PCM audio frame contains activity above the configured
-// detection threshold.
+// AudioActive определяет, содержит ли аудиокадр PCM активность, превышающую заданный порог обнаружения
+// .
 //
-// Parameters:
-//   - pcm: Input bytes consumed by this operation.
+// Параметры:
+// - pcm: входные байты, потребляемые этой операцией.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращает:
+// - результат 1: Выполняется ли задокументированное условие операции или ее условное состояние.
+// изменение выполнено успешно.
 func AudioActive(pcm []byte) bool {
 	var sum float64
 	n := len(pcm) / 2

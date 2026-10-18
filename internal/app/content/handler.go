@@ -2,6 +2,10 @@ package contentapp
 
 import (
 	"context"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/janickiy/meet-space/internal/app/httpresponse"
@@ -9,55 +13,51 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/content"
 	"github.com/janickiy/meet-space/internal/operations"
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
-	"net/http"
-	"strconv"
-	"time"
 )
 
-// Service defines content operations that never invoke external transcription or AI inside an
-// HTTP request.
+// Сервис определяет операции с контентом, которые никогда не задействуют внешнюю транскрипцию или искусственный интеллект в рамках HTTP-запроса.
 type Service interface {
-	// Transcript returns the current transcript metadata and provider capabilities without starting
-	// transcription.
+	// Transcript возвращает текущие метаданные транскрипта и возможности провайдера без запуска
+	// транскрипции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: идентификатор записи, используемый текущей операцией.
 	//
-	// Returns:
-	//   - result 1: The resulting transcript state.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: итоговое состояние транскрипта.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+	//     данных.
 	Transcript(context.Context, string, string, string) (domain.TranscriptState, error)
-	// Segments returns a bounded page of saved transcript segments for timestamp navigation.
+	// Segments возвращает ограниченную страницу сохраненных сегментов расшифровки для навигации по временным меткам.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
-	//   - argument 5: Maximum number of results or operations in this batch.
-	//   - argument 6: Number of results skipped before the requested page.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: идентификатор записи, используемый текущей операцией.
+	//   - аргумент 5: максимальное количество результатов или операций в этом пакете.
+	//   - аргумент 6: количество результатов, пропущенных до перехода на запрошенную страницу.
 	//
-	// Returns:
-	//   - result 1: The resulting segment page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: результирующая страница сегментов.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения данных.
+	//
 	Segments(context.Context, string, string, string, int, int) (domain.SegmentPage, error)
-	// Summary returns the current persisted summary without invoking an external provider.
+	// Summary возвращает текущее сохраненное сводное описание без обращения к внешнему провайдеру.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: идентификатор записи, используемый текущей операцией.
 	//
-	// Returns:
-	//   - result 1: The resulting summary state.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: итоговое сводное состояние.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.
+	//
 	Summary(context.Context, string, string, string) (domain.SummaryState, error)
 	// RetryTranscript queues an authorized transcription retry instead of running the expensive
 	// provider call in the HTTP request.
@@ -73,59 +73,58 @@ type Service interface {
 	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
 	//     failure.
 	RetryTranscript(context.Context, string, string, string) (domain.TranscriptState, error)
-	// RegenerateSummary queues a bounded summary generation without blocking the HTTP request on the
-	// AI provider.
+	// RegenerateSummary запускает ограниченное формирование сводной информации без блокировки HTTP-запроса к провайдеру 	// ИИ.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: идентификатор записи, используемый текущей операцией.
 	//
-	// Returns:
-	//   - result 1: The resulting summary state.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: итоговое состояние сводной информации.
+	//   - результат 2: nil в случае успеха; в противном случае — ошибка валидации, доступа, передачи или сохранения
+	//     данных.
 	RegenerateSummary(context.Context, string, string, string) (domain.SummaryState, error)
-	// Search searches recording transcripts and summaries using bounded input and the caller's
-	// visibility filters.
+	// Поиск записей с расшифровками и краткими описаниями с использованием ограниченных входных данных и фильтров видимости вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Search text or validated query filters.
 	//
-	// Returns:
-	//   - result 1: The resulting search page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: текст для поиска или проверенные фильтры запросов.
+	//
+	// Возвращаемые значения:
+	//   - результат 1: страница с результатами поиска.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи данных или сохранения.
+	//
 	Search(context.Context, string, domain.SearchQuery) (domain.SearchPage, error)
 }
 
-// Handler connects authorized HTTP requests to the recording-content application operations.
+// Обработчик подключает авторизованные HTTP-запросы к операциям приложения для записи контента.
 type Handler struct{ service Service }
 
-// NewHandler constructs the handler with the dependencies and limits required for recording
-// transcripts and summaries.
+// NewHandler создает обработчик с зависимостями и ограничениями, необходимыми для записи
+// стенограмм и резюме.
 //
-// Parameters:
-//   - service: Application service invoked by this adapter.
+// Параметры:
+//   - service: служба приложения, вызываемая этим адаптером.
 //
-// Returns:
-//   - result 1: The constructed or loaded handler.
+// Возвращаемые значения:
+//   - result 1: созданный или загруженный обработчик.
 func NewHandler(service Service) *Handler { return &Handler{service: service} }
 
-// identifiers validates the related conference and recording UUIDs before reading content or
-// queueing work.
+// Идентификаторы проверяют связанные UUID конференции и записи перед чтением содержимого или
+// постановкой в очередь.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //
-// Returns:
-//   - result 1: Validated conference UUID.
-//   - result 2: Validated recording UUID.
-//   - result 3: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: проверенный UUID конференции.
+//   - result 2: проверенный UUID записи.
+//   - result 3: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменилось успешно.
 func identifiers(c *gin.Context) (string, string, bool) {
 	cid, e := uuid.Parse(c.Param("id"))
 	rid, e2 := uuid.Parse(c.Param("recordingId"))
@@ -136,18 +135,18 @@ func identifiers(c *gin.Context) (string, string, bool) {
 	return cid.String(), rid.String(), true
 }
 
-// pageValue parses a decimal pagination value and distinguishes missing input from invalid
-// input.
+// pageValue анализирует десятичное значение пагинации и отличает отсутствующие входные данные от недопустимых.
+// входные данные.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - fallback: Value used when the optional setting is absent or invalid.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - key: хранилище, кэш или криптографический ключ, используемый в операции.
+//   - fallback: значение, используемое при отсутствии или некорректности необязательного параметра.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: итоговое количество, размер или числовое значение.
+//   - result 2: выполнение условия, описанного в документации к операции, или изменение условного состояния
+//     выполнено успешно.
 func pageValue(c *gin.Context, key string, fallback int) (int, bool) {
 	value, ok := c.GetQuery(key)
 	if !ok {
@@ -161,11 +160,11 @@ func pageValue(c *gin.Context, key string, fallback int) (int, bool) {
 	return n, true
 }
 
-// Transcript returns the current transcript metadata and provider capabilities without starting
-// transcription.
+// Транскрипт возвращает текущие метаданные транскрипта и возможности провайдера без запуска
+// транскрипции.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Transcript(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok {
@@ -179,10 +178,10 @@ func (h *Handler) Transcript(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": state.Item, "enabled": state.Enabled, "canRetry": state.CanRetry, "providerMode": state.ProviderMode})
 }
 
-// Segments returns a bounded page of saved transcript segments for timestamp navigation.
+// Segments возвращает ограниченную страницу сохраненных сегментов расшифровки для навигации по временным меткам.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Segments(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok {
@@ -204,10 +203,10 @@ func (h *Handler) Segments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "total": page.Total, "limit": page.Limit, "offset": page.Offset})
 }
 
-// Summary returns the current persisted summary without invoking an external provider.
+// Summary возвращает текущее сохраненное резюме без обращения к внешнему провайдеру.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Summary(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok {
@@ -221,11 +220,11 @@ func (h *Handler) Summary(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": state.Item, "enabled": state.Enabled, "canRegenerate": state.CanRegenerate, "providerMode": state.ProviderMode})
 }
 
-// RetryTranscript queues an authorized transcription retry instead of running the expensive
-// provider call in the HTTP request.
+// RetryTranscript запускает повторную авторизованную расшифровку вместо дорогостоящего вызова
+// провайдера в HTTP-запросе.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) RetryTranscript(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok || !httpresponse.BindJSON(c, &struct{}{}, true) {
@@ -239,11 +238,10 @@ func (h *Handler) RetryTranscript(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success", "item": state.Item, "enabled": state.Enabled, "canRetry": false, "providerMode": state.ProviderMode})
 }
 
-// RegenerateSummary queues a bounded summary generation without blocking the HTTP request on the
-// AI provider.
+// RegenerateSummary запускает ограниченную генерацию сводной информации без блокировки HTTP-запроса к провайдеру
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) RegenerateSummary(c *gin.Context) {
 	cid, rid, ok := identifiers(c)
 	if !ok || !httpresponse.BindJSON(c, &struct{}{}, true) {
@@ -257,11 +255,10 @@ func (h *Handler) RegenerateSummary(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success", "item": state.Item, "enabled": state.Enabled, "canRegenerate": false, "providerMode": state.ProviderMode})
 }
 
-// Search searches recording transcripts and summaries using bounded input and the caller's
-// visibility filters.
+// Search выполняет поиск расшифровок записей и сводок с использованием ограниченного ввода и фильтров видимости вызывающего абонента.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+// - контекст запроса и ответа c: Gin, включая аутентифицированную личность.
 func (h *Handler) Search(c *gin.Context) {
 	started := time.Now()
 	defer func() { operations.Search(time.Since(started), c.Writer.Status() >= http.StatusBadRequest) }()

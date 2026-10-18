@@ -20,53 +20,53 @@ const sessionCookiePath = "/api/v1/auth"
 const sessionCookieMaxAge = 400 * 24 * 60 * 60
 
 type persistentService interface {
-	// Refresh renews the short-lived access credential using the current provider or account refresh
+	// Refresh обновляет краткосрочные учетные данные для доступа с использованием текущего провайдера или обновления учетной записи
 	// session.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Untrusted serialized value to decode or validate.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: сериализованное значение, не требующее доверия, для декодирования или проверки.
 	//
-	// Returns:
-	//   - result 1: The resulting login response.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: полученный ответ на запрос входа.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка при проверке, доступе, передаче или сохранении
+	//     данных.
 	Refresh(context.Context, string) (users.LoginResponse, error)
-	// Bootstrap upgrades an existing valid access credential to a persistent account session.
+	// Bootstrap обновляет существующие действительные учетные данные для доступа до постоянного сеанса учетной записи.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Untrusted serialized value to decode or validate.
-	//   - argument 4: Current signed access token, used only for session verification.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: сериализованное значение, не требующее доверия, для декодирования или проверки.
+	//   - аргумент 4: текущий подписанный токен доступа, используемый только для проверки сеанса.
 	//
-	// Returns:
-	//   - result 1: The resulting login response.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: полученный ответ на запрос входа.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка при проверке, доступе, передаче или сохранении данных.
+	//
 	Bootstrap(context.Context, string, string, string) (users.LoginResponse, error)
-	// Logout revokes the selected persistent session and invalidates the supplied access-session
+	// Выход из системы отменяет выбранный постоянный сеанс и делает недействительным предоставленный токен доступа.
 	// binding.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Untrusted serialized value to decode or validate.
-	//   - argument 3: Current signed access token, used only for session verification.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: сериализованное значение, не требующее доверия, для декодирования или проверки.
+	//   - аргумент 3: текущий подписанный токен доступа, используемый только для проверки сеанса.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
+	//
 	Logout(context.Context, string, string) error
 }
 
-// WithSessionCookies configures the public origin rather than trusting forwarded hosts.
+// WithSessionCookies настраивает публичный источник, а не доверяет перенаправленным хостам.
 //
-// Parameters:
-//   - publicURL: Operator-configured public frontend origin.
-//   - secure: Whether cookies must be restricted to HTTPS.
+// Параметры:
+//   - publicURL: публичный источник внешнего интерфейса, настроенный оператором.
+//   - secure: нужно ли ограничивать использование файлов cookie протоколом HTTPS.
 //
-// Returns:
-//   - result 1: The constructed or loaded handler.
+// Возвращаемые значения:
+//   - result 1: созданный или загруженный обработчик.
 func (h *Handler) WithSessionCookies(publicURL string, secure bool) *Handler {
 	if parsed, err := url.Parse(publicURL); err == nil && parsed.Host != "" {
 		h.publicOrigin = parsed.Scheme + "://" + parsed.Host
@@ -76,23 +76,21 @@ func (h *Handler) WithSessionCookies(publicURL string, secure bool) *Handler {
 	return h
 }
 
-// PersistentSessionsEnabled reports whether durable account sessions are configured for this
-// handler.
+// PersistentSessionsEnabled сообщает, настроены ли для этого обработчика устойчивые сеансы работы с аккаунтами.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращает:
+//   - результат 1: выполняется ли описанное в документации условие операции или произошло ли успешное изменение ее условного состояния.
 func (h *Handler) PersistentSessionsEnabled() bool { return h.persistentSessions }
 
-// sameOrigin rejects cross-origin session mutations using the configured public origin and
-// request metadata.
+// sameOrigin отклоняет мутации сессий из разных источников, используя настроенный публичный источник и
+// метаданные запроса.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращает:
+//   - result 1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func (h *Handler) sameOrigin(c *gin.Context) bool {
 	if strings.EqualFold(c.GetHeader("Sec-Fetch-Site"), "cross-site") {
 		httpresponse.Fail(c, apperrors.ErrForbidden)
@@ -129,35 +127,35 @@ func (h *Handler) sameOrigin(c *gin.Context) bool {
 	return true
 }
 
-// sessionCookie reads the selected account's refresh cookie for a session operation.
+// sessionCookie считывает файл cookie обновления для выбранной учетной записи при выполнении операции с сеансом.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //
-// Returns:
-//   - result 1: Selected account's raw refresh secret, or an empty string when absent.
+// Возвращаемое значение:
+//   - result 1: необработанный секретный ключ обновления для выбранной учетной записи или пустая строка при его отсутствии.
 func (h *Handler) sessionCookie(c *gin.Context) string {
 	raw, _ := c.Cookie(SessionCookieName)
 	return raw
 }
 
-// setSessionCookie sets or clears the selected persistent refresh cookie with the configured
+// setSessionCookie устанавливает или удаляет выбранный постоянный файл cookie для обновления с настроенными атрибутами безопасности.
 // security attributes.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - raw: Serialized access token or refresh credential to validate; never log or expose it.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - raw: сериализованный токен доступа или учетные данные для обновления для проверки; никогда не записывайте и не раскрывайте их.
 func (h *Handler) setSessionCookie(c *gin.Context, raw string) {
 	h.setNamedSessionCookie(c, SessionCookieName, raw)
 }
 
-// setNamedSessionCookie sets or clears a named refresh cookie without exposing its secret to
+// setNamedSessionCookie устанавливает или удаляет именованный файл cookie для обновления, не раскрывая его секретные данные.
 // JavaScript.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - name: Name of the setting, cookie, resource or provider being addressed.
-//   - raw: Serialized access token or refresh credential to validate; never log or expose it.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - name: имя изменяемой переменной, файла cookie, ресурса или провайдера.
+//   - raw: сериализованный токен доступа или учетные данные для обновления для проверки; никогда не записывайте и не раскрывайте их.
 func (h *Handler) setNamedSessionCookie(c *gin.Context, name, raw string) {
 	cookie := &http.Cookie{Name: name, Value: raw, Path: sessionCookiePath,
 		MaxAge: sessionCookieMaxAge, Expires: time.Now().UTC().Add(time.Duration(sessionCookieMaxAge) * time.Second),
@@ -169,13 +167,13 @@ func (h *Handler) setNamedSessionCookie(c *gin.Context, name, raw string) {
 	http.SetCookie(c.Writer, cookie)
 }
 
-// bearerToken extracts the access token from a well-formed Bearer authorization header.
+// bearerToken извлекает токен доступа из правильно сформированного заголовка авторизации Bearer.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //
-// Returns:
-//   - result 1: Raw Bearer access token, or an empty string for an invalid header.
+// Возвращает:
+//   - result 1: необработанный токен доступа Bearer или пустая строка в случае некорректного заголовка.
 func bearerToken(c *gin.Context) string {
 	fields := strings.Fields(c.GetHeader("Authorization"))
 	if len(fields) == 2 && strings.EqualFold(fields[0], "Bearer") {
@@ -184,25 +182,25 @@ func bearerToken(c *gin.Context) string {
 	return ""
 }
 
-// Refresh accepts a browser session even when its previous JWT has expired.
+// Refresh принимает данные сеанса браузера, даже если срок действия предыдущего JWT истёк.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Refresh(c *gin.Context) { h.sessionOperation(c, false) }
 
-// Bootstrap migrates existing signed-in accounts without requiring a new login.
+// Bootstrap переносит существующие учетные записи без необходимости повторного входа в систему.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Bootstrap(c *gin.Context) { h.sessionOperation(c, true) }
 
-// sessionOperation handles refresh or bootstrap requests with strict origin, content-type and
-// account checks.
+// sessionOperation обрабатывает запросы на обновление или инициализацию с проверкой строгого источника, типа содержимого и
+// учетной записи.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - bootstrap: Whether to upgrade an existing access token rather than refresh a persistent
-//     session.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - bootstrap: нужно ли обновить существующий токен доступа вместо обновления постоянного
+//     сеанса.
 func (h *Handler) sessionOperation(c *gin.Context, bootstrap bool) {
 	if !h.sameOrigin(c) {
 		return
@@ -232,8 +230,8 @@ func (h *Handler) sessionOperation(c *gin.Context, bootstrap bool) {
 		raw := h.sessionCookie(c)
 		if request.UserID != "" {
 			raw, _ = c.Cookie(accountCookieName(request.UserID))
-			// Existing browsers initially have only the original cookie. Verify its
-			// owner below before migrating it; never restore another identity.
+			// В существующих браузерах изначально есть только исходный файл cookie. Перед переносом проверьте его
+			// владельца, указанного ниже; никогда не восстанавливайте другую идентификацию.
 			if raw == "" {
 				raw = h.sessionCookie(c)
 			}
@@ -247,7 +245,7 @@ func (h *Handler) sessionOperation(c *gin.Context, bootstrap bool) {
 		httpresponse.Fail(c, err)
 		return
 	}
-	// A background renewal must not change the active account of other tabs.
+	// Обновление фона не должно влиять на активную учетную запись в других вкладках.
 	if bootstrap || request.UserID == "" {
 		h.setSessionCookie(c, response.SessionToken)
 	}

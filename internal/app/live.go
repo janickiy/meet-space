@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/janickiy/meet-space/internal/config"
 	"github.com/janickiy/meet-space/internal/infrastructure/ffmpeg"
 	"github.com/janickiy/meet-space/internal/infrastructure/liveproviders"
@@ -11,18 +16,14 @@ import (
 	redisinfra "github.com/janickiy/meet-space/internal/infrastructure/redis"
 	"github.com/janickiy/meet-space/internal/operations"
 	live "github.com/janickiy/meet-space/internal/usecase/captions"
-	"net/http"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
-// RunLiveWorker starts live worker with the configured dependencies and propagates startup or
-// shutdown failures.
+// RunLiveWorker запускает live-воркер с настроенными зависимостями и сообщает о сбоях при запуске или
+// завершении работы.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func RunLiveWorker() error {
 	cfg, err := config.Load()
 	if err != nil {

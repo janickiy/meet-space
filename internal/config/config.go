@@ -188,14 +188,14 @@ func rabbitMQURL() string {
 	return dsn.String()
 }
 
-// env reads an environment variable and uses the fallback when it is empty.
+// env считывает переменную окружения и использует резервное значение, если она пуста.
 //
-// Parameters:
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - fallback: Value used when the optional setting is absent or invalid.
+// Параметры:
+//   - key: хранилище, кэш или криптографический ключ, используемый в операции.
+//   - fallback: значение, используемое при отсутствии или некорректности необязательного параметра.
 //
-// Returns:
-//   - result 1: Configured environment value or the supplied fallback.
+// Возвращаемое значение:
+//   - result 1: настроенное значение из окружения или указанное резервное значение.
 func env(key string, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {

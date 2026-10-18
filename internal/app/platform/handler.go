@@ -1,5 +1,4 @@
-// Package platformapp exposes safe product capabilities and administrator-only operational
-// views.
+// Пакет platformapp предоставляет безопасные возможности продукта и операционные возможности только для администраторов.
 package platformapp
 
 import (
@@ -12,24 +11,24 @@ import (
 )
 
 type Service interface {
-	// Capabilities returns the product or integration capabilities actually enabled by the operator.
+	// Capabilities возвращает возможности продукта или интеграции, фактически доступные оператору.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
 	//
-	// Returns:
-	//   - result 1: The resulting capabilities.
+	// Возвращаемые значения:
+	//   - результат 1: полученные возможности.
 	Capabilities(context.Context) domain.Capabilities
-	// Summary returns bounded administrator-only operational aggregates and safe failure codes
-	// without user content.
+	// Summary возвращает ограниченные операционные агрегаты, доступные только администратору, и безопасные коды ошибок
+	// без пользовательского контента.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
 	//
-	// Returns:
-	//   - result 1: The resulting summary.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращает:
+	//   - результат 1: итоговый сводный отчет.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+	//     данных.
 	Summary(context.Context) (domain.Summary, error)
 }
 
@@ -38,19 +37,19 @@ type Handler struct {
 	BuildVersion string
 }
 
-// Capabilities returns the product or integration capabilities actually enabled by the operator.
+// Capabilities возвращает возможности продукта или интеграции, фактически доступные оператору.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Capabilities(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "capabilities": h.Service.Capabilities(c.Request.Context()), "buildVersion": h.BuildVersion})
 }
 
-// Summary returns bounded administrator-only operational aggregates and safe failure codes
-// without user content.
+// Summary возвращает ограниченные служебные данные только для администраторов и безопасные коды ошибок
+// без пользовательского контента.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Summary(c *gin.Context) {
 	value, err := h.Service.Summary(c.Request.Context())
 	if err != nil {

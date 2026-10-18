@@ -11,10 +11,10 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// Pins lists shared pins using the current member's visible message history.
+// Pins отображает общие пины с использованием видимой истории сообщений текущего участника.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Pins(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -37,14 +37,14 @@ func (h *Handler) Pins(c *gin.Context) {
 	c.JSON(http.StatusOK, page)
 }
 
-// SetPin persists shared pin state before telling current members to refresh it.
-// The event contains no message ID, text or preview from another member's history.
+// SetPin сохраняет общее состояние закрепления, прежде чем предложить текущим участникам обновить его.
+// Событие не содержит идентификатора сообщения, текста или предварительного просмотра из истории другого участника.
 //
-// Parameters:
-//   - pinned: Whether the selected message should be pinned.
+// Параметры:
+//   - pinned: нужно ли закрепить выбранное сообщение.
 //
-// Returns:
-//   - result 1: The HTTP handler to register for this operation.
+// Возвращаемые значения:
+//   - result 1: обработчик HTTP для регистрации этой операции.
 func (h *Handler) SetPin(pinned bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := uuidParameter(c, "id")

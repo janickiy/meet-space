@@ -8,15 +8,15 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// publishConversationAction publishes a committed personal conversation action to the intended
-// account or group recipients.
+// publishConversationAction публикует зафиксированное действие по ведению личной переписки для указанных получателей.
+// учетная запись или группа получателей.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - kind: Validated event, job, media or resource category.
-//   - id: Identifier of the resource addressed by this operation.
-//   - item: The conversation state processed by this operation.
-//   - cutoff: Member-specific history or liveness boundary.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - kind: валидированное событие, задание, медиафайл или категория ресурса.
+//   - id: идентификатор ресурса, к которому относится эта операция.
+//   - item: состояние переписки, обработанное в ходе этой операции.
+//   - cutoff: граница истории или активности конкретного участника.
 func (h *Handler) publishConversationAction(c *gin.Context, kind, id string, item *personal.Conversation, cutoff int64) {
 	if h.Events == nil {
 		return
@@ -33,11 +33,11 @@ func (h *Handler) publishConversationAction(c *gin.Context, kind, id string, ite
 	_ = h.Events.PublishUser(c.Request.Context(), middleware.UserID(c), kind, data)
 }
 
-// SetConversationPreferences updates only the acting member's conversation notification
-// preference.
+// SetConversationPreferences обновляет только уведомления о переписке текущего участника.
+// предпочтение.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) SetConversationPreferences(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -81,11 +81,11 @@ func (h *Handler) ClearDirectHistory(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
 
-// HideDirectConversation hides the direct conversation for the acting account and retains the
-// peer's saved history.
+// HideDirectConversation скрывает прямой диалог для текущего аккаунта и сохраняет сохраненную историю переписки.
+// peer.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) HideDirectConversation(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {

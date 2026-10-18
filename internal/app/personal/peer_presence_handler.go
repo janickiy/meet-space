@@ -11,11 +11,10 @@ import (
 	personalusecase "github.com/janickiy/meet-space/internal/usecase/personal"
 )
 
-// PeerPresence returns the peer's current online state only within an authorized direct
-// conversation.
+// PeerPresence возвращает текущее онлайн-состояние пирингового узла только в рамках авторизованного прямого диалога.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) PeerPresence(c *gin.Context) {
 	id, err := chat.UUID(c.Param("id"))
 	if err != nil {

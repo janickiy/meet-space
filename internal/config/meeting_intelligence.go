@@ -21,16 +21,16 @@ type StageEightConfig struct {
 	LiveMaxDuration, ProviderTimeout, EmbeddingTimeout                         time.Duration
 }
 
-// LoadStageEight loads the limits and opt-in settings for transcription, summaries, embeddings
-// and analytics.
+// LoadStageEight загружает ограничения и настройки для транскрипции, реферирования, встраивания
+// и аналитики.
 //
-// Parameters:
-//   - local: Whether explicitly local-only behavior is permitted.
+// Параметры:
+//   - local: разрешено ли явное использование только локального режима.
 //
-// Returns:
-//   - result 1: The resulting stage eight config.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращаемые значения:
+//   - result 1: итоговая конфигурация восьмого этапа.
+//   - result 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func LoadStageEight(local bool) (StageEightConfig, error) {
 	c := StageEightConfig{}
 	var err error

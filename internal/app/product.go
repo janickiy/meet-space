@@ -34,18 +34,18 @@ type productServices struct {
 	search       *searchusecase.Service
 }
 
-// newProductServices constructs the shared validated product dependencies; the API only reads or
-// queues work, while the separate worker invokes media and external providers.
+// newProductServices создает общие валидированные зависимости для продуктов; API только считывает или
+// обрабатывает очереди, в то время как отдельный рабочий процесс обращается к медиа и внешним провайдерам.
 //
-// Parameters:
-//   - cfg: Operator-controlled configuration and processing limits.
-//   - db: Database handle used for the operation or transaction.
-//   - storage: Private object or file storage dependency.
+// Параметры:
+//   - cfg: управляемая оператором конфигурация и ограничения обработки.
+//   - db: дескриптор базы данных, используемый для операции или транзакции.
+//   - storage: частный объект или зависимость от файлового хранилища.
 //
-// Returns:
-//   - result 1: The resulting product services.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращаемые значения:
+//   - result 1: результирующие сервисы для продуктов.
+//   - result 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспортировки или сохранения
+//     данных.
 func newProductServices(cfg config.Config, db *gorm.DB, storage *s3.Client) (productServices, error) {
 	c := cfg.StageSeven
 	local := cfg.IsLocal() || cfg.AppEnv == "test"
@@ -101,12 +101,12 @@ func newProductServices(cfg config.Config, db *gorm.DB, storage *s3.Client) (pro
 	return productServices{contentService, integrationService, searchService}, nil
 }
 
-// RunProductWorker starts product worker with the configured dependencies and propagates startup
-// or shutdown failures.
+// RunProductWorker запускает продукт-воркер с настроенными зависимостями и передает информацию о сбоях при запуске
+// или завершении работы.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func RunProductWorker() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -223,15 +223,15 @@ func RunProductWorker() error {
 	return errors.Join(serveErr, serverErr)
 }
 
-// runProductTicks runs periodic product maintenance independently of the media recording
-// lifecycle.
+// runProductTicks выполняет периодическое обслуживание продукта независимо от записи на носитель
+// жизненного цикла.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - service: Application service invoked by this adapter.
-//   - repo: Persistence dependency used by the application operation.
-//   - interval: Interval between bounded maintenance iterations.
-//   - extra: Additional bounded event fields or callbacks.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - service: сервис приложения, вызываемый этим адаптером.
+//   - repo: зависимость от персистентности, используемая операцией приложения.
+//   - interval: интервал между итерациями ограниченного обслуживания.
+//   - extra: дополнительные поля ограниченных событий или обратные вызовы.
 func runProductTicks(ctx context.Context, service *integrations.Service, repo *pg.JobRepository, interval time.Duration, extra func(context.Context)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

@@ -11,45 +11,43 @@ import (
 )
 
 type SearchService interface {
-	// Search searches persistent chat messages and private attachments using bounded input and the
-	// caller's visibility filters.
+	// Поиск постоянных сообщений в чате и личных вложений с использованием ограниченного ввода и фильтров видимости вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference or conversation identifier restricting the search.
-	//   - argument 4: Search text or validated query filters.
-	//   - argument 5: Opaque continuation boundary from the previous page.
-	//   - argument 6: Maximum number of results or operations in this batch.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции или беседы, ограничивающий поиск.
+	//   - аргумент 4: текст для поиска или проверенные фильтры запросов.
+	//   - аргумент 5: непрозрачная граница продолжения с предыдущей страницы.
+	//   - аргумент 6: максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращает:
+	//   - результат 1: результирующая страница.
+	//   - результат 2: nil в случае успеха; в противном случае ошибка валидации, доступа, передачи данных или сохранения
+	//     данных.
 	Search(context.Context, string, string, string, string, int) (chat.Page, error)
-	// Context returns the visible messages surrounding a selected message so clients can navigate to
-	// a search result.
+	// Контекст возвращает видимые сообщения, окружающие выбранное сообщение, чтобы клиенты могли перейти к
+	// результату поиска.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference or conversation identifier containing the selected message.
-	//   - argument 4: Message identifier within the authorized conversation.
+	// Параметры:
+	//   - аргумент 1: Контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: Действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: Идентификатор конференции или беседы, в которой находится выбранное сообщение.
+	//   - аргумент 4: Идентификатор сообщения в авторизованной беседе.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращает:
+	//   - результат 1: Полученная страница.
+	//   - результат 2: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+	//     данных.
 	Context(context.Context, string, string, string) (chat.Page, error)
 }
 
 type SearchHandler struct{ Service SearchService }
 
-// Search searches persistent chat messages and private attachments using bounded input and the
-// caller's visibility filters.
+// Поиск постоянных сообщений чата и личных вложений с использованием ограниченного ввода и фильтров видимости вызывающей стороны.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *SearchHandler) Search(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -67,11 +65,10 @@ func (h *SearchHandler) Search(c *gin.Context) {
 	searchPageResponse(c, page)
 }
 
-// Context returns the visible messages surrounding a selected message so clients can navigate to
-// a search result.
+// Context возвращает видимые сообщения, окружающие выбранное сообщение, чтобы клиенты могли перейти к результату поиска.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *SearchHandler) Context(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -89,12 +86,11 @@ func (h *SearchHandler) Context(c *gin.Context) {
 	searchPageResponse(c, page)
 }
 
-// searchPageResponse writes a message-search page with the response metadata expected by the
-// client.
+// searchPageResponse записывает страницу с результатами поиска сообщений с метаданными ответа, ожидаемыми клиентом.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - page: Page of results to format or process.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - page: страница с результатами для форматирования или обработки.
 func searchPageResponse(c *gin.Context, page chat.Page) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "nextCursor": page.NextCursor, "unreadCount": page.UnreadCount, "lastReadMessageId": page.LastReadMessageID})
 }

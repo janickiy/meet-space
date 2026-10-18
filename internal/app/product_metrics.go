@@ -14,15 +14,14 @@ import (
 // content.
 type measuredEmail struct{ integrations.EmailProvider }
 
-// Send delivers the bounded email with a stable message identity; the configured transport
-// determines retry deduplication.
+// Send доставляет ограниченное электронное письмо со стабильным идентификатором сообщения; настроенный транспорт // определяет возможность повторной дедупликации.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - message: Bounded email content, recipient and stable delivery identity.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - message: ограниченное содержимое электронного письма, получатель и стабильный идентификатор доставки.
 //
-// Returns:
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// Возвращаемое значение:
+//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
 func (p measuredEmail) Send(ctx context.Context, message integrations.EmailMessage) (err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("email", time.Since(started), err) }()
@@ -32,15 +31,15 @@ func (p measuredEmail) Send(ctx context.Context, message integrations.EmailMessa
 // measuredPush measures platform delivery calls without placing device tokens in metrics.
 type measuredPush struct{ integrations.PushProvider }
 
-// Send delivers a minimal notification to the selected registered device without transcript text
-// or provider secrets.
+// Send отправляет минимальное уведомление на выбранное зарегистрированное устройство без расшифровки текста
+// или секретов провайдера.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - message: Minimal push notification and its registered device recipient.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем выполнения операции.
+//   - message: минимальное push-уведомление и зарегистрированное устройство, которому оно предназначено.
 //
-// Returns:
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// Возвращаемое значение:
+//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
 func (p measuredPush) Send(ctx context.Context, message integrations.PushMessage) (err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("push", time.Since(started), err) }()
@@ -51,34 +50,34 @@ func (p measuredPush) Send(ctx context.Context, message integrations.PushMessage
 // metric labels.
 type measuredCalendar struct{ integrations.CalendarProvider }
 
-// CreateEvent creates an idempotent calendar event through the configured provider.
+// CreateEvent создает идемпотентное календарное событие с помощью настроенного провайдера.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - credentials: Server-only provider credentials; never expose them in logs or public
-//     responses.
-//   - event: Trusted event to publish or process.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - credentials: учетные данные провайдера только для сервера; никогда не раскрывайте их в логах или общедоступных
+//     ответах.
+//   - event: доверенное событие для публикации или обработки.
 //
-// Returns:
-//   - out: The resulting calendar event.
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// Возвращаемые значения:
+//   - out: результирующее календарное событие.
+//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 func (p measuredCalendar) CreateEvent(ctx context.Context, credentials integrations.CalendarCredentials, event integrations.CalendarEvent) (out integrations.CalendarEvent, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("calendar", time.Since(started), err) }()
 	return p.CalendarProvider.CreateEvent(ctx, credentials, event)
 }
 
-// UpdateEvent updates the mapped external calendar event for the current conference schedule.
+// UpdateEvent обновляет сопоставленное внешнее календарное событие для текущего расписания конференции.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - credentials: Server-only provider credentials; never expose them in logs or public
-//     responses.
-//   - event: Trusted event to publish or process.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - credentials: учетные данные провайдера, доступные только на сервере; никогда не раскрывайте их в логах или общедоступных
+//     ответах.
+//   - event: доверенное событие для публикации или обработки.
 //
-// Returns:
-//   - out: The resulting calendar event.
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// Возвращаемые значения:
+//   - out: результирующее календарное событие.
+//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 func (p measuredCalendar) UpdateEvent(ctx context.Context, credentials integrations.CalendarCredentials, event integrations.CalendarEvent) (out integrations.CalendarEvent, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("calendar", time.Since(started), err) }()
@@ -101,17 +100,17 @@ func (p measuredCalendar) CancelEvent(ctx context.Context, credentials integrati
 	return p.CalendarProvider.CancelEvent(ctx, credentials, event)
 }
 
-// GetEvent reads the mapped external calendar event for reconciliation.
+// GetEvent считывает сопоставленное внешнее календарное событие для сверки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - credentials: Server-only provider credentials; never expose them in logs or public
-//     responses.
-//   - event: Trusted event to publish or process.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - credentials: учетные данные провайдера, доступные только на сервере; никогда не раскрывайте их в логах или общедоступных
+//     ответах.
+//   - event: доверенное событие для публикации или обработки.
 //
-// Returns:
-//   - out: The resulting calendar event.
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// Возвращаемые значения:
+//   - out: результирующее календарное событие.
+//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 func (p measuredCalendar) GetEvent(ctx context.Context, credentials integrations.CalendarCredentials, event integrations.CalendarEvent) (out integrations.CalendarEvent, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("calendar", time.Since(started), err) }()
@@ -122,15 +121,15 @@ func (p measuredCalendar) GetEvent(ctx context.Context, credentials integrations
 // name.
 type measuredSTT struct{ content.TranscriptionProvider }
 
-// Transcribe submits bounded recording audio to the configured transcription provider.
+// Transcribe отправляет ограниченную аудиозапись в настроенный сервис расшифровки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - request: Validated application request or incoming operation parameters.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем выполнения операции.
+//   - request: проверенный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - out: The resulting transcription result.
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// Возвращает:
+//   - out: результат расшифровки.
+//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
 func (p measuredSTT) Transcribe(ctx context.Context, request content.TranscriptionRequest) (out content.TranscriptionResult, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("stt", time.Since(started), err) }()
@@ -141,15 +140,15 @@ func (p measuredSTT) Transcribe(ctx context.Context, request content.Transcripti
 // validation.
 type measuredAI struct{ content.AIProvider }
 
-// Summarize generates a schema-constrained summary from the supplied transcript input.
+// Summarize создает сводную информацию с ограничениями схемы на основе переданных входных данных.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - request: Validated application request or incoming operation parameters.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - request: валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - out: The resulting raw message.
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// Возвращаемые значения:
+//   - out: результирующее необработанное сообщение.
+//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
 func (p measuredAI) Summarize(ctx context.Context, request content.AIRequest) (out json.RawMessage, err error) {
 	started := time.Now()
 	defer func() { operations.ProviderCall("ai", time.Since(started), err) }()

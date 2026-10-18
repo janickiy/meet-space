@@ -11,23 +11,23 @@ import (
 	usecase "github.com/janickiy/meet-space/internal/usecase/notifications"
 )
 
-// Handler serves notification queries and delegates SSE connection ownership.
+// Handler обслуживает запросы на уведомления и делегирует право владения SSE-подключением.
 type Handler struct {
 	service *usecase.Service
 	events  *eventStreams
 }
 
-// NewHandler preserves the HTTP API while giving SSE its own lifecycle owner.
+// NewHandler сохраняет HTTP API, предоставляя SSE собственного владельца жизненного цикла.
 //
-// Parameters:
-//   - service: Application service invoked by this adapter.
-//   - bus: Scoped publication and subscription transport.
-//   - tokens: Token issuer or verifier used for trusted identity checks.
-//   - limiter: Shared request-rate limiter.
-//   - namespace: Namespace isolating this component's distributed keys and channels.
+// Параметры:
+//   - service: служба приложения, вызываемая этим адаптером.
+//   - bus: транспортный протокол для публикации и подписки с ограниченной областью видимости.
+//   - tokens: эмитент или верификатор токенов, используемый для проверки подлинности.
+//   - limiter: общий ограничитель частоты запросов.
+//   - namespace: пространство имен, изолирующее распределенные ключи и каналы этого компонента.
 //
-// Returns:
-//   - result 1: The constructed or loaded handler.
+// Возвращает:
+//   - result 1: созданный или загруженный обработчик.
 func NewHandler(service *usecase.Service, bus Subscriber, tokens Verifier, limiter Limiter, namespace string) *Handler {
 	return &Handler{service: service, events: &eventStreams{
 		service: service, bus: bus, tokens: tokens, limiter: limiter,
@@ -36,18 +36,17 @@ func NewHandler(service *usecase.Service, bus Subscriber, tokens Verifier, limit
 	}}
 }
 
-// BeginDrain releases SSE requests so a graceful API deployment can finish.
+// BeginDrain освобождает запросы SSE, чтобы можно было завершить корректное развертывание API.
 func (h *Handler) BeginDrain() {
 	if h.events != nil {
 		h.events.beginDrain()
 	}
 }
 
-// List returns a bounded page of personal notification records using the supplied pagination and
-// filters.
+// List возвращает ограниченную страницу записей о личных уведомлениях с использованием заданных параметров разбивки на страницы и фильтров.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) List(c *gin.Context) {
 	limit := 30
 	if raw := c.Query("limit"); raw != "" {
@@ -67,10 +66,10 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(200, page)
 }
 
-// Read idempotently marks the account-owned notification as read and returns its saved state.
+// Read помечается как прочитанное и возвращается в сохраненное состояние.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Read(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("notificationId"))
 	if err != nil || id == uuid.Nil {
@@ -88,8 +87,8 @@ func (h *Handler) Read(c *gin.Context) {
 	c.JSON(200, gin.H{"item": item})
 }
 
-// Events opens an authorized notification stream owned by the SSE component.
+// Events открывает авторизованный поток уведомлений, принадлежащий компоненту SSE.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Events(c *gin.Context) { h.events.serve(c) }

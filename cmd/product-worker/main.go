@@ -7,7 +7,7 @@ import (
 	"github.com/janickiy/meet-space/internal/app"
 )
 
-// main starts the product worker process and reports startup or execution failures.
+// main запускает рабочий процесс продукта и сообщает о сбоях при запуске или выполнении.
 func main() {
 	if app.RunProductWorker() != nil {
 		slog.Error("product worker stopped", "event_type", "product.bootstrap.failed")

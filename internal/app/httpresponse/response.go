@@ -14,12 +14,12 @@ import (
 // InternalErrorMessage is the safe public message for unexpected server errors.
 const InternalErrorMessage = "internal server error"
 
-// Fail maps the application error to a safe HTTP status and response body without exposing
-// internal diagnostics.
+// Fail преобразует ошибку приложения в безопасный HTTP-статус и тело ответа, не раскрывая
+// внутреннюю диагностику.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - err: Error to classify, wrap or report safely.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - err: ошибка, которую нужно классифицировать, обернуть или безопасно сообщить о ней.
 func Fail(c *gin.Context, err error) {
 	status, message := http.StatusInternalServerError, InternalErrorMessage
 	switch apperrors.Classify(err) {
@@ -47,17 +47,17 @@ func Fail(c *gin.Context, err error) {
 	c.AbortWithStatusJSON(status, gin.H{"status": "failed", "message": message})
 }
 
-// BindJSON decodes one bounded JSON value, rejecting unknown fields and trailing data; optional
-// input may be empty.
+// BindJSON декодирует одно ограниченное значение JSON, отбрасывая неизвестные поля и завершающие данные; опционально
+// входные данные могут быть пустыми.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - target: Target state, account or decoded value, as defined by its type.
-//   - optional: Whether an empty request body is permitted.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - target: целевое состояние, учетная запись или декодированное значение в соответствии с его типом.
+//   - optional: разрешено ли использование пустого тела запроса.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func BindJSON(c *gin.Context, target any, optional bool) bool {
 	if c.Request.Body == nil {
 		c.Request.Body = http.NoBody
@@ -79,17 +79,16 @@ func BindJSON(c *gin.Context, target any, optional bool) bool {
 	return false
 }
 
-// Pagination parses the request page size and offset while rejecting invalid or out-of-range
-// values.
+// При разбивке на страницы размер страницы и смещение в запросе анализируются, а недопустимые значения или значения вне допустимого диапазона отклоняются.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: The resulting count, size or numeric value.
-//   - result 3: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: итоговое количество, размер или числовое значение.
+//   - result 2: итоговое количество, размер или числовое значение.
+//   - result 3: выполняется ли задокументированное условие операции или достигнуто ли условное состояние
+//     изменения.
 func Pagination(c *gin.Context) (int, int, bool) {
 	limit, offset := 20, 0
 	var err error

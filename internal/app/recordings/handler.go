@@ -12,103 +12,94 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// Service defines the replaceable dependency contract for conference recording lifecycle
-// management.
+// определяет заменяемый контракт зависимости для управления жизненным циклом записи конференции
 type Service interface {
-	// Delete removes the requested conference recording using the caller's scope and the resource
-	// lifecycle rules.
+	// Delete удаляет запрошенную запись конференции, используя область видимости вызывающей стороны и ресурс
+	// правила жизненного цикла.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: External recording UUID.
-	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: внешний UUID записи.	//
+	// Возвращаемые значения:
+	//   - результат 1: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 	Delete(context.Context, string, string, string) error
-	// Start starts conference recording lifecycle management and prepares the resources owned by
-	// that operation.
+	// Start запускает управление жизненным циклом записи конференции и подготавливает ресурсы, принадлежащие этой операции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Validated application request or incoming operation parameters.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: проверенный запрос приложения или входящие параметры операции.
 	//
-	// Returns:
-	//   - result 1: The resulting record card.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: результирующая карточка записи.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения данных.
+
 	Start(context.Context, string, string, records.ConferenceStartRequest) (records.RecordCard, error)
-	// Stop stops the active conference recording operation and releases its owned resources.
+	// Stop останавливает активную запись конференции и освобождает принадлежащие ей ресурсы.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: External recording UUID.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: внешний UUID записи.
 	//
-	// Returns:
-	//   - result 1: The resulting record card.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: итоговая карточка записи.
+	//   - результат 2: nil в случае успеха; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 	Stop(context.Context, string, string, string) (records.RecordCard, error)
-	// Read reads the conference recording state or stream required by the caller.
+	// Read считывает состояние записи конференции или поток, требуемые вызывающей стороной.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: External recording UUID.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: внешний UUID записи.
 	//
-	// Returns:
-	//   - result 1: The resulting record card.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: полученная карточка записи.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 	Read(context.Context, string, string, string) (records.RecordCard, error)
-	// List returns a bounded page of conference recording records using the supplied pagination and
-	// filters.
+	// List возвращает ограниченную страницу записей конференции с использованием заданных параметров разбивки на страницы и фильтров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Maximum number of results or operations in this batch.
-	//   - argument 5: Number of results skipped before the requested page.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: максимальное количество результатов или операций в этом пакете.
+	//   - аргумент 5: количество результатов, пропущенных до перехода на запрошенную страницу.
 	//
-	// Returns:
-	//   - result 1: The collected record card values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: собранные значения карточек записей.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.  //
 	List(context.Context, string, string, int, int) ([]records.RecordCard, error)
 }
 
-// Handler adapts HTTP requests to conference recording lifecycle management, validates input and
-// writes the response.
+// Обработчик адаптирует HTTP-запросы для управления жизненным циклом записи конференции, проверяет входные данные и
+// формирует ответ.
 type Handler struct{ service Service }
 
-// NewHandler constructs the handler with the dependencies and limits required for conference
-// recording lifecycle management.
+// NewHandler создает обработчик с зависимостями и ограничениями, необходимыми для управления жизненным циклом записи конференции.
 //
-// Parameters:
-//   - service: Application service invoked by this adapter.
+// Параметры:
+//   - service: служба приложения, вызываемая этим адаптером.
 //
-// Returns:
-//   - result 1: The constructed or loaded handler.
+// Возвращаемое значение:
+//   - result 1: созданный или загруженный обработчик.
 func NewHandler(service Service) *Handler { return &Handler{service: service} }
 
-// parameter validates a required route parameter before invoking the application operation.
+// Параметр проверяет наличие обязательного параметра маршрута перед вызовом операции приложения.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - key: Storage, cache or cryptographic key used by the operation.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - key: хранилище, кэш или криптографический ключ, используемый операцией.
 //
-// Returns:
-//   - result 1: Validated required route parameter.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: проверенный обязательный параметр маршрута.
+//   - result 2: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func parameter(c *gin.Context, key string) (string, bool) {
 	id, err := uuid.Parse(c.Param(key))
 	if err != nil || id == uuid.Nil {
@@ -118,11 +109,10 @@ func parameter(c *gin.Context, key string) (string, bool) {
 	return id.String(), true
 }
 
-// Start starts conference recording lifecycle management and prepares the resources owned by
-// that operation.
+// Start запускает управление жизненным циклом записи конференции и подготавливает ресурсы, принадлежащие // этой операции.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Start(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -140,10 +130,10 @@ func (h *Handler) Start(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success", "item": item})
 }
 
-// Stop stops the active conference recording operation and releases its owned resources.
+// Stop останавливает активную запись конференции и освобождает принадлежащие ей ресурсы.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Stop(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -164,11 +154,10 @@ func (h *Handler) Stop(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success", "item": item})
 }
 
-// Delete removes the requested conference recording using the caller's scope and the resource
-// lifecycle rules.
+// Delete удаляет запрошенную запись конференции, используя область видимости вызывающей стороны и правила жизненного цикла ресурса //.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Delete(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -185,10 +174,10 @@ func (h *Handler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
-// Read reads the conference recording state or stream required by the caller.
+// Read считывает состояние записи конференции или поток данных, требуемые вызывающей стороной.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Read(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -206,11 +195,10 @@ func (h *Handler) Read(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// List returns a bounded page of conference recording records using the supplied pagination and
-// filters.
+// List возвращает ограниченную страницу записей конференции с использованием заданных параметров разбивки на страницы и фильтров.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) List(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {

@@ -10,8 +10,6 @@ type Peer struct {
 	DisplayName string `json:"displayName"`
 }
 
-// Call is durable signalling state. Client IDs identify the tab owning media;
-// they do not replace authentication or either account's membership.
 type Call struct {
 	ID                 string     `json:"id"`
 	ConversationID     string     `json:"conversationId"`

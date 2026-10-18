@@ -26,13 +26,13 @@ type TURNConfig struct {
 	ForceRelay bool
 }
 
-// LoadTURN loads and validates the TURN endpoints, shared secret and temporary credential
-// lifetime.
+// LoadTURN загружает и проверяет конечные точки TURN, общий секретный ключ и временные учетные данные
+// на время жизни.
 //
-// Returns:
-//   - result 1: The resulting turn config.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: результирующая конфигурация turn.
+//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка при проверке, доступе, передаче или сохранении
+//     данных.
 func LoadTURN() (TURNConfig, error) {
 	if v := strings.ToLower(os.Getenv("TURN_FORCE_RELAY")); v != "" && !strings.Contains("|true|false|1|0|yes|no|on|off|", "|"+v+"|") {
 		return TURNConfig{}, fmt.Errorf("TURN_FORCE_RELAY must be boolean")
@@ -63,15 +63,14 @@ func LoadTURN() (TURNConfig, error) {
 	return c, nil
 }
 
-// ClientICE builds browser ICE settings, including temporary TURN credentials when TURN is
-// enabled.
+// ClientICE формирует настройки ICE для браузера, включая временные учетные данные TURN, если функция TURN включена.
 //
-// Parameters:
-//   - base: Base configuration or value from which the result is derived.
-//   - now: Reference time used for expiration or duration calculations.
+// Параметры:
+//   - base: базовая конфигурация или значение, на основе которого формируется результат.
+//   - now: эталонное время, используемое для расчета срока действия или продолжительности.
 //
-// Returns:
-//   - result 1: The resulting ICE config.
+// Возвращаемое значение:
+//   - result 1: результирующая конфигурация ICE.
 func (c TURNConfig) ClientICE(base realtime.ICEConfig, now time.Time) realtime.ICEConfig {
 	result := realtime.ICEConfig{ICEServers: append([]realtime.ICEServer{}, base.ICEServers...), ICETransportPolicy: "all"}
 	for i := range result.ICEServers {

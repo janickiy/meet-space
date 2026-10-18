@@ -38,13 +38,13 @@ type RealtimeConfig struct {
 	MaxConnections    int
 }
 
-// LoadRealtime loads and validates WebSocket limits, presence deadlines and connection-ticket
-// settings.
+// LoadRealtime загружает и проверяет ограничения WebSocket, сроки доступности и connection-ticket
+// настройки.
 //
-// Returns:
-//   - result 1: The resulting realtime config.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: итоговая конфигурация реального времени.
+//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func LoadRealtime() (RealtimeConfig, error) {
 	c := RealtimeConfig{
 		PingInterval:      envDuration("WS_PING_INTERVAL", time.Second),
@@ -77,11 +77,11 @@ func LoadRealtime() (RealtimeConfig, error) {
 	return c, c.Validate()
 }
 
-// Validate rejects inconsistent or out-of-range realtime.go fields before the value is used.
+// Validate отклоняет несогласованные или выходящие за пределы допустимых значений поля realtime.go перед использованием значения.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения данных.
+//     ошибка.
 func (c RealtimeConfig) Validate() error {
 	if c.MaxConnections < 0 || c.MaxConnections > 100000 {
 		return fmt.Errorf("invalid WS_MAX_CONNECTIONS")

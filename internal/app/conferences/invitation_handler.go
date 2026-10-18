@@ -11,41 +11,38 @@ import (
 )
 
 type InvitationService interface {
-	// Search searches conference lifecycle and participant membership using bounded input and the
-	// caller's visibility filters.
+	// Search Поиск по жизненному циклу конференции и членству участников с использованием ограниченных входных данных и фильтров видимости вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Search text or validated query filters.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: идентификатор аккаунта, выполняющего операцию.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: текст поиска или проверенные фильтры запроса.
 	//
-	// Returns:
-	//   - result 1: The collected invitation user values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: собранные значения пользователей приглашения.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.  //
 	Search(context.Context, string, string, string) ([]d.InvitationUser, error)
-	// Invite creates or updates conference invitations for the validated recipients.
+	// Invite создает или обновляет приглашения на конференцию для проверенных получателей.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Validated application request or incoming operation parameters.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: идентификатор учетной записи, выполняющей операцию.
+	//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+	//   - аргумент 4: проверенный запрос приложения или входящие параметры операции.
 	//
-	// Returns:
-	//   - result 1: The collected invitation result values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: собранные значения результатов приглашения.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения данных.
+	//
 	Invite(context.Context, string, string, d.InvitationRequest) ([]d.InvitationResult, error)
 }
 type InvitationHandler struct{ Service InvitationService }
 
-// Search searches conference lifecycle and participant membership using bounded input and the
-// caller's visibility filters.
+// Search по жизненному циклу конференции и членству участников с использованием ограниченных входных данных и фильтров видимости вызывающей стороны.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *InvitationHandler) Search(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -59,10 +56,10 @@ func (h *InvitationHandler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": items})
 }
 
-// Invite creates or updates conference invitations for the validated recipients.
+// Invite создает или обновляет приглашения на конференцию для проверенных получателей.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *InvitationHandler) Invite(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {

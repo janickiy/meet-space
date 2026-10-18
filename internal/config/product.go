@@ -26,9 +26,9 @@ type SMTPConfig struct {
 	Timeout                                 time.Duration
 }
 
-// StageSevenConfig bounds the separate product worker and its external integrations. STT and AI
-// are disabled by default; MockAllowed forbids simulated production results. The encryption key
-// is independent of JWT keys and protects only device and calendar credentials.
+// StageSevenConfig ограничивает работу отдельного продуктового воркера и его внешних интеграций.  STT и ИИ
+// по умолчанию отключены; MockAllowed запрещает имитацию производственных результатов.  Ключ шифрования
+// не зависит от ключей JWT и защищает только учетные данные устройства и календаря.
 type StageSevenConfig struct {
 	PublicURL, EncryptionKey, TempRoot                            string
 	Email, Push, Calendar, STT, AI                                ProviderConfig
@@ -47,16 +47,16 @@ type StageSevenConfig struct {
 	ReprocessCooldown                                             time.Duration
 }
 
-// LoadStageSeven loads the product-worker budget and the explicitly enabled external integration
-// settings.
+// LoadStageSeven загружает бюджет продукта и явно включенную внешнюю интеграцию
+// настройки.
 //
-// Parameters:
-//   - local: Whether explicitly local-only behavior is permitted.
+// Параметры:
+//   - local: разрешено ли явно использовать только локальные настройки.
 //
-// Returns:
-//   - result 1: The resulting stage seven config.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращаемые значения:
+//   - result 1: итоговая конфигурация седьмого этапа.
+//   - result 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func LoadStageSeven(local bool) (StageSevenConfig, error) {
 	c := StageSevenConfig{MockAllowed: local, TempRoot: env("PRODUCT_TEMP_PATH", os.TempDir()), AIModel: env("AI_PROVIDER_MODEL", "configured-model")}
 	if !utf8.ValidString(c.AIModel) || strings.ContainsRune(c.AIModel, 0) || utf8.RuneCountInString(c.AIModel) > 100 {
@@ -199,12 +199,11 @@ func LoadStageSeven(local bool) (StageSevenConfig, error) {
 	return c, nil
 }
 
-// loadSMTP loads and validates the operator-controlled SMTP delivery settings.
+// loadSMTP загружает и проверяет настройки доставки SMTP, управляемые оператором.
 //
-// Returns:
-//   - result 1: The resulting SMTP config.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: итоговая конфигурация SMTP.
+//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func loadSMTP() (SMTPConfig, error) {
 	c := SMTPConfig{Host: os.Getenv("SMTP_HOST"), Username: os.Getenv("SMTP_USERNAME"), Password: os.Getenv("SMTP_PASSWORD"), From: os.Getenv("SMTP_FROM"), TLSMode: env("SMTP_TLS_MODE", "tls")}
 	if c.Host == "" || len(c.Host) > 253 || strings.ContainsAny(c.Host, "/\\\r\n\t @?#") || strings.TrimSpace(c.Host) != c.Host {
@@ -248,15 +247,15 @@ func loadSMTP() (SMTPConfig, error) {
 	return c, nil
 }
 
-// smtpASCIIAddress checks that an email address can be transmitted through the supported ASCII
-// SMTP path.
+// smtpASCIIAddress проверяет, можно ли передать адрес электронной почты в поддерживаемом формате ASCII
+// SMTP-путь.
 //
-// Parameters:
-//   - address: Address to validate before connecting or delivering.
+// Параметры:
+//   - address: адрес для проверки перед подключением или доставкой.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: выполняется ли задокументированное условие операции или изменяется ли ее условное состояние
+//     успешно.
 func smtpASCIIAddress(address *mail.Address) bool {
 	if address == nil || !strings.Contains(address.Address, "@") {
 		return false
@@ -269,17 +268,16 @@ func smtpASCIIAddress(address *mail.Address) bool {
 	return true
 }
 
-// stageSevenURL validates an integration URL against the environment-specific transport
-// restrictions.
+// stageSevenURL проверяет интеграционный URL на соответствие специфичным для среды ограничениям транспорта
 //
-// Parameters:
-//   - name: Name of the setting, cookie, resource or provider being addressed.
-//   - raw: Untrusted serialized value to decode or validate.
-//   - local: Whether explicitly local-only behavior is permitted.
+// Параметры:
+//   - name: имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется обращение.
+//   - raw: недоверенное сериализованное значение для декодирования или проверки.
+//   - local: разрешено ли явное использование только локального режима.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращаемые значения:
+//   - result 1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения
+//     данных.
 func stageSevenURL(name, raw string, local bool) error {
 	u, err := url.Parse(raw)
 	if err != nil || u.Hostname() == "" || u.User != nil || u.Fragment != "" || (u.Scheme != "https" && !(local && u.Scheme == "http")) {

@@ -6,7 +6,7 @@ import (
 	"github.com/janickiy/meet-space/internal/app"
 )
 
-// main starts the media worker process and reports startup or execution failures.
+// main запускает процесс медиаворкера и сообщает о сбоях при запуске или выполнении.
 func main() {
 	if err := app.RunMediaWorker(); err != nil {
 		log.Fatalf("media-worker: %v", err)

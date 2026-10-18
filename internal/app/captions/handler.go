@@ -3,6 +3,10 @@ package captionsapp
 
 import (
 	"context"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/janickiy/meet-space/internal/app/httpresponse"
@@ -11,45 +15,40 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 	live "github.com/janickiy/meet-space/internal/usecase/captions"
-	"net/http"
-	"strconv"
-	"time"
 )
 
-// Handler returns saved final captions and settings without opening a speech-provider session in
-// the API.
+// Обработчик возвращает сохраненные финальные субтитры и настройки без открытия сеанса речевого провайдера в API.
 type Handler struct {
 	Repo      live.Repository
 	Enabled   bool
 	Analytics interface {
-		// Read loads the saved technical conference aggregates after checking the account's history
-		// access.
+		// Read загружает сохраненные данные технических конференций после проверки истории аккаунта
+		// доступ.
 		//
-		// Parameters:
-		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-		//   - argument 2: Acting account identifier used to scope access.
-		//   - argument 3: Conference identifier limiting the operation scope.
+		// Параметры:
+		//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+		//   - аргумент 2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+		//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
 		//
-		// Returns:
-		//   - result 1: The resulting conference.
-		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-		//     failure.
+		// Возвращаемые значения:
+		//   - результат 1: полученная конференция.
+		//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+		//     данных.
 		Read(context.Context, string, string) (analytics.Conference, error)
 	}
 	Search interface {
-		// Reindex queues a bounded transcript reindex after checking the actor's management permission.
+		// Reindex Переиндексация очередей с ограниченной переиндексацией транскрипта после проверки прав доступа субъекта.
 		//
-		// Parameters:
-		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-		//   - argument 2: Acting account identifier used to scope access.
-		//   - argument 3: Conference identifier limiting the operation scope.
-		//   - argument 4: Recording identifier used by the current operation.
-		//   - argument 5: Operator-controlled configuration and processing limits.
-		//   - argument 6: Minimum interval between expensive retriable processing requests.
+		// Параметры:
+		//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+		//   - аргумент 2: идентификатор действующего аккаунта, используемый для ограничения доступа.
+		//   - аргумент 3: идентификатор конференции, ограничивающий область действия операции.
+		//   - аргумент 4: идентификатор записи, используемый текущей операцией.
+		//   - аргумент 5: конфигурация и ограничения обработки, контролируемые оператором.
+		//   - аргумент 6: минимальный интервал между дорогостоящими запросами на повторную обработку.
 		//
-		// Returns:
-		//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-		//     failure.
+		// Возвращаемые значения:
+		//   - результат 1: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения. 		//
 		Reindex(context.Context, string, string, string, config.StageEightConfig, time.Duration) error
 	}
 	Config config.StageEightConfig
@@ -72,10 +71,10 @@ func (h *Handler) ReadAnalytics(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": value})
 }
 
-// Reindex queues a bounded transcript reindex after checking the actor's management permission.
+// Reindex Переиндексирует очереди с помощью ограниченной транскрипт-реиндексации после проверки прав доступа актора.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Reindex(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -94,16 +93,14 @@ func (h *Handler) Reindex(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success"})
 }
 
-// id validates the resource UUID from the HTTP route before an application or database
-// operation.
+// id проверяет UUID ресурса из HTTP-маршрута перед выполнением операции в приложении или базе данных.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //
-// Returns:
-//   - result 1: Validated resource UUID.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: проверенный UUID ресурса.
+//   - result 2: выполняется ли задокументированное условие операции или произошло ли успешное изменение условного состояния.
 func id(c *gin.Context) (string, bool) {
 	v, e := uuid.Parse(c.Param("id"))
 	if e != nil || v == uuid.Nil {
@@ -113,10 +110,10 @@ func id(c *gin.Context) (string, bool) {
 	return v.String(), true
 }
 
-// Read reads the live-caption state state or stream required by the caller.
+// Read считывает состояние субтитров в реальном времени, необходимое вызывающей стороне.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Read(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -135,10 +132,10 @@ func (h *Handler) Read(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": s})
 }
 
-// Set updates the persisted live-caption state settings after validating the request.
+// Read reads the real-time subtitle status required by the caller.
 //
 // Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+//   - c: the Gin request and response context, including authenticated data.
 func (h *Handler) Set(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -171,11 +168,11 @@ func (h *Handler) Set(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": s})
 }
 
-// Finals returns a cursor-bounded page of saved final captions so clients can recover missed
-// realtime events.
+// Finals возвращает страницу с сохраненными финальными подписями, ограниченную курсором, чтобы клиенты могли восстановить пропущенные
+// события в реальном времени.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Finals(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {

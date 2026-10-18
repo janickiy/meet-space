@@ -13,10 +13,10 @@ import (
 	"github.com/janickiy/meet-space/internal/operations"
 )
 
-// hostname returns the process host label without exposing configuration secrets.
+// hostname возвращает метку хоста процесса, не раскрывая конфиденциальные данные конфигурации.
 //
-// Returns:
-//   - result 1: Bounded process host label.
+// Возвращает:
+//   - результат 1: ограниченная метка хоста процесса.
 func hostname() string {
 	value, err := os.Hostname()
 	if err != nil {
@@ -25,22 +25,22 @@ func hostname() string {
 	return value
 }
 
-// runProfiling runs the restricted profiling listener when diagnostics are explicitly enabled.
+// runProfiling запускает прослушиватель ограниченного профилирования, если диагностика явно включена.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - ops: Process operations and readiness runtime.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, дедлайнами и временем жизни операций.
+//   - ops: операции процесса и среда выполнения готовности.
 func runProfiling(ctx context.Context, ops *operations.Runtime) {
 	if err := ops.Profiling(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("profiling unavailable", "event_type", "profiling.failed")
 	}
 }
 
-// sampleDatabase updates bounded database connection-pool metrics.
+// sampleDatabase обновляет метрики пула подключений к ограниченной базе данных.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - db: Database handle used for the operation or transaction.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - db: дескриптор базы данных, используемый для операции или транзакции.
 func sampleDatabase(ctx context.Context, db *sql.DB) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -58,11 +58,11 @@ func sampleDatabase(ctx context.Context, db *sql.DB) {
 	}
 }
 
-// sampleMedia updates bounded media-worker activity metrics.
+// sampleMedia обновляет ограниченные показатели активности медиа-воркера.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - engine: Media engine that owns the room and peer resources.
+// Параметры:
+//   - ctx: контекст, управляющий отменой, дедлайнами и временем жизни операции.
+//   - engine: медиа-движок, которому принадлежат комната и ресурсы пиров.
 func sampleMedia(ctx context.Context, engine *sfu.Manager) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()

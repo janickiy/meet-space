@@ -23,12 +23,12 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
-// RunMediaWorker starts media worker with the configured dependencies and propagates startup or
-// shutdown failures.
+// RunMediaWorker запускает медиа-воркер с настроенными зависимостями и передает информацию о сбоях при запуске или
+// завершении работы.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func RunMediaWorker() error {
 	base, err := config.Load()
 	if err != nil {

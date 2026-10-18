@@ -13,10 +13,10 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// Self returns the acting account's membership, including waiting-room and admission state.
+// Self возвращает информацию о членстве действующего аккаунта, включая статус ожидания и допуск.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Self(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -30,11 +30,10 @@ func (h *Handler) Self(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Admission accepts or rejects waiting-room admission after checking the acting member's
-// authority.
+// Admission принимает или отклоняет запрос на вход в зал ожидания после проверки полномочий действующего участника.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Admission(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -57,11 +56,10 @@ func (h *Handler) Admission(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Schedule updates a planned conference schedule after validating ownership and time
-// constraints.
+// Schedule обновляет запланированное расписание конференции после проверки прав собственности и временных ограничений.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Schedule(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -79,11 +77,10 @@ func (h *Handler) Schedule(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// History builds the authorized completed-conference view with participant history and recording
-// summaries.
+// History формирует авторизованное представление о завершенной конференции с историей участников и записями резюме.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) History(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -97,10 +94,10 @@ func (h *Handler) History(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Timeline returns the account's paginated upcoming, active or past conference timeline.
+// Timeline возвращает разбитую на страницы ленту предстоящих, текущих и прошедших конференций аккаунта.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Timeline(c *gin.Context) {
 	query := conferences.TimelineQuery{View: c.DefaultQuery("view", "upcoming"), Scope: c.DefaultQuery("scope", "all"), Status: conferences.Status(c.Query("status")), Cursor: c.Query("cursor"), Limit: 20}
 	if raw, exists := c.GetQuery("limit"); exists {

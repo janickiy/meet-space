@@ -9,11 +9,11 @@ import (
 	"time"
 )
 
-// OperationsConfig defines per-process operational limits. ProbeTimeout bounds dependency
-// checks; ProbeInterval coalesces readiness probes; ShutdownTimeout bounds shutdown. DBMaxOpen,
-// DBMaxIdle and DBLifetime control the database pool; HTTPBodyBytes bounds JSON. InternalSecret
-// protects recorder HTTP and MetricsSecret protects Prometheus. PprofPort=0 disables profiling;
-// enabled profiling listens only on loopback.
+// OperationsConfig определяет операционные ограничения для каждого процесса. Зависимость ProbeTimeout определяет границы
+// проверяет; ProbeInterval объединяет проверки готовности; ShutdownTimeout определяет границы завершения работы. DBMaxOpen,
+// DBMaxIdle и DBLifetime управляют пулом баз данных; HTTPBodyBytes ограничивает JSON. InternalSecret
+// защищает протокол записи HTTP, а MetricsSecret защищает Prometheus. PprofPort=0 отключает профилирование.;
+// включенное профилирование прослушивается только при обратной связи.
 type OperationsConfig struct {
 	ProbeTimeout, ProbeInterval, ShutdownTimeout time.Duration
 	DBMaxOpen, DBMaxIdle                         int
@@ -25,16 +25,16 @@ type OperationsConfig struct {
 	HTTPReadTimeout                              time.Duration
 }
 
-// loadOperations loads process-level readiness, shutdown, connection-pool and diagnostics
-// limits.
+// loadOperations загружает данные о готовности на уровне процесса, завершении работы, пуле подключений и диагностике
+// ограничениях.
 //
-// Parameters:
-//   - local: Whether explicitly local-only behavior is permitted.
+// Параметры:
+//   - local: разрешено ли явное использование только локального режима.
 //
-// Returns:
-//   - result 1: The resulting operations config.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращаемые значения:
+//   - result 1: результирующая конфигурация операций.
+//   - result 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func loadOperations(local bool) (OperationsConfig, error) {
 	c := OperationsConfig{
 		ProbeTimeout: envDuration("HEALTH_PROBE_TIMEOUT", time.Second), ProbeInterval: envDuration("HEALTH_PROBE_INTERVAL", 2*time.Second),
@@ -65,15 +65,14 @@ func loadOperations(local bool) (OperationsConfig, error) {
 	return c, nil
 }
 
-// validateProduction rejects insecure or incomplete settings before starting a production
+// validateProduction отклоняет небезопасные или неполные настройки перед запуском производственного процесса.
 // process.
 //
-// Parameters:
-//   - cfg: Operator-controlled configuration and processing limits.
+// Параметры:
+//   - cfg: управляемая оператором конфигурация и ограничения обработки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращаемые значения:
+//   - result 1: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
 func validateProduction(cfg Config) error {
 	if cfg.IsLocal() || cfg.AppEnv == "test" {
 		return nil
@@ -123,12 +122,12 @@ func validateProduction(cfg Config) error {
 	return nil
 }
 
-// validateTypedEnvironment rejects malformed typed environment values instead of silently using
-// defaults.
+// validateTypedEnvironment отклоняет некорректные значения типизированной среды вместо того, чтобы молча использовать
+// значения по умолчанию.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения
+//     данных.
 func validateTypedEnvironment() error {
 	for _, key := range []string{"HTTP_READ_TIMEOUT", "DB_QUERY_TIMEOUT"} {
 		if raw := os.Getenv(key); raw != "" {

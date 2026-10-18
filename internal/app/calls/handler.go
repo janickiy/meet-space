@@ -11,23 +11,23 @@ import (
 
 type Handler struct{ Service *usecase.Service }
 
-// validID checks that the supplied resource identifier is a valid nonzero UUID.
+// validID проверяет, является ли предоставленный идентификатор ресурса допустимым ненулевым UUID.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// Параметры:
+//   - value: значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func validID(value string) bool {
 	id, err := uuid.Parse(value)
 	return err == nil && id != uuid.Nil && id.String() == value
 }
 
-// Create validates the request and returns the newly created direct call for the acting account.
+// Create проверяет запрос и возвращает только что созданный прямой вызов для действующего аккаунта.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Create(c *gin.Context) {
 	var body struct {
 		TargetUserID    string `json:"targetUserId"`
@@ -54,10 +54,10 @@ func (h *Handler) Create(c *gin.Context) {
 	c.JSON(code, gin.H{"status": "success", "item": item})
 }
 
-// Get serves the requested direct call within the caller's authorized scope.
+// Get обслуживает запрошенный прямой вызов в рамках полномочий вызывающей стороны.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Get(c *gin.Context) {
 	id := c.Param("id")
 	if !validID(id) {
@@ -72,10 +72,10 @@ func (h *Handler) Get(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
 
-// Active returns the account's current nonterminal direct call, if any.
+// Active возвращает текущий нетерминальный прямой вызов аккаунта, если таковой имеется.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Active(c *gin.Context) {
 	item, err := h.Service.Active(c.Request.Context(), middleware.UserID(c))
 	if err != nil {
@@ -85,13 +85,13 @@ func (h *Handler) Active(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
 
-// Change applies the requested direct-call lifecycle action and returns its updated state.
+// Change применяет запрошенное действие жизненного цикла прямого вызова и возвращает обновленное состояние.
 //
-// Parameters:
-//   - action: Requested lifecycle or moderation action.
+// Параметры:
+//   - action: Запрошенное действие жизненного цикла или модерации.
 //
-// Returns:
-//   - result 1: The HTTP handler to register for this operation.
+// Возвращает:
+//   - result 1: HTTP-обработчик для регистрации этой операции.
 func (h *Handler) Change(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

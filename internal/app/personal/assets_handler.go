@@ -16,28 +16,27 @@ import (
 
 type AssetHandler struct{ service *personalusecase.AssetService }
 
-// NewAssetHandler constructs the asset handler with the dependencies and limits required for
-// personal and group conversations.
+// NewAssetHandler создает обработчик ресурсов с зависимостями и ограничениями, необходимыми для // личных и групповых чатов.
 //
-// Parameters:
-//   - service: Application service invoked by this adapter.
+// Параметры:
+//   - service: служба приложения, вызываемая этим адаптером.
 //
-// Returns:
-//   - result 1: The constructed or loaded asset handler.
+// Возвращает:
+//   - result 1: созданный или загруженный обработчик ресурсов.
 func NewAssetHandler(service *personalusecase.AssetService) *AssetHandler {
 	return &AssetHandler{service: service}
 }
 
-// assetParameter validates the private asset identifier from the route before accessing storage.
+// assetParameter проверяет идентификатор частного актива из маршрута перед обращением к хранилищу.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - name: Name of the setting, cookie, resource or provider being addressed.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - name: имя настраиваемого параметра, файла cookie, ресурса или провайдера.
 //
-// Returns:
-//   - result 1: Validated private-asset identifier.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: проверенный идентификатор частного актива.
+//   - result 2: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func assetParameter(c *gin.Context, name string) (string, bool) {
 	id, err := chat.UUID(c.Param(name))
 	if err != nil {
@@ -47,11 +46,10 @@ func assetParameter(c *gin.Context, name string) (string, bool) {
 	return id, true
 }
 
-// PutAvatar validates and stores a normalized group avatar, then publishes the committed
-// conversation change.
+// PutAvatar проверяет и сохраняет нормализованный групповой аватар, а затем публикует зафиксированное изменение в диалоге.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) PutAvatar(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -69,11 +67,11 @@ func (h *AssetHandler) PutAvatar(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// DeleteAvatar clears the authorized group avatar and schedules its obsolete private objects for
-// cleanup.
+// DeleteAvatar очищает аватар авторизованной группы и планирует удаление устаревших приватных объектов для
+// очистки.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) DeleteAvatar(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -87,11 +85,10 @@ func (h *AssetHandler) DeleteAvatar(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// AvatarContent serves a private group avatar only after checking the requesting account's
-// membership.
+// AvatarContent предоставляет аватар для закрытой группы только после проверки членства запрашивающей учетной записи.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) AvatarContent(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -117,13 +114,13 @@ func (h *AssetHandler) AttachmentContent(c *gin.Context) {
 	h.content(c, id, attachment)
 }
 
-// content opens an authorized private avatar or attachment and streams it through the HTTP
-// response.
+// content открывает авторизованный приватный аватар или вложение и передает его через HTTP
+// ответ.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - id: Identifier of the resource addressed by this operation.
-//   - attachment: Private attachment identity or metadata, as defined by its type.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
+//   - id: идентификатор ресурса, на который указывает эта операция.
+//   - attachment: идентификатор приватного вложения или метаданные в соответствии с его типом.
 func (h *AssetHandler) content(c *gin.Context, id, attachment string) {
 	controller := http.NewResponseController(c.Writer)
 	_ = controller.SetWriteDeadline(time.Now().Add(personalusecase.AssetStreamTimeout))

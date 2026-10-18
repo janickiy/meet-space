@@ -53,12 +53,11 @@ type MediaConfig struct {
 	TURN                   TURNConfig
 }
 
-// LoadMedia loads and validates SFU, media-worker, routing and internal authentication settings.
+// LoadMedia загружает и проверяет настройки SFU, медиа-воркера, маршрутизации и внутренней аутентификации.
 //
-// Returns:
-//   - result 1: The resulting media config.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: итоговая конфигурация медиа.
+//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения данных.
 func LoadMedia() (MediaConfig, error) {
 	c := MediaConfig{
 		HTTPPort:               envInt("MEDIA_HTTP_PORT", 8091),
@@ -125,26 +124,24 @@ func LoadMedia() (MediaConfig, error) {
 	return c, c.Validate()
 }
 
-// mediaDerivedSecret derives a domain-separated local media secret without reusing the
-// access-token key directly.
+// mediaDerivedSecret создает локальный медиа-секрет с разделением доменов без повторного использования ключа access-token напрямую.
 //
-// Parameters:
-//   - base: Base configuration or value from which the result is derived.
-//   - purpose: Domain-separation label for the derived secret.
+// Параметры:
+//   - base: базовая конфигурация или значение, на основе которого создается результат.
+//   - purpose: метка разделения доменов для создаваемого секрета.
 //
-// Returns:
-//   - result 1: Domain-separated local media secret.
+// Возвращаемое значение:
+//   - result 1: локальный медиа-секрет с разделением доменов.
 func mediaDerivedSecret(base, purpose string) string {
 	h := hmac.New(sha256.New, []byte(base))
 	_, _ = h.Write([]byte("go-recorder:" + purpose))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// Validate rejects inconsistent or out-of-range media.go fields before the value is used.
+// Валидация отклоняет несогласованные или выходящие за пределы допустимых значений поля media.go перед использованием значения.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 func (c MediaConfig) Validate() error {
 	if len(c.TicketSecret) < 32 || len(c.InternalSecret) < 32 || c.TicketSecret == c.InternalSecret {
 		return fmt.Errorf("MEDIA_TICKET_SECRET and MEDIA_INTERNAL_SECRET must be distinct and contain at least 32 bytes")
@@ -190,14 +187,13 @@ func (c MediaConfig) Validate() error {
 	return validateMediaICE(c.ICE)
 }
 
-// ValidateMediaEndpoint checks that a media-worker endpoint uses an allowed scheme and address.
+// ValidateMediaEndpoint проверяет, что конечная точка медиаворкера использует допустимую схему и адрес.
 //
-// Parameters:
-//   - address: Address to validate before connecting or delivering.
+// Параметры:
+//   - address: адрес для проверки перед подключением или доставкой.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращает:
+//   - result 1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func ValidateMediaEndpoint(address string) error {
 	u, err := url.Parse(address)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
@@ -207,14 +203,13 @@ func ValidateMediaEndpoint(address string) error {
 	return nil
 }
 
-// validateMediaICE validates the configured ICE servers before passing them to media peers.
+// validateMediaICE проверяет настроенные ICE-серверы перед передачей их медиа-пирам.
 //
-// Parameters:
-//   - c: The ICE config value processed by this operation.
+// Параметры:
+//   - c: значение конфигурации ICE, обрабатываемое этой операцией.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// Возвращаемые значения:
+//   - result 1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func validateMediaICE(c realtime.ICEConfig) error {
 	if len(c.ICEServers) > 16 {
 		return fmt.Errorf("too many ICE servers")

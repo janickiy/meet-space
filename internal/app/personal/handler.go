@@ -2,6 +2,8 @@ package personalapp
 
 import (
 	"context"
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/janickiy/meet-space/internal/app/httpresponse"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
@@ -9,156 +11,150 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/personal"
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 	personalusecase "github.com/janickiy/meet-space/internal/usecase/personal"
-	"strconv"
 )
 
 type Repository interface {
 	GroupRepository
-	// Account checks that the acting identity is a registered non-guest account.
+	// Account проверяет, является ли действующая учетная запись зарегистрированной, а не гостевой.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: идентификатор действующей учетной записи, используемый для ограничения доступа.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения.
+	//
 	Account(context.Context, string) error
-	// GetOrCreate returns the existing direct conversation or creates its unique account-pair
-	// conversation.
+	// GetOrCreate возвращает существующий прямой диалог или создает его уникальную пару учетных записей
+	// диалог.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Target state, account or decoded value, as defined by its type.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: целевое состояние, учетная запись или декодированное значение в зависимости от его типа.
 	//
-	// Returns:
-	//   - result 1: The resulting conversation.
-	//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: результирующий диалог.
+	//   - результат 2: указывает, был ли создан новый диалог, а не повторно использован идемпотентный результат.
+	//   - результат 3: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+	//     данных.
 	GetOrCreate(context.Context, string, string) (personal.Conversation, bool, error)
-	// Get loads the requested conversation within the caller's authorized scope.
+	// Get загружает запрошенный диалог в пределах разрешенной области действия вызывающего абонента.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// Параметры:
+	// - аргумент 1: Контекст, управляющий отменой, крайними сроками и сроком действия операции.
+	// - аргумент 2: Действующий идентификатор учетной записи, используемый для доступа к области действия.
+	// - аргумент 3: Идентификатор ресурса, к которому обращается эта операция.
 	//
-	// Returns:
-	//   - result 1: The resulting conversation.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращает:
+	// - результат 1: Итоговый диалог.
+	// - результат 2: нулевой результат при успешном выполнении; в противном случае проверка, доступ, транспортировка или сохранение
+	// сбой.
 	Get(context.Context, string, string) (personal.Conversation, error)
-	// List returns a bounded page of conversation records using the supplied pagination and filters.
+	// List возвращает ограниченную страницу записей о беседах с использованием заданных параметров разбивки на страницы и фильтров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Opaque continuation boundary from the previous page.
-	//   - argument 4: Maximum number of results or operations in this batch.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: непрозрачная граница продолжения предыдущей страницы.
+	//   - аргумент 4: максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращает:
+	//   - результат 1: результирующая страница.
+	//   - результат 2: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+	//     данных.
 	List(context.Context, string, string, int) (personal.Page, error)
-	// ListFiltered returns a member-scoped conversation page using the validated personal, group or
-	// unread filters.
+	// ListFiltered возвращает страницу беседы с привязкой к члену группы, используя проверенные фильтры личных сообщений, групповых сообщений или непрочитанных сообщений.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Opaque continuation boundary from the previous page.
-	//   - argument 4: Maximum number of results or operations in this batch.
-	//   - argument 5: Validated filters restricting the result set.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: непрозрачная граница продолжения предыдущей страницы.
+	//   - аргумент 4: максимальное количество результатов или операций в этом пакете.
+	//   - аргумент 5: проверенные фильтры, ограничивающие набор результатов.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: результирующая страница.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.  //
 	ListFiltered(context.Context, string, string, int, personal.ListFilter) (personal.Page, error)
-	// Search searches personal and group conversations using bounded input and the caller's
-	// visibility filters.
+	// Search Поиск личных и групповых чатов с использованием ограниченного ввода и фильтров видимости вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Search text or validated query filters.
 	//
-	// Returns:
-	//   - result 1: The collected peer values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: текст для поиска или проверенные фильтры запроса.
+	//
+	// Возвращаемые значения:
+	//   - результат 1: собранные значения peer.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
+	//
 	Search(context.Context, string, string) ([]personal.Peer, error)
-	// SetConversationPreferences updates only the acting member's conversation notification
+	// SetConversationPreferences обновляет только уведомления о переписке действующего участника
 	// preference.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
-	//   - argument 4: Whether the requested feature or preference should be enabled.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: идентификатор действующей учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор ресурса, к которому обращается эта операция.
+	//   - аргумент 4: указание на то, следует ли включить запрашиваемую функцию или настройку.
 	//
-	// Returns:
-	//   - result 1: The resulting conversation.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: полученная переписка.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения
+	//     данных.
 	SetConversationPreferences(context.Context, string, string, bool) (personal.Conversation, error)
-	// ClearDirectHistory moves only the acting member's direct-chat history boundary without
-	// deleting the peer's history.
+	// ClearDirectHistory перемещает только границу истории прямого чата действующего участника, не
+	// удаляя историю собеседника.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: идентификатор действующего аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор ресурса, к которому обращается эта операция.
 	//
-	// Returns:
-	//   - result 1: The resulting conversation.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: итоговый диалог.
+	//   - результат 2: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+	//     данных.
 	ClearDirectHistory(context.Context, string, string) (personal.Conversation, error)
-	// HideDirectConversation hides the direct conversation for the acting account and retains the
-	// peer's saved history.
+	// HideDirectConversation скрывает прямой диалог для действующего аккаунта и сохраняет сохраненную историю сообщений собеседника.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: идентификатор действующего аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting count, size or numeric value.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: итоговое количество, размер или числовое значение.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения.  //
 	HideDirectConversation(context.Context, string, string) (int64, error)
-	// ConversationPins returns the authorized conversation's pinned-message page.
+	// ConversationPins возвращает страницу закрепленных сообщений авторизованного диалога.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
-	//   - argument 4: Opaque continuation boundary from the previous page.
-	//   - argument 5: Maximum number of results or operations in this batch.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор ресурса, к которому обращается данная операция.
+	//   - аргумент 4: непрозрачная граница продолжения предыдущей страницы.
+	//   - аргумент 5: максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting message page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: страница с результатами.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения. 	//
 	ConversationPins(context.Context, string, string, string, int) (chat.MessagePage, error)
-	// SetConversationPin pins or unpins a visible message and returns the conversation scope
-	// affected by the change.
+	// SetConversationPin закрепляет или открепляет видимое сообщение и возвращает область беседы, на которую повлияло изменение.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
-	//   - argument 4: Message identifier within the authorized conversation.
-	//   - argument 5: Whether the selected message should be pinned.
 	//
-	// Returns:
-	//   - result 1: Identifier of the conversation whose pin state changed.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: идентификатор ресурса, к которому применяется эта операция.
+	//   - аргумент 4: идентификатор сообщения в рамках авторизованной беседы.
+	//   - аргумент 5: нужно ли закрепить выбранное сообщение.
+	//
+	// Возвращаемые значения:
+	//   - результат 1: идентификатор беседы, состояние закрепления которой изменилось.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
+	//
 	SetConversationPin(context.Context, string, string, string, bool) (string, error)
 }
 type Handler struct {
@@ -167,17 +163,17 @@ type Handler struct {
 	Presence personalusecase.PresenceReader
 }
 
-// uuidParameter normalizes a route UUID and writes the existing error response
-// when validation fails, before any repository operation can run.
+// uuidParameter нормализует UUID маршрута и записывает существующий ответ об ошибке
+// в случае сбоя валидации, прежде чем можно будет выполнить какую-либо операцию с репозиторием.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - name: Name of the setting, cookie, resource or provider being addressed.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - name: имя настраиваемого параметра, cookie, ресурса или провайдера.
 //
-// Returns:
-//   - result 1: Validated nonzero resource UUID.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемые значения:
+//   - result 1: валидированный ненулевой UUID ресурса.
+//   - result 2: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменилось успешно.
 func uuidParameter(c *gin.Context, name string) (string, bool) {
 	id, err := chat.UUID(c.Param(name))
 	if err != nil {
@@ -187,11 +183,11 @@ func uuidParameter(c *gin.Context, name string) (string, bool) {
 	return id, true
 }
 
-// AccountOnly rejects guest identities before serving registered-account-only conversation or
-// folder operations.
+// AccountOnly отклоняет идентификационные данные гостей перед обработкой диалогов только для зарегистрированных аккаунтов или
+// операций с папками.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *Handler) AccountOnly(c *gin.Context) {
 	if err := h.Repo.Account(c.Request.Context(), middleware.UserID(c)); err != nil {
 		httpresponse.Fail(c, err)
@@ -200,11 +196,11 @@ func (h *Handler) AccountOnly(c *gin.Context) {
 	c.Next()
 }
 
-// Create validates the request and returns the newly created conversation for the acting
-// account.
+// Create проверяет запрос и возвращает вновь созданный диалог для действующего
+// аккаунта.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Create(c *gin.Context) {
 	var body struct {
 		UserID string `json:"userId"`
@@ -263,10 +259,10 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(200, page)
 }
 
-// Get serves the requested conversation within the caller's authorized scope.
+// Get предоставляет запрошенный диалог в рамках полномочий вызывающей стороны.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Get(c *gin.Context) {
 	id, err := chat.UUID(c.Param("id"))
 	if err != nil {
@@ -281,11 +277,10 @@ func (h *Handler) Get(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
 
-// Search searches personal and group conversations using bounded input and the caller's
-// visibility filters.
+// Search Поиск личных и групповых чатов с использованием ограниченного ввода и фильтров видимости вызывающей стороны.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Search(c *gin.Context) {
 	items, err := h.Repo.Search(c.Request.Context(), middleware.UserID(c), c.Query("search"))
 	if err != nil {

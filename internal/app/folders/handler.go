@@ -13,150 +13,135 @@ import (
 )
 
 type Repository interface {
-	// Account checks that the acting identity is a registered non-guest account.
+	// Account проверяет, является ли действующий аккаунт зарегистрированным, а не гостевым.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Account identifier that must belong to a registered non-guest user.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: идентификатор учетной записи, который должен принадлежать зарегистрированному пользователю, не являющемуся гостем.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: nil в случае успеха; в противном случае — ошибка проверки, доступа, передачи или сохранения
+	//     данных.
 	Account(context.Context, string) error
-	// List returns a bounded page of private folder records using the supplied pagination and
-	// filters.
+	// List Возвращает ограниченную страницу записей из личных папок с использованием заданных параметров разбивки на страницы и фильтров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Validated kind of resource linked to a folder.
-	//   - argument 4: Identifier of the resource linked to a folder.
+	// Параметры:
+	//   - аргумент 1: Контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: Идентификатор учетной записи, выполняющей операцию.
+	//   - аргумент 3: Проверенный тип ресурса, связанного с папкой.
+	//   - аргумент 4: Идентификатор ресурса, связанного с папкой.
 	//
-	// Returns:
-	//   - result 1: The collected folder values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращает:
+	//   - результат 1: Собранные значения из папки.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения
+	//     данных.
 	List(context.Context, string, string, string) ([]folders.Folder, error)
-	// Create creates and persists a new private folder for the acting account.
+	// Create создает и сохраняет новую личную папку для действующей учетной записи.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Name of the setting, cookie, resource or provider being addressed.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: идентификатор учетной записи, выполняющей операцию.
+	//   - аргумент 3: имя изменяемой переменной, cookie, ресурса или провайдера.
 	//
-	// Returns:
-	//   - result 1: The resulting folder.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: результирующая папка.
+	//   - результат 2: nil в случае успеха; в противном случае — ошибка проверки, доступа, передачи или сохранения
+	//     данных.
 	Create(context.Context, string, string) (folders.Folder, error)
-	// Get loads the requested private folder within the caller's authorized scope.
+	// Get загружает запрошенную приватную папку в рамках полномочий вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to check folder ownership.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: действующий идентификатор учетной записи, используемый для проверки прав собственности на папку.
+	//   - аргумент 3: идентификатор ресурса, к которому обращается эта операция.
 	//
-	// Returns:
-	//   - result 1: The resulting folder.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: полученная папка.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения.
+	//
 	Get(context.Context, string, string) (folders.Folder, error)
-	// Rename normalizes a new folder name and updates the acting account's owned folder.
+	// Rename нормализует имя новой папки и обновляет папку, принадлежащую действующей учетной записи.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Identifier of the resource addressed by this operation.
-	//   - argument 4: Name of the setting, cookie, resource or provider being addressed.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: идентификатор учетной записи, выполняющей операцию.
+	//   - аргумент 3: идентификатор ресурса, к которому обращается эта операция.
+	//   - аргумент 4: имя параметра, cookie, ресурса или провайдера, к которому осуществляется обращение.
 	//
-	// Returns:
-	//   - result 1: The resulting folder.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: результирующая папка.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения. 	//
 	Rename(context.Context, string, string, string) (folders.Folder, error)
-	// Delete removes the requested private folder using the caller's scope and the resource
-	// lifecycle rules.
+	// Delete удаляет запрошенную приватную папку, используя область видимости вызывающей стороны и ресурс
+	// правила жизненного цикла.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: идентификатор аккаунта, выполняющего операцию.
+	//   - аргумент 3: идентификатор ресурса, к которому применяется эта операция.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения
+	//     данных.
 	Delete(context.Context, string, string) error
-	// Order stores a validated ordering of the acting account's private folders.
+	// Order хранит проверенную последовательность доступа к личным папкам действующего аккаунта.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Resource identifiers to process as a bounded batch.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: идентификатор аккаунта, выполняющего операцию.
+	//   - аргумент 3: идентификаторы ресурсов для обработки в виде ограниченного пакета.
 	//
-	// Returns:
-	//   - result 1: The collected folder values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: собранные значения папок.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения.
+	//
 	Order(context.Context, string, []string) ([]folders.Folder, error)
-	// SetItem updates item for private folders.
-	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Identifier of the acting account's private folder.
-	//   - argument 4: Validated event, job, media or resource category.
-	//   - argument 5: Identifier of the resource addressed by this operation.
-	//   - argument 6: Whether to add rather than remove the target item.
-	//
-	// Returns:
-	//   - result 1: The resulting folder.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+
 	SetItem(context.Context, string, string, string, string, bool) (folders.Folder, error)
-	// Items returns a filtered, bounded page of resources linked to an owned folder.
+	// Items возвращает отфильтрованную, ограниченную страницу ресурсов, связанных с принадлежащей пользователю папкой.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Identifier of the acting account's private folder.
-	//   - argument 4: Opaque continuation boundary from the previous page.
-	//   - argument 5: Maximum number of results or operations in this batch.
-	//   - argument 6: Validated filters restricting the result set.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: идентификатор учетной записи, выполняющей операцию.
+	//   - аргумент 3: идентификатор личной папки действующей учетной записи.
+	//   - аргумент 4: непрозрачная граница продолжения предыдущей страницы.
+	//   - аргумент 5: максимальное количество результатов или операций в этом пакете.
+	//   - аргумент 6: проверенные фильтры, ограничивающие набор результатов.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: результирующая страница.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения данных.
+	//
 	Items(context.Context, string, string, string, int, folders.Filter) (folders.Page, error)
-	// Candidates returns accessible resources that can be linked to the acting account's folder.
+	// Candidates возвращает доступные ресурсы, которые можно связать с папкой действующего аккаунта.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Identifier of the acting account's private folder.
-	//   - argument 4: Opaque continuation boundary from the previous page.
-	//   - argument 5: Maximum number of results or operations in this batch.
-	//   - argument 6: Validated filters restricting the result set.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - аргумент 2: идентификатор аккаунта, выполняющего операцию.
+	//   - аргумент 3: идентификатор личной папки действующего аккаунта.
+	//   - аргумент 4: непрозрачная граница продолжения с предыдущей страницы.
+	//   - аргумент 5: максимальное количество результатов или операций в этом пакете.
+	//   - аргумент 6: проверенные фильтры, ограничивающие набор результатов.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращаемые значения:
+	//   - результат 1: результирующая страница.
+	//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+	//     данных.
 	Candidates(context.Context, string, string, string, int, folders.Filter) (folders.Page, error)
 }
 type Emitter interface {
-	// PublishFolder publishes a committed folder change only to the owning account's realtime
-	// channel.
+	// PublishFolder публикует зафиксированное изменение в папке только в реальном времени
+	// канала аккаунта, которому она принадлежит.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Validated event, job, media or resource category.
-	//   - argument 4: Identifier of the acting account's private folder.
+	// Параметры:
+	//   - аргумент 1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - аргумент 2: идентификатор действующего аккаунта, используемый для ограничения доступа.
+	//   - аргумент 3: валидированное событие, задание, медиафайл или категория ресурсов.
+	//   - аргумент 4: идентификатор закрытой папки действующего аккаунта.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращает:
+	//   - результат 1: nil в случае успеха; в противном случае ошибка валидации, доступа, транспорта или сохранения
+	//     данных.
 	PublishFolder(context.Context, string, string, string) error
 }
 type Handler struct {
@@ -164,36 +149,36 @@ type Handler struct {
 	Events Emitter
 }
 
-// NewHandler constructs the handler with the dependencies and limits required for private
-// folders.
+// NewHandler создает обработчик с зависимостями и ограничениями, необходимыми для частных
+// папок.
 //
-// Parameters:
-//   - repo: Persistence dependency used by the application operation.
-//   - events: Destination for committed lifecycle or chat events.
+// Параметры:
+//   - repo: зависимость от персистентности, используемая при работе приложения.
+//   - events: место назначения для зафиксированных событий жизненного цикла или чатов.
 //
-// Returns:
-//   - result 1: The constructed or loaded handler.
+// Возвращаемое значение:
+//   - result 1: созданный или загруженный обработчик.
 func NewHandler(repo Repository, events Emitter) *Handler {
 	return &Handler{Repo: repo, Events: events}
 }
 
-// emit sends a trusted lifecycle event through the component-owned bounded delivery path.
+// emit отправляет доверенное событие жизненного цикла по ограниченному пути доставки, принадлежащему компоненту.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - kind: Validated event, job, media or resource category.
-//   - id: Identifier of the resource addressed by this operation.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - kind: валидированное событие, задание, медиафайл или категория ресурса.
+//   - id: идентификатор ресурса, к которому относится эта операция.
 func (h *Handler) emit(c *gin.Context, kind, id string) {
 	if h.Events != nil {
 		_ = h.Events.PublishFolder(c.Request.Context(), middleware.UserID(c), kind, id)
 	}
 }
 
-// AccountOnly rejects guest identities before serving registered-account-only conversation or
-// folder operations.
+// AccountOnly отклоняет идентификационные данные гостей перед обработкой диалогов только для зарегистрированных аккаунтов или
+// операций с папками.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *Handler) AccountOnly(c *gin.Context) {
 	if err := h.Repo.Account(c.Request.Context(), middleware.UserID(c)); err != nil {
 		httpresponse.Fail(c, err)
@@ -202,16 +187,16 @@ func (h *Handler) AccountOnly(c *gin.Context) {
 	c.Next()
 }
 
-// parameter validates a required route parameter before invoking the application operation.
+// параметр проверяет требуемый параметр маршрута перед запуском работы приложения.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - name: Name of the setting, cookie, resource or provider being addressed.
+// Параметры:
+// - c: контекст запроса и ответа Gin, включая аутентифицированный идентификатор.
+// - name: название настройки, файла cookie, ресурса или поставщика, к которому обращаются.
 //
-// Returns:
-//   - result 1: Validated required route parameter.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращает:
+// - результат 1: Подтвержден требуемый параметр маршрута.
+// - результат 2: Выполнено ли задокументированное условие операции или ее условное состояние
+// изменение выполнено успешно.
 func parameter(c *gin.Context, name string) (string, bool) {
 	id, err := chat.UUID(c.Param(name))
 	if err != nil {
@@ -221,22 +206,24 @@ func parameter(c *gin.Context, name string) (string, bool) {
 	return id, true
 }
 
-// result writes the folder operation response using the agreed status and public folder
-// representation.
+// проверяет наличие обязательного параметра маршрута перед запуском приложения.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - status: Lifecycle state or response status to record.
-//   - item: The folder state processed by this operation.
+// Параметры:
+// - c: контекст запроса и ответа Gin, включая идентификатор аутентификации.
+// - name: имя параметра, cookie, ресурса или провайдера, к которому осуществляется доступ.
+//
+// Возвращаемые значения:
+// - result 1: наличие обязательного параметра маршрута подтверждено.
+// - result 2: выполнено ли задокументированное условие операции или ее условное состояние;
+// изменение прошло успешно.
 func result(c *gin.Context, status int, item folders.Folder) {
 	c.JSON(status, gin.H{"status": "success", "item": item})
 }
 
-// List returns a bounded page of private folder records using the supplied pagination and
-// filters.
+// List возвращает ограниченную страницу записей из закрытых папок с использованием заданных параметров разбивки на страницы и фильтров.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) List(c *gin.Context) {
 	items, err := h.Repo.List(c.Request.Context(), middleware.UserID(c), c.Query("itemKind"), c.Query("itemId"))
 	if err != nil {
@@ -246,11 +233,11 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success", "items": items})
 }
 
-// Create validates the request and returns the newly created private folder for the acting
-// account.
+// Create проверяет запрос и возвращает только что созданную приватную папку для действующей
+// учетной записи.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Create(c *gin.Context) {
 	var body struct {
 		Name string `json:"name"`
@@ -267,10 +254,10 @@ func (h *Handler) Create(c *gin.Context) {
 	result(c, 201, item)
 }
 
-// Get serves the requested private folder within the caller's authorized scope.
+// Get предоставляет доступ к запрошенной закрытой папке в рамках полномочий вызывающей стороны.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Get(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -284,10 +271,10 @@ func (h *Handler) Get(c *gin.Context) {
 	result(c, 200, item)
 }
 
-// Rename normalizes a new folder name and updates the acting account's owned folder.
+// Rename нормализует имя новой папки и обновляет папку, владельцем которой является действующая учетная запись.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Rename(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -308,11 +295,10 @@ func (h *Handler) Rename(c *gin.Context) {
 	result(c, 200, item)
 }
 
-// Delete removes the requested private folder using the caller's scope and the resource
-// lifecycle rules.
+// Delete удаляет запрошенную закрытую папку, используя область видимости вызывающей стороны и правила жизненного цикла ресурса //.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Delete(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -326,10 +312,10 @@ func (h *Handler) Delete(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success"})
 }
 
-// Order stores a validated ordering of the acting account's private folders.
+// Order хранит подтвержденный порядок расположения закрытых папок действующего аккаунта.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Order(c *gin.Context) {
 	var body struct {
 		IDs []string `json:"ids"`

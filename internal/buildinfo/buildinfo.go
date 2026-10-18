@@ -19,14 +19,14 @@ type Info struct {
 	BuildTime string `json:"buildTime"`
 }
 
-// ValidVersion checks whether a build version is safe to expose in public metadata.
+// ValidVersion проверяет, можно ли безопасно указывать версию сборки в общедоступных метаданных.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// Параметры:
+//   - value: значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращаемое значение:
+//   - result 1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func ValidVersion(value string) bool {
 	if len(value) < 1 || len(value) > 64 {
 		return false
@@ -40,10 +40,10 @@ func ValidVersion(value string) bool {
 	return true
 }
 
-// Current returns validated build metadata without environment values or local paths.
+// Возвращает проверенные метаданные сборки без значений окружения или локальных путей.
 //
-// Returns:
-//   - result 1: The resulting info.
+// Возвращает:
+//   - результат 1: итоговая информация.
 func Current() Info {
 	i := Info{Version: "dev", Commit: "unknown", BuildTime: "unknown"}
 	if ValidVersion(Version) {

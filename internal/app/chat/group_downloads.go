@@ -10,50 +10,50 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// GroupDownloads replaces bearer-capability URLs for groups only. The returned
-// URL requires authentication again when its bytes are requested.
+// GroupDownloads заменяет URL-адреса с поддержкой bearer-capability только для групп.
+// Возвращаемый // URL-адрес требует повторной аутентификации при запросе его байтов.
 type GroupDownloads interface {
-	// GroupDownload authorizes the group attachment and returns a bounded private download target.
+	// GroupDownload авторизует групповое вложение и возвращает целевое значение для частной загрузки с ограниченным доступом.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conversation identifier limiting the operation scope.
-	//   - argument 4: Private attachment identity or metadata, as defined by its type.
+	// Параметры:
+	// - аргумент 1: Контекст, управляющий отменой, крайними сроками и сроком действия операции.
+	// - аргумент 2: Действующий идентификатор учетной записи, используемый для расширения доступа.
+	// - аргумент 3: Идентификатор диалога, ограничивающий область действия операции.
+	// - аргумент 4: Идентификатор частного вложения или метаданные, определяемые его типом.
 	//
-	// Returns:
-	//   - result 1: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 2: Temporary authorized attachment download URL.
-	//   - result 3: The timestamp or validity boundary associated with the result.
-	//   - result 4: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// Возвращает:
+	// - результат 1: Выполняется ли задокументированное условие операции или ее условное состояние
+	// успешно изменено.
+	// - результат 2: URL-адрес для загрузки временного разрешенного вложения.
+	// - результат 3: Временная метка или граница действия, связанная с результатом.
+	// - результат 4: вероятность успеха равна нулю; в противном случае проверка, доступ, транспортировка или сохранение не будут выполнены
+	// ошибка.
 	GroupDownload(context.Context, string, string, string) (bool, string, time.Time, error)
 }
 
-// WithGroupDownloads attaches group downloads to the component before its operations are served.
+// WithGroupDownloads подключает групповые загрузки к компоненту до того, как будут выполнены его операции.
 //
-// Parameters:
-//   - provider: Configured external-provider adapter.
+// Параметры:
+//   - provider: Настроенный адаптер внешнего поставщика.
 //
-// Returns:
-//   - result 1: The constructed or loaded handler.
+// Возвращаемое значение:
+//   - result 1: Созданный или загруженный обработчик.
 func (h *Handler) WithGroupDownloads(provider GroupDownloads) *Handler {
 	h.groupDownloads = provider
 	return h
 }
 
-// downloadGroup serves the group-attachment download path when this repository scope belongs to
-// a group.
+// downloadGroup указывает путь для загрузки групповых вложений, если данный репозиторий принадлежит
+// группе.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - scope: Authorized conversation or resource scope.
-//   - attachment: Private attachment identity or metadata, as defined by its type.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - scope: авторизованная область диалога или ресурса.
+//   - attachment: личные данные о вложениях или метаданные, в зависимости от их типа.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// Возвращает:
+//   - result 1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменилось успешно.
 func (h *Handler) downloadGroup(c *gin.Context, scope, attachment string) bool {
 	if h.namespace != "conversations" || h.groupDownloads == nil {
 		return false

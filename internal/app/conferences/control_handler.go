@@ -12,8 +12,8 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// ControlService defines the replaceable dependency contract for conference lifecycle and
-// participant membership.
+// ControlService определяет заменяемый контракт зависимости для управления жизненным циклом конференции и
+// членством участников.
 type ControlService interface {
 	// Moderate applies a participant moderation action after checking the actor's role and the
 	// target restrictions.
@@ -45,27 +45,25 @@ type ControlService interface {
 	UpdateMediaState(context.Context, string, string, conferences.MediaState) (conferences.ParticipantView, error)
 }
 
-// ControlHandler adapts participant moderation and declared media-state changes to authenticated
-// HTTP requests.
+// ControlHandler адаптирует модерацию участников и объявленные изменения состояния мультимедиа для HTTP-запросов с аутентификацией.
 type ControlHandler struct{ service ControlService }
 
-// NewControlHandler constructs the control handler with the dependencies and limits required for
-// conference lifecycle and participant membership.
+// NewControlHandler создает обработчик управления с зависимостями и ограничениями, необходимыми для
+// жизненного цикла конференции и управления членством участников.
 //
-// Parameters:
-//   - service: Application service invoked by this adapter.
+// Параметры:
+//   - service: служба приложения, вызываемая этим адаптером.
 //
-// Returns:
-//   - result 1: The constructed or loaded control handler.
+// Возвращает:
+//   - result 1: созданный или загруженный обработчик управления.
 func NewControlHandler(service ControlService) *ControlHandler {
 	return &ControlHandler{service: service}
 }
 
-// Moderate applies a participant moderation action after checking the actor's role and the
-// target restrictions.
+// Moderate применяет действие по модерации участников после проверки роли пользователя и целевых ограничений.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ControlHandler) Moderate(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -88,10 +86,10 @@ func (h *ControlHandler) Moderate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Media accepts the current participant's microphone, camera and screen state.
+// Media принимает данные о состоянии микрофона, камеры и экрана текущего участника.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// Параметры:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ControlHandler) Media(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
