@@ -22,8 +22,10 @@ Prejoin вынесен в `PreJoinPage`, просмотр готового фа�
 
 | Путь | Назначение |
 | --- | --- |
-| `/`, `/login`, `/register`, `/register/success` | Приветствие и email/password авторизация |
-| `/app`, `/meetings`, `/conferences` | Главная и фильтрованный список встреч |
+| `/` | Публичная главная без входа; кабинет с быстрыми действиями для авторизованного пользователя |
+| `/login`, `/register`, `/register/success` | Email/password авторизация и результат регистрации |
+| `/app` | Совместимый старый адрес: перенаправление на `/` |
+| `/meetings`, `/conferences` | Фильтрованный список встреч |
 | `/personal`, `/personal/:id` | Личные и групповые переписки; общий MessageThread/AttachmentUploader |
 | `/folders`, `/folders/:id` | Личные папки встреч и переписок |
 | `/calendar` | Предстоящие запланированные встречи: неделя, месяц, мобильный список |
@@ -36,7 +38,7 @@ Prejoin вынесен в `PreJoinPage`, просмотр готового фа�
 | `/recordings/:id?conference=:conferenceId` | Просмотр записи и её файлов в контексте встречи |
 | `/history/*` | Перенаправление на `/conferences?view=past` |
 | `/analytics` | Аналитика одной завершённой или активной встречи |
-| `/search`, `/app/search` | Перенаправление на `/app` |
+| `/search`, `/app/search` | Перенаправление на `/` |
 | `/settings`, `/app/settings` | Профиль, аккаунты, аудио, видео, уведомления и оформление |
 | `/notifications`, `/admin` | Уведомления и защищённые операции администратора |
 | `/app/settings/calendar/:provider/callback` | Callback существующего календарного OAuth |

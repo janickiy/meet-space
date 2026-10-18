@@ -134,7 +134,7 @@ export function clearLogoutMarker(): void {
  * @args
  *   - value (string | null) — значение для проверки, преобразования или отображения.
  *
- * @return Поддерживаемый путь приложения с параметрами либо "/app" для небезопасного адреса.
+ * @return Поддерживаемый путь приложения с параметрами либо "/" для небезопасного адреса.
  */
 export function safeNext(value: string | null): string {
   if (
@@ -144,23 +144,25 @@ export function safeNext(value: string | null): string {
     value.includes("\\") ||
     /[\u0000-\u001f]/.test(value)
   )
-    return "/app";
+    return "/";
   try {
     const url = new URL(value, "https://meet.invalid");
     if (
       url.origin !== "https://meet.invalid" ||
       !RETURN_DESTINATIONS.some((pattern) => pattern.test(url.pathname))
     )
-      return "/app";
-    return url.pathname + url.search;
+      return "/";
+    const pathname = /^\/app\/?$/.test(url.pathname) ? "/" : url.pathname;
+    return pathname + url.search;
   } catch {
-    return "/app";
+    return "/";
   }
 }
 
 // Список повторяет доступные адреса App: возврат после входа не должен вести
 // на формы авторизации, внешние ресурсы или произвольные вложенные маршруты.
 const RETURN_DESTINATIONS = [
+  /^\/$/,
   /^\/app(?:\/(?:settings|recordings))?\/?$/,
   /^\/(?:calendar|analytics|settings|notifications|admin)\/?$/,
   /^\/(?:meetings|conferences)(?:\/[A-Za-z0-9_-]+(?:\/join)?)?\/?$/,

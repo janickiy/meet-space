@@ -176,7 +176,7 @@ export function Layout() {
       </AccountSettingsContext.Provider>
     );
   const items = [
-    { to: "/app", label: "Главная", Icon: Home, end: true },
+    { to: "/", label: "Главная", Icon: Home, end: true },
     { to: "/conferences", label: "Встречи", Icon: Video },
     { to: "/personal", label: "Личные", Icon: MessageCircle },
     { to: "/calendar", label: "Календарь", Icon: CalendarDays },
@@ -196,8 +196,8 @@ export function Layout() {
   const sectionTitle =
     [...items, { to: "/folders", label: "Папки" }, ...serviceItems].find(
       (item) =>
-        item.to === "/app"
-          ? location.pathname === "/app"
+        item.to === "/"
+          ? location.pathname === "/"
           : location.pathname.startsWith(item.to),
     )?.label ||
     (location.pathname.startsWith("/notifications")
@@ -260,7 +260,7 @@ export function Layout() {
             aria-label={open ? `Меню ${PRODUCT_NAME}` : undefined}
           >
             <div className="sidebar-head">
-              <Brand to="/app" />
+              <Brand to="/" />
               <button
                 className="icon-button mobile-only"
                 aria-label="Закрыть меню"
@@ -392,7 +392,7 @@ export function Layout() {
                 <Menu aria-hidden="true" />
               </button>
               <div className="workspace-mobile-brand">
-                <Brand to="/app" />
+                <Brand to="/" />
               </div>
               <span className="workspace-context">{sectionContext}</span>
               <div className="workspace-account">
@@ -422,7 +422,7 @@ export function Layout() {
               <Copyright />
             </footer>
             <nav className="mobile-bottom-nav" aria-label="Быстрая навигация">
-              <NavLink to="/app" end aria-label="Главная — быстрая навигация">
+              <NavLink to="/" end aria-label="Главная — быстрая навигация">
                 <Home size={20} />
                 Главная
               </NavLink>

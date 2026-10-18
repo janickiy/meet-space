@@ -85,7 +85,7 @@ function SettingsRoute() {
     <>
       <Dashboard />
       <AccountSettingsModal
-        onClose={() => navigate("/app", { replace: true })}
+        onClose={() => navigate("/", { replace: true })}
         returnFocus={() => document.getElementById("workspace-main")}
       />
     </>
@@ -93,7 +93,8 @@ function SettingsRoute() {
 }
 
 /**
- * Protected проверяет восстановленную авторизацию и допускает защищённые страницы либо перенаправляет на вход.
+ * Protected выбирает публичную главную либо кабинет после восстановления сессии.
+ * Остальные защищённые страницы без авторизации перенаправляются на вход.
  *
  *
  * @returns JSX-представление компонента для текущих свойств и состояния.
@@ -142,7 +143,9 @@ function Protected() {
       </div>
     );
   if (!auth.user)
-    return (
+    return location.pathname === "/" ? (
+      <Landing />
+    ) : (
       <Navigate
         to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}
         replace
@@ -160,6 +163,12 @@ function Protected() {
       <Navigate to={`/conferences/${auth.user.guestConferenceId}`} replace />
     );
   return <Outlet />;
+}
+
+/** Сохраняет параметры старых ссылок на кабинет, заменяя адрес на общую главную. */
+function HomeRedirect() {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: "/", search, hash }} replace />;
 }
 /**
  * NotFound показывает страницу неизвестного маршрута с переходом к приложению.
@@ -191,7 +200,7 @@ function NotFound() {
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/app" element={<HomeRedirect />} />
       <Route path="/login" element={<AuthPage />} />
       <Route path="/register" element={<AuthPage register />} />
       <Route path="/register/success" element={<RegistrationSuccess />} />
@@ -215,7 +224,7 @@ export function App() {
       />
       <Route element={<Protected />}>
         <Route element={<Layout />}>
-          <Route path="/app" element={<Dashboard />} />
+          <Route index element={<Dashboard />} />
           <Route path="/folders" element={<FoldersPage />} />
           <Route path="/folders/:id" element={<FoldersPage />} />
           <Route path="/personal" element={<PersonalPage />} />
@@ -240,8 +249,8 @@ export function App() {
             element={<Navigate to={PAST_CONFERENCES_PATH} replace />}
           />
           <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/app/search" element={<Navigate to="/app" replace />} />
-          <Route path="/search" element={<Navigate to="/app" replace />} />
+          <Route path="/app/search" element={<Navigate to="/" replace />} />
+          <Route path="/search" element={<Navigate to="/" replace />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>

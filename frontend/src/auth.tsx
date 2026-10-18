@@ -273,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         renewalController.current?.abort();
         identityController.current?.abort();
         clear();
-        window.location.replace("/app");
+        window.location.replace("/");
         return;
       }
       if (event.key !== LOGOUT_KEY || event.newValue === null) return;

@@ -20,6 +20,7 @@ import { CreateConference, JoinByLink } from "../components/ConferenceModals";
 import { ConferenceChatActions } from "../components/ConferenceChatActions";
 import { MeetingSkeleton } from "../components/MeetingSkeleton";
 import { NewDirectChatModal } from "../components/NewDirectChatModal";
+import { CurrentDateTime } from "../components/CurrentDateTime";
 import type { Conference, ConferenceFilters } from "../types";
 import { localDayEnd, localSchedule } from "../collaboration";
 import "./dashboard.css";
@@ -283,10 +284,7 @@ function ConferenceDashboard() {
                   ? "Завершённые и отменённые"
                   : "Предстоящие и без даты"}
             </span>
-            <span>
-              Локальное время ·{" "}
-              {Intl.DateTimeFormat().resolvedOptions().timeZone}
-            </span>
+            <CurrentDateTime />
           </div>
           <ErrorNotice error={query.error} />
           {query.isError && (

@@ -6,7 +6,6 @@ import {
   Video,
   ShieldCheck,
 } from "lucide-react";
-import { useAuth } from "../auth";
 import { Brand } from "../components/ui";
 import { Copyright } from "../components/Copyright";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME, PRODUCT_TAGLINE } from "../brand";
@@ -36,7 +35,6 @@ const features = [
 
 /** Публичная главная: продуктовая иллюстрация не подключается к медиа или встречам. */
 export function Landing() {
-  const { user } = useAuth();
   return (
     <div className="meetspace-home">
       <a className="skip-link" href="#home-main">
@@ -45,20 +43,9 @@ export function Landing() {
       <header className="home-header home-container">
         <Brand />
         <nav className="home-account-nav" aria-label="Аккаунт">
-          {user ? (
-            <Link className="home-button" to="/app">
-              В приложение <ArrowRight size={18} aria-hidden="true" />
-            </Link>
-          ) : (
-            <>
-              <Link className="home-login" to="/login">
-                Войти
-              </Link>
-              <Link className="home-button" to="/register">
-                Создать аккаунт <ArrowRight size={18} aria-hidden="true" />
-              </Link>
-            </>
-          )}
+          <Link className="home-button" to="/login">
+            В приложение <ArrowRight size={18} aria-hidden="true" />
+          </Link>
         </nav>
       </header>
       <main id="home-main" className="home-main home-container" tabIndex={-1}>
@@ -78,11 +65,8 @@ export function Landing() {
             <p id="home-description" className="sr-only">
               {PRODUCT_DESCRIPTION}
             </p>
-            <Link
-              className="home-button home-hero-cta"
-              to={user ? "/app" : "/register"}
-            >
-              {user ? "Открыть мой кабинет" : "Начать встречаться"}
+            <Link className="home-button home-hero-cta" to="/login">
+              Открыть мой кабинет
               <ArrowRight size={20} aria-hidden="true" />
             </Link>
             <p className="home-guest-note">

@@ -171,7 +171,7 @@ export function CreateConference({ onClose }: { onClose?: () => void }) {
   function close() {
     if (mutation.isPending) return;
     if (onClose) onClose();
-    else navigate(params.get("returnTo") === "calendar" ? "/calendar" : "/app");
+    else navigate(params.get("returnTo") === "calendar" ? "/calendar" : "/");
   }
   /**
    * submit проверяет поля формы, отправляет изменение и показывает результат либо ошибку.

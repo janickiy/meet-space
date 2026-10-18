@@ -694,7 +694,7 @@ export function PreJoinPage({
     join.isPending ||
     !!startupError ||
     (guestMode && !guestName.trim());
-  const home = user && !user.guestConferenceId ? "/app" : "/";
+  const home = "/";
   const deviceFields = (
     <div className="prejoin-device-selects">
       <label className="field">

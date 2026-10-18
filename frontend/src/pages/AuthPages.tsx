@@ -37,7 +37,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
-  const nextQuery = next === "/app" ? "" : `?next=${encodeURIComponent(next)}`;
+  const nextQuery = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");

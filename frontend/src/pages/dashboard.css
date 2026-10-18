@@ -930,8 +930,10 @@
 }
 .dashboard-list-caption {
   display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
+  gap: 6px 16px;
   padding: 0 16px;
   margin: 0 0 12px;
   font-size: calc(12px * var(--text-scale));
@@ -939,6 +941,12 @@
 }
 .dashboard-list-caption > span:first-child {
   font-weight: 550;
+}
+.dashboard-current-time {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
 }
 .recent-meeting-card {
   padding: 18px 16px;
@@ -1081,9 +1089,6 @@
   }
   .dashboard-list-caption {
     padding-inline: 0;
-  }
-  .dashboard-list-caption > span:last-child {
-    display: none;
   }
   .dashboard-all .dashboard-meeting-row {
     grid-template-columns: minmax(0, 58px) minmax(0, 1fr);

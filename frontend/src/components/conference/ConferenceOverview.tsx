@@ -58,7 +58,7 @@ export function ConferenceOverview(props: ConferenceViewProps) {
   if (awaitingAdmission)
     return (
       <div className="conference-waiting-page">
-        <Brand to={user?.guestConferenceId ? "/" : "/app"} />
+        <Brand to="/" />
         <div className="conference-waiting-content">
           <WaitingRoomPanel
             conferenceId={id}
