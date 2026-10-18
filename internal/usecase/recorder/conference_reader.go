@@ -7,16 +7,16 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 )
 
-// ReadComposite loads an authorized composite-recording card.
+// ReadComposite загружает авторизованную карту составной записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting record card.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная карта записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) ReadComposite(ctx context.Context, id string) (records.RecordCard, error) {
 	details, err := s.repository.FindDetailsByUUID(ctx, id)
 	if err != nil {
@@ -28,29 +28,30 @@ func (s *Service) ReadComposite(ctx context.Context, id string) (records.RecordC
 	return s.recordCard(ctx, details)
 }
 
-// ReadComposites builds an already-authorized page while retaining the single
-// record availability and mode checks. Older repository adapters keep working.
+// ReadComposites формирует уже авторизованную страницу, сохраняя при этом проверку доступности
+// и режима для одной записи. Старые адаптеры репозиториев продолжают работать.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - ids: Resource identifiers to process as a bounded batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
 //
-// Returns:
-//   - result 1: The collected record card values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения карты записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) ReadComposites(ctx context.Context, ids []string) ([]records.RecordCard, error) {
 	batch, ok := s.repository.(interface {
-		// FindDetailsByUUIDs loads details by uui ds from the recording repository.
+		// FindDetailsByUUIDs загружает данные по uui ds из репозитория записей.
 		//
-		// Parameters:
-		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-		//   - argument 2: Resource identifiers to process as a bounded batch.
+		// @Parameters:
+		//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+		//   операции.
+		//   - arg2: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
 		//
-		// Returns:
-		//   - result 1: The collected record details values.
-		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-		//     failure.
+		// @returns:
+		//   - result1: Собранные сведения о записях.
+		//   - result2: nil — в случае успеха; в противном случае — ошибка валидации,
+		//   доступа, передачи данных или сохранения.
 		FindDetailsByUUIDs(context.Context, []string) ([]records.RecordDetails, error)
 	})
 	if !ok {

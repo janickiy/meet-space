@@ -26,8 +26,8 @@ import (
 // RunMediaWorker запускает медиа-воркер с настроенными зависимостями и передает информацию о сбоях при запуске или
 // завершении работы.
 //
-// Возвращает:
-//   - результат 1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+// @returns:
+//   - result1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
 //     данных.
 func RunMediaWorker() error {
 	base, err := config.Load()
@@ -75,8 +75,8 @@ func RunMediaWorker() error {
 		stop()
 		if err != nil {
 			logger.Warn("media signaling delivery failed", "conference_id", binding.ConferenceID, "participant_id", binding.ParticipantID, "session_id", binding.SessionID, "event_type", kind)
-			// One bounded cleanup worker avoids waiting for cleanup inside the connection event callback
-			// that requested it.
+			// Один ограниченный обработчик очистки не ожидает завершения очистки внутри
+			// обратного вызова события подключения, которое его инициировало.
 			select {
 			case failedPeers <- binding.ConnectionID:
 			default:
@@ -165,8 +165,9 @@ func RunMediaWorker() error {
 	<-done
 	shutdown, stop := context.WithTimeout(context.Background(), base.Operations.ShutdownTimeout)
 	defer stop()
-	// Close long-lived recording egress before waiting for active HTTP requests; otherwise server
-	// shutdown always consumes the entire grace period.
+	// Закрывайте долгоживущие исходящие соединения для записи, не дожидаясь завершения активных
+	// запросов HTTP; в противном случае на завершение работы сервера всегда будет уходить весь
+	// льготный период.
 	mediaErr := handler.Stop(shutdown)
 	return errors.Join(mediaErr, server.Shutdown(shutdown))
 }

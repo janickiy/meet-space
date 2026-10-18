@@ -67,7 +67,7 @@ const titles: Record<ConferenceChatView, string> = {
   edit: "Название и описание",
 };
 
-/** All panels stay inside the meeting context and retain server access checks. */
+/** Все панели остаются в контексте собрания и сохраняют доступ к серверу. */
 export function ConferenceChatInfoModal({
   conference,
   initialView = "info",

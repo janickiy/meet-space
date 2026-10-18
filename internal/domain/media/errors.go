@@ -2,7 +2,8 @@ package media
 
 import "errors"
 
-// Code is the stable machine-readable media protocol error, never a human message.
+// Code — это стабильная машиночитаемая ошибка медиапротокола, не связанная с человеческим
+// фактором.
 type Code string
 
 const (
@@ -17,21 +18,21 @@ const (
 	ErrPolicy         Code = "media_policy_blocked"
 )
 
-// Error returns the error text required by the error interface.
+// Error возвращает текст ошибки, требуемый интерфейсом обработки ошибок.
 //
-// Returns:
-//   - result 1: Error text exposed by this error implementation.
+// @returns:
+//   - result1: Текст ошибки, предоставляемый данной реализацией обработки ошибок.
 func (c Code) Error() string { return string(c) }
 
 var protocolErrors = [...]Code{ErrUnavailable, ErrInvalid, ErrUnauthorized, ErrOwnership, ErrLimit, ErrPeerNotFound, ErrNegotiation, ErrScreenConflict, ErrPolicy}
 
-// ErrorCode is shared by the internal HTTP and public WS error envelopes.
+// ErrorCode используется во внутренних и общедоступных пакетах ошибок HTTP и WS.
 //
-// Parameters:
-//   - err: Error to classify, wrap or report safely.
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 //
-// Returns:
-//   - result 1: Bounded internal media failure code.
+// @returns:
+//   - result1: Ограниченный внутренний код сбоя медиа.
 func ErrorCode(err error) string {
 	for _, code := range protocolErrors {
 		if errors.Is(err, code) {
@@ -41,13 +42,14 @@ func ErrorCode(err error) string {
 	return string(ErrUnavailable)
 }
 
-// ErrorFromCode accepts only protocol codes; unknown details never escape.
+// ErrorFromCode принимает только коды протокола; неизвестные данные не передаются.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: The matching protocol error, or the safe unavailable error for an unknown code.
+// @returns:
+//   - result1: Соответствующая ошибка протокола или безопасная ошибка недоступности при
+//     неизвестном коде.
 func ErrorFromCode(value string) error {
 	for _, code := range protocolErrors {
 		if value == string(code) {

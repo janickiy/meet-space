@@ -7,28 +7,30 @@ import (
 	"time"
 )
 
-// RegisterIntegrationRoutes registers the integration endpoints with the supplied authentication
-// and request middleware.
+// RegisterIntegrationRoutes регистрирует конечные точки для интеграции с предоставленными
+// промежуточными модулями аутентификации и обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - auth: Authentication middleware or account handler dependency.
-//   - limiters: Shared limiter implementations for the registered endpoints.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiters: Общие реализации ограничителей для зарегистрированных конечных точек.
 func RegisterIntegrationRoutes(router gin.IRouter, handler *app.Handler, auth gin.HandlerFunc, limiters ...middleware.Limiter) {
 	var limiter middleware.Limiter
 	if len(limiters) > 0 {
 		limiter = limiters[0]
 	}
-	// Disable caching for all integration responses, including failures. c is the current middleware
-	// request and response context.
+	// Отключить кэширование для всех ответов интеграции, включая сообщения об ошибках. c —
+	// текущий контекст запроса и ответа промежуточного программного обеспечения.
 	private := func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Next()
 	}
-	// Build the rate-limit bucket key only from the verified Bearer identity, never user-supplied
-	// fields. c is the authenticated request; the result is the bucket owner identifier.
+	// Формировать ключ сегмента ограничения частоты только на основе подтверждённой личности
+	// пользователя с токеном Bearer, а не на основе полей, предоставленных пользователем. c —
+	// аутентифицированный запрос; результат — идентификатор владельца сегмента.
 	key := func(c *gin.Context) string { return middleware.UserID(c) }
 	rules := []middleware.Rule{}
 	for _, rule := range []struct {
@@ -59,7 +61,7 @@ func RegisterIntegrationRoutes(router gin.IRouter, handler *app.Handler, auth gi
 	integration.GET("/calendars/:provider/connect", handler.Connect)
 	integration.POST("/calendars/:provider/callback", handler.Callback)
 	integration.DELETE("/calendars/:provider", handler.Disconnect)
-	// Gin uses one route-template name for provider connection, callback and UUID deletion; the
-	// handler validates UUIDs separately.
+	// Gin использует одно имя шаблона маршрута для подключения к провайдеру, обратного вызова и
+	// удаления UUID; обработчик отдельно проверяет UUIDs.
 	router.GET(APIV1Prefix+"/conferences/:id/calendar", private, auth, handler.CalendarMappings)
 }

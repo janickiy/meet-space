@@ -1,23 +1,25 @@
-// Package analytics defines technical conference aggregates without evaluating identity or
-// productivity.
+// Пакетная аналитика определяет агрегированные показатели технической конференции без оценки
+// идентичности или продуктивности.
 package analytics
 
 import "time"
 
-// Interval contains observed presence; overlapping connections belonging to one participant are
-// merged.
+// Interval содержит данные о присутствии участников; перекрывающиеся подключения, принадлежащие
+// одному участнику, объединяются.
 type Interval struct {
 	ParticipantID string
 	Start, End    time.Time
 }
 
-// Point records the number of simultaneously present participants on the conference timeline.
+// Point фиксирует количество одновременно присутствующих участников на временной шкале
+// конференции.
 type Point struct {
 	AtMS  int64 `json:"atMs"`
 	Count int   `json:"count"`
 }
 
-// Participant contains objective activity counters and approximate audio activity.
+// Participant содержит объективные счетчики активности и приблизительные данные об
+// аудиоактивности.
 type Participant struct {
 	ParticipantID   string `json:"participantId"`
 	DisplayName     string `json:"displayName"`
@@ -28,7 +30,8 @@ type Participant struct {
 	MessageCount    int64  `json:"messageCount"`
 }
 
-// Conference contains aggregates that explicitly label speech activity as approximate.
+// Conference содержит агрегированные показатели, которые явно помечают речевую активность как
+// приблизительную.
 type Conference struct {
 	ConferenceID        string        `json:"conferenceId"`
 	Enabled             bool          `json:"enabled"`

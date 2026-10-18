@@ -15,8 +15,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// MediaConfig contains media-worker, SFU, internal-authentication and distributed-ownership
-// settings.
+// MediaConfig содержит параметры media-worker, SFU, внутренней аутентификации
+// и распределённого владения ресурсами.
 type MediaConfig struct {
 	HTTPPort               int
 	WorkerID               string
@@ -55,9 +55,9 @@ type MediaConfig struct {
 
 // LoadMedia загружает и проверяет настройки SFU, медиа-воркера, маршрутизации и внутренней аутентификации.
 //
-// Возвращает:
-//   - результат 1: итоговая конфигурация медиа.
-//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения данных.
+// @returns:
+//   - result1: итоговая конфигурация медиа.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения данных.
 func LoadMedia() (MediaConfig, error) {
 	c := MediaConfig{
 		HTTPPort:               envInt("MEDIA_HTTP_PORT", 8091),
@@ -93,8 +93,9 @@ func LoadMedia() (MediaConfig, error) {
 		ICEKeepaliveInterval:   envDuration("MEDIA_ICE_KEEPALIVE_INTERVAL", 2*time.Second),
 		NegotiationTimeout:     envDuration("MEDIA_NEGOTIATION_TIMEOUT", 15*time.Second),
 	}
-	// Keep local Compose compatible without directly reusing access-token keys. Production requires
-	// independent secrets; derived keys are permitted only locally.
+	// Сохраняет совместимость с локальным Compose без прямого повторного использования ключей
+	// доступа.  Для работы в производственной среде требуются независимые секретные данные;
+	// производные ключи разрешены только на локальном уровне.
 	local := Config{AppEnv: env("APP_ENV", "local")}.IsLocal()
 	base := os.Getenv("JWT_SECRET")
 	if local && len(base) >= 32 {
@@ -126,12 +127,12 @@ func LoadMedia() (MediaConfig, error) {
 
 // mediaDerivedSecret создает локальный медиа-секрет с разделением доменов без повторного использования ключа access-token напрямую.
 //
-// Параметры:
+// @Parameters:
 //   - base: базовая конфигурация или значение, на основе которого создается результат.
 //   - purpose: метка разделения доменов для создаваемого секрета.
 //
 // Возвращаемое значение:
-//   - result 1: локальный медиа-секрет с разделением доменов.
+//   - result1: локальный медиа-секрет с разделением доменов.
 func mediaDerivedSecret(base, purpose string) string {
 	h := hmac.New(sha256.New, []byte(base))
 	_, _ = h.Write([]byte("go-recorder:" + purpose))
@@ -140,8 +141,8 @@ func mediaDerivedSecret(base, purpose string) string {
 
 // Валидация отклоняет несогласованные или выходящие за пределы допустимых значений поля media.go перед использованием значения.
 //
-// Возвращает:
-//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения.
+// @returns:
+//   - result1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 func (c MediaConfig) Validate() error {
 	if len(c.TicketSecret) < 32 || len(c.InternalSecret) < 32 || c.TicketSecret == c.InternalSecret {
 		return fmt.Errorf("MEDIA_TICKET_SECRET and MEDIA_INTERNAL_SECRET must be distinct and contain at least 32 bytes")
@@ -189,11 +190,11 @@ func (c MediaConfig) Validate() error {
 
 // ValidateMediaEndpoint проверяет, что конечная точка медиаворкера использует допустимую схему и адрес.
 //
-// Параметры:
+// @Parameters:
 //   - address: адрес для проверки перед подключением или доставкой.
 //
-// Возвращает:
-//   - result 1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
+// @returns:
+//   - result1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func ValidateMediaEndpoint(address string) error {
 	u, err := url.Parse(address)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
@@ -205,11 +206,11 @@ func ValidateMediaEndpoint(address string) error {
 
 // validateMediaICE проверяет настроенные ICE-серверы перед передачей их медиа-пирам.
 //
-// Параметры:
+// @Parameters:
 //   - c: значение конфигурации ICE, обрабатываемое этой операцией.
 //
-// Возвращаемые значения:
-//   - result 1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
+// @returns:
+//   - result1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func validateMediaICE(c realtime.ICEConfig) error {
 	if len(c.ICEServers) > 16 {
 		return fmt.Errorf("too many ICE servers")

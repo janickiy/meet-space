@@ -26,13 +26,14 @@ import { Button, ErrorNotice, Modal } from "./ui";
 import toneURL from "../assets/device-tone.wav";
 import "./direct-calls.css";
 
-// A fresh document owns a fresh media endpoint. Duplicating a tab must never copy ownership.
+// У нового документа новая конечная точка для медиа. При дублировании вкладки право
+// собственности не копируется.
 const clientId = crypto.randomUUID();
 const changedEvent = "meet:direct-call";
 const ongoing = (call: DirectCall) =>
   ["ringing", "accepted"].includes(call.status);
 
-/** Accept only complete account events; REST remains the authority after reconnect. */
+/** Принимаем только полные события аккаунта; REST остаётся полномочным после повторного подключения. */
 export function receiveDirectCallEvent(raw: string, userId: string): boolean {
   try {
     const event = JSON.parse(raw);
@@ -79,7 +80,7 @@ export function useDirectCalls() {
   return context;
 }
 
-/** One account call manager persists across workspace routes; media mounts only in the answering document. */
+/** Менеджер вызовов для одного аккаунта сохраняется при переходе между маршрутами в рабочей области; медиафайлы монтируются только в документе с ответом. */
 export function DirectCallsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.guestConferenceId ? undefined : user?.id;
@@ -103,7 +104,8 @@ export function DirectCallsProvider({ children }: { children: ReactNode }) {
       ![next.caller.id, next.callee.id].includes(actor.current)
     )
       return;
-    // Recover a committed start/accept whose HTTP response was lost in this document.
+    // Восстановить зафиксированный старт/акцепт, ответ HTTP которого был утерян в этом
+    // документе.
     if (
       next.callerClientId === clientId ||
       next.acceptedByClientId === clientId
@@ -384,7 +386,8 @@ type CallDevices = Pick<
   "microphoneEnabled" | "cameraEnabled"
 >;
 
-// Keep the pre-answer selection across the transition from local preview to the room.
+// Сохранить выбор, сделанный перед ответом, при переходе от локального предварительного
+// просмотра к комнате.
 function CallSession(props: {
   call: DirectCall;
   userId: string;
@@ -465,7 +468,8 @@ function CallRinging({
   const peer = incoming ? call.caller : call.callee;
   const self = incoming ? call.callee : call.caller;
   const [preferences] = useState(() => readDevicePreferences(userId));
-  // Incoming rings never capture devices until the recipient interacts or answers.
+  // Входящие вызовы не захватывают устройства до тех пор, пока получатель не вступит в диалог
+  // или не ответит.
   const [microphoneArmed, setMicrophoneArmed] = useState(!incoming && owned);
   const previewEnabled =
     call.status === "ringing" && !mediaStopped && !previewBlocked;

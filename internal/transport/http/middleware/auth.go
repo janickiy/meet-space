@@ -13,53 +13,58 @@ import (
 const authenticatedUserIDKey = "authenticated_user_id"
 
 type SessionVerifier interface {
-	// VerifySession verifies the JWT and returns its account, guest-conference scope and expiration
-	// claims.
+	// VerifySession проверяет JWT и возвращает утверждения о принадлежности к учётной записи,
+	// гостевой конференции и сроке действия.
 	//
-	// Parameters:
-	//   - argument 1: Untrusted serialized value to decode or validate.
+	// @Parameters:
+	//   - arg1: Недоверенное сериализованное значение для декодирования или проверки.
 	//
-	// Returns:
-	//   - result 1: Verified account identifier.
-	//   - result 2: Guest conference scope, or an empty string for an unrestricted registered
-	//     account.
-	//   - result 3: The timestamp or validity boundary associated with the result.
-	//   - result 4: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Подтвержденный идентификатор учетной записи.
+	//   - result2: Область действия гостевой конференции или пустая строка для
+	//   неограниченной зарегистрированной учетной записи.
+	//   - result3: Временная метка или граница допустимого срока действия, связанная с
+	//   результатом.
+	//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	VerifySession(string) (string, string, time.Time, error)
 }
 
-// AuthorizationVerifier checks a persistent session using the request deadline.
+// AuthorizationVerifier проверяет постоянный сеанс с использованием срока действия запроса.
 type AuthorizationVerifier interface {
-	// VerifyAuthorization verifies the authorization token and resolves its user, session, guest
-	// scope and expiry.
+	// VerifyAuthorization проверяет токен авторизации и определяет его область действия, а
+	// также срок действия и принадлежность пользователя, сеанса и гостя.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Untrusted serialized value to decode or validate.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Недоверенное сериализованное значение для декодирования или проверки.
 	//
-	// Returns:
-	//   - result 1: Verified account identifier.
-	//   - result 2: Guest conference scope, or an empty string for a registered account.
-	//   - result 3: Persistent server-session identifier, or an empty string for a guest or legacy
-	//     token.
-	//   - result 4: The timestamp or validity boundary associated with the result.
-	//   - result 5: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Подтвержденный идентификатор учетной записи.
+	//   - result2: Область действия гостевой конференции или пустая строка для
+	//   зарегистрированной учетной записи.
+	//   - result3: Постоянный идентификатор сеанса на сервере или пустая строка для
+	//   гостевого или устаревшего токена.
+	//   - result4: Временная метка или граница допустимого срока действия, связанная с
+	//   результатом.
+	//   - result5: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	VerifyAuthorization(context.Context, string) (string, string, string, time.Time, error)
 }
 
-// GuestRequestAllowed keeps guest credentials inside one meeting, including WS.
-// Normal conference admission/role checks still run after this scope check.
+// GuestRequestAllowed хранит учетные данные гостя в рамках одной конференции, включая WS.
+// После проверки области действия по-прежнему выполняются стандартные проверки на допуск к
+// конференции и определение роли.
 //
-// Parameters:
-//   - method: HTTP method of the requested route.
-//   - path: Validated local filesystem or object path.
-//   - conferenceID: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - method: Метод HTTP запрошенного маршрута.
+//   - path: Проверенный путь к локальной файловой системе или объекту.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func GuestRequestAllowed(method, path, conferenceID string) bool {
 	if conferenceID == "" {
 		return true
@@ -74,29 +79,29 @@ func GuestRequestAllowed(method, path, conferenceID string) bool {
 	return path == base || strings.HasPrefix(path, base+"/")
 }
 
-// TokenVerifier defines the replaceable dependency contract for HTTP.
+// TokenVerifier определяет заменяемый контракт зависимости для HTTP.
 type TokenVerifier interface {
-	// Verify validates the supplied credentials or signed binding before accepting the caller's
-	// identity.
+	// Verify проверяет предоставленные учётные данные или подписанную привязку, прежде чем
+	// подтвердить личность вызывающего абонента.
 	//
-	// Parameters:
-	//   - argument 1: Untrusted serialized value to decode or validate.
+	// @Parameters:
+	//   - arg1: Недоверенное сериализованное значение для декодирования или проверки.
 	//
-	// Returns:
-	//   - result 1: Verified account identifier.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Подтвержденный идентификатор учетной записи.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Verify(string) (string, error)
 }
 
-// Authenticate verifies the Bearer JWT and stores its validated account identity in the Gin
-// context.
+// Authenticate проверяет токен Bearer JWT и сохраняет его подтвержденные идентификационные
+// данные в контексте Gin.
 //
-// Parameters:
-//   - tokens: Token issuer or verifier used for trusted identity checks.
+// @Parameters:
+//   - tokens: Эмитент или верификатор токена, используемый для проверки подлинности.
 //
-// Returns:
-//   - result 1: The HTTP handler to register for this operation.
+// @returns:
+//   - result1: Обработчик HTTP для регистрации этой операции.
 func Authenticate(tokens TokenVerifier) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
@@ -131,11 +136,12 @@ func Authenticate(tokens TokenVerifier) gin.HandlerFunc {
 	}
 }
 
-// UserID reads the authenticated account identifier stored by the HTTP middleware.
+// UserID считывает идентификатор аутентифицированной учетной записи, сохраненный промежуточным
+// программным обеспечением HTTP.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 //
-// Returns:
-//   - result 1: Authenticated account identifier from the request context.
+// @returns:
+//   - result1: Идентификатор аутентифицированной учетной записи из контекста запроса.
 func UserID(c *gin.Context) string { return c.GetString(authenticatedUserIDKey) }

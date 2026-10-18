@@ -7,14 +7,15 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/users"
 )
 
-// ValidateInvitationEmail rejects addresses requiring SMTPUTF8 before they enter the queue.
+// ValidateInvitationEmail отклоняет адреса, требующие SMTPUTF8, до того, как они попадут в
+// очередь.
 //
-// Parameters:
-//   - email: Account or delivery email address.
+// @Parameters:
+//   - email: Адрес электронной почты для входа в аккаунт или доставки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ValidateInvitationEmail(email string) error {
 	if err := users.ValidateEmail(email); err != nil {
 		return err
@@ -27,20 +28,22 @@ func ValidateInvitationEmail(email string) error {
 	return nil
 }
 
-// InvitationRequest contains addresses or registered accounts selected by an organizer.
+// InvitationRequest содержит адреса или зарегистрированные аккаунты, выбранные организатором.
 type InvitationRequest struct {
 	Emails  []string `json:"emails,omitempty"`
 	UserIDs []string `json:"userIds,omitempty"`
 }
 
-// InvitationUser exposes only the account information needed to select an invitee.
+// InvitationUser предоставляет только ту информацию об учетной записи, которая необходима для
+// выбора приглашенного участника.
 type InvitationUser struct {
 	ID          string  `json:"id"`
 	Email       string  `json:"email"`
 	DisplayName *string `json:"displayName,omitempty"`
 }
 
-// Invitation stores a durable delivery request, separately from actual room presence.
+// Invitation — приглашение сохраняет запрос на надежную доставку отдельно от фактического присутствия в
+// комнате.
 type Invitation struct {
 	ID           string `gorm:"type:uuid;primaryKey"`
 	ConferenceID string
@@ -53,14 +56,14 @@ type Invitation struct {
 	SentAt       *time.Time
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Invitation) TableName() string { return "conference_invitations" }
 
-// InvitationResult reports acceptance, without claiming that SMTP has delivered the message.
+// InvitationResult сообщает о принятии приглашения, не утверждая, что SMTP доставил сообщение.
 type InvitationResult struct {
 	ID     string  `json:"id"`
 	Email  string  `json:"email"`

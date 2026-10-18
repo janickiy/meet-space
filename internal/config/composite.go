@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// CompositeConfig bounds composite recording, durable fragments and FFmpeg processing.
+// CompositeConfig ограничивает составную запись, устойчивые фрагменты и обработку FFmpeg.
 type CompositeConfig struct {
 	Width        int
 	Height       int
@@ -21,9 +21,9 @@ type CompositeConfig struct {
 
 // LoadComposite загружает ограничения на составную запись и настройки хранения из окружения.
 //
-// Возвращает:
-//   - результат 1: результирующая конфигурация составной записи.
-//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+// @returns:
+//   - result1: результирующая конфигурация составной записи.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
 //     данных.
 func LoadComposite() (CompositeConfig, error) {
 	c := CompositeConfig{Width: envInt("RECORDING_WIDTH", 1280), Height: envInt("RECORDING_HEIGHT", 720), FPS: envInt("RECORDING_FPS", 30), Concurrency: envInt("RECORDING_FFMPEG_CONCURRENCY", 1), MaxActive: envInt("RECORDING_MAX_ACTIVE", 2), MaxBytes: int64(envInt("RECORDING_MAX_MIB", 10240)) << 20, LeaseTTL: envDuration("RECORDING_LEASE_TTL", 20*time.Second), PollInterval: envDuration("RECORDING_POLL_INTERVAL", time.Second), MaxDuration: envDuration("RECORDING_MAX_DURATION", 4*time.Hour), KeepLocal: envBool("RECORDING_KEEP_LOCAL", false)}

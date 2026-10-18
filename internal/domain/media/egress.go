@@ -1,7 +1,7 @@
 package media
 
-// EgressRequest describes an internal recording-stream request protected by authorization and
-// the media-room ownership lease.
+// EgressRequest описывает внутренний запрос на запись потока, защищённый авторизацией и арендой
+// права владения медиакомнатой.
 type EgressRequest struct {
 	Purpose            string `json:"purpose,omitempty"`
 	RequestID          string `json:"requestId"`
@@ -11,7 +11,8 @@ type EgressRequest struct {
 	SegmentDurationSec int    `json:"segmentDurationSec"`
 }
 
-// EgressTrack holds the egress track data used by authenticated media-room control.
+// EgressTrack содержит данные о выходе из системы, используемые для управления медиакомнатой с
+// аутентификацией.
 type EgressTrack struct {
 	Track
 	MimeType    string `json:"mimeType"`
@@ -21,7 +22,7 @@ type EgressTrack struct {
 	SSRC        uint32 `json:"ssrc"`
 }
 
-// EgressFrame carries an encoded RTP packet and its worker-clock capture timestamp.
+// EgressFrame содержит закодированный пакет RTP и временную метку захвата по рабочим часам.
 type EgressFrame struct {
 	Type       string       `json:"type"`
 	Sequence   uint64       `json:"sequence"`
@@ -32,29 +33,30 @@ type EgressFrame struct {
 	Code       string       `json:"code,omitempty"`
 }
 
-// EgressSubscription defines the replaceable dependency contract for authenticated media-room
-// control.
+// EgressSubscription определяет заменяемый контракт зависимости для управления медиакомнатой с
+// аутентификацией.
 type EgressSubscription interface {
-	// Frames returns the subscription channel carrying encoded media frames.
+	// Frames возвращает канал подписки, по которому передаются закодированные медиафреймы.
 	//
-	// Returns:
-	//   - result 1: The bounded event or media channel owned by this operation.
+	// @returns:
+	//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
 	Frames() <-chan EgressFrame
-	// Done returns the channel closed when the owned process or subscription terminates.
+	// Done возвращает канал, который закрывается при завершении собственного процесса или
+	// подписки.
 	//
-	// Returns:
-	//   - result 1: The bounded event or media channel owned by this operation.
+	// @returns:
+	//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
 	Done() <-chan struct{}
-	// Err returns the terminal subscription error, if one was recorded.
+	// Err возвращает ошибку терминальной подписки, если таковая была зафиксирована.
 	//
-	// Returns:
-	//   - result 1: The owned process or subscription's terminal error, or nil after normal
-	//     completion.
+	// @returns:
+	//   - result1: Ошибка завершения собственного процесса или подписки, либо nil после
+	//   нормального завершения.
 	Err() error
-	// Close closes the component-owned resources and ends their lifecycle.
+	// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 	Close()
-	// Keyframes requests a video keyframe from the recording subscription.
+	// Keyframes запрашивает видеокадр из подписки на запись.
 	Keyframes()
-	// Ping refreshes the liveness of the current recording subscription.
+	// Ping обновляет информацию о доступности текущей подписки на запись.
 	Ping()
 }

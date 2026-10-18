@@ -7,21 +7,22 @@ import (
 	"github.com/pion/sdp/v3"
 )
 
-// bundleOnlySections validates BUNDLE-only media sections before they are admitted as sources.
+// bundleOnlySections проверяет медиасекции, доступные только для BUNDLE, прежде чем они будут
+// допущены в качестве источников данных.
 //
-// Parameters:
-//   - description: Parsed SDP session description to validate.
+// @Parameters:
+//   - description: Разобранное описание сеанса SDP для проверки.
 //
-// Returns:
-//   - result 1: The resulting media description]bool.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее описание медиаданных]bool.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func bundleOnlySections(description *sdp.SessionDescription) (map[*sdp.MediaDescription]bool, error) {
 	sections := map[string]*sdp.MediaDescription{}
 	only := map[*sdp.MediaDescription]bool{}
 	for _, attr := range description.Attributes {
 		if attr.Key == "bundle-only" {
-			return nil, media.ErrInvalid // This attribute is allowed only at media-section level.
+			return nil, media.ErrInvalid // Этот атрибут допустим только на уровне медиасекции.
 		}
 	}
 	for _, section := range description.MediaDescriptions {

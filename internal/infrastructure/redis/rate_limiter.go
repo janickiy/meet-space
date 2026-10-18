@@ -41,35 +41,36 @@ local remaining = limit - count - 1
 return {1, remaining, 0, math.floor((now_ms + window_ms) / 1000)}
 `)
 
-// RateLimiter applies independent Redis request budgets to different operation kinds.
+// RateLimiter применяет независимые бюджеты запросов Redis к различным типам операций.
 type RateLimiter struct {
 	client *goredis.Client
 }
 
-// NewRateLimiter constructs the rate limiter with the dependencies and limits required for
-// distributed presence and ownership.
+// NewRateLimiter создает ограничитель скорости с учетом зависимостей и ограничений, необходимых
+// для распределенного присутствия и владения.
 //
-// Parameters:
-//   - client: Browser media-client identity or transport dependency, as defined by its type.
+// @Parameters:
+//   - client: Идентификация медиа-клиента браузера или зависимость от транспорта, определяемая
+//     его типом.
 //
-// Returns:
-//   - result 1: The constructed or loaded rate limiter.
+// @returns:
+//   - result1: Созданный или загруженный ограничитель скорости.
 func NewRateLimiter(client *goredis.Client) *RateLimiter {
 	return &RateLimiter{client: client}
 }
 
-// Allow evaluates the rate limit and returns the remaining budget and reset boundary.
+// Функция Allow оценивает ограничение скорости и возвращает оставшийся бюджет и границу сброса.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - limit: Maximum number of results or operations in this batch.
-//   - window: Duration of the rate-limit or observation window.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - window: Продолжительность действия ограничения скорости или окна наблюдения.
 //
-// Returns:
-//   - result 1: The resulting result.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий результат.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (l *RateLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration) (ratelimit.Result, error) {
 	if l == nil || l.client == nil || limit <= 0 {
 		return ratelimit.Result{Allowed: true, Limit: limit}, nil
@@ -115,15 +116,16 @@ func (l *RateLimiter) Allow(ctx context.Context, key string, limit int, window t
 	}, nil
 }
 
-// redisInt converts a Redis script result to the integer representation used by the caller.
+// redisInt преобразует результат выполнения скрипта Redis в целочисленное представление,
+// используемое вызывающей стороной.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func redisInt(value interface{}) (int64, error) {
 	switch typed := value.(type) {
 	case int:

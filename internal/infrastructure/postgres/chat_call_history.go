@@ -5,17 +5,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// decorateCallHistory hydrates the page in one bounded query after chat authorization
-// and the reader's history cutoff have been applied. Device claims are never returned.
+// decorateCallHistory загружает страницу за один ограниченный запрос после авторизации в чате и
+// применения фильтра истории чтения.  Данные об устройстве никогда не возвращаются.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - items: Bounded collection of records to process.
-//   - ids: Resource identifiers to process as a bounded batch.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - items: Ограниченная коллекция записей для обработки.
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func decorateCallHistory(tx *gorm.DB, items []chat.Message, ids []string) error {
 	hasCalls := false
 	for _, item := range items {

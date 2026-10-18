@@ -18,7 +18,7 @@ export interface User {
   updatedAt: string;
 }
 
-/** Registered account available to the organiser's invitation search. */
+/** Зарегистрированная учётная запись доступна для поиска приглашений организатора. */
 export interface InvitationUser {
   id: string;
   email: string;
@@ -119,7 +119,7 @@ export interface Participant {
   admissionVersion?: number;
 }
 
-/** Chat member presence is independent of meeting attendance. */
+/** Присутствие участника в чате не зависит от посещения собраний. */
 export interface ConferenceChatMember extends Participant {
   online: boolean | null;
   isGuest: boolean;
@@ -432,12 +432,12 @@ export interface ChatMessage {
   updatedAt: string;
   deletedAt: string | null;
   version: number;
-  /** Reconciles the sender's optimistic row with REST and account events. */
+  /** Согласовывает оптимистичную строку отправителя с REST и событиями учётной записи. */
   clientRequestId?: string;
   attachments: ChatAttachment[];
-  /** Personal bookmark, projected only into the acting member's REST reads. */
+  /** Личная закладка, доступная только для чтения в REST действующего участника. */
   important?: boolean;
-  /** Shared pin in a personal or group conversation, visible to its members. */
+  /** Общий закреплённый пост в личной или групповой беседе, видимый для участников. */
   pinned?: boolean;
   /** Серверная запись истории звонка; направление определяется текущим пользователем. */
   call?: DirectCallHistory;

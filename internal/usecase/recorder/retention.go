@@ -10,42 +10,45 @@ import (
 )
 
 type RetentionRepository interface {
-	// ExpireNextRecording expires one eligible recording while invoking storage cleanup under the
-	// repository's ownership checks.
+	// ExpireNextRecording удаляет одну подходящую запись, вызывая очистку хранилища с учетом
+	// прав собственности репозитория.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifiers already attempted by this retention sweep.
-	//   - argument 3: Callback removing the authorized recording's owned storage objects.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификаторы, которые уже были использованы при повторном извлечении.
+	//   - arg3: Обратный вызов, удаляющий объекты хранения, принадлежащие авторизованной
+	//   записи.
 	//
-	// Returns:
-	//   - result 1: The resulting count, size or numeric value.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Возвращает количество, размер или числовое значение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ExpireNextRecording(context.Context, []int64, func(context.Context, records.Record) error) (int64, error)
 }
 
 type RecordingRemover interface {
-	// RemoveRecording removes only the validated private object prefixes belonging to the selected
-	// recording.
+	// RemoveRecording удаляет только проверенные префиксы приватных объектов, относящиеся к
+	// выбранной записи.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Recording and its persisted lifecycle metadata.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Запись и сохраненные метаданные ее жизненного цикла.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	RemoveRecording(context.Context, records.Record) error
 }
 
-// RunRetention deletes expired artifacts at startup and every minute. A failed
-// deletion remains eligible for retry; completed metadata is retained for audit.
+// RunRetention удаляет артефакты с истекшим сроком хранения при запуске и каждую минуту.  Если
+// удаление не удалось, его можно повторить; завершенные метаданные сохраняются для аудита.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - repo: Persistence dependency used by the application operation.
-//   - storage: Private object or file storage dependency.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - storage: Зависимость от приватного объекта или хранилища файлов.
 func RunRetention(ctx context.Context, repo RetentionRepository, storage RecordingRemover) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -64,18 +67,18 @@ func RunRetention(ctx context.Context, repo RetentionRepository, storage Recordi
 	}
 }
 
-// SweepRetention bounds each storage operation and each pass. Row locks prevent
-// two API replicas from deleting the same record concurrently.
+// SweepRetention ограничивает каждую операцию хранения и каждый проход.  Блокировка строк
+// предотвращает одновременное удаление одной и той же записи двумя репликами API.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - repo: Persistence dependency used by the application operation.
-//   - storage: Private object or file storage dependency.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - storage: Зависимость от приватного объекта или хранилища файлов.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func SweepRetention(ctx context.Context, repo RetentionRepository, storage RecordingRemover) (int, error) {
 	count := 0
 	var attempted []int64

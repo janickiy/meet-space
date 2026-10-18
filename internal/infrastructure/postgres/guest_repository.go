@@ -14,32 +14,34 @@ import (
 
 type GuestRepository struct{ db *gorm.DB }
 
-// NewGuestRepository constructs the guest repository with the dependencies and limits required
-// for guest.
+// NewGuestRepository создает гостевой репозиторий с зависимостями и ограничениями, необходимыми
+// для работы с гостевыми учетными записями.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded guest repository.
+// @returns:
+//   - result1: Созданный или загруженный гостевой репозиторий.
 func NewGuestRepository(db *gorm.DB) *GuestRepository {
 	return &GuestRepository{db: db.Session(&gorm.Session{Logger: logger.Discard})}
 }
 
-// JoinGuest commits the identity and membership together. Rejected guests keep
-// their existing identity when retrying with the same session.
+// JoinGuest фиксирует личность и членство в группе одновременно.  Гости, получившие отказ, при
+// повторной попытке с использованием того же сеанса сохраняют свои текущие учетные данные.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - code: Bounded public status or failure code.
-//   - name: Name of the setting, cookie, resource or provider being addressed.
-//   - resumeUserID: Existing guest account identifier eligible to resume this invitation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - code: Ограниченный публичный статус или код ошибки.
+//   - name: Имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется
+//     обращение.
+//   - resumeUserID: Идентификатор существующей гостевой учетной записи, с помощью которого
+//     можно возобновить действие приглашения.
 //
-// Returns:
-//   - result 1: The resulting user.
-//   - result 2: The resulting participant.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный пользователь.
+//   - result2: Полученный участник.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *GuestRepository) JoinGuest(ctx context.Context, code, name, resumeUserID string) (users.User, conferences.Participant, error) {
 	var user users.User
 	var participant conferences.Participant

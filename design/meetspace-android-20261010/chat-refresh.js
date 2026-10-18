@@ -1,4 +1,4 @@
-/* Chat interactions in the design prototype. No network or persistent file storage. */
+/* Взаимодействие в чате в дизайн-прототипе.  Без сетевого или постоянного файлового хранилища. */
 (() => {
   'use strict';
   const M = window.MS, E = value => M.escape(value ?? ''), I = name => M.icon(name);
@@ -326,7 +326,7 @@
       });
     }
   });
-  // Gallery synchronization carries fixture data, never local file bytes.
+  // При синхронизации галереи передаются данные фикстуры, а не байты из локальных файлов.
   M.chatRefreshSnapshot = () => ({
     threads: copy(threads),
     contacts: copy((M.chatContacts?.() || []).filter(person => person.created)),
@@ -347,7 +347,7 @@
     if (directory) for (const person of custom) {
       if (!M.chatContact(person.id)) {directory.unshift(copy(person)); changed = true;}
     }
-    // A newly created group must exist before its route can be selected.
+    // Вновь созданная группа должна существовать до того, как можно будет выбрать её маршрут.
     if (typeof snapshot.chat === 'string' && M.setChatRoute?.(snapshot.chat)) changed = true;
     threads = next; return changed;
   };

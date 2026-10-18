@@ -12,20 +12,21 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// InitAttachment creates or reuses pending attachment metadata so an upload can be retried
-// safely.
+// InitAttachment создаёт или повторно использует ожидающие обработки метаданные вложений, чтобы
+// можно было безопасно повторить загрузку.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) InitAttachment(ctx context.Context, userID, conferenceID string, request chat.InitRequest) (chat.Attachment, bool, error) {
 	var attachment chat.Attachment
 	created := false
@@ -71,20 +72,20 @@ func (r *ChatRepository) InitAttachment(ctx context.Context, userID, conferenceI
 	return attachment, created, err
 }
 
-// attachmentOwned locks and reads attachment metadata belonging to the authenticated upload
-// owner.
+// attachmentOwned блокирует и считывает метаданные вложений, принадлежащие авторизованному
+// владельцу.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
-//   - write: Whether this access performs a mutation and requires write authorization.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - write: Выполняет ли этот доступ мутацию и требует ли авторизации на запись.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) attachmentOwned(tx *gorm.DB, userID, conferenceID, id string, write bool) (chat.Attachment, error) {
 	if _, err := r.authorize(tx, userID, conferenceID, true, write); err != nil {
 		return chat.Attachment{}, err
@@ -100,20 +101,20 @@ func (r *ChatRepository) attachmentOwned(tx *gorm.DB, userID, conferenceID, id s
 	return attachment, nil
 }
 
-// ClaimUpload atomically claims an attachment upload attempt using a time-limited ownership
-// token.
+// ClaimUpload атомарно запрашивает попытку загрузки вложения, используя токен владения с
+// ограниченным сроком действия.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
-//   - token: Signed credential or operation-ownership token to verify.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ClaimUpload(ctx context.Context, userID, conferenceID, id, token string) (chat.Attachment, error) {
 	var attachment chat.Attachment
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -140,21 +141,21 @@ func (r *ChatRepository) ClaimUpload(ctx context.Context, userID, conferenceID, 
 	return attachment, err
 }
 
-// CompleteUpload stores the uploaded object result only while the attempt token still owns the
-// attachment.
+// CompleteUpload сохраняет результат загрузки объекта только до тех пор, пока токен попытки
+// владения ещё действует.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
-//   - token: Signed credential or operation-ownership token to verify.
-//   - checksum: Expected content digest used to verify transfer integrity.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - checksum: Ожидаемый дайджест содержимого, используемый для проверки целостности передачи.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) CompleteUpload(ctx context.Context, userID, conferenceID, id, token, checksum string) (chat.Attachment, error) {
 	var attachment chat.Attachment
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -178,19 +179,19 @@ func (r *ChatRepository) CompleteUpload(ctx context.Context, userID, conferenceI
 	return attachment, err
 }
 
-// AttachmentForFinalize loads the owner-visible attachment metadata needed to confirm its
-// upload.
+// AttachmentForFinalize загружает видимые владельцу метаданные вложения, необходимые для
+// подтверждения его загрузки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) AttachmentForFinalize(ctx context.Context, userID, conferenceID, id string) (chat.Attachment, error) {
 	var a chat.Attachment
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -207,20 +208,20 @@ func (r *ChatRepository) AttachmentForFinalize(ctx context.Context, userID, conf
 	return a, err
 }
 
-// FinalizeAttachment marks a successfully uploaded attachment ready to be referenced by a
-// message.
+// FinalizeAttachment помечает успешно загруженное вложение как готовое к использованию в
+// сообщении.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
-//   - objectKey: Server-generated private object-storage key.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - objectKey: Сгенерированный сервером закрытый ключ для хранения объектов.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) FinalizeAttachment(ctx context.Context, userID, conferenceID, id, objectKey string) (chat.Attachment, error) {
 	var a chat.Attachment
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -244,19 +245,19 @@ func (r *ChatRepository) FinalizeAttachment(ctx context.Context, userID, confere
 	return a, err
 }
 
-// DownloadAttachment loads a finalized attachment only when it belongs to a message visible to
-// the caller.
+// DownloadAttachment загружает завершённое вложение только в том случае, если оно принадлежит
+// сообщению, доступному для вызывающей стороны.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) DownloadAttachment(ctx context.Context, userID, conferenceID, id string) (chat.Attachment, error) {
 	var a chat.Attachment
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -288,17 +289,17 @@ func (r *ChatRepository) DownloadAttachment(ctx context.Context, userID, confere
 	return a, err
 }
 
-// CleanupCandidates returns a bounded batch of expired attachment attempts eligible for object
-// cleanup.
+// CleanupCandidates возвращает ограниченную выборку попыток загрузки вложений с истекшим сроком
+// действия, которые можно удалить.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The collected attachment values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения вложений.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) CleanupCandidates(ctx context.Context, limit int) ([]chat.Attachment, error) {
 	var rows []chat.Attachment
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -318,30 +319,31 @@ func (r *ChatRepository) CleanupCandidates(ctx context.Context, limit int) ([]ch
 	return rows, err
 }
 
-// CompleteCleanup records completion of the claimed attachment cleanup.
+// CompleteCleanup фиксирует завершение очистки запрошенного вложения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - key: Storage, cache or cryptographic key used by the operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) CompleteCleanup(ctx context.Context, id, key string) error {
 	return r.attachments(r.db.WithContext(ctx)).Where("id=? AND object_key=? AND status IN ('expired','attached')", id, key).Update("cleaned_at", gorm.Expr("clock_timestamp()")).Error
 }
 
-// AbortUpload releases only the upload attempt identified by its current ownership token.
+// AbortUpload публикует только попытку загрузки, идентифицированную по текущему токену
+// владельца.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - token: Signed credential or operation-ownership token to verify.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) AbortUpload(ctx context.Context, id, token string) error {
 	return r.attachments(r.db.WithContext(ctx)).Where("id=? AND upload_token=? AND uploaded_at IS NULL AND status='pending'", id, token).Update("upload_lease_until", nil).Error
 }

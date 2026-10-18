@@ -1,4 +1,4 @@
-/* Local prototype of a personal call. No media devices or network calls are used. */
+/* Локальный прототип персонального вызова. Не используются мультимедийные устройства или сетевые вызовы. */
 (() => {
   const M = window.MS, E = (value) => M.escape(value), I = (name) => M.icon(name);
   let answerTimer, clockTimer;

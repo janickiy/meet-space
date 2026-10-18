@@ -1,4 +1,4 @@
-// Package buildinfo exposes only validated public artifact metadata.
+// Пакет buildinfo предоставляет только проверенные общедоступные метаданные артефакта.
 package buildinfo
 
 import (
@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-// Version, Commit and BuildTime are injected at build time with -ldflags -X.
+// Version — версия, коммит и BuildTime указываются во время сборки с помощью -ldflags -X.
 var Version, Commit, BuildTime string
 
-// Info contains the release version, source commit and build time, never environment values or
-// filesystem paths.
+// Info содержит информацию о версии релиза, коммите исходного кода и времени сборки, а не о
+// значениях переменных среды или путях к файлам в файловой системе.
 type Info struct {
 	Version   string `json:"version"`
 	Commit    string `json:"commit"`
@@ -21,11 +21,11 @@ type Info struct {
 
 // ValidVersion проверяет, можно ли безопасно указывать версию сборки в общедоступных метаданных.
 //
-// Параметры:
+// @Parameters:
 //   - value: значение для проверки, нормализации или преобразования.
 //
 // Возвращаемое значение:
-//   - result 1: выполняется ли задокументированное условие операции или ее условное состояние
+//   - result1: выполняется ли задокументированное условие операции или ее условное состояние
 //     изменено успешно.
 func ValidVersion(value string) bool {
 	if len(value) < 1 || len(value) > 64 {
@@ -42,8 +42,8 @@ func ValidVersion(value string) bool {
 
 // Возвращает проверенные метаданные сборки без значений окружения или локальных путей.
 //
-// Возвращает:
-//   - результат 1: итоговая информация.
+// @returns:
+//   - result1: итоговая информация.
 func Current() Info {
 	i := Info{Version: "dev", Commit: "unknown", BuildTime: "unknown"}
 	if ValidVersion(Version) {
@@ -72,12 +72,12 @@ func Current() Info {
 	return i
 }
 
-// Handler serves validated public build metadata without secrets, compiler flags or internal
-// addresses.
+// Handler предоставляет проверенные общедоступные метаданные сборки без секретных данных,
+// флагов компилятора или внутренних адресов.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - r: Incoming HTTP request.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - r: Входящий запрос HTTP.
 func Handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

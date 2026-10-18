@@ -1,6 +1,6 @@
-# SMTP is enabled only in the applications that send product notifications.
-# Keep EMAIL_PROVIDER_MODE in the common env file compatible with older workers
-# during a rolling upgrade. SMTP credentials remain in the private env file.
+# SMTP включено только в приложениях, отправляющих уведомления о продуктах.  Сохраните
+# EMAIL_PROVIDER_MODE в общем файле окружения, совместимом с более ранними версиями, на время
+# поэтапного обновления.  Учетные данные SMTP остаются в частном файле окружения.
 services:
   api:
     environment:

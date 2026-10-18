@@ -16,108 +16,115 @@ import (
 	s3storage "github.com/janickiy/meet-space/internal/infrastructure/storage/s3"
 )
 
-// cardRepository reads recording metadata after the conference application operation authorizes
-// access.
+// cardRepository считывает метаданные записи после того, как приложение конференции авторизует
+// доступ.
 type cardRepository interface {
-	// FindDetailsByUUID loads details by UUID from the recording repository.
+	// FindDetailsByUUID загружает сведения по UUID из хранилища записей.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: External recording UUID.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Внешняя запись UUID.
 	//
-	// Returns:
-	//   - result 1: The resulting record details.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученные сведения о записях.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	FindDetailsByUUID(context.Context, string) (records.RecordDetails, error)
 }
 
-// workerRepository defines the replaceable dependency contract for recording jobs and their
-// artifacts.
+// workerRepository определяет заменяемый контракт зависимостей для записи заданий и их
+// артефактов.
 type workerRepository interface {
 	ingestFailureRepository
-	// MarkFinalizing conditionally moves a recording to the finalizing state without overwriting a
-	// newer lifecycle transition.
+	// MarkFinalizing условно переводит запись в состояние финализации, не перезаписывая более
+	// новый переход жизненного цикла.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: External recording UUID.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Внешняя запись UUID.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	MarkFinalizing(context.Context, string) error
-	// MarkUploading conditionally moves a recording to the uploading state without overwriting a
-	// newer lifecycle transition.
+	// MarkUploading условно переводит запись в состояние загрузки, не перезаписывая более новый
+	// переход жизненного цикла.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: External recording UUID.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Внешняя запись UUID.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	MarkUploading(context.Context, string) error
-	// SaveFinalArtifacts persists the completed recording file, preview and segment metadata after
-	// processing succeeds.
+	// SaveFinalArtifacts после успешной обработки сохраняется завершенный файл записи,
+	// предварительный просмотр и метаданные сегмента.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: External recording UUID.
-	//   - argument 3: Final recording-file metadata to persist.
-	//   - argument 4: Optional preview-image metadata to persist.
-	//   - argument 5: Ordered transcript or media segments.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Внешняя запись UUID.
+	//   - arg3: Окончательная запись - сохранение метаданных файла.
+	//   - arg4: Дополнительный предварительный просмотр - сохранение метаданных
+	//   изображения.
+	//   - arg5: Упорядоченная расшифровка или сегменты медиаданных.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SaveFinalArtifacts(context.Context, string, records.RecordFile, *records.RecordFile, []records.RecordSegment) error
 }
 
-// mediaIngest defines the replaceable dependency contract for recording jobs and their
-// artifacts.
+// mediaIngest определяет заменяемый контракт зависимостей для записи заданий и их артефактов.
 type mediaIngest interface {
-	// Prepare prepares the authorized recording job state before media negotiation begins.
+	// Prepare — подготавливает авторизованное состояние задания по записи до начала согласования
+	// медиафайлов.
 	//
-	// Parameters:
-	//   - argument 1: External recording UUID.
-	//   - argument 2: Requested segment duration in seconds.
+	// @Parameters:
+	//   - arg1: Внешняя запись UUID.
+	//   - arg2: Запрошенная продолжительность сегмента в секундах.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Prepare(string, int) error
-	// Stop stops the active recording job operation and releases its owned resources.
+	// Stop останавливает активное задание по записи и освобождает принадлежащие ему ресурсы.
 	//
-	// Parameters:
-	//   - argument 1: Recording UUID whose ingestion session must be stopped.
+	// @Parameters:
+	//   - arg1: Запись UUID, сеанс приема которой необходимо остановить.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Stop(string) error
-	// HandleOffer passes a recording SDP offer to the ingestion manager and returns its negotiated
-	// answer.
+	// HandleOffer передает предложение SDP для записи менеджеру приема данных и возвращает
+	// согласованный ответ.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: External recording UUID.
-	//   - argument 3: Validated application request or incoming operation parameters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Внешняя запись UUID.
+	//   - arg3: Валидированный запрос приложения или входящие параметры операции.
 	//
-	// Returns:
-	//   - result 1: The resulting web rtc answer response.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Итоговый ответ веб-RTC.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	HandleOffer(context.Context, string, records.WebRTCOfferRequest) (records.WebRTCAnswerResponse, error)
 }
 
-// Service builds cards for already authorized conference recordings.
+// Service создает карточки для уже авторизованных записей конференций.
 type Service struct {
 	repository cardRepository
 	s3         *s3storage.Client
 }
 
-// WorkerService handles recording commands, incoming media, finalization and artifact uploads.
+// WorkerService обрабатывает команды записи, входящие медиафайлы, финализацию и загрузку
+// артефактов.
 type WorkerService struct {
 	repository       workerRepository
 	postProcessor    *ffmpeg.PostProcessor
@@ -131,22 +138,22 @@ type WorkerService struct {
 	composite        *CompositeService
 }
 
-// SetComposite updates composite for recording jobs and their artifacts.
+// SetComposite обновляет составные данные о заданиях по записи и их артефактах.
 //
-// Parameters:
-//   - service: Application service invoked by this adapter.
+// @Parameters:
+//   - service: Служба приложения, вызываемая этим адаптером.
 func (s *WorkerService) SetComposite(service *CompositeService) { s.composite = service }
 
-// ValidateLegacyRecord rejects legacy worker operations that target a protected conference
-// recording.
+// ValidateLegacyRecord отклоняет устаревшие рабочие операции, нацеленные на защищенную запись
+// конференции.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *WorkerService) ValidateLegacyRecord(ctx context.Context, id string) error {
 	record, err := s.repository.FindByUUID(ctx, id)
 	if err != nil {
@@ -158,39 +165,40 @@ func (s *WorkerService) ValidateLegacyRecord(ctx context.Context, id string) err
 	return nil
 }
 
-// recordCommandLock serializes one recording's commands and tracks active lock users.
+// recordCommandLock сериализует команды одной записи и отслеживает активных пользователей
+// блокировки.
 type recordCommandLock struct {
 	mu   sync.Mutex
 	refs int
 }
 
-// NewService constructs the service with the dependencies and limits required for recording jobs
-// and their artifacts.
+// NewService создает сервис с зависимостями и ограничениями, необходимыми для записи заданий и
+// их артефактов.
 //
-// Parameters:
-//   - repository: Persistence dependency used by the application operation.
-//   - s3: Private S3-compatible recording storage client.
+// @Parameters:
+//   - repository: Зависимость персистентности, используемая операцией приложения.
+//   - s3: Частный клиент для хранения записей, совместимый с S3-.
 //
-// Returns:
-//   - result 1: The constructed or loaded service.
+// @returns:
+//   - result1: Созданный или загруженный сервис.
 func NewService(repository cardRepository, s3 *s3storage.Client) *Service {
 	return &Service{repository: repository, s3: s3}
 }
 
-// NewWorkerService constructs the worker service with the dependencies and limits required for
-// recording jobs and their artifacts.
+// NewWorkerService создает рабочий сервис с зависимостями и ограничениями, необходимыми для
+// записи заданий и их артефактов.
 //
-// Parameters:
-//   - repository: Persistence dependency used by the application operation.
-//   - postProcessor: FFmpeg finalization and preview generator.
-//   - ingest: WebRTC recording-ingestion component.
-//   - s3: Private S3-compatible recording storage client.
-//   - storagePath: Validated local recording-storage root.
-//   - workerID: Identity of the worker owning this operation.
-//   - locker: Ownership-aware distributed conference recording lock.
+// @Parameters:
+//   - repository: Зависимость персистентности, используемая операцией приложения.
+//   - postProcessor: Генератор финализации и предварительного просмотра FFmpeg.
+//   - ingest: Компонент WebRTC для приема записей.
+//   - s3: Частный клиент для хранения записей, совместимый с S3-.
+//   - storagePath: Проверенный локальный корень хранилища записей.
+//   - workerID: Идентификатор работника, которому принадлежит эта операция.
+//   - locker: Блокировка распределенной записи конференции с учетом прав собственности.
 //
-// Returns:
-//   - result 1: The constructed or loaded worker service.
+// @returns:
+//   - result1: Созданный или загруженный рабочий сервис.
 func NewWorkerService(repository workerRepository, postProcessor *ffmpeg.PostProcessor, ingest mediaIngest, s3 *s3storage.Client, storagePath string, workerID string, locker conferenceReleaser) *WorkerService {
 	return &WorkerService{
 		repository:       repository,
@@ -203,18 +211,18 @@ func NewWorkerService(repository workerRepository, postProcessor *ffmpeg.PostPro
 	}
 }
 
-// HandleCommand idempotently handles an internal recording-start or recording-stop command.
+// HandleCommand идемпотентно обрабатывает внутренние команды на запуск или остановку записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - command: Validated internal recording or media command.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *WorkerService) HandleCommand(ctx context.Context, command records.Command) error {
-	// Commands reach the worker both directly and through RabbitMQ. Validate recordId before
-	// including it in any filesystem path.
+	// Команды поступают в рабочий сервис как напрямую, так и через RabbitMQ.  Проверьте
+	// recordId, прежде чем включать его в какой-либо путь в файловой системе.
 	id, err := uuid.Parse(command.RecordID)
 	if err != nil {
 		return fmt.Errorf("recordId must be valid UUID: %w", err)
@@ -241,19 +249,20 @@ func (s *WorkerService) HandleCommand(ctx context.Context, command records.Comma
 		return fmt.Errorf("unknown command type %q", command.Type)
 	}
 	if errors.Is(commandErr, records.ErrRecordStateChanged) {
-		return nil // A newer lifecycle transition has already made this command obsolete.
+		return nil // Более новый переход жизненного цикла уже сделал эту команду устаревшей.
 	}
 	return commandErr
 }
 
-// lockCommand serializes commands for one recording and removes the lock after its final user
-// exits.
+// lockCommand сериализует команды для одной записи и снимает блокировку после выхода из системы
+// последнего пользователя.
 //
-// Parameters:
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - recordID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: The callback used to complete or release the operation.
+// @returns:
+//   - result1: Обратный вызов, используемый для завершения операции или освобождения
+//     ресурсов.
 func (s *WorkerService) lockCommand(recordID string) func() {
 	s.commandsMu.Lock()
 	if s.commands == nil {
@@ -279,15 +288,15 @@ func (s *WorkerService) lockCommand(recordID string) func() {
 	}
 }
 
-// handleStart idempotently prepares recording ingestion for a delivered start command.
+// handleStart идемпотентно подготавливает запись к приему после получения команды на запуск.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - command: Validated internal recording or media command.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *WorkerService) handleStart(ctx context.Context, command records.Command) error {
 	record, err := s.repository.FindByUUID(ctx, command.RecordID)
 	if err != nil {
@@ -309,9 +318,9 @@ func (s *WorkerService) handleStart(ctx context.Context, command records.Command
 		}
 	}
 	if err := s.repository.AddEvent(ctx, command.RecordID, "record.worker.ready", "worker", "info", "worker prepared WebRTC ingest", s.workerID); err != nil {
-		// Rabbit may quarantine a repeated error instead of retrying again.
-		// Roll back the local allocation before returning that error so an
-		// unstarted recording cannot permanently occupy an ingest slot.
+		// Rabbit может поместить повторяющуюся ошибку в карантин вместо повторной попытки.
+		// Откатите локальное выделение памяти, прежде чем возвращать ошибку, чтобы незапущенная
+		// запись не занимала слот для приема данных.
 		if s.ingest != nil {
 			if stopErr := s.ingest.Stop(command.RecordID); stopErr != nil && !errors.Is(stopErr, records.ErrNoMedia) {
 				return errors.Join(err, stopErr)
@@ -323,40 +332,42 @@ func (s *WorkerService) handleStart(ctx context.Context, command records.Command
 	return nil
 }
 
-// failWorkerRecord stores the worker failure and releases resources owned by the failed
-// recording.
+// failWorkerRecord сохраняет информацию о сбое в работе воркера и освобождает ресурсы,
+// принадлежащие записи, работа которой была прервана.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - recordID: External recording UUID.
-//   - eventType: Bounded recording lifecycle event category.
-//   - cause: Underlying error that caused the operation to fail.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordID: Внешняя запись UUID.
+//   - eventType: Ограниченная категория событий жизненного цикла записи.
+//   - cause: Основная ошибка, из-за которой операция завершилась неудачно.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *WorkerService) failWorkerRecord(ctx context.Context, recordID string, eventType string, cause error) error {
 	err := failRecord(ctx, s.repository, s.conferenceLocker, recordID, s.workerID, eventType, cause)
 	s.cleanupEmptyLocalStorageAfterFailure(ctx, recordID)
 	return err
 }
 
-// handleStop stops ingestion and finalizes, uploads and persists the recording artifacts.
+// handleStop останавливает прием данных, завершает работу, загружает и сохраняет артефакты
+// записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - command: Validated internal recording or media command.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *WorkerService) handleStop(ctx context.Context, command records.Command) error {
 	record, err := s.repository.FindByUUID(ctx, command.RecordID)
 	if err != nil {
 		return err
 	}
 	if records.IsTerminalStatus(record.Status) {
-		// Acknowledge redelivery without modifying artifacts or the final lifecycle state.
+		// Подтверждает повторную доставку без изменения артефактов или конечного состояния
+		// жизненного цикла.
 		return releaseRecordLock(ctx, s.conferenceLocker, record)
 	}
 	if s.ingest != nil {
@@ -434,27 +445,27 @@ func (s *WorkerService) handleStop(ctx context.Context, command records.Command)
 	return nil
 }
 
-// recordDir builds the validated local directory of one recording job.
+// recordDir создает валидированный локальный каталог для одного задания по записи.
 //
-// Parameters:
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - recordID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: Validated local directory of the recording job.
+// @returns:
+//   - result1: Проверенный локальный каталог задания по записи.
 func (s *WorkerService) recordDir(recordID string) string {
 	return filepath.Join(s.storagePath, "records", recordID)
 }
 
-// recordCard builds a recording card with related artifacts and temporary read URLs.
+// recordCard создает карточку записи с соответствующими артефактами и временно считывает URLs.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - details: Recording metadata and related artifacts to format.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - details: Метаданные записи и связанные артефакты форматируются.
 //
-// Returns:
-//   - result 1: The resulting record card.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная карта записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) recordCard(ctx context.Context, details records.RecordDetails) (records.RecordCard, error) {
 	card := records.RecordCard{
 		Record:   details.Record,
@@ -492,16 +503,16 @@ func (s *Service) recordCard(ctx context.Context, details records.RecordDetails)
 	return card, nil
 }
 
-// presignedURL creates a temporary read URL for a private recording artifact.
+// presignedURL создает временный объект чтения URL для частного артефакта записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - objectKey: Server-generated private object-storage key.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - objectKey: Сгенерированный сервером закрытый ключ для хранения объектов.
 //
-// Returns:
-//   - result 1: Temporary signed read URL for the recording artifact.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Временный подписанный объект чтения URL для артефакта записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) presignedURL(ctx context.Context, objectKey string) (string, error) {
 	if s.s3 == nil || objectKey == "" {
 		return "", nil
@@ -510,13 +521,13 @@ func (s *Service) presignedURL(ctx context.Context, objectKey string) (string, e
 	return s.s3.PresignedGetURL(ctx, objectKey, 24*time.Hour)
 }
 
-// segmentMetadata converts a local media segment into persistable recording metadata.
+// segmentMetadata преобразует локальный сегмент медиа в сохраняемые метаданные записи.
 //
-// Parameters:
-//   - segments: Ordered transcript or media segments.
+// @Parameters:
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
 //
-// Returns:
-//   - result 1: The collected record segment values.
+// @returns:
+//   - result1: Собранные значения сегментов записи.
 func segmentMetadata(segments []ffmpeg.Segment) []records.RecordSegment {
 	result := make([]records.RecordSegment, 0, len(segments))
 	for _, segment := range segments {
@@ -535,15 +546,15 @@ func segmentMetadata(segments []ffmpeg.Segment) []records.RecordSegment {
 	return result
 }
 
-// cleanupLocalStorage removes successful local recording artifacts after their durable
-// publication.
+// cleanupLocalStorage удаляет успешно сохраненные локальные артефакты записи после их
+// публикации.
 //
-// Parameters:
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - recordID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *WorkerService) cleanupLocalStorage(recordID string) error {
 	if err := os.RemoveAll(s.recordDir(recordID)); err != nil {
 		return fmt.Errorf("cleanup record storage: %w", err)
@@ -555,14 +566,14 @@ func (s *WorkerService) cleanupLocalStorage(recordID string) error {
 	return nil
 }
 
-// cleanupEmptyLocalStorage removes empty recording directories after processing completes.
+// cleanupEmptyLocalStorage удаляет пустые каталоги с записями после завершения обработки.
 //
-// Parameters:
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - recordID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *WorkerService) cleanupEmptyLocalStorage(recordID string) error {
 	return localstorage.RemoveEmptyTrees(
 		s.recordDir(recordID),
@@ -570,30 +581,30 @@ func (s *WorkerService) cleanupEmptyLocalStorage(recordID string) error {
 	)
 }
 
-// cleanupEmptyLocalStorageAfterFailure removes empty directories after a failure without
-// deleting remaining diagnostic artifacts.
+// cleanupEmptyLocalStorageAfterFailure удаляет пустые каталоги после сбоя, не удаляя оставшиеся
+// диагностические артефакты.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordID: Внешняя запись UUID.
 func (s *WorkerService) cleanupEmptyLocalStorageAfterFailure(ctx context.Context, recordID string) {
 	if err := s.cleanupEmptyLocalStorage(recordID); err != nil {
 		_ = s.repository.AddEvent(ctx, recordID, "record.storage.empty_cleanup_failed", "worker", "warning", err.Error(), s.workerID)
 	}
 }
 
-// HandleOffer passes a recording SDP offer to the ingestion manager and returns its negotiated
-// answer.
+// HandleOffer передает предложение SDP для записи менеджеру приема данных и возвращает
+// согласованный ответ.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - recordID: External recording UUID.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordID: Внешняя запись UUID.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting web rtc answer response.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Итоговый ответ веб-RTC.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *WorkerService) HandleOffer(ctx context.Context, recordID string, request records.WebRTCOfferRequest) (records.WebRTCAnswerResponse, error) {
 	record, err := s.repository.FindByUUID(ctx, recordID)
 	if err != nil {

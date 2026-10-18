@@ -14,22 +14,23 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/media"
 )
 
-// HTTPClient performs internal media calls, never forwards credentials through redirects and
-// never exposes SDP-bearing response bodies in errors.
+// HTTPClient выполняет внутренние медиавызовы, никогда не передает учетные данные при
+// редиректах и никогда не предоставляет тела ответов с SDP в случае ошибок.
 type HTTPClient struct {
 	secret string
 	client *http.Client
 }
 
-// NewHTTPClient constructs the HTTP client with the dependencies and limits required for
-// authenticated media-room control.
+// NewHTTPClient создает клиент HTTP с зависимостями и ограничениями, необходимыми для
+// аутентифицированного управления медиакомнатами.
 //
-// Parameters:
-//   - secret: Private key material or raw secret; it must not be logged or exposed.
-//   - timeout: Maximum time allowed for this operation.
+// @Parameters:
+//   - secret: Материал для создания закрытого ключа или необработанный секретный ключ; его
+//     нельзя регистрировать или раскрывать.
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
 //
-// Returns:
-//   - result 1: The constructed or loaded HTTP client.
+// @returns:
+//   - result1: Созданный или загруженный клиент HTTP.
 func NewHTTPClient(secret string, timeout time.Duration) *HTTPClient {
 	return &HTTPClient{secret: secret, client: &http.Client{Timeout: timeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -37,17 +38,17 @@ func NewHTTPClient(secret string, timeout time.Duration) *HTTPClient {
 	}}
 }
 
-// Call performs the authenticated internal HTTP operation against the selected media worker.
+// Call — вызов выполняет аутентифицированную внутреннюю операцию HTTP с выбранным медиа-воркером.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - action: Requested lifecycle or moderation action.
-//   - command: Validated internal recording or media command.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - action: Запрошенное действие по управлению жизненным циклом или модерации.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 //
-// Returns:
-//   - result 1: The resulting result.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий результат.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *HTTPClient) Call(ctx context.Context, action string, command domain.Command) (domain.Result, error) {
 	if config.ValidateMediaEndpoint(command.Route.Endpoint) != nil {
 		return domain.Result{}, domain.ErrInvalid
@@ -87,7 +88,7 @@ func (c *HTTPClient) Call(ctx context.Context, action string, command domain.Com
 		}
 		_ = json.Unmarshal(body, &failure)
 		code := failure.Code
-		// Older workers used the error field for the same machine code.
+		// В более старых воркерах для того же машинного кода использовалось поле error.
 		if code == "" {
 			code = failure.Error
 		}
@@ -100,5 +101,5 @@ func (c *HTTPClient) Call(ctx context.Context, action string, command domain.Com
 	return result, nil
 }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 func (c *HTTPClient) Close() { c.client.CloseIdleConnections() }

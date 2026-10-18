@@ -1,4 +1,5 @@
-// Command object-backup copies current private object versions and verifies their restoration.
+// Команда object-backup копирует текущие версии приватных объектов и проверяет возможность их
+// восстановления.
 package main
 
 import (
@@ -20,9 +21,9 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-// object describes one backup file without permitting arbitrary local paths. Key is the storage
-// key, File is the local filename, SHA256 is its digest, Size is the byte count and ContentType
-// is the original media type.
+// object описывает один файл резервной копии без указания произвольных локальных путей.  Key —
+// ключ хранилища, File — локальное имя файла, SHA256 — его дайджест, Size — количество байт,
+// ContentType — исходный тип носителя.
 type object struct {
 	Key         string `json:"key"`
 	File        string `json:"file"`
@@ -31,9 +32,9 @@ type object struct {
 	ContentType string `json:"contentType"`
 }
 
-// manifest binds copied current objects to their source bucket and creation time. SchemaVersion
-// identifies the format, Bucket is the source, CreatedAt is UTC and Objects lists the copied
-// files.
+// manifest привязывает скопированные текущие объекты к исходному сегменту и времени создания.
+// SchemaVersion определяет формат, Bucket — источник, CreatedAt — это UTC, а в Objects
+// перечисляются скопированные файлы.
 type manifest struct {
 	SchemaVersion int      `json:"schemaVersion"`
 	Bucket        string   `json:"bucket"`
@@ -41,7 +42,8 @@ type manifest struct {
 	Objects       []object `json:"objects"`
 }
 
-// main starts the object backup command and reports startup or execution failures.
+// main запускает команду резервного копирования объектов и сообщает о сбоях при запуске или
+// выполнении.
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "object backup failed:", err)
@@ -49,15 +51,15 @@ func main() {
 	}
 }
 
-// run validates the backup, restore or verify command and builds an isolated client from
-// operator-controlled environment settings.
+// run проверяет команду резервного копирования, восстановления или верификации и создает
+// изолированный клиент на основе настроек среды, контролируемых оператором.
 //
-// Parameters:
-//   - args: Command-line, process or protocol arguments.
+// @Parameters:
+//   - args: Аргументы командной строки, процесса или протокола.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func run(args []string) error {
 	if len(args) == 0 {
 		return errors.New("operation backup, restore or verify is required")
@@ -98,18 +100,19 @@ func run(args []string) error {
 	}
 }
 
-// backup copies current private object versions and publishes a manifest only after all reads
-// succeed.
+// backup копирует текущие частные версии объектов и публикует манифест только после успешного
+// выполнения всех операций чтения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - client: Private S3-compatible client configured for the backup or restore operation.
-//   - bucket: Private object-storage bucket.
-//   - dir: Validated local directory.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - client: Частный S3--совместимый клиент, настроенный для резервного копирования или
+//     восстановления.
+//   - bucket: Бакет-хранилище для частного объектного хранилища.
+//   - dir: Проверенный локальный каталог.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func backup(ctx context.Context, client *minio.Client, bucket, dir string) error {
 	if err := os.Mkdir(dir, 0700); err != nil {
 		return errors.New("backup directory must not already exist")
@@ -162,16 +165,16 @@ func backup(ctx context.Context, client *minio.Client, bucket, dir string) error
 var filePattern = regexp.MustCompile(`^[a-f0-9]{64}\.bin$`)
 var hashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
-// readManifest validates backup paths, object uniqueness and checksums before a restore is
-// attempted.
+// readManifest проверяет пути резервного копирования, уникальность объектов и контрольные суммы
+// перед попыткой восстановления.
 //
-// Parameters:
-//   - dir: Validated local directory.
+// @Parameters:
+//   - dir: Проверенный локальный каталог.
 //
-// Returns:
-//   - result 1: The resulting manifest.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный манифест.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func readManifest(dir string) (manifest, error) {
 	var m manifest
 	file, err := os.Open(filepath.Join(dir, "manifest.json"))
@@ -209,19 +212,21 @@ func readManifest(dir string) (manifest, error) {
 	return m, nil
 }
 
-// restore uploads a validated backup only into a new or empty private bucket without overwriting
-// existing data.
+// restore загружает проверенную резервную копию только в новое или пустое частное хранилище, не
+// перезаписывая существующие данные.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - client: Private S3-compatible client configured for the backup or restore operation.
-//   - bucket: Private object-storage bucket.
-//   - dir: Validated local directory.
-//   - m: Validated backup manifest or media state, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - client: Частный S3--совместимый клиент, настроенный для резервного копирования или
+//     восстановления.
+//   - bucket: Бакет-хранилище для частного объектного хранилища.
+//   - dir: Проверенный локальный каталог.
+//   - m: Подтвержденный манифест резервного копирования или состояние медиафайлов в
+//     соответствии с их типом.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func restore(ctx context.Context, client *minio.Client, bucket, dir string, m manifest) error {
 	exists, err := client.BucketExists(ctx, bucket)
 	if err != nil {
@@ -249,18 +254,20 @@ func restore(ctx context.Context, client *minio.Client, bucket, dir string, m ma
 	return nil
 }
 
-// verify reads restored objects and checks their bytes and bounded signed access against the
-// backup manifest.
+// verify считывает восстановленные объекты и сверяет их байты и ограниченный подписанный доступ
+// с манифестом резервной копии.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - client: Private S3-compatible client configured for the backup or restore operation.
-//   - bucket: Private object-storage bucket.
-//   - m: Validated backup manifest or media state, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - client: Частный S3--совместимый клиент, настроенный для резервного копирования или
+//     восстановления.
+//   - bucket: Бакет-хранилище для частного объектного хранилища.
+//   - m: Подтвержденный манифест резервного копирования или состояние медиафайлов в
+//     соответствии с их типом.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func verify(ctx context.Context, client *minio.Client, bucket string, m manifest) error {
 	policy, err := client.GetBucketPolicy(ctx, bucket)
 	if err != nil || policy != "" {

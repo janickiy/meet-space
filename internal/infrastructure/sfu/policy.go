@@ -6,17 +6,17 @@ import (
 	"sync"
 )
 
-// SetPolicy updates policy for SFU peers and media forwarding.
+// SetPolicy обновляет политику для одноранговых узлов SFU и переадресации медиаданных.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - participantID: Conference participant identifier.
-//   - policy: Effective server-side media policy.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - participantID: Идентификатор участника конференции.
+//   - policy: Эффективная политика в отношении медиаданных на стороне сервера.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) SetPolicy(ctx context.Context, conferenceID, participantID string, policy media.ParticipantPolicy) error {
 	if policy.Version < 0 {
 		return media.ErrInvalid
@@ -73,8 +73,9 @@ func (m *Manager) SetPolicy(ctx context.Context, conferenceID, participantID str
 		m.unpublish(t)
 	}
 	if policy.Kicked {
-		// Cancel every tab before awaiting the event worker during transport teardown, preserving the
-		// same immediate access revocation as conference completion.
+		// Отменяет все вкладки перед ожиданием обработки события во время завершения передачи
+		// данных, сохраняя тот же принцип немедленного отзыва доступа, что и при завершении
+		// конференции.
 		m.mu.Lock()
 		detached := []*peer{}
 		for _, p := range peers {
@@ -99,16 +100,17 @@ func (m *Manager) SetPolicy(ctx context.Context, conferenceID, participantID str
 	return nil
 }
 
-// ParticipantPolicy returns the participant's current effective media restrictions.
+// ParticipantPolicy возвращает текущие действующие ограничения на доступ к медиаданным для
+// участника.
 //
-// Parameters:
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - participantID: Conference participant identifier.
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - participantID: Идентификатор участника конференции.
 //
-// Returns:
-//   - result 1: The resulting participant policy.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Результирующая политика в отношении участника.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (m *Manager) ParticipantPolicy(conferenceID, participantID string) (media.ParticipantPolicy, bool) {
 	m.mu.Lock()
 	r := m.rooms[conferenceID]
@@ -121,14 +123,16 @@ func (m *Manager) ParticipantPolicy(conferenceID, participantID string) (media.P
 	return r.policies[participantID], true
 }
 
-// reserveSources reserves publication slots while enforcing the peer's effective source policy.
+// reserveSources резервирует слоты для публикации, соблюдая действующую политику в отношении
+// источников данных для одноранговых узлов.
 //
-// Parameters:
-//   - sources: Validated media-source declarations or content inputs.
+// @Parameters:
+//   - sources: Проверенные объявления об источниках медиаданных или входные данные для
+//     контента.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *peer) reserveSources(sources map[string]media.Source) error {
 	p.room.mu.Lock()
 	defer p.room.mu.Unlock()

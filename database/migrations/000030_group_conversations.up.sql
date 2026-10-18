@@ -1,4 +1,4 @@
--- Extend the existing conversation/message core without moving conference data.
+-- Расширьте существующее ядро диалогов и сообщений, не перемещая данные конференции.
 ALTER TABLE conversations DROP CONSTRAINT conversations_type_check;
 ALTER TABLE conversations ALTER COLUMN user_low_id DROP NOT NULL;
 ALTER TABLE conversations ALTER COLUMN user_high_id DROP NOT NULL;
@@ -30,8 +30,9 @@ CREATE UNIQUE INDEX conversation_members_one_owner ON conversation_members(conve
 CREATE INDEX conversation_members_active_user ON conversation_members(user_id,conversation_id) WHERE left_at IS NULL;
 CREATE INDEX conversation_members_active_group ON conversation_members(conversation_id,user_id) WHERE left_at IS NULL;
 
--- The unique direct pair remains unchanged for existing ON CONFLICT pair creation.
--- Deferred validation lets group creation/ownership transfer be atomic transactions.
+-- Уникальная прямая пара остаётся неизменной при создании существующих пар ON и CONFLICT.
+-- Отложенная проверка позволяет выполнять создание группы и передачу прав собственности на неё
+-- в рамках атомарных транзакций.
 CREATE OR REPLACE FUNCTION check_direct_pair() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE ids UUID[]; cid UUID; kind TEXT; lo UUID; hi UUID; gone TIMESTAMPTZ; total BIGINT; owners BIGINT;
 BEGIN

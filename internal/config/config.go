@@ -12,7 +12,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config contains the environment-controlled settings used to start the API and workers.
+// Config содержит параметры, управляемые через среду, которые используются для запуска API и
+// воркеров.
 type Config struct {
 	AppEnv             string
 	APIPort            int
@@ -49,12 +50,12 @@ type Config struct {
 	StageEight         StageEightConfig
 }
 
-// Load loads application settings from the environment and the supported local environment file.
+// Load загружает параметры приложения из среды и поддерживаемого локального файла конфигурации.
 //
-// Returns:
-//   - result 1: The resulting config.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий файл config.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func Load() (Config, error) {
 	_ = godotenv.Load()
 	if err := validateTypedEnvironment(); err != nil {
@@ -121,27 +122,29 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-// RateLimitConfig contains request-rate rules and the configured limiter failure policy.
+// RateLimitConfig содержит правила ограничения частоты запросов и настроенную политику
+// обработки сбоев ограничителя.
 type RateLimitConfig struct {
 	DefaultRPM        int
 	AuthLoginIPRPM    int
 	AuthRegisterIPRPM int
 }
 
-// IsLocal reports whether the application is running in an explicitly local environment.
+// IsLocal сообщает, запущено ли приложение в явно локальной среде.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c Config) IsLocal() bool {
 	value := strings.ToLower(c.AppEnv)
 	return value == "local" || value == "dev" || value == "debug"
 }
 
-// postgresDSN builds the PostgreSQL connection string from operator-controlled configuration.
+// postgresDSN формирует строку подключения PostgreSQL на основе конфигурации, управляемой
+// оператором.
 //
-// Returns:
-//   - result 1: PostgreSQL connection string built from trusted settings.
+// @returns:
+//   - result1: Строка подключения PostgreSQL сформирована на основе доверенных настроек.
 func postgresDSN() string {
 	host := env("POSTGRES_HOST", "postgres")
 	port := env("POSTGRES_PORT", "5432")
@@ -153,10 +156,10 @@ func postgresDSN() string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=UTC", host, port, user, password, db, sslmode)
 }
 
-// redisAddr builds the Redis host and port used by the application client.
+// redisAddr формирует хост и порт Redis, используемые клиентом приложения.
 //
-// Returns:
-//   - result 1: Configured Redis host and port.
+// @returns:
+//   - result1: Настроенный хост и порт Redis.
 func redisAddr() string {
 	host := env("REDIS_HOST", "redis")
 	port := env("REDIS_PORT", "6379")
@@ -164,10 +167,10 @@ func redisAddr() string {
 	return fmt.Sprintf("%s:%s", host, port)
 }
 
-// rabbitMQURL builds the AMQP connection URL from the configured broker settings.
+// rabbitMQURL формирует соединение AMQP с URL на основе настроенных параметров брокера.
 //
-// Returns:
-//   - result 1: Configured AMQP connection URL.
+// @returns:
+//   - result1: Настроенное соединение AMQP с URL.
 func rabbitMQURL() string {
 	if dsn := env("RABBIT_MQ_DSN", ""); dsn != "" {
 		return dsn
@@ -190,12 +193,12 @@ func rabbitMQURL() string {
 
 // env считывает переменную окружения и использует резервное значение, если она пуста.
 //
-// Параметры:
+// @Parameters:
 //   - key: хранилище, кэш или криптографический ключ, используемый в операции.
 //   - fallback: значение, используемое при отсутствии или некорректности необязательного параметра.
 //
 // Возвращаемое значение:
-//   - result 1: настроенное значение из окружения или указанное резервное значение.
+//   - result1: настроенное значение из окружения или указанное резервное значение.
 func env(key string, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -205,14 +208,16 @@ func env(key string, fallback string) string {
 	return value
 }
 
-// envInt reads an integer environment setting, falling back when it cannot be parsed.
+// envInt считывает целочисленный параметр среды, возвращаясь к предыдущему значению, если его
+// не удается проанализировать.
 //
-// Parameters:
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - fallback: Value used when the optional setting is absent or invalid.
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - fallback: Значение, используемое при отсутствии или некорректном значении необязательного
+//     параметра.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
 func envInt(key string, fallback int) int {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -226,15 +231,17 @@ func envInt(key string, fallback int) int {
 	return parsed
 }
 
-// envBool reads a boolean environment setting, falling back when it cannot be parsed.
+// envBool считывает логический параметр среды, возвращаясь к предыдущему значению, если его не
+// удается проанализировать.
 //
-// Parameters:
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - fallback: Value used when the optional setting is absent or invalid.
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - fallback: Значение, используемое при отсутствии или некорректном значении необязательного
+//     параметра.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func envBool(key string, fallback bool) bool {
 	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
 	if value == "" {
@@ -244,14 +251,17 @@ func envBool(key string, fallback bool) bool {
 	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
 
-// envDuration reads a duration environment setting, falling back when it cannot be parsed.
+// envDuration считывает параметр среды, определяющий продолжительность, и возвращается к
+// предыдущему значению, если его не удается проанализировать.
 //
-// Parameters:
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - fallback: Value used when the optional setting is absent or invalid.
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - fallback: Значение, используемое при отсутствии или некорректном значении необязательного
+//     параметра.
 //
-// Returns:
-//   - result 1: The duration or bounded waiting interval computed by the operation.
+// @returns:
+//   - result1: Продолжительность или ограниченный интервал ожидания, вычисленный в ходе
+//     операции.
 func envDuration(key string, fallback time.Duration) time.Duration {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -269,13 +279,13 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// envList splits a comma-separated environment setting into nonempty trimmed entries.
+// envList разбивает параметр среды, разделенный запятыми, на непустые сокращенные записи.
 //
-// Parameters:
-//   - key: Storage, cache or cryptographic key used by the operation.
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// Returns:
-//   - result 1: The collected string values.
+// @returns:
+//   - result1: Собранные строковые значения.
 func envList(key string) []string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {

@@ -10,7 +10,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 )
 
-// User persists account identity and a password hash; public views are built separately.
+// User сохраняет данные для входа в учетную запись и хэш пароля; публичные представления
+// формируются отдельно.
 type User struct {
 	ID                string    `gorm:"type:uuid;primaryKey" json:"-"`
 	Email             string    `json:"-"`
@@ -27,14 +28,14 @@ const (
 	MaxPasswordCharacters = 128
 )
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (User) TableName() string { return "users" }
 
-// View is the safe public API projection of an account.
+// View представляет собой безопасную публичную проекцию API учетной записи.
 type View struct {
 	ID                string    `json:"id"`
 	Email             string    `json:"email"`
@@ -45,10 +46,10 @@ type View struct {
 	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
-// View builds the public API representation without exposing private persistence fields.
+// View создает публичное представление API, не раскрывая приватные поля персистентности.
 //
-// Returns:
-//   - result 1: The resulting view.
+// @returns:
+//   - result1: Результирующее представление.
 func (u User) View() View {
 	email := u.Email
 	if u.GuestConferenceID != nil {
@@ -57,10 +58,11 @@ func (u User) View() View {
 	return View{ID: u.ID, Email: email, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt}
 }
 
-// ParticipantName chooses the public participant name used in conference membership views.
+// ParticipantName выбирает публичное имя участника, которое используется в представлениях о
+// членстве в конференции.
 //
-// Returns:
-//   - result 1: Safe public participant display name.
+// @returns:
+//   - result1: Безопасное публичное отображаемое имя участника.
 func (u User) ParticipantName() string {
 	if u.DisplayName != nil && *u.DisplayName != "" {
 		return *u.DisplayName
@@ -68,27 +70,28 @@ func (u User) ParticipantName() string {
 	return "Participant"
 }
 
-// RegisterRequest contains an email address, password and optional public registration name.
+// RegisterRequest содержит адрес электронной почты, пароль и необязательное публичное
+// регистрационное имя.
 type RegisterRequest struct {
 	Email       string  `json:"email"`
 	Password    string  `json:"password"`
 	DisplayName *string `json:"displayName"`
 }
 
-// UpdateProfileRequest permits changes only to the current account's display name.
+// UpdateProfileRequest позволяет изменять только отображаемое имя текущего аккаунта.
 type UpdateProfileRequest struct {
 	DisplayName string `json:"displayName"`
 }
 
-// NormalizeDisplayName trims and validates a display name before it is saved.
+// NormalizeDisplayName обрезает и проверяет отображаемое имя перед сохранением.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Validated public display name.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Проверенное публичное отображаемое имя.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeDisplayName(value string) (string, error) {
 	name := strings.TrimSpace(value)
 	length := utf8.RuneCountInString(name)
@@ -103,40 +106,42 @@ func NormalizeDisplayName(value string) (string, error) {
 	return name, nil
 }
 
-// LoginRequest contains the supplied sign-in credentials.
+// LoginRequest содержит введенные учетные данные для входа.
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// LoginResponse contains the sign-in result, access token and safe public account information.
+// LoginResponse содержит результат входа, токен доступа и безопасную публичную информацию об
+// аккаунте.
 type LoginResponse struct {
 	Status      string `json:"status"`
 	AccessToken string `json:"accessToken"`
 	TokenType   string `json:"tokenType"`
 	ExpiresIn   int    `json:"expiresIn"`
 	User        View   `json:"user"`
-	// SessionToken is delivered only as an HttpOnly cookie, never in JSON.
+	// SessionToken передается только в виде файла cookie HttpOnly, а не JSON.
 	SessionToken string `json:"-"`
 }
 
-// NormalizeEmail normalizes an email address for consistent account lookup.
+// NormalizeEmail нормализует адрес электронной почты для единообразного поиска аккаунта.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Normalized email address used for account lookup.
+// @returns:
+//   - result1: Нормализованный адрес электронной почты, используемый для поиска аккаунта.
 func NormalizeEmail(value string) string { return strings.ToLower(strings.TrimSpace(value)) }
 
-// ValidateEmail checks whether an email address meets the account registration rules.
+// ValidateEmail проверяет, соответствует ли адрес электронной почты правилам регистрации
+// аккаунта.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ValidateEmail(value string) error {
 	address, err := mail.ParseAddress(value)
 	if err != nil || address.Address != value || len(value) > 254 || !strings.Contains(value, "@") {
@@ -145,16 +150,16 @@ func ValidateEmail(value string) error {
 	return nil
 }
 
-// NormalizeRegister normalizes registration fields and rejects invalid credentials before
-// account creation.
+// NormalizeRegister нормализует поля регистрации и отклоняет неверные учетные данные перед
+// созданием аккаунта.
 //
-// Parameters:
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting register request.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий запрос на регистрацию.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeRegister(request RegisterRequest) (RegisterRequest, error) {
 	request.Email = NormalizeEmail(request.Email)
 	if err := ValidateEmail(request.Email); err != nil {

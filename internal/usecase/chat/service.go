@@ -21,317 +21,366 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// Repository defines the replaceable dependency contract for persistent chat messages and
-// private attachments.
+// Repository — репозиторий определяет заменяемый контракт зависимостей для постоянных сообщений чата и
+// личных вложений.
 type Repository interface {
-	// List returns a bounded page of chat message records using the supplied pagination and filters.
+	// List возвращает страницу с ограниченным количеством записей о сообщениях чата с
+	// использованием заданных параметров разбивки на страницы и фильтров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Opaque continuation boundary from the previous page.
-	//   - argument 5: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Непрозрачная граница продолжения с предыдущей страницы.
+	//   - arg5: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная страница.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	List(context.Context, string, string, string, int) (domain.Page, error)
-	// Send validates access, reply and attachment references and persists the chat message with
-	// idempotency protection against duplicate retries.
+	// Send проверяет ссылки на доступ, ответы и вложения и сохраняет сообщение чата с защитой
+	// от повторяющихся идентичных запросов.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Validated application request or incoming operation parameters.
-	//   - argument 5: Stable request fingerprint used to detect conflicting idempotent retries.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Валидированный запрос приложения или входящие параметры операции.
+	//   - arg5: Стабильный отпечаток запроса, используемый для обнаружения повторяющихся
+	//   идентичных запросов.
 	//
-	// Returns:
-	//   - result 1: The resulting message.
-	//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное сообщение.
+	//   - result2: Указывает, создал ли этот запрос новое состояние или повторно
+	//   использовал идемпотентный результат.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Send(context.Context, string, string, domain.SendRequest, string) (domain.Message, bool, error)
-	// Edit changes the author's existing message text after checking visibility and edit
-	// eligibility.
+	// Edit — при редактировании существующий текст сообщения автора изменяется после проверки
+	// видимости и возможности редактирования.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Identifier of the resource addressed by this operation.
-	//   - argument 5: UTF-8 text to validate, normalize or process.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg5: Текст UTF-8 для проверки, нормализации или обработки.
 	//
-	// Returns:
-	//   - result 1: The resulting message.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное сообщение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Edit(context.Context, string, string, string, string) (domain.Message, error)
-	// Delete removes the requested chat message using the caller's scope and the resource lifecycle
-	// rules.
+	// Delete удаляет запрошенное сообщение чата с учётом области видимости вызывающей стороны и
+	// правил жизненного цикла ресурса.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting message.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное сообщение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Delete(context.Context, string, string, string) (domain.Message, error)
-	// ReadState returns the member's saved read boundary and visible unread-message count.
+	// ReadState возвращает сохраненную границу прочитанных сообщений участника и количество
+	// видимых непрочитанных сообщений.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: The resulting read state.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное состояние чтения.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ReadState(context.Context, string, string) (domain.ReadState, error)
-	// MarkRead advances the saved read boundary without allowing late or repeated requests to move
-	// it backward.
+	// MarkRead перемещает сохраненную границу прочитанных сообщений, не позволяя поздним или
+	// повторным запросам сдвигать ее назад.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Message identifier within the authorized conversation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор сообщения в рамках авторизованного диалога.
 	//
-	// Returns:
-	//   - result 1: The resulting read state.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное состояние чтения.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	MarkRead(context.Context, string, string, string) (domain.ReadState, error)
-	// InitAttachment creates or reuses pending attachment metadata so an upload can be retried
-	// safely.
+	// InitAttachment создаёт или повторно использует ожидающие обработки метаданные вложений,
+	// чтобы можно было безопасно повторить загрузку.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Validated application request or incoming operation parameters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Валидированный запрос приложения или входящие параметры операции.
 	//
-	// Returns:
-	//   - result 1: The resulting attachment.
-	//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее вложение.
+	//   - result2: Указывает, создал ли этот запрос новое состояние или повторно
+	//   использовал идемпотентный результат.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	InitAttachment(context.Context, string, string, domain.InitRequest) (domain.Attachment, bool, error)
-	// ClaimUpload atomically claims an attachment upload attempt using a time-limited ownership
-	// token.
+	// ClaimUpload атомарно запрашивает попытку загрузки вложения, используя токен владения с
+	// ограниченным сроком действия.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Identifier of the resource addressed by this operation.
-	//   - argument 5: Signed credential or operation-ownership token to verify.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg5: Подписанные учетные данные или токен владения операцией для проверки.
 	//
-	// Returns:
-	//   - result 1: The resulting attachment.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее вложение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ClaimUpload(context.Context, string, string, string, string) (domain.Attachment, error)
-	// CompleteUpload stores the uploaded object result only while the attempt token still owns the
-	// attachment.
+	// CompleteUpload сохраняет результат загрузки объекта только до тех пор, пока токен попытки
+	// владения ещё действует.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Identifier of the resource addressed by this operation.
-	//   - argument 5: Signed credential or operation-ownership token to verify.
-	//   - argument 6: Expected content digest used to verify transfer integrity.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg5: Подписанные учетные данные или токен владения операцией для проверки.
+	//   - arg6: Ожидаемый дайджест содержимого, используемый для проверки целостности
+	//   передачи.
 	//
-	// Returns:
-	//   - result 1: The resulting attachment.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее вложение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	CompleteUpload(context.Context, string, string, string, string, string) (domain.Attachment, error)
-	// AbortUpload releases only the upload attempt identified by its current ownership token.
+	// AbortUpload публикует только попытку загрузки, идентифицированную по текущему токену
+	// владельца.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
-	//   - argument 3: Signed credential or operation-ownership token to verify.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg3: Подписанные учетные данные или токен владения операцией для проверки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	AbortUpload(context.Context, string, string) error
-	// AttachmentForFinalize loads the owner-visible attachment metadata needed to confirm its
-	// upload.
+	// AttachmentForFinalize загружает видимые владельцу метаданные вложения, необходимые для
+	// подтверждения его загрузки.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting attachment.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее вложение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	AttachmentForFinalize(context.Context, string, string, string) (domain.Attachment, error)
-	// FinalizeAttachment marks a successfully uploaded attachment ready to be referenced by a
-	// message.
+	// FinalizeAttachment помечает успешно загруженное вложение как готовое к использованию в
+	// сообщении.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Identifier of the resource addressed by this operation.
-	//   - argument 5: Server-generated private object-storage key.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg5: Сгенерированный сервером закрытый ключ для хранения объектов.
 	//
-	// Returns:
-	//   - result 1: The resulting attachment.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее вложение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	FinalizeAttachment(context.Context, string, string, string, string) (domain.Attachment, error)
-	// DownloadAttachment loads a finalized attachment only when it belongs to a message visible to
-	// the caller.
+	// DownloadAttachment загружает завершённое вложение только в том случае, если оно
+	// принадлежит сообщению, доступному для вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting attachment.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее вложение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	DownloadAttachment(context.Context, string, string, string) (domain.Attachment, error)
-	// CleanupCandidates returns a bounded batch of expired attachment attempts eligible for object
-	// cleanup.
+	// CleanupCandidates возвращает ограниченную выборку попыток загрузки вложений с истекшим
+	// сроком действия, которые можно удалить.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The collected attachment values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения вложений.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	CleanupCandidates(context.Context, int) ([]domain.Attachment, error)
-	// CompleteCleanup records completion of the claimed attachment cleanup.
+	// CompleteCleanup фиксирует завершение очистки запрошенного вложения.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
-	//   - argument 3: Storage, cache or cryptographic key used by the operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg3: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	CompleteCleanup(context.Context, string, string) error
 }
 
-// Storage defines the replaceable dependency contract for persistent chat messages and private
-// attachments.
+// Storage — хранилище определяет заменяемый контракт зависимостей для постоянных сообщений чата и личных
+// вложений.
 type Storage interface {
-	// CheckAttachmentPrivacy rejects object-storage settings that expose private chat attachments
-	// through a public bucket policy.
+	// CheckAttachmentPrivacy отклоняет настройки объектного хранилища, которые раскрывают
+	// приватные вложения чатов через публичную политику bucket.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	CheckAttachmentPrivacy(context.Context) error
-	// PutAttachment stores attachment bytes under a server-generated private object key.
+	// PutAttachment сохраняет байты вложений под сгенерированным сервером приватным ключом
+	// объекта.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Storage, cache or cryptographic key used by the operation.
-	//   - argument 3: Source content stream or recording-card reader, as defined by its type.
-	//   - argument 4: Content size in bytes or the requested bounded capacity.
-	//   - argument 5: Declared or detected MIME type of the content.
-	//   - argument 6: Expected content digest used to verify transfer integrity.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+	//   - arg3: Поток исходного контента или устройство чтения карт памяти, в зависимости
+	//   от его типа.
+	//   - arg4: Размер контента в байтах или запрошенная ограниченная емкость.
+	//   - arg5: Объявленный или обнаруженный тип контента MIME.
+	//   - arg6: Ожидаемый дайджест содержимого, используемый для проверки целостности
+	//   передачи.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	PutAttachment(context.Context, string, io.Reader, int64, string, string) error
-	// StatAttachment reads the actual object size and metadata before upload finalization.
+	// StatAttachment считывает фактический размер объекта и метаданные перед завершением
+	// загрузки.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Storage, cache or cryptographic key used by the operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 	//
-	// Returns:
-	//   - result 1: The resulting count, size or numeric value.
-	//   - result 2: Actual stored object content type.
-	//   - result 3: Stored SHA-256 content digest used for finalization.
-	//   - result 4: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Возвращает количество, размер или числовое значение.
+	//   - result2: Фактический тип хранимого содержимого объекта.
+	//   - result3: Сохраненный дайджест содержимого SHA-256, используемый для завершения
+	//   загрузки.
+	//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	StatAttachment(context.Context, string) (int64, string, string, error)
-	// AttachmentDownloadURL creates a short-lived signed URL that requests attachment download.
+	// AttachmentDownloadURL создает недолговечный подписанный URL, который запрашивает загрузку
+	// вложения.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Storage, cache or cryptographic key used by the operation.
-	//   - argument 3: Safe download filename included in the content disposition.
-	//   - argument 4: Expiration deadline or validity interval, as defined by its type.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+	//   - arg3: Безопасное имя файла для загрузки, указанное в заголовке
+	//   Content-Disposition.
+	//   - arg4: Срок действия или интервал действительности, определяемый типом.
 	//
-	// Returns:
-	//   - result 1: Short-lived signed attachment-download URL.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Недолговечный подписанный URL для загрузки вложения.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	AttachmentDownloadURL(context.Context, string, string, time.Duration) (string, error)
-	// CleanAttachmentObjects removes only the exact attachment prefix objects that are not the
-	// retained finalized object.
+	// CleanAttachmentObjects удаляет только те объекты с префиксом вложения, которые не
+	// являются сохраненным финализированным объектом.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Server-controlled object or key prefix.
-	//   - argument 3: Exact finalized object key that cleanup must retain.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Объект или префикс ключа, управляемый сервером.
+	//   - arg3: Точный ключ финализированного объекта, который должен быть сохранен при
+	//   очистке.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	CleanAttachmentObjects(context.Context, string, string) error
 }
 
-// Events defines the replaceable dependency contract for persistent chat messages and private
-// attachments.
+// Events — события определяют заменяемый контракт зависимостей для постоянных сообщений в чате и
+// приватных вложений.
 type Events interface {
-	// Broadcast publishes a trusted event only to the currently authorized conference or
-	// conversation recipients.
+	// Функция Broadcast публикует доверенное событие только для тех участников конференции или
+	// беседы, которые в данный момент имеют к ней доступ.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Trusted event to publish or process.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Доверенное событие для публикации или обработки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Broadcast(context.Context, realtime.Envelope) error
-	// SendToParticipant publishes a trusted event to the physical sessions of the selected
-	// authorized participant.
+	// SendToParticipant публикует доверенное событие для физических сеансов выбранного
+	// авторизованного участника.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier restricting event visibility.
-	//   - argument 3: Account identifier of the intended participant.
-	//   - argument 4: Trusted event to publish or process.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий видимость события.
+	//   - arg3: Идентификатор учетной записи предполагаемого участника.
+	//   - arg4: Доверенное событие для публикации или обработки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SendToParticipant(context.Context, string, string, realtime.Envelope) error
 }
 
-// Service coordinates persistent chat messages and private attachments through its configured
-// persistence and transport dependencies.
+// Service — сервис координирует постоянные сообщения в чате и приватные вложения через настроенные
+// зависимости сохранения и передачи данных.
 type Service struct {
 	repo    Repository
 	storage Storage
@@ -339,19 +388,19 @@ type Service struct {
 	uploads chan struct{}
 }
 
-// NewService constructs the service with the dependencies and limits required for persistent
-// chat messages and private attachments.
+// NewService создает сервис с зависимостями и ограничениями, необходимыми для работы с
+// постоянными сообщениями в чате и приватными вложениями.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - repo: Persistence dependency used by the application operation.
-//   - storage: Private object or file storage dependency.
-//   - events: Destination for committed lifecycle or chat events.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - storage: Зависимость от приватного объекта или хранилища файлов.
+//   - events: Место назначения для зафиксированных событий жизненного цикла или чатов.
 //
-// Returns:
-//   - result 1: The constructed or loaded service.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный сервис.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewService(ctx context.Context, repo Repository, storage Storage, events Events) (*Service, error) {
 	check, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -361,37 +410,39 @@ func NewService(ctx context.Context, repo Repository, storage Storage, events Ev
 	return &Service{repo: repo, storage: storage, events: events, uploads: make(chan struct{}, 4)}, nil
 }
 
-// List returns a bounded page of chat message records using the supplied pagination and filters.
+// List возвращает страницу с ограниченным количеством записей о сообщениях чата с
+// использованием заданных параметров разбивки на страницы и фильтров.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The resulting page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) List(ctx context.Context, user, conference, cursor string, limit int) (domain.Page, error) {
 	return s.repo.List(ctx, user, conference, cursor, limit)
 }
 
-// Send validates access, reply and attachment references and persists the chat message with
-// idempotency protection against duplicate retries.
+// Send проверяет ссылки на доступ, ответы и вложения и сохраняет сообщение чата с защитой от
+// повторяющихся идентичных запросов.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting message.
-//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Send(ctx context.Context, user, conference string, request domain.SendRequest) (domain.Message, bool, error) {
 	request, fingerprint, err := domain.NormalizeSend(request)
 	if err != nil {
@@ -404,20 +455,20 @@ func (s *Service) Send(ctx context.Context, user, conference string, request dom
 	return message, created, err
 }
 
-// Edit changes the author's existing message text after checking visibility and edit
-// eligibility.
+// Edit — при редактировании существующий текст сообщения автора изменяется после проверки видимости и
+// возможности редактирования.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting message.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Edit(ctx context.Context, user, conference, id string, request domain.EditRequest) (domain.Message, error) {
 	text, err := domain.NormalizeText(request.Text, true)
 	if err != nil {
@@ -430,19 +481,19 @@ func (s *Service) Edit(ctx context.Context, user, conference, id string, request
 	return message, err
 }
 
-// Delete removes the requested chat message using the caller's scope and the resource lifecycle
-// rules.
+// Delete удаляет запрошенное сообщение чата с учётом области видимости вызывающей стороны и
+// правил жизненного цикла ресурса.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting message.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Delete(ctx context.Context, user, conference, id string) (domain.Message, error) {
 	message, err := s.repo.Delete(ctx, user, conference, id)
 	if err == nil {
@@ -451,13 +502,13 @@ func (s *Service) Delete(ctx context.Context, user, conference, id string) (doma
 	return message, err
 }
 
-// publish publishes the saved chat message change through its configured event or command
-// transport.
+// Функция publish публикует изменения в сохраненных сообщениях чата через настроенный транспорт
+// событий или команд.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - kind: Validated event, job, media or resource category.
-//   - message: Persisted or outgoing chat message.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - message: Сохраненное или отправленное сообщение в чате.
 func (s *Service) publish(ctx context.Context, kind string, message domain.Message) {
 	if s.events != nil {
 		if err := s.events.Broadcast(ctx, realtime.Event(kind, message.ConferenceID, message)); err != nil {
@@ -466,34 +517,35 @@ func (s *Service) publish(ctx context.Context, kind string, message domain.Messa
 	}
 }
 
-// ReadState returns the member's saved read boundary and visible unread-message count.
+// ReadState возвращает сохраненную границу прочитанных сообщений участника и количество видимых
+// непрочитанных сообщений.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The resulting read state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное состояние чтения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) ReadState(ctx context.Context, user, conference string) (domain.ReadState, error) {
 	return s.repo.ReadState(ctx, user, conference)
 }
 
-// MarkRead advances the saved read boundary without allowing late or repeated requests to move
-// it backward.
+// MarkRead перемещает сохраненную границу прочитанных сообщений, не позволяя поздним или
+// повторным запросам сдвигать ее назад.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting read state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное состояние чтения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) MarkRead(ctx context.Context, user, conference string, request domain.ReadRequest) (domain.ReadState, error) {
 	id, err := domain.UUID(request.MessageID)
 	if err != nil {
@@ -506,20 +558,21 @@ func (s *Service) MarkRead(ctx context.Context, user, conference string, request
 	return state, err
 }
 
-// InitAttachment creates or reuses pending attachment metadata so an upload can be retried
-// safely.
+// InitAttachment создаёт или повторно использует ожидающие обработки метаданные вложений, чтобы
+// можно было безопасно повторить загрузку.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) InitAttachment(ctx context.Context, user, conference string, request domain.InitRequest) (domain.Attachment, bool, error) {
 	request, err := domain.NormalizeInit(request)
 	if err != nil {
@@ -528,16 +581,16 @@ func (s *Service) InitAttachment(ctx context.Context, user, conference string, r
 	return s.repo.InitAttachment(ctx, user, conference, request)
 }
 
-// ValidateContent checks attachment bytes, size, digest and actual media format rather than
-// trusting declared metadata.
+// ValidateContent проверяет байты, размер, дайджест и фактический формат медиафайла во
+// вложении, не полагаясь на заявленные метаданные.
 //
-// Parameters:
-//   - data: Input bytes or structured event payload.
-//   - attachment: Private attachment identity or metadata, as defined by its type.
+// @Parameters:
+//   - data: Входные байты или структурированная полезная информация о событии.
+//   - attachment: Идентификатор личного вложения или метаданные, в зависимости от его типа.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ValidateContent(data []byte, attachment domain.Attachment) error {
 	if int64(len(data)) != attachment.Size || len(data) == 0 || int64(len(data)) > domain.MaxAttachmentBytes {
 		return apperrors.New(apperrors.ErrInvalidInput, "uploaded size differs from the declared attachment size")
@@ -562,19 +615,20 @@ func ValidateContent(data []byte, attachment domain.Attachment) error {
 	return nil
 }
 
-// Upload validates a bounded content stream and stores it for the currently owned upload
-// attempt.
+// Upload проверяет поток ограниченного контента и сохраняет его для текущей попытки загрузки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
-//   - reader: Source content stream or recording-card reader, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - reader: Поток исходного контента или устройство чтения карт памяти, в зависимости от его
+//     типа.
 //
-// Returns:
-//   - result: The resulting attachment.
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// @returns:
+//   - result: Результирующее вложение.
+//   - err: nil — в случае успеха; в противном случае — ошибка валидации, доступа, передачи
+//     данных или сохранения.
 func (s *Service) Upload(ctx context.Context, user, conference, id string, reader io.Reader) (result domain.Attachment, err error) {
 	select {
 	case s.uploads <- struct{}{}:
@@ -617,19 +671,19 @@ func (s *Service) Upload(ctx context.Context, user, conference, id string, reade
 	return s.repo.CompleteUpload(op, user, conference, id, token, checksum)
 }
 
-// FinalizeAttachment marks a successfully uploaded attachment ready to be referenced by a
-// message.
+// FinalizeAttachment помечает успешно загруженное вложение как готовое к использованию в
+// сообщении.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting attachment.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее вложение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) FinalizeAttachment(ctx context.Context, user, conference, id string) (domain.Attachment, error) {
 	a, err := s.repo.AttachmentForFinalize(ctx, user, conference, id)
 	if err != nil {
@@ -647,19 +701,22 @@ func (s *Service) FinalizeAttachment(ctx context.Context, user, conference, id s
 	return s.repo.FinalizeAttachment(ctx, user, conference, id, a.ObjectKey)
 }
 
-// Download checks attachment visibility and returns a short-lived private download URL.
+// Download проверяет видимость вложения и возвращает недолговечный приватный объект для
+// скачивания URL.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: Temporary signed download URL for the authorized private attachment.
-//   - result 2: The timestamp or validity boundary associated with the result.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Временный подписанный объект для скачивания URL для авторизованного
+//     приватного вложения.
+//   - result2: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Download(ctx context.Context, user, conference, id string) (string, time.Time, error) {
 	a, err := s.repo.DownloadAttachment(ctx, user, conference, id)
 	if err != nil {
@@ -674,15 +731,15 @@ func (s *Service) Download(ctx context.Context, user, conference, id string) (st
 	return url, time.Now().UTC().Add(domain.DownloadTTL), nil
 }
 
-// Cleanup claims expired unfinished attachment uploads and removes only their owned private
-// objects.
+// Cleanup — устраняет незавершённые загрузки вложений с истекшим сроком действия и удаляет только
+// принадлежащие им приватные объекты.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Cleanup(ctx context.Context) error {
 	rows, err := s.repo.CleanupCandidates(ctx, 100)
 	if err != nil {
@@ -703,11 +760,11 @@ func (s *Service) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-// Run runs persistent chat messages and private attachments until the context is canceled or
-// processing fails.
+// Run обрабатывает постоянные сообщения чата и приватные вложения до тех пор, пока контекст не
+// будет отменён или пока не произойдёт сбой в обработке.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()

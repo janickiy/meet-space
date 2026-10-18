@@ -1,5 +1,5 @@
-// Command architecture-audit inventories production Go declarations under
-// internal/. It measures source structure, not runtime coupling or complexity.
+// Архитектура команды audit inventory содержит объявления Go в каталоге internal/. Она измеряет
+// структуру исходного кода, а не связанность или сложность во время выполнения.
 package main
 
 import (
@@ -24,7 +24,7 @@ type function struct {
 	File       string
 	Line       int
 	LOC        int
-	Branches   int // if, for, range, case, comm nodes, including closures; not cyclomatic complexity
+	Branches   int // if, for, range, case, comm-узлы, включая замыкания; не цикломатическая сложность
 	Parameters int
 }
 
@@ -38,28 +38,28 @@ type packageInfo struct {
 	Functions []function
 }
 
-// expression renders an AST expression for the architecture inventory without evaluating it.
+// expression преобразует выражение AST для инвентаризации архитектуры без его вычисления.
 //
-// Parameters:
-//   - fset: Token positions associated with the parsed Go syntax tree.
-//   - node: Go syntax node to inspect or render.
+// @Parameters:
+//   - fset: Позиции токенов, связанные с разобранным синтаксическим деревом Go.
+//   - node: Синтаксический узел Go для проверки или преобразования.
 //
-// Returns:
-//   - result 1: Rendered Go syntax expression.
+// @returns:
+//   - result1: Преобразованное синтаксическое выражение Go.
 func expression(fset *token.FileSet, node ast.Node) string {
 	var buf bytes.Buffer
 	_ = printer.Fprint(&buf, fset, node)
 	return buf.String()
 }
 
-// fieldNames extracts the field names and types used by the architecture inventory.
+// fieldNames извлекает имена и типы полей, используемые при инвентаризации архитектуры.
 //
-// Parameters:
-//   - fset: Token positions associated with the parsed Go syntax tree.
-//   - fields: Bounded structured diagnostic fields.
+// @Parameters:
+//   - fset: Позиции токенов, связанные с разобранным синтаксическим деревом Go.
+//   - fields: Ограниченные структурированные диагностические поля.
 //
-// Returns:
-//   - result 1: The collected string values.
+// @returns:
+//   - result1: Собранные строковые значения.
 func fieldNames(fset *token.FileSet, fields *ast.FieldList) []string {
 	result := []string{}
 	for _, field := range fields.List {
@@ -74,15 +74,15 @@ func fieldNames(fset *token.FileSet, fields *ast.FieldList) []string {
 	return result
 }
 
-// inventory parses project packages and builds the static architecture inventory.
+// inventory анализирует пакеты проекта и формирует статический перечень архитектур.
 //
-// Parameters:
-//   - root: Root directory limiting the filesystem operation.
+// @Parameters:
+//   - root: Корневой каталог, ограничивающий работу с файловой системой.
 //
-// Returns:
-//   - result 1: The collected *package info values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения *информации о пакетах.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func inventory(root string) ([]*packageInfo, error) {
 	fset := token.NewFileSet()
 	packages := map[string]*packageInfo{}
@@ -201,13 +201,13 @@ func inventory(root string) ([]*packageInfo, error) {
 	return result, nil
 }
 
-// unique returns the distinct strings in deterministic order.
+// unique возвращает уникальные строки в детерминированном порядке.
 //
-// Parameters:
-//   - values: Input strings to deduplicate.
+// @Parameters:
+//   - values: Входные строки для дедупликации.
 //
-// Returns:
-//   - result 1: The collected string values.
+// @returns:
+//   - result1: Собранные строковые значения.
 func unique(values []string) []string {
 	sort.Strings(values)
 	result := []string{}
@@ -219,7 +219,7 @@ func unique(values []string) []string {
 	return result
 }
 
-// main starts the architecture audit command and reports startup or execution failures.
+// main запускает команду аудита архитектуры и сообщает о сбоях при запуске или выполнении.
 func main() {
 	root := flag.String("root", ".", "repository root")
 	flag.Parse()

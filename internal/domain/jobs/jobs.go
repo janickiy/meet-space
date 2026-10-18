@@ -1,4 +1,4 @@
-// Package jobs defines transport-independent durable background-job contracts.
+// Пакет jobs определяет независимые от транспорта устойчивые контракты для фоновых заданий.
 package jobs
 
 import (
@@ -9,15 +9,16 @@ import (
 )
 
 var (
-	// ErrSkip identifies an intentionally skipped disabled or obsolete operation.
+	// ErrSkip определяет намеренно пропущенную отключенную или устаревшую операцию.
 	ErrSkip = errors.New("job skipped")
-	// ErrLeaseLost prevents job completion after ownership changes.
+	// ErrLeaseLost предотвращает завершение задания после смены владельца.
 	ErrLeaseLost = errors.New("job lease lost")
 )
 
-// Job contains entity references and a bounded payload, never tokens or transcript text. Version
-// binds work to an entity generation; LeaseToken fences stale workers. Attempts counts claims,
-// including recovery after a crash.
+// Job содержит ссылки на сущности и ограниченную полезную нагрузку, но не токены или текст
+// расшифровки.  Версия привязывает работу к генерации сущностей; LeaseToken изолирует
+// устаревшие рабочие процессы.  Попытки подсчитывают количество запросов, в том числе после
+// восстановления после сбоя.
 type Job struct {
 	ID           string          `json:"id"`
 	Kind         string          `json:"kind"`
@@ -34,64 +35,71 @@ type Job struct {
 	CreatedAt    time.Time       `json:"createdAt"`
 }
 
-// Count records the number of jobs in a fixed technical category without user-specific labels.
+// Count фиксирует количество заданий в фиксированной технической категории без пользовательских
+// меток.
 type Count struct {
 	Kind  string
 	State string
 	Count int64
 }
 
-// Repository atomically leases jobs and accepts completion only from the current lease owner.
+// Repository — репозиторий атомарно резервирует задания и принимает информацию об их завершении только от
+// текущего владельца резервирования.
 type Repository interface {
-	// Claim atomically acquires the current jobs lease or ownership record.
+	// Claim — запрос атомарно получает информацию о текущем резервировании заданий или о владельце
+	// записи.
 	//
-	// Parameters:
-	//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-	//   - kind: Validated event, job, media or resource category.
-	//   - lease: Current lease identity used to fence stale workers.
+	// @Parameters:
+	//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+	//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+	//   - lease: Идентификатор текущего резервирования, используемый для изоляции устаревших
+	//   рабочих процессов.
 	//
-	// Returns:
-	//   - result 1: The resulting job.
-	//   - result 2: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее задание.
+	//   - result2: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Claim(ctx context.Context, kind string, lease time.Duration) (Job, bool, error)
-	// Finish records completion of the leased jobs operation.
+	// Finish фиксирует завершение операции с зарезервированными заданиями.
 	//
-	// Parameters:
-	//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-	//   - job: Leased background job and its generation or ownership token.
-	//   - state: Current state or validated state update.
-	//   - code: Bounded public status or failure code.
-	//   - retryAt: Next eligible retry time; nil means no scheduled retry.
+	// @Parameters:
+	//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+	//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+	//   - state: Текущее состояние или обновлённое валидированное состояние.
+	//   - code: Ограниченный публичный статус или код ошибки.
+	//   - retryAt: Следующее допустимое время для повторной попытки; nil означает, что
+	//   повторная попытка не запланирована.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Finish(ctx context.Context, job Job, state, code string, retryAt *time.Time) error
-	// Counts returns the bounded queue-state counts used by operational monitoring.
+	// Counts возвращает количество элементов в ограниченной очереди, используемое для
+	// мониторинга операционной деятельности.
 	//
-	// Parameters:
-	//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 	//
-	// Returns:
-	//   - result 1: The collected count values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения количества.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Counts(ctx context.Context) ([]Count, error)
 }
 
-// Error contains a safe failure code, retry eligibility and bounded provider delay. Code must
-// not contain tokens, external response bodies or user text.
+// Error содержит код безопасной ошибки, возможность повторной попытки и ограниченную задержку
+// со стороны провайдера. Код не должен содержать токены, внешние тела ответов или
+// пользовательский текст.
 type Error struct {
 	Code       string
 	Retryable  bool
 	RetryAfter time.Duration
 }
 
-// Error returns the error text required by the error interface.
+// Error возвращает текст ошибки, требуемый интерфейсом обработки ошибок.
 //
-// Returns:
-//   - result 1: Error text exposed by this error implementation.
+// @returns:
+//   - result1: Текст ошибки, предоставляемый данной реализацией обработки ошибок.
 func (e Error) Error() string { return e.Code }

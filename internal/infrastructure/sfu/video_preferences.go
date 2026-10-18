@@ -5,18 +5,18 @@ import (
 	"github.com/pion/sdp/v3"
 )
 
-// receiveVideoPreference controls only this peer's incoming video. Keeping the
-// negotiated senders intact allows resuming camera/screen reception without
-// stopping local publications or audio and without allocating new receivers.
+// receiveVideoPreference управляет только входящим видео от этого однорангового узла.
+// Сохранение согласованных отправителей позволяет возобновить прием видео с камеры и экрана, не
+// прерывая локальные публикации и аудио, а также не выделяя новых получателей.
 //
-// Parameters:
-//   - raw: Untrusted serialized value to decode or validate.
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func receiveVideoPreference(raw string) (bool, error) {
 	var description sdp.SessionDescription
 	if err := description.UnmarshalString(raw); err != nil {

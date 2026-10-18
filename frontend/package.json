@@ -10,8 +10,6 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test:microphone": "node --experimental-transform-types tests/microphone-lifecycle.mjs",
-    "test:microphone:browser": "node scripts/check-microphone-gain-browser.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "lint": "prettier --check src *.ts *.json index.html",
     "check": "npm run lint && npm run build",

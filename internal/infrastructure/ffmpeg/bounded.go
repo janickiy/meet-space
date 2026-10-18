@@ -8,17 +8,18 @@ import (
 	"time"
 )
 
-// runBounded runs an external process with cancellation and bounded diagnostic output.
+// runBounded запускает внешний процесс с возможностью отмены и ограничением вывода
+// диагностических данных.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - binary: Path to the configured external executable.
-//   - args: Command-line, process or protocol arguments.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - binary: Путь к настроенному внешнему исполняемому файлу.
+//   - args: Аргументы командной строки, процесса или протокола.
 //
-// Returns:
-//   - result 1: The collected byte values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные байтовые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func runBounded(ctx context.Context, binary string, args ...string) ([]byte, error) {
 	started := time.Now()
 	operations.FFmpegActive(1)

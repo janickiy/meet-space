@@ -17,32 +17,32 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// IntegrationRepository stores preferences, encrypted credentials, durable delivery and calendar
-// mappings independently of media processing.
+// IntegrationRepository сохраняет настройки, зашифрованные учетные данные, данные о надежной
+// доставке и сопоставлениях с календарем независимо от обработки медиафайлов.
 type IntegrationRepository struct{ db *gorm.DB }
 
-// NewIntegrationRepository constructs the integration repository with the dependencies and
-// limits required for integration.
+// NewIntegrationRepository создает репозиторий интеграции с зависимостями и ограничениями,
+// необходимыми для интеграции.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded integration repository.
+// @returns:
+//   - result1: Созданное или загруженное репозиторий интеграции.
 func NewIntegrationRepository(db *gorm.DB) *IntegrationRepository {
 	return &IntegrationRepository{db: db}
 }
 
-// Preferences reads the acting account's saved delivery or conversation preferences.
+// Preferences считывает сохраненные настройки доставки или переписки действующего аккаунта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: The resulting preferences.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующие настройки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) Preferences(ctx context.Context, userID string) (d.Preferences, error) {
 	p := d.DefaultPreferences(userID)
 	err := r.db.WithContext(ctx).Where("user_id=?", userID).Take(&p).Error
@@ -52,33 +52,32 @@ func (r *IntegrationRepository) Preferences(ctx context.Context, userID string) 
 	return p, err
 }
 
-// SavePreferences validates and saves the account's delivery preferences without triggering a
-// delivery.
+// SavePreferences проверяет и сохраняет настройки доставки аккаунта, не инициируя доставку.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - p: The preferences state processed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - p: Состояние настроек, обработанное в ходе этой операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) SavePreferences(ctx context.Context, p d.Preferences) error {
 	p.UpdatedAt = time.Now().UTC()
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}}, DoUpdates: clause.AssignmentColumns([]string{"invitation", "reminder", "recording", "summary", "email", "push", "updated_at"})}).Create(&p).Error
 }
 
-// Devices returns the account's registered delivery devices without exposing their private
-// credentials.
+// Devices возвращает зарегистрированные устройства доставки аккаунта, не раскрывая их
+// конфиденциальные учетные данные.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - active: Whether to select only non-revoked active devices.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - active: Выбор только активных устройств, не отозванных из списка.
 //
-// Returns:
-//   - result 1: The collected device values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения устройств.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) Devices(ctx context.Context, userID string, active bool) ([]d.Device, error) {
 	items := []d.Device{}
 	q := r.db.WithContext(ctx).Where("user_id=?", userID)
@@ -89,15 +88,17 @@ func (r *IntegrationRepository) Devices(ctx context.Context, userID string, acti
 	return items, err
 }
 
-// SaveDevice stores an account-owned delivery device with its protected provider token.
+// SaveDevice сохраняет устройство доставки, принадлежащее аккаунту, с защищенным токеном
+// провайдера.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - device: Account-owned delivery device and its protected provider metadata.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - device: Устройство доставки, принадлежащее аккаунту, и его защищенные метаданные
+//     провайдера.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) SaveDevice(ctx context.Context, device d.Device) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended(?,0))", device.UserID+":devices").Error; err != nil {
@@ -114,16 +115,16 @@ func (r *IntegrationRepository) SaveDevice(ctx context.Context, device d.Device)
 	})
 }
 
-// RevokeDevice revokes only the acting account's selected delivery device.
+// RevokeDevice отзывает только выбранное устройство доставки действующего аккаунта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) RevokeDevice(ctx context.Context, userID, id string) error {
 	result := r.db.WithContext(ctx).Model(&d.Device{}).Where("user_id=? AND id=?", userID, id).Updates(map[string]any{"revoked_at": time.Now().UTC(), "token_ciphertext": ""})
 	if result.Error != nil {
@@ -135,47 +136,49 @@ func (r *IntegrationRepository) RevokeDevice(ctx context.Context, userID, id str
 	return nil
 }
 
-// Connections returns the acting account's provider connections with private credentials
-// excluded from the public view.
+// Connections возвращает подключения провайдера действующего аккаунта с исключенными из общего
+// доступа конфиденциальными учетными данными.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: The collected calendar connection values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения подключений календаря.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) Connections(ctx context.Context, userID string) ([]d.CalendarConnection, error) {
 	items := []d.CalendarConnection{}
 	err := r.db.WithContext(ctx).Where("user_id=?", userID).Order("created_at,id").Limit(10).Find(&items).Error
 	return items, err
 }
 
-// SaveConnection persists a validated account-owned provider connection and encrypted
-// credentials.
+// SaveConnection сохраняет подтвержденное подключение к провайдеру, принадлежащее учетной
+// записи, и зашифрованные учетные данные.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - c: The calendar connection value processed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - c: Значение подключения к календарю, обработанное в ходе этой операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) SaveConnection(ctx context.Context, c d.CalendarConnection) error {
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns([]string{"status", "access_ciphertext", "refresh_ciphertext", "scopes", "expires_at", "updated_at"})}).Create(&c).Error
 }
 
-// RefreshConnection updates the provider credentials only for the expected connection state.
+// RefreshConnection обновляет учетные данные провайдера только для ожидаемого состояния
+// подключения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - c: The calendar connection value processed by this operation.
-//   - previous: Previous credential or generation identity used to reject a stale update.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - c: Значение подключения к календарю, обработанное в ходе этой операции.
+//   - previous: Предыдущие учетные данные или идентификационные данные, использованные для
+//     отклонения устаревшего обновления.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) RefreshConnection(ctx context.Context, c d.CalendarConnection, previous string) error {
 	result := r.db.WithContext(ctx).Model(&d.CalendarConnection{}).Where("id=? AND user_id=? AND status='connected' AND refresh_ciphertext=?", c.ID, c.UserID, previous).Updates(map[string]any{"access_ciphertext": c.AccessCiphertext, "refresh_ciphertext": c.RefreshCiphertext, "expires_at": c.ExpiresAt, "scopes": c.Scopes})
 	if result.Error != nil {
@@ -187,17 +190,17 @@ func (r *IntegrationRepository) RefreshConnection(ctx context.Context, c d.Calen
 	return nil
 }
 
-// RevokeConnection revokes the account-owned provider connection and invalidates its future
-// synchronization work.
+// RevokeConnection отзывает подключение к провайдеру, принадлежащее учетной записи, и делает
+// недействительной его дальнейшую синхронизацию.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) RevokeConnection(ctx context.Context, userID, id string) error {
 	result := r.db.WithContext(ctx).Model(&d.CalendarConnection{}).Where("user_id=? AND id=?", userID, id).Updates(map[string]any{"status": "revoked", "access_ciphertext": "", "refresh_ciphertext": "", "expires_at": nil})
 	if result.Error != nil {
@@ -209,15 +212,16 @@ func (r *IntegrationRepository) RevokeConnection(ctx context.Context, userID, id
 	return nil
 }
 
-// SaveOAuthState stores a short-lived one-use OAuth state bound to the account and provider.
+// SaveOAuthState сохраняет кратковременное одноразовое состояние OAuth, привязанное к учетной
+// записи и провайдеру.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - state: Current state or validated state update.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - state: Текущее состояние или обновлённое валидированное состояние.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) SaveOAuthState(ctx context.Context, state d.OAuthState) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended(?,0))", state.UserID+":oauth").Error; err != nil {
@@ -237,19 +241,20 @@ func (r *IntegrationRepository) SaveOAuthState(ctx context.Context, state d.OAut
 	})
 }
 
-// TakeOAuthState atomically consumes the matching one-use OAuth state to prevent callback
-// replay.
+// TakeOAuthState атомарно использует соответствующее одноразовое состояние OAuth, чтобы
+// предотвратить повторный вызов функции обратного вызова.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - provider: Operator-selected provider identifier or fixed technical provider label.
-//   - hash: Previously computed digest used for identity or integrity lookup.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - provider: Идентификатор провайдера, выбранный оператором, или фиксированная техническая
+//     метка провайдера.
+//   - hash: Ранее вычисленный дайджест, используемый для проверки подлинности или целостности.
 //
-// Returns:
-//   - result 1: The resulting o auth state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее состояние авторизации.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) TakeOAuthState(ctx context.Context, userID, provider, hash string) (d.OAuthState, error) {
 	var value d.OAuthState
 	result := r.db.WithContext(ctx).Raw(`UPDATE calendar_oauth_states SET used_at=now() WHERE user_id=? AND provider=? AND state_hash=? AND used_at IS NULL AND expires_at>now() RETURNING *`, userID, provider, hash).Scan(&value)
@@ -262,17 +267,18 @@ func (r *IntegrationRepository) TakeOAuthState(ctx context.Context, userID, prov
 	return value, nil
 }
 
-// CalendarMappings returns saved conference-to-calendar mappings for the acting account.
+// CalendarMappings возвращает сохраненные сопоставления между конференциями и календарями для
+// действующей учетной записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The collected calendar mapping values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения сопоставлений между календарями.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) CalendarMappings(ctx context.Context, userID, conferenceID string) ([]d.CalendarMapping, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Table("conference_participants").Where("user_id=? AND conference_id=? AND role IN ('owner','co_host') AND admission_state='admitted' AND status IN ('joined','left')", userID, conferenceID).Count(&count).Error; err != nil {
@@ -286,17 +292,17 @@ func (r *IntegrationRepository) CalendarMappings(ctx context.Context, userID, co
 	return items, err
 }
 
-// Conference loads the persisted conference data required for integration delivery or
-// synchronization.
+// Conference загружает сохраненные данные о конференциях, необходимые для интеграции и
+// синхронизации.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting conference snapshot.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий снимок конференции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) Conference(ctx context.Context, id string) (u.ConferenceSnapshot, error) {
 	var value u.ConferenceSnapshot
 	err := r.db.WithContext(ctx).Table("conferences").Where("id=?", id).Take(&value).Error
@@ -306,31 +312,33 @@ func (r *IntegrationRepository) Conference(ctx context.Context, id string) (u.Co
 	return value, err
 }
 
-// MappingsForSync returns calendar mappings eligible for the current schedule generation.
+// MappingsForSync возвращает сопоставления между календарями, подходящие для текущего
+// формирования расписания.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The collected calendar mapping values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения сопоставлений между календарями.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) MappingsForSync(ctx context.Context, conferenceID string) ([]d.CalendarMapping, error) {
 	items := []d.CalendarMapping{}
 	err := r.db.WithContext(ctx).Where("conference_id=?", conferenceID).Limit(10).Find(&items).Error
 	return items, err
 }
 
-// integrationLease checks ownership of a leased integration job before committing its result.
+// integrationLease проверяет, кому принадлежит арендованное задание интеграции, прежде чем
+// зафиксировать его результат.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - job: Leased background job and its generation or ownership token.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func integrationLease(tx *gorm.DB, job jobs.Job) error {
 	var id string
 	result := tx.Raw(`SELECT id FROM background_jobs WHERE id=? AND state='processing' AND lease_token=? AND lease_until>clock_timestamp() FOR UPDATE`, job.ID, job.LeaseToken).Scan(&id)
@@ -343,17 +351,18 @@ func integrationLease(tx *gorm.DB, job jobs.Job) error {
 	return nil
 }
 
-// SaveMapping stores the provider event mapping only while the job lease and schedule version
-// remain current.
+// SaveMapping сохраняет сопоставление событий провайдера только до тех пор, пока активна аренда
+// задания и версия расписания.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - m: Validated backup manifest or media state, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - m: Подтвержденный манифест резервного копирования или состояние медиафайлов в
+//     соответствии с их типом.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) SaveMapping(ctx context.Context, job jobs.Job, m d.CalendarMapping) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := integrationLease(tx, job); err != nil {
@@ -370,16 +379,17 @@ func (r *IntegrationRepository) SaveMapping(ctx context.Context, job jobs.Job, m
 	})
 }
 
-// AcquireCalendar claims the current calendar synchronization lease for one worker.
+// AcquireCalendar запрашивает текущую аренду для синхронизации календаря для одного воркера.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The callback used to complete or release the operation.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Обратный вызов, используемый для завершения операции или освобождения
+//     ресурсов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) AcquireCalendar(ctx context.Context, conferenceID string) (func(), error) {
 	db, err := r.db.DB()
 	if err != nil {
@@ -405,7 +415,8 @@ func (r *IntegrationRepository) AcquireCalendar(ctx context.Context, conferenceI
 			cleanup, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			if _, err := conn.ExecContext(cleanup, "SELECT pg_advisory_unlock(hashtextextended($1,0))", key); err != nil {
-				// Never return a session with unknown advisory-lock state to the shared connection pool.
+				// Never Возвращает сеанс с неизвестным состоянием консультативной блокировки в
+				// общий пул подключений.
 				_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 			}
 			_ = conn.Close()
@@ -413,16 +424,17 @@ func (r *IntegrationRepository) AcquireCalendar(ctx context.Context, conferenceI
 	}, nil
 }
 
-// FailCalendars records the bounded synchronization failure for affected calendar mappings.
+// FailCalendars записывает информацию о сбое при ограниченной синхронизации для затронутых
+// сопоставлений календарей.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - code: Bounded public status or failure code.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - code: Ограниченный публичный статус или код ошибки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) FailCalendars(ctx context.Context, job jobs.Job, code string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := integrationLease(tx, job); err != nil {
@@ -434,16 +446,17 @@ func (r *IntegrationRepository) FailCalendars(ctx context.Context, job jobs.Job,
 	})
 }
 
-// Fanout creates deduplicated delivery jobs for recipients allowed by the saved preferences.
+// Fanout создаёт задания по доставке с дедупликацией для получателей, разрешённых сохранёнными
+// настройками.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - event: Trusted event to publish or process.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - event: Доверенное событие для публикации или обработки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event string) error {
 	switch event {
 	case "conference.invited", "conference.rescheduled", "conference.cancelled", "conference.soon", "transcript.ready", "summary.ready", "transcript.failed", "summary.failed":
@@ -503,8 +516,8 @@ func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event 
 		if err != nil {
 			return err
 		}
-		// Bound each batch to one hundred memberships and persist its continuation job in the same
-		// transaction.
+		// Привязывает каждый пакет к 100 спискам участников и сохраняет задание по продолжению
+		// работы в рамках той же транзакции.
 		type recipient struct {
 			ID     string
 			UserID string
@@ -597,16 +610,17 @@ func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event 
 	})
 }
 
-// ScheduleReminders creates reminder work for conferences entering the configured reminder
-// window.
+// ScheduleReminders создаёт задания по напоминаниям для конференций, попадающих в настроенное
+// окно напоминаний.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - offsets: Configured reminder offsets relative to the scheduled conference time.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - offsets: Настраивает смещение напоминаний относительно запланированного времени
+//     проведения конференции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) ScheduleReminders(ctx context.Context, offsets []time.Duration) error {
 	if err := r.db.WithContext(ctx).Exec(`DELETE FROM calendar_oauth_states WHERE id IN (SELECT id FROM calendar_oauth_states WHERE expires_at<now() OR used_at IS NOT NULL ORDER BY expires_at,id LIMIT 1000)`).Error; err != nil {
 		return err
@@ -626,16 +640,17 @@ func (r *IntegrationRepository) ScheduleReminders(ctx context.Context, offsets [
 	return nil
 }
 
-// Delivery loads the recipient-specific notification and delivery metadata for a leased job.
+// Delivery загружает метаданные уведомлений и доставки для конкретного получателя для
+// арендованного задания.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
 //
-// Returns:
-//   - result 1: The resulting delivery.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая доставка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) Delivery(ctx context.Context, job jobs.Job) (u.Delivery, error) {
 	var result u.Delivery
 	if job.UserID == nil {
@@ -711,17 +726,17 @@ func (r *IntegrationRepository) Delivery(ctx context.Context, job jobs.Job) (u.D
 	return result, nil
 }
 
-// CompleteDelivery records the delivery outcome only for the current job lease.
+// CompleteDelivery записывает результат доставки только для текущего арендованного задания.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - status: Lifecycle state or response status to record.
-//   - code: Bounded public status or failure code.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
+//   - code: Ограниченный публичный статус или код ошибки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) CompleteDelivery(ctx context.Context, job jobs.Job, status, code string) error {
 	if job.UserID == nil {
 		return jobs.Error{Code: "delivery_user"}
@@ -740,16 +755,16 @@ func (r *IntegrationRepository) CompleteDelivery(ctx context.Context, job jobs.J
 	})
 }
 
-// ScheduleCalendarSync queues deduplicated calendar work for the current conference schedule
-// version.
+// ScheduleCalendarSync ставит в очередь задания по дедупликации календарей для текущей версии
+// расписания конференций.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) ScheduleCalendarSync(ctx context.Context, userID string) error {
 	return r.db.WithContext(ctx).Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,payload,dedup_key) SELECT 'integrations.calendar',id,id,integration_version,'{}'::jsonb,'calendar-connect:'||id::text||':'||integration_version::text||':'||? FROM conferences WHERE owner_id=? AND status='scheduled' ORDER BY scheduled_at,id LIMIT 1000 ON CONFLICT(dedup_key) DO NOTHING`, userID, userID).Error
 }

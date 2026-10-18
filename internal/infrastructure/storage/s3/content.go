@@ -8,44 +8,45 @@ import (
 	"strings"
 )
 
-// limitedRecording enforces the read budget and closes its private object stream.
+// limitedRecording проверяет лимит на чтение и закрывает поток для приватных объектов.
 type limitedRecording struct {
 	reader io.Reader
 	object io.Closer
 }
 
-// Read copies at most the destination buffer size from the owned stream while preserving its
-// read and cancellation limits.
+// Read — прочитанные копии имеют размер, не превышающий размер буфера назначения, и извлекаются из
+// потока, при этом сохраняются ограничения на количество прочитанных данных и возможность
+// отмены операции.
 //
-// Parameters:
-//   - p: Destination byte buffer filled from the stream.
+// @Parameters:
+//   - p: Целевой байтовый буфер заполняется данными из потока.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *limitedRecording) Read(p []byte) (int, error) { return r.reader.Read(p) }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *limitedRecording) Close() error { return r.object.Close() }
 
-// OpenRecording opens the private recording audio or media stream using its stored artifact
-// identity.
+// OpenRecording открывает приватный аудиопоток или медиапоток для записи, используя сохраненный
+// идентификатор артефакта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - maximum: Maximum permitted size or number of characters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - maximum: Максимально допустимый размер или количество символов.
 //
-// Returns:
-//   - result 1: The resulting read closer.
-//   - result 2: The resulting count, size or numeric value.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий считывающий модуль.
+//   - result2: Возвращает количество, размер или числовое значение.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) OpenRecording(ctx context.Context, key string, maximum int64) (io.ReadCloser, int64, error) {
 	parts := strings.Split(key, "/")
 	if maximum <= 0 || len(parts) != 6 || parts[0] != "recordings" || !attachmentID(parts[1]) || !attachmentID(parts[2]) || parts[3] != "artifacts" || !attachmentID(parts[4]) || parts[5] != "final.mp4" {

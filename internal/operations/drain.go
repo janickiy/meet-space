@@ -5,20 +5,22 @@ import (
 	"net/http"
 )
 
-// ConfigureDrain registers the process-owned graceful-drain hooks used during deployment.
+// ConfigureDrain регистрирует принадлежащие процессу хуки graceful-drain, используемые при
+// развертывании.
 //
-// Parameters:
-//   - begin: Callback that stops acceptance of new component work.
-//   - active: Callback returning the count of owned operations still active during drain.
+// @Parameters:
+//   - begin: Функция обратного вызова, которая останавливает прием новых задач от компонентов.
+//   - active: Функция обратного вызова, возвращающая количество активных операций, которые все
+//     еще выполняются во время процесса graceful-drain.
 func (r *Runtime) ConfigureDrain(begin func(), active func() int) {
 	r.beginDrain, r.activeWork = begin, active
 }
 
-// DrainStatus returns the current drain state and active-work counts.
+// DrainStatus возвращает текущее состояние процесса graceful-drain и количество активных задач.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - req: Incoming HTTP request.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - req: Входящий запрос HTTP.
 func (r *Runtime) DrainStatus(w http.ResponseWriter, req *http.Request) {
 	if !Authorized(req, r.Config.MetricsSecret) {
 		http.NotFound(w, req)

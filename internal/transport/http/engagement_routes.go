@@ -5,13 +5,14 @@ import (
 	engagementapp "github.com/janickiy/meet-space/internal/app/engagement"
 )
 
-// RegisterEngagementRoutes registers the engagement endpoints with the supplied authentication
-// and request middleware.
+// RegisterEngagementRoutes регистрирует конечные точки для взаимодействия с предоставленными
+// промежуточными модулями аутентификации и обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - auth: Authentication middleware or account handler dependency.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
 func RegisterEngagementRoutes(router gin.IRouter, handler *engagementapp.Handler, auth gin.HandlerFunc) {
 	group := router.Group(APIV1Prefix+"/conferences/:id", auth,
 

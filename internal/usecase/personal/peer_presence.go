@@ -9,52 +9,59 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/personal"
 )
 
-// ConversationReader returns the conversation projection authorized for the actor.
+// ConversationReader возвращает проекцию диалога, авторизованную для субъекта.
 type ConversationReader interface {
-	// Get loads the requested conversation within the caller's authorized scope.
+	// Get загружает запрошенный диалог в пределах авторизованной области действия вызывающего
+	// абонента.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting conversation.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная беседа.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Get(context.Context, string, string) (domain.Conversation, error)
 }
 
-// PresenceReader reads online state without creating or extending a session.
+// PresenceReader считывает интерактивное состояние без создания или продления сеанса.
 type PresenceReader interface {
-	// Online returns the currently live presence state for the requested account identifiers.
+	// Online возвращает текущее состояние присутствия для запрошенных идентификаторов учетных
+	// записей.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Account identifiers or account repository, as defined by its type.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификаторы учетных записей или репозиторий учетных записей в
+	//   соответствии с их типом.
 	//
-	// Returns:
-	//   - result 1: The resulting map[string]bool.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая карта [строка]bool.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Online(context.Context, []string) (map[string]bool, error)
 }
 
-// ReadPeerPresence authorizes a direct conversation before looking up its server-selected peer.
-// The caller supplies normalized actor and conversation UUIDs. Unknown presence is
-// unavailable, never offline; cancellation is checked before and after each read.
+// ReadPeerPresence авторизует прямой диалог перед поиском своего однорангового узла, выбранного
+// сервером. Вызывающий абонент предоставляет нормализованные данные участника и диалога UUIDs.
+// Неизвестное присутствие недоступно, никогда не отключается от сети; отмена проверяется до и
+// после каждого чтения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conversations: Authorized conversation reader.
-//   - presence: Distributed account-presence reader or writer.
-//   - actor: Identifier of the account performing the operation.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conversations: Авторизованный считыватель сообщений.
+//   - presence: Распределенный модуль чтения или записи данных о присутствии учетной записи.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting peer presence.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее присутствие пользователя.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ReadPeerPresence(ctx context.Context, conversations ConversationReader, presence PresenceReader, actor, id string) (domain.PeerPresence, error) {
 	if ctx.Err() != nil {
 		return domain.PeerPresence{}, apperrors.ErrUnavailable

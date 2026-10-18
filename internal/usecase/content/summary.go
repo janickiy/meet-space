@@ -14,18 +14,18 @@ import (
 	"unicode/utf8"
 )
 
-// ChunkSegments splits validated transcript segments into bounded summary inputs while
-// preserving their order.
+// ChunkSegments разбивает проверенные сегменты расшифровки на ограниченные сводные сводки,
+// сохраняя их порядок.
 //
-// Parameters:
-//   - segments: Ordered transcript or media segments.
-//   - maximum: Maximum permitted size or number of characters.
-//   - maxChunks: Maximum number of processing chunks.
+// @Parameters:
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - maxChunks: Максимальное количество обрабатываемых фрагментов.
 //
-// Returns:
-//   - result 1: The collected segment values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения сегментов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ChunkSegments(segments []domain.Segment, maximum, maxChunks int) ([][]domain.Segment, error) {
 	if maximum < 1 || maxChunks < 1 {
 		return nil, fmt.Errorf("invalid chunk budget")
@@ -67,17 +67,16 @@ func ChunkSegments(segments []domain.Segment, maximum, maxChunks int) ([][]domai
 	return chunks, nil
 }
 
-// ValidateSummary checks the summary schema and verifies references against the source
-// transcript.
+// ValidateSummary проверяет схему сводной сводки и сверяет ссылки с исходной расшифровкой.
 //
-// Parameters:
-//   - data: Input bytes or structured event payload.
-//   - source: Media or content source belonging to the current operation.
+// @Parameters:
+//   - data: Входные байты или структурированная полезная информация о событии.
+//   - source: Медиа или источник контента, связанный с текущей операцией.
 //
-// Returns:
-//   - result 1: The resulting summary output.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая сводная сводка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ValidateSummary(data json.RawMessage, source []domain.Segment) (domain.SummaryOutput, error) {
 	var out domain.SummaryOutput
 	if len(data) > 256<<10 {
@@ -145,16 +144,17 @@ func ValidateSummary(data json.RawMessage, source []domain.Segment) (domain.Summ
 	return out, nil
 }
 
-// explicitAssignee accepts an action-item assignee only when it is explicitly supported by the
-// source text.
+// explicitAssignee принимает данные о назначении исполнителя только в том случае, если это явно
+// указано в исходном тексте.
 //
-// Parameters:
-//   - evidence: Source text that must explicitly support the extracted claim.
-//   - name: Name of the setting, cookie, resource or provider being addressed.
+// @Parameters:
+//   - evidence: Исходный текст, в котором должно быть явно указано, что извлечение допустимо.
+//   - name: Имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется
+//     обращение.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func explicitAssignee(evidence, name string) bool {
 	text := strings.ToLower(evidence)
 	name = strings.ToLower(strings.TrimSpace(name))
@@ -166,16 +166,17 @@ func explicitAssignee(evidence, name string) bool {
 	return false
 }
 
-// explicitDeadline accepts an action-item deadline only when it is explicitly supported by the
-// source text.
+// explicitDeadline принимает данные о сроках выполнения только в том случае, если это явно
+// указано в исходном тексте.
 //
-// Parameters:
-//   - evidence: Source text that must explicitly support the extracted claim.
-//   - date: Proposed deadline text to verify against the source evidence.
+// @Parameters:
+//   - evidence: Исходный текст, в котором должно быть явно указано, что извлечение допустимо.
+//   - date: Предлагаемый текст со сроками выполнения для проверки на соответствие исходным
+//     данным.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func explicitDeadline(evidence, date string) bool {
 	text := strings.ToLower(evidence)
 	for _, marker := range []string{"срок:", "deadline:", "due:"} {
@@ -186,32 +187,33 @@ func explicitDeadline(evidence, date string) bool {
 	return strings.Contains(text, "до "+date)
 }
 
-// validText checks that text is valid UTF-8 and remains within its allowed budget.
+// validText проверяет, что текст соответствует требованиям UTF-8 и не выходит за рамки
+// допустимого объёма.
 //
-// Parameters:
-//   - text: UTF-8 text to validate, normalize or process.
-//   - maximum: Maximum permitted size or number of characters.
-//   - empty: Whether an empty text value is permitted.
+// @Parameters:
+//   - text: Текст UTF-8 для проверки, нормализации или обработки.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - empty: Допустимо ли использование пустого текстового значения.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func validText(text string, maximum int, empty bool) bool {
 	return utf8.ValidString(text) && !strings.ContainsRune(text, 0) && utf8.RuneCountInString(text) <= maximum && (empty || strings.TrimSpace(text) != "")
 }
 
-// summarize processes bounded transcript chunks and hierarchical merges while separating model
-// instructions from source data.
+// summarize — обобщение процессов с использованием ограниченных фрагментов транскрипта и иерархических
+// слияний с разделением инструкций модели и исходных данных.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - segments: Ordered transcript or media segments.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
 //
-// Returns:
-//   - result 1: The resulting summary output.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая сводная сводка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) summarize(ctx context.Context, key string, segments []domain.Segment) (domain.SummaryOutput, error) {
 	chunks, err := ChunkSegments(segments, s.cfg.ChunkRunes, s.cfg.MaxChunks)
 	if err != nil {
@@ -251,8 +253,8 @@ schedule:
 	if len(results) == 1 {
 		return results[0], nil
 	}
-	// Merge groups use the same input budget. If the provider expands text excessively, stop rather
-	// than issuing unbounded paid requests.
+	// Группы слияния используют один и тот же входной бюджет.  Если провайдер чрезмерно
+	// расширяет текст, остановите процесс, не отправляя неограниченные платные запросы.
 	for level := 0; len(results) > 1; level++ {
 		if level > 16 {
 			return domain.SummaryOutput{}, &jobs.Error{Code: "ai_merge_limit", Retryable: false}
@@ -293,20 +295,20 @@ schedule:
 	return results[0], nil
 }
 
-// aiCall sends untrusted JSON separately from the fixed model instructions and strictly
-// validates the response schema.
+// aiCall отправляет недоверенные данные JSON отдельно от фиксированных инструкций модели и
+// строго проверяет схему ответа.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - input: Input data required by this operation.
-//   - merge: Whether the request merges summaries rather than summarizes source segments.
-//   - source: Media or content source belonging to the current operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - input: Входные данные, необходимые для этой операции.
+//   - merge: Объединяет ли запрос сводные данные, а не исходные сегменты.
+//   - source: Медиа или источник контента, связанный с текущей операцией.
 //
-// Returns:
-//   - result 1: The resulting summary output.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая сводная сводка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) aiCall(ctx context.Context, key, input string, merge bool, source []domain.Segment) (domain.SummaryOutput, error) {
 	data, err := s.ai.Summarize(ctx, domain.AIRequest{PromptVersion: PromptVersion, SchemaVersion: SchemaVersion, Instructions: SummaryInstructions, InputJSON: input, IdempotencyKey: key, Merge: merge})
 	if err != nil {

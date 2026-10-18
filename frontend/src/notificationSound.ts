@@ -4,7 +4,7 @@ import {
   subscribeDevicePreferences,
 } from "./prejoinDevices";
 
-/** One reusable player per account stream; no microphone or browser push permission. */
+/** Один многократно используемый проигрыватель для каждого потока учётной записи; микрофон и push-уведомления браузера не запрашиваются. */
 export function createNotificationSound(userId: string) {
   const audio = new Audio(toneURL);
   audio.preload = "auto";
@@ -16,8 +16,9 @@ export function createNotificationSound(userId: string) {
   const seen = new Set<string>();
   const claimKey = `meet.notification-sound.v1:${userId}`;
 
-  // A muted, user-initiated play unlocks this same element when the browser
-  // requires interaction. Old notifications are never queued for a later click.
+  // При воспроизведении по инициативе пользователя без звука этот же элемент разблокируется,
+  // когда браузеру требуется взаимодействие.  Старые уведомления никогда не помещаются в
+  // очередь для последующего нажатия.
   const prime = () => {
     if (
       disposed ||
@@ -66,14 +67,15 @@ export function createNotificationSound(userId: string) {
         JSON.stringify([...recent.slice(-127), { id, at: Date.now() }]),
       );
     } catch {
-      // The per-stream identity window still works with private/disabled storage.
+      // Окно идентификации для каждого потока по-прежнему работает при отключённом приватном
+      // хранилище.
     }
     return true;
   };
   const play = async (id: string) => {
     const preferences = readDevicePreferences(userId);
     if (disposed || !preferences.notificationSounds || !claim(id)) return;
-    // Coalesce bursts into one soft signal; all notices remain in the feed.
+    // Объединять пакеты в один мягкий сигнал; все уведомления остаются в ленте.
     if (Date.now() - lastPlayedAt < 1000) return;
     lastPlayedAt = Date.now();
     if (priming) await priming;
@@ -82,7 +84,7 @@ export function createNotificationSound(userId: string) {
       try {
         await audio.setSinkId(preferences.notificationOutputId);
       } catch {
-        // An unavailable saved device must not break notifications.
+        // Недоступное сохранённое устройство не должно прерывать отправку уведомлений.
         try {
           await audio.setSinkId("");
         } catch {}
@@ -95,7 +97,8 @@ export function createNotificationSound(userId: string) {
   return {
     notify(id: string) {
       if (!id || id.length > 128 || disposed) return;
-      // Serializing claims prevents the same SSE event ringing in several tabs.
+      // Сериализация утверждений предотвращает одновременное срабатывание одного и того же
+      // события SSE на нескольких вкладках.
       const pending = navigator.locks
         ? navigator.locks.request(claimKey, () => play(id))
         : play(id);

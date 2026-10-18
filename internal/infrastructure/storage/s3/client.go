@@ -16,7 +16,8 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-// Client owns the configured private object-storage clients and connection settings.
+// Client — клиент владеет настроенными частными клиентами объектного хранилища и параметрами
+// подключения.
 type Client struct {
 	minio        *minio.Client
 	presignMinio *minio.Client
@@ -27,14 +28,15 @@ type Client struct {
 	useSSL       bool
 }
 
-// UploadedObject contains the stored key, size and metadata of an uploaded recording artifact.
+// UploadedObject содержит сохранённый ключ, размер и метаданные загруженного артефакта записи.
 type UploadedObject struct {
 	Bucket    string
 	ObjectKey string
 	SizeBytes int64
 }
 
-// CompletedRecord groups final objects found in the bucket for one completed recording.
+// CompletedRecord группирует конечные объекты, найденные в бакет-хранилище, для одной
+// завершённой записи.
 type CompletedRecord struct {
 	RecordID         string    `json:"recordId"`
 	Status           string    `json:"status"`
@@ -47,21 +49,22 @@ type CompletedRecord struct {
 	LastModified     time.Time `json:"lastModified,omitempty"`
 }
 
-// NewClient constructs the client with the dependencies and limits required for private
-// recording and attachment storage.
+// NewClient создаёт клиент с зависимостями и ограничениями, необходимыми для частного хранения
+// записей и вложений.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - endpoint: Operator-configured service endpoint.
-//   - accessKey: Private object-storage access-key identifier.
-//   - secretKey: Private object-storage signing secret; never log or expose it.
-//   - bucket: Private object-storage bucket.
-//   - useSSL: Whether the object-storage client must use TLS.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - endpoint: Конечная точка сервиса, настраиваемая оператором.
+//   - accessKey: Идентификатор ключа доступа к частному объектному хранилищу.
+//   - secretKey: Секрет подписи для частного объектного хранилища; никогда не записывайте его и
+//     не раскрывайте.
+//   - bucket: Бакет-хранилище для частного объектного хранилища.
+//   - useSSL: Должен ли клиент объектного хранилища использовать TLS.
 //
-// Returns:
-//   - result 1: The constructed or loaded client.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный клиент.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewClient(ctx context.Context, endpoint string, accessKey string, secretKey string, bucket string, useSSL bool) (*Client, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -94,10 +97,11 @@ func NewClient(ctx context.Context, endpoint string, accessKey string, secretKey
 	}, nil
 }
 
-// boundedTransport creates an HTTP transport with bounded connection and request timeouts.
+// boundedTransport создаёт транспортный протокол HTTP с ограничением времени ожидания
+// подключения и запросов.
 //
-// Returns:
-//   - result 1: The constructed or loaded transport.
+// @returns:
+//   - result1: Созданный или загруженный транспортный протокол.
 func boundedTransport() *http.Transport {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.DialContext = (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext
@@ -107,14 +111,14 @@ func boundedTransport() *http.Transport {
 	return t
 }
 
-// Check checks the configured component or dependency without creating user work.
+// Check проверяет настроенный компонент или зависимость без создания пользовательских задач.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) Check(ctx context.Context) error {
 	exists, err := c.minio.BucketExists(ctx, c.bucket)
 	if err != nil {
@@ -126,10 +130,11 @@ func (c *Client) Check(ctx context.Context) error {
 	return nil
 }
 
-// SetPublicEndpoint updates public endpoint for private recording and attachment storage.
+// SetPublicEndpoint обновляет общедоступную конечную точку для частного хранения записей и
+// вложений.
 //
-// Parameters:
-//   - endpoint: Operator-configured service endpoint.
+// @Parameters:
+//   - endpoint: Конечная точка сервиса, настраиваемая оператором.
 func (c *Client) SetPublicEndpoint(endpoint string) {
 	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
 	if endpoint == "" {
@@ -159,14 +164,14 @@ func (c *Client) SetPublicEndpoint(endpoint string) {
 	c.presignMinio = client
 }
 
-// publicEndpointTransport rewrites only the configured object-storage origin for public signed
-// URLs.
+// publicEndpointTransport перезаписывает только настроенный источник объектного хранилища для
+// подписанного общедоступного URLs.
 //
-// Parameters:
-//   - publicEndpoint: Operator-configured public object-storage origin.
+// @Parameters:
+//   - publicEndpoint: Настроенный оператором источник объектного хранилища.
 //
-// Returns:
-//   - result 1: The resulting round tripper.
+// @returns:
+//   - result1: Результирующий обмен данными в обе стороны.
 func (c *Client) publicEndpointTransport(publicEndpoint string) http.RoundTripper {
 	transport := boundedTransport()
 	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
@@ -183,26 +188,26 @@ func (c *Client) publicEndpointTransport(publicEndpoint string) http.RoundTrippe
 	return transport
 }
 
-// Bucket returns the configured private bucket name used by this storage client.
+// Bucket возвращает настроенный адрес частного хранилища, используемый этим клиентом хранилища.
 //
-// Returns:
-//   - result 1: Configured private object-storage bucket name.
+// @returns:
+//   - result1: Настроенный адрес частного хранилища объектов.
 func (c *Client) Bucket() string {
 	return c.bucket
 }
 
-// UploadFile uploads a local recording artifact and returns its stored object metadata.
+// UploadFile загружает локальный артефакт записи и возвращает метаданные сохраненного объекта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - objectKey: Server-generated private object-storage key.
-//   - path: Validated local filesystem or object path.
-//   - contentType: Declared or detected MIME type of the content.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - objectKey: Сгенерированный сервером закрытый ключ для хранения объектов.
+//   - path: Проверенный путь к локальной файловой системе или объекту.
+//   - contentType: Объявленный или обнаруженный тип контента MIME.
 //
-// Returns:
-//   - result 1: The resulting uploaded object.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий загруженный объект.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) UploadFile(ctx context.Context, objectKey string, path string, contentType string) (UploadedObject, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
@@ -227,15 +232,16 @@ func (c *Client) UploadFile(ctx context.Context, objectKey string, path string, 
 	return UploadedObject{Bucket: c.bucket, ObjectKey: objectKey, SizeBytes: info.Size}, nil
 }
 
-// RemovePrefix removes objects only within the validated server-owned recording prefix.
+// RemovePrefix удаляет объекты только в пределах валидированного префикса записи,
+// принадлежащего серверу.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - prefix: Server-controlled object or key prefix.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - prefix: Объект или префикс ключа, управляемый сервером.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) RemovePrefix(ctx context.Context, prefix string) error {
 	prefix = strings.TrimSpace(prefix)
 	if prefix == "" {
@@ -243,12 +249,13 @@ func (c *Client) RemovePrefix(ctx context.Context, prefix string) error {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	// Synchronous iterators stop with their consumer. The channel SDK APIs can
-	// retain listing/result goroutines when deletion returns its first error.
+	// Синхронные итераторы останавливаются вместе с потребителем.  Канал SDK APIs может
+	// сохранять горутины, отвечающие за вывод списка или результатов, до тех пор, пока при
+	// удалении не возникнет первая ошибка.
 	var listingErr error
 	objects := func(yield func(minio.ObjectInfo) bool) {
 		for object := range c.minio.ListObjectsIter(ctx, c.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
-			// The bulk-delete iterator does not propagate ObjectInfo.Err itself.
+			// Итератор массового удаления не распространяет ошибку ObjectInfo.Err.
 			if object.Err != nil {
 				listingErr = object.Err
 				return
@@ -273,17 +280,17 @@ func (c *Client) RemovePrefix(ctx context.Context, prefix string) error {
 	return ctx.Err()
 }
 
-// ListCompletedRecords lists completed recording artifacts stored under the configured private
-// prefix.
+// ListCompletedRecords выводит список завершенных артефактов записи, хранящихся под настроенным
+// приватным префиксом.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The collected completed record values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения завершенных записей.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) ListCompletedRecords(ctx context.Context, limit int) ([]CompletedRecord, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
@@ -355,17 +362,16 @@ func (c *Client) ListCompletedRecords(ctx context.Context, limit int) ([]Complet
 	return result, nil
 }
 
-// completedRecordObject recognizes the object keys that belong to a completed recording
-// artifact.
+// completedRecordObject распознает ключи объектов, принадлежащие завершенному артефакту записи.
 //
-// Parameters:
-//   - key: Storage, cache or cryptographic key used by the operation.
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// Returns:
-//   - result 1: Recording identifier decoded from the object key.
-//   - result 2: Recognized final.mp4 or preview.jpg artifact filename.
-//   - result 3: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Идентификатор записи, декодированный из ключа объекта.
+//   - result2: Распознанное имя файла артефакта final.mp4 или preview.jpg.
+//   - result3: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func completedRecordObject(key string) (string, string, bool) {
 	parts := strings.Split(strings.Trim(key, "/"), "/")
 	if len(parts) != 3 || parts[0] != "records" {
@@ -378,17 +384,17 @@ func completedRecordObject(key string) (string, string, bool) {
 	return parts[1], parts[2], true
 }
 
-// PresignedGetURL creates a temporary signed read URL for a private object.
+// PresignedGetURL создает временный подписанный URL для чтения приватного объекта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - objectKey: Server-generated private object-storage key.
-//   - expiry: Expiration deadline or validity interval, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - objectKey: Сгенерированный сервером закрытый ключ для хранения объектов.
+//   - expiry: Срок действия или интервал действительности, определяемый типом.
 //
-// Returns:
-//   - result 1: Temporary signed URL for the private object.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Временный подписанный URL для приватного объекта.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) PresignedGetURL(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
 	if strings.TrimSpace(objectKey) == "" {
 		return "", nil

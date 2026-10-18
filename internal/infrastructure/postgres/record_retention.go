@@ -9,35 +9,37 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// The week starts at completion, including processing/upload time. Historical
-// terminal records without ended_at use their last recorded terminal timestamp.
+// Неделя начинается с момента завершения, включая время обработки и загрузки.  Для исторических
+// записей терминалов без ended_at используется последняя зафиксированная временная метка
+// терминала.
 const expiredRecording = `status IN ('ready','partial_ready','failed','cancelled')
 	AND COALESCE(ended_at,stopped_at,updated_at,created_at) <= clock_timestamp() - INTERVAL '7 days'`
 
-// availableRecordings builds the access-filtered recording query used by the caller.
+// availableRecordings формирует запрос на запись с фильтрацией доступа, используемый вызывающей
+// стороной.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded db.
+// @returns:
+//   - result1: Созданная или загруженная база данных.
 func availableRecordings(db *gorm.DB) *gorm.DB {
 	return db.Where("deleted_at IS NULL AND NOT (" + expiredRecording + ")")
 }
 
-// ExpireNextRecording holds a row lock through idempotent object removal. The
-// deletion marker and artifact references commit only after storage succeeds.
-// A process crash or partial storage failure leaves the record retryable.
+// ExpireNextRecording блокирует строку посредством идемпотентного удаления объекта.  Маркер
+// удаления и ссылки на артефакты фиксируются только после успешного сохранения.  В случае сбоя
+// процесса или частичного сбоя при сохранении запись можно будет восстановить.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - attempted: Identifiers already attempted by this retention sweep.
-//   - remove: Callback removing the authorized recording's owned storage objects.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - attempted: Идентификаторы, которые уже были использованы при повторном извлечении.
+//   - remove: Обратный вызов, удаляющий объекты хранения, принадлежащие авторизованной записи.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ExpireNextRecording(ctx context.Context, attempted []int64, remove func(context.Context, records.Record) error) (int64, error) {
 	var id int64
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -61,21 +63,21 @@ func (r *RecordRepository) ExpireNextRecording(ctx context.Context, attempted []
 	return id, err
 }
 
-// removeRecordingArtifacts deletes the database artifact metadata for the recording being
-// removed.
+// removeRecordingArtifacts удаляет метаданные артефакта базы данных для удаляемой записи.
 //
-// The caller holds the record row lock. Storage removal is idempotent so a
-// partial failure or a failed commit can safely be retried by either delete path.
+// Вызывающая сторона удерживает блокировку строки записи. Удаление из хранилища является
+// идемпотентной операцией, поэтому в случае частичного сбоя или неудачной фиксации можно
+// безопасно повторить попытку удаления по любому из путей.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - tx: Current database transaction.
-//   - record: Recording and its persisted lifecycle metadata.
-//   - remove: Callback removing the authorized recording's owned storage objects.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - tx: Текущая транзакция в базе данных.
+//   - record: Запись и сохраненные метаданные ее жизненного цикла.
+//   - remove: Обратный вызов, удаляющий объекты хранения, принадлежащие авторизованной записи.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func removeRecordingArtifacts(ctx context.Context, tx *gorm.DB, record records.Record, remove func(context.Context, records.Record) error) error {
 	if err := remove(ctx, record); err != nil {
 		return err

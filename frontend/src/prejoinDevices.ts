@@ -11,8 +11,9 @@ export interface DevicePreferences {
   hideParticipantVideo: boolean;
 }
 
-// A single explicit Connect click may start media after admission. This intent
-// lives only in this tab and is consumed once; reconnect never enables devices.
+// Один явный клик по кнопке «Подключиться» может запустить воспроизведение медиа после
+// авторизации.  Это намерение существует только на этой вкладке и используется однократно;
+// повторное подключение никогда не активирует устройства.
 const mediaEntries = new Map<string, number>();
 export function queueMediaEntry(conferenceId: string) {
   mediaEntries.set(conferenceId, Date.now());

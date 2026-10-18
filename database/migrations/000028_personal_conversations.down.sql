@@ -1,4 +1,4 @@
--- Explicit rollback only; does not touch the conference chat.
+-- Только явный откат; не затрагивает чат конференции.
 DROP TABLE IF EXISTS conversation_attachments;
 ALTER TABLE conversations DROP CONSTRAINT IF EXISTS conversation_last_message_fkey;
 ALTER TABLE conversation_members DROP CONSTRAINT IF EXISTS conversation_members_read_fkey;

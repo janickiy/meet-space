@@ -7,13 +7,14 @@ import (
 	"time"
 )
 
-// RegisterGuestRoutes registers the guest endpoints with the supplied authentication and request
-// middleware.
+// RegisterGuestRoutes регистрирует конечные точки для работы с гостевыми аккаунтами с
+// предоставленными промежуточными модулями аутентификации и обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - limiter: Shared request-rate limiter.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterGuestRoutes(router gin.IRouter, handler *conferencesapp.GuestHandler, limiter httpmiddleware.Limiter) {
 	path := APIV1Prefix + "/conference-invites/:code/guest"
 	limit := httpmiddleware.RateLimit(limiter, httpmiddleware.RateLimitConfig{Enabled: limiter != nil, Rules: []httpmiddleware.Rule{

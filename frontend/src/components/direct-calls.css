@@ -1,4 +1,4 @@
-/* Call surfaces share the conference palette; only the compact toolbar differs. */
+/* Поверхности вызова используют общую палитру конференции; отличается только компактная панель инструментов. */
 .direct-call-modal.modal {
   --room-speaking-accent: #42d88b;
   width: min(1240px, calc(100vw - 32px));

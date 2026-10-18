@@ -5,15 +5,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// reconcileLiveTranscript reconciles final live captions with the current transcript generation.
+// reconcileLiveTranscript сверяет окончательные субтитры в реальном времени с текущей
+// расшифровкой.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - t: Test handle used for assertions, cleanup and failure reporting.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func reconcileLiveTranscript(tx *gorm.DB, t domain.Transcript) error {
 	if err := tx.Exec(`WITH links AS (
  SELECT s.id,min(l.participant_id::text)::uuid AS participant_id FROM transcript_segments s

@@ -273,7 +273,8 @@ export function Modal({
        * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
        */
       function handle(event: KeyboardEvent) {
-        // Incoming calls can appear above another dialog: only the top dialog handles keys.
+        // Входящие вызовы могут отображаться поверх другого диалога: только верхний диалог
+        // обрабатывает нажатия клавиш.
         if (
           Array.from(document.querySelectorAll('[role="dialog"]')).at(-1) !==
           dialog.current

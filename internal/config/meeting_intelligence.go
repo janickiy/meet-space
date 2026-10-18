@@ -9,8 +9,9 @@ import (
 	"time"
 )
 
-// StageEightConfig bounds auxiliary speech, vector and analytics processing. Sending audio or
-// text to providers requires explicit opt-in; simulated results are forbidden in production.
+// StageEightConfig ограничивает вспомогательную обработку речи, векторов и аналитических
+// данных.  Для отправки аудио- или текстовых данных провайдерам требуется явное согласие
+// пользователя; использование симулированных результатов в производственной среде запрещено.
 type StageEightConfig struct {
 	LiveEnabled, EmbeddingsEnabled, AnalyticsEnabled                           bool
 	Live, Embeddings                                                           ProviderConfig
@@ -24,12 +25,12 @@ type StageEightConfig struct {
 // LoadStageEight загружает ограничения и настройки для транскрипции, реферирования, встраивания
 // и аналитики.
 //
-// Параметры:
+// @Parameters:
 //   - local: разрешено ли явное использование только локального режима.
 //
-// Возвращаемые значения:
-//   - result 1: итоговая конфигурация восьмого этапа.
-//   - result 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+// @returns:
+//   - result1: итоговая конфигурация восьмого этапа.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
 //     данных.
 func LoadStageEight(local bool) (StageEightConfig, error) {
 	c := StageEightConfig{}

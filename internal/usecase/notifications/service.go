@@ -9,190 +9,209 @@ import (
 	realtime "github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// Repository defines the replaceable dependency contract for personal notification delivery.
+// Repository — репозиторий определяет заменяемый контракт зависимостей для доставки персональных
+// уведомлений.
 type Repository interface {
-	// List returns a bounded page of personal notification records using the supplied pagination and
-	// filters.
+	// List возвращает страницу с ограниченным количеством записей о персональных уведомлениях с
+	// использованием заданных параметров разбивки на страницы и фильтров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Opaque continuation boundary from the previous page.
-	//   - argument 4: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Непрозрачная граница продолжения с предыдущей страницы.
+	//   - arg4: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная страница.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	List(context.Context, string, string, int) (domain.Page, error)
-	// Read idempotently marks the account-owned notification as read and returns its saved state.
+	// Read — при идемпотентном чтении уведомление, принадлежащее учетной записи, помечается как
+	// прочитанное, и возвращается его сохраненное состояние.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting notification.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее уведомление.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Read(context.Context, string, string) (domain.Notification, error)
-	// Generate creates a bounded batch of persistent notifications from saved schedules and
-	// transactional events.
+	// Generate создает ограниченный пакет постоянных уведомлений из сохраненных расписаний и
+	// транзакционных событий.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Generate(context.Context) error
-	// Pending returns persisted notifications that have not yet completed event publication.
+	// Pending возвращает сохраненные уведомления, публикация событий по которым еще не
+	// завершена.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: The collected notification values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения уведомлений.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Pending(context.Context) ([]domain.Notification, error)
-	// Publishable checks whether a saved notification should still be published to its recipient.
+	// Publishable проверяет, нужно ли по-прежнему публиковать сохраненное уведомление для
+	// получателя.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Publishable(context.Context, string) (bool, error)
-	// Visible checks whether the notification and its source remain visible to the account.
+	// Visible проверяет, видны ли уведомление и его источник в аккаунте.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Visible(context.Context, string, string) (bool, error)
-	// Published records that a persisted notification has completed publication or suppression.
+	// Published записывает информацию о том, что сохранённое уведомление было опубликовано или
+	// удалено.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Published(context.Context, string) error
 }
 
-// Publisher defines the replaceable dependency contract for personal notification delivery.
+// Publisher — издатель определяет заменяемый контракт зависимостей для доставки персональных уведомлений.
 type Publisher interface {
-	// Publish publishes the saved personal notification change through its configured event or
-	// command transport.
+	// Publish — публикует сохраненное изменение персональных уведомлений через настроенный транспорт
+	// событий или команд.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Trusted event to publish or process.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Доверенное событие для публикации или обработки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Publish(context.Context, string, realtime.Envelope) error
 }
 
-// Service coordinates personal notification delivery through its configured persistence and
-// transport dependencies.
+// Service — сервис координирует доставку персональных уведомлений через настроенный транспорт и
+// зависимости от персистентности.
 type Service struct {
 	repo Repository
 	bus  Publisher
 }
 
-// NewService constructs the service with the dependencies and limits required for personal
-// notification delivery.
+// NewService создает сервис с зависимостями и ограничениями, необходимыми для доставки
+// персональных уведомлений.
 //
-// Parameters:
-//   - repo: Persistence dependency used by the application operation.
-//   - bus: Scoped publication and subscription transport.
+// @Parameters:
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - bus: Публикация и подписка с ограничением области видимости.
 //
-// Returns:
-//   - result 1: The constructed or loaded service.
+// @returns:
+//   - result1: Созданный или загруженный сервис.
 func NewService(repo Repository, bus Publisher) *Service { return &Service{repo: repo, bus: bus} }
 
-// List returns a bounded page of personal notification records using the supplied pagination and
-// filters.
+// List возвращает страницу с ограниченным количеством записей о персональных уведомлениях с
+// использованием заданных параметров разбивки на страницы и фильтров.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The resulting page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) List(ctx context.Context, userID, cursor string, limit int) (domain.Page, error) {
 	return s.repo.List(ctx, userID, cursor, limit)
 }
 
-// Read idempotently marks the account-owned notification as read and returns its saved state.
+// Read — при идемпотентном чтении уведомление, принадлежащее учетной записи, помечается как
+// прочитанное, и возвращается его сохраненное состояние.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting notification.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее уведомление.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Read(ctx context.Context, userID, id string) (domain.Notification, error) {
 	item, err := s.repo.Read(ctx, userID, id)
 	if err != nil {
 		return item, err
 	}
-	// Persist read state before publication. Polling and reconnection recover missed Redis events;
-	// private content never enters the conference-wide broadcast.
+	// Persist Считывает состояние перед публикацией.  Опрос и повторное подключение позволяют
+	// восстановить пропущенные события из Redis; приватный контент никогда не попадает в общую
+	// рассылку конференции.
 	event := realtime.Event("notification.read", "", map[string]any{"id": item.ID})
 	_ = s.bus.Publish(ctx, userID, event)
 	return item, nil
 }
 
-// Visible authorizes a queued notification again immediately before delivery.
+// Visible повторно авторизует уведомление из очереди непосредственно перед доставкой.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Visible(ctx context.Context, userID, id string) (bool, error) {
 	return s.repo.Visible(ctx, userID, id)
 }
 
-// Tick performs one bounded maintenance or delivery iteration after persisted state is
-// available.
+// Tick — тик выполняет одну ограниченную итерацию обслуживания или доставки после получения доступного
+// сохраненного состояния.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Tick(ctx context.Context) error {
 	if err := s.repo.Generate(ctx); err != nil {
 		return err
@@ -208,7 +227,8 @@ func (s *Service) Tick(ctx context.Context) error {
 		}
 		if allowed {
 			event := realtime.Event("notification.created", "", map[string]any{"notification": item})
-			event.ID = item.ID // Repeated deliveries of one event retain a stable identifier.
+			event.ID = item.ID // При повторной доставке одного и того же события сохраняется стабильный
+			// идентификатор.
 			if err = s.bus.Publish(ctx, item.UserID, event); err != nil {
 				return err
 			}
@@ -220,10 +240,11 @@ func (s *Service) Tick(ctx context.Context) error {
 	return nil
 }
 
-// Run runs personal notification delivery until the context is canceled or processing fails.
+// Run выполняет доставку персональных уведомлений до тех пор, пока контекст не будет отменён
+// или пока не произойдёт сбой при обработке.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()

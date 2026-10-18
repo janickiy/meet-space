@@ -19,30 +19,31 @@ import (
 
 type ConferenceInvitationRepository struct{ db *gorm.DB }
 
-// NewConferenceInvitationRepository constructs the conference invitation repository with the
-// dependencies and limits required for conference invitation.
+// NewConferenceInvitationRepository создаёт репозиторий приглашений на конференцию с
+// зависимостями и ограничениями, необходимыми для приглашения на конференцию.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded conference invitation repository.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий приглашений на конференцию.
 func NewConferenceInvitationRepository(db *gorm.DB) *ConferenceInvitationRepository {
 	return &ConferenceInvitationRepository{db: db}
 }
 
-// invitationActor checks both the account and room authority before returning directory data.
+// invitationActor проверяет права доступа как к аккаунту, так и к комнате, прежде чем вернуть
+// данные из каталога.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - actor: Identifier of the account performing the operation.
-//   - conference: Conference identifier limiting the operation scope.
-//   - lock: Lock mode or lock requirement for the database operation.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - lock: Режим блокировки или требование блокировки для операции с базой данных.
 //
-// Returns:
-//   - result 1: The resulting conference.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func invitationActor(tx *gorm.DB, actor, conference string, lock bool) (d.Conference, error) {
 	var c d.Conference
 	q := tx.Where("id=? AND kind='meeting'", conference)
@@ -77,51 +78,53 @@ func invitationActor(tx *gorm.DB, actor, conference string, lock bool) (d.Confer
 	return c, nil
 }
 
-// SearchInvitationUsers returns a bounded list of registered invitation candidates visible to
-// the acting organizer.
+// SearchInvitationUsers возвращает ограниченный список зарегистрированных кандидатов на
+// получение приглашения, доступных действующему организатору.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - actor: Identifier of the account performing the operation.
-//   - conference: Conference identifier limiting the operation scope.
-//   - query: Search text or validated query filters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - query: Текст для поиска или валидированные фильтры запросов.
 //
-// Returns:
-//   - result 1: The collected invitation user values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения пользователей, которым было отправлено приглашение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceInvitationRepository) SearchInvitationUsers(ctx context.Context, actor, conference, query string) ([]d.InvitationUser, error) {
 	items := []d.InvitationUser{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := invitationActor(tx, actor, conference, false); err != nil {
 			return err
 		}
-		// Escape LIKE operators: the input is a literal fragment, never a directory wildcard.
+		// Экранирование операторов LIKE: входные данные представляют собой литеральную часть, а
+		// не подстановочный знак каталога.
 		query = strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(query)
 		return tx.Model(&users.User{}).Select("id,email,display_name").Where("guest_conference_id IS NULL AND password_hash<>'' AND (email ILIKE ? OR display_name ILIKE ?)", "%"+query+"%", "%"+query+"%").Order("email,id").Limit(20).Scan(&items).Error
 	})
 	return items, err
 }
 
-// Invite creates or updates conference invitations for the validated recipients.
+// Invite создаёт или обновляет приглашения на конференцию для подтверждённых получателей.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - actor: Identifier of the account performing the operation.
-//   - conference: Conference identifier limiting the operation scope.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The collected invitation result values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения результатов приглашения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conference string, request d.InvitationRequest) ([]d.InvitationResult, error) {
 	items := []d.InvitationResult{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := invitationActor(tx, actor, conference, true); err != nil {
 			return err
 		}
-		// Serialization on the room prevents duplicate sends from concurrent organizer clicks.
+		// Сериализация данных в комнате предотвращает повторную отправку приглашений из-за
+		// одновременных действий нескольких организаторов.
 		if err := tx.Exec("SET LOCAL meetrix.explicit_invitation='true'").Error; err != nil {
 			return err
 		}
@@ -158,8 +161,9 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 		}
 		sort.Strings(emails)
 		for _, email := range emails {
-			// Account addresses are resolved after API validation; validate them too,
-			// without changing the registered account or enqueueing unusable mail.
+			// Адреса аккаунтов определяются после проверки API; проверьте их тоже, не изменяя
+			// зарегистрированный аккаунт и не отправляя в очередь письма, которые не будут
+			// доставлены.
 			if err := d.ValidateInvitationEmail(email); err != nil {
 				return err
 			}
@@ -195,7 +199,8 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 					return err
 				}
 				if left > 0 {
-					// Only the former member may restore chat access via explicit Join.
+					// Только бывший участник может восстановить доступ к чату, явно
+					// присоединившись к нему.
 					items = append(items, d.InvitationResult{Email: email, UserID: userID, Status: "left_chat"})
 					continue
 				}
@@ -244,16 +249,16 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 	return items, err
 }
 
-// InvitationDelivery performs live authorization and lease checks immediately before SMTP.
+// InvitationDelivery выполняет проверку авторизации и аренды непосредственно перед SMTP.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
 //
-// Returns:
-//   - result 1: The resulting invitation delivery.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: В результате доставки приглашения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs.Job) (u.InvitationDelivery, error) {
 	var delivery u.InvitationDelivery
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -288,17 +293,18 @@ func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs
 	return delivery, err
 }
 
-// CompleteInvitation records invitation delivery completion only for its current job identity.
+// CompleteInvitation запись о доставке приглашения сохраняется только для текущего
+// идентификатора задания.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - status: Lifecycle state or response status to record.
-//   - code: Bounded public status or failure code.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
+//   - code: Ограниченный публичный статус или код ошибки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) CompleteInvitation(ctx context.Context, job jobs.Job, status, code string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := integrationLease(tx, job); err != nil {

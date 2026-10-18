@@ -37,21 +37,21 @@ const (
 
 var ErrInviteCollision = errors.New("invite code collision")
 
-// CanTransition checks whether the requested lifecycle transition is allowed from the current
-// state.
+// CanTransition проверяет, разрешён ли запрошенный переход между состояниями жизненного цикла
+// из текущего состояния.
 //
-// Parameters:
-//   - from: Source state of the proposed lifecycle transition.
-//   - to: Destination state or recipient of the operation.
+// @Parameters:
+//   - from: Исходное состояние предлагаемого перехода между состояниями жизненного цикла.
+//   - to: Конечное состояние или получатель операции.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func CanTransition(from, to Status) bool {
 	return ((from == Created || from == Scheduled) && (to == Active || to == Cancelled)) || (from == Active && to == Finished)
 }
 
-// Conference persists its owner, lifecycle state and schedule.
+// Conference сохраняет данные о владельце, состоянии жизненного цикла и расписании.
 type Conference struct {
 	ID                 string `gorm:"type:uuid;primaryKey"`
 	OwnerID            string `gorm:"column:owner_id;type:uuid"`
@@ -68,15 +68,15 @@ type Conference struct {
 	PlannedDurationMin *int
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Conference) TableName() string { return "conferences" }
 
-// Participant persists account membership, admission and media restrictions independently of
-// physical connections.
+// Participant сохраняет данные о членстве в учётных записях, ограничениях доступа и
+// медиаконтенте независимо от физических подключений.
 type Participant struct {
 	ID                 string  `gorm:"type:uuid;primaryKey"`
 	ConferenceID       string  `gorm:"column:conference_id;type:uuid"`
@@ -101,14 +101,14 @@ type Participant struct {
 	ChatLeft           bool  `json:"-" gorm:"column:chat_left;->;-:migration"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Participant) TableName() string { return "conference_participants" }
 
-// View is the safe public API projection of a conference.
+// View — это безопасная публичная проекция API конференции.
 type View struct {
 	ID                 string     `json:"id"`
 	OwnerID            string     `json:"ownerId"`
@@ -125,10 +125,10 @@ type View struct {
 	PlannedDurationMin *int       `json:"plannedDurationMin"`
 }
 
-// View builds the public API representation without exposing private persistence fields.
+// View создает публичное представление API, не раскрывая приватные поля персистентности.
 //
-// Returns:
-//   - result 1: The resulting view.
+// @returns:
+//   - result1: Результирующее представление.
 func (c Conference) View() View {
 	return View{ID: c.ID, OwnerID: c.OwnerID, Title: c.Title, InviteCode: c.InviteCode,
 		InviteURL: "/api/v1/conference-invites/" + c.InviteCode, Status: c.Status,
@@ -136,8 +136,8 @@ func (c Conference) View() View {
 		WaitingRoomEnabled: c.WaitingRoomEnabled, ScheduledAt: c.ScheduledAt, PlannedDurationMin: c.PlannedDurationMin}
 }
 
-// InviteView exposes limited invitation information without granting access to protected room
-// data.
+// InviteView предоставляет ограниченную информацию о приглашениях, не предоставляя доступа к
+// защищенным данным о комнатах.
 type InviteView struct {
 	ID                 string     `json:"id"`
 	Title              string     `json:"title"`
@@ -146,8 +146,7 @@ type InviteView struct {
 	ScheduledAt        *time.Time `json:"scheduledAt,omitempty"`
 }
 
-// ParticipantView contains the membership and participant state that an external client is
-// allowed to see.
+// ParticipantView содержит информацию о членстве и участниках, доступную внешнему клиенту.
 type ParticipantView struct {
 	ID                 string            `json:"id"`
 	ConferenceID       string            `json:"conferenceId"`
@@ -172,16 +171,16 @@ type ParticipantView struct {
 	ChatLeft           bool              `json:"-"`
 }
 
-// View builds the public API representation without exposing private persistence fields.
+// View создает публичное представление API, не раскрывая приватные поля персистентности.
 //
-// Returns:
-//   - result 1: The resulting participant view.
+// @returns:
+//   - result1: Полученное представление участника.
 func (p Participant) View() ParticipantView {
 	return ParticipantView(p)
 }
 
-// CreateRequest contains conference creation settings, including schedule and waiting-room
-// configuration.
+// CreateRequest содержит настройки создания конференции, включая расписание и конфигурацию
+// комнаты ожидания.
 type CreateRequest struct {
 	Title              string     `json:"title"`
 	WaitingRoomEnabled bool       `json:"waitingRoomEnabled"`
@@ -189,20 +188,20 @@ type CreateRequest struct {
 	PlannedDurationMin *int       `json:"plannedDurationMin"`
 }
 
-// JoinRequest contains the participant information supplied when joining a conference.
+// JoinRequest содержит информацию об участниках, указанную при присоединении к конференции.
 type JoinRequest struct {
 	InviteCode string `json:"inviteCode"`
 }
 
-// NormalizeTitle trims and validates a conference title before it is stored.
+// NormalizeTitle обрезает и проверяет название конференции перед сохранением.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Validated normalized conference title.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Проверенное нормализованное название конференции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeTitle(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if !utf8.ValidString(value) || value == "" || utf8.RuneCountInString(value) > 200 {

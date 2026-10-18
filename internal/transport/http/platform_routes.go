@@ -7,14 +7,16 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/conferences"
 )
 
-// RegisterPlatformRoutes registers the platform endpoints with the supplied authentication and
-// request middleware.
+// RegisterPlatformRoutes регистрирует платформенные конечные точки доступа с использованием
+// предоставленного промежуточного программного обеспечения для аутентификации и обработки
+// запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - auth: Authentication middleware or account handler dependency.
-//   - conference: Conference HTTP handler whose endpoints are being registered.
-//   - authentication: Middleware that resolves the authenticated account identity.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - conference: обработчик конференции HTTP, конечные точки которого регистрируются.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
 func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conference *conferencesapp.Handler, authentication gin.HandlerFunc) {
 	public := router.Group(APIV1Prefix + "/auth")
 	public.POST("/register", auth.Register)
@@ -50,20 +52,23 @@ func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conferenc
 	conferenceRoutes.GET("/:id/history", conference.History)
 	router.GET(APIV1Prefix+"/me/conferences", authentication, conference.Timeline)
 
-	// A separate prefix avoids conflicting :id and :inviteCode route templates and exposes only a
-	// limited invitation view.
+	// Отдельный префикс позволяет избежать конфликтов с шаблонами маршрутов :id и :inviteCode и
+	// предоставляет доступ только к ограниченному представлению приглашений.
 	invites := router.Group(APIV1Prefix + "/conference-invites")
 	invites.GET("/:code", conference.LookupInvite)
 	invites.POST("/:code/join", authentication, conference.JoinInvite)
 }
 
-// RegisterControlRoutes registers the control endpoints with the supplied authentication and
-// request middleware.
+// RegisterControlRoutes регистрирует управляющие конечные точки доступа с использованием
+// предоставленного промежуточного программного обеспечения для аутентификации и обработки
+// запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - authentication: Middleware that resolves the authenticated account identity.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
 func RegisterControlRoutes(router gin.IRouter, handler *conferencesapp.ControlHandler, authentication gin.HandlerFunc) {
 	routes := router.Group(APIV1Prefix+"/conferences", authentication)
 	routes.PUT("/:id/participants/me/media", handler.Media)

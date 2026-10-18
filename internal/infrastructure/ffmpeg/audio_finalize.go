@@ -8,17 +8,17 @@ import (
 	"time"
 )
 
-// FinalizeAudio converts the recorded input into the bounded audio artifact required by
-// downstream processing.
+// FinalizeAudio преобразует записанные входные данные в ограниченный аудиоконтент, необходимый
+// для последующей обработки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - dir: Validated local directory.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - dir: Проверенный локальный каталог.
 //
-// Returns:
-//   - result 1: The resulting result.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий результат.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *PostProcessor) FinalizeAudio(ctx context.Context, dir string) (Result, error) {
 	paths, err := findSegments(dir)
 	if err != nil {

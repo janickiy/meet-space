@@ -1,6 +1,6 @@
 package chat
 
-// Info is the member-specific view of a conference chat.
+// Info это специфичное для участника представление чата конференции.
 type Info struct {
 	ConferenceID         string `json:"conferenceId"`
 	Title                string `json:"title"`

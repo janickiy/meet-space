@@ -8,15 +8,17 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// RegisterPersonalAssetRoutes registers the personal asset endpoints with the supplied
-// authentication and request middleware.
+// RegisterPersonalAssetRoutes регистрирует персональные конечные точки доступа к активам с
+// использованием предоставленного промежуточного программного обеспечения для аутентификации и
+// обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - h: HTTP handler adapter to register or bind to the client.
-//   - auth: Authentication middleware or account handler dependency.
-//   - accountOnly: Middleware rejecting guest identities for registered-account-only operations.
-//   - limiter: Shared request-rate limiter.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - h: Адаптер обработчика HTTP для регистрации или привязки к клиенту.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - accountOnly: Промежуточное ПО, отклоняющее гостевые идентификаторы для операций,
+//     доступных только для зарегистрированных учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterPersonalAssetRoutes(router gin.IRouter, h *personalapp.AssetHandler, auth, accountOnly gin.HandlerFunc, limiter middleware.Limiter) {
 	rules := []middleware.Rule{}
 	for _, rule := range []struct {

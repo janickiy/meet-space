@@ -3,7 +3,8 @@ import type { User } from "./types";
 export const SESSION_KEY = "meet.session.v1";
 export const LOGOUT_KEY = "meet.auth.logout.v1";
 export const ACCOUNT_CHANGE_KEY = "meet.auth.account-change.v1";
-// Only a public user ID and nonce are shared across tabs; never credentials.
+// Доступ к вкладкам предоставляется только общедоступным пользователям ID и nonce; учетные
+// данные не предоставляются.
 export function announceAccount(id: string | null) {
   try {
     localStorage.setItem(
@@ -11,7 +12,7 @@ export function announceAccount(id: string | null) {
       JSON.stringify({ id, nonce: crypto.randomUUID() }),
     );
   } catch {
-    /* Memory still works. */
+    /* Память все еще работает. */
   }
 }
 export function selectedAccountID(): string | undefined {
@@ -74,7 +75,8 @@ export function readSession(): Session | null {
         )
           session.user = user as User;
       }
-      // An expired access token is only a cache. The HttpOnly cookie restores the session.
+      // Токен доступа с истекшим сроком действия - это всего лишь кэш. Файл cookie HttpOnly
+      // восстанавливает сеанс.
       return session;
     }
     sessionStorage.removeItem(SESSION_KEY);
@@ -104,7 +106,7 @@ export function saveSession(session: Session | null) {
   }
 }
 
-/** Contains only an explicit logout marker; credentials never enter localStorage. */
+/** Содержит только явный маркер выхода из системы; учетные данные никогда не вводятся в localStorage. */
 export function hasLogoutMarker(): boolean {
   try {
     return localStorage.getItem(LOGOUT_KEY) !== null;
@@ -117,7 +119,7 @@ export function markLogout(): void {
   try {
     localStorage.setItem(LOGOUT_KEY, `${Date.now()}:${crypto.randomUUID()}`);
   } catch {
-    /* The current tab still clears its in-memory session. */
+    /* Текущая вкладка по-прежнему очищает свой сеанс в памяти. */
   }
 }
 
@@ -125,7 +127,7 @@ export function clearLogoutMarker(): void {
   try {
     localStorage.removeItem(LOGOUT_KEY);
   } catch {
-    /* Storage may be unavailable. */
+    /* Хранилище может быть недоступно. */
   }
 }
 /**

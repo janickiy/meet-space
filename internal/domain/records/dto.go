@@ -1,6 +1,6 @@
 package records
 
-// Command holds the command data used by recording metadata.
+// Command содержит данные команд, используемые для метаданных записи.
 type Command struct {
 	Type               string `json:"type"`
 	RecordID           string `json:"recordId"`
@@ -8,20 +8,21 @@ type Command struct {
 	SegmentDurationSec int    `json:"segmentDurationSec,omitempty"`
 }
 
-// WebRTCOfferRequest contains the client SDP offer used to establish recording ingestion.
+// WebRTCOfferRequest содержит предложение клиента SDP, используемое для организации приема
+// записи.
 type WebRTCOfferRequest struct {
 	Type string `json:"type"`
 	SDP  string `json:"sdp"`
 }
 
-// WebRTCAnswerResponse contains the recording receiver's negotiated SDP answer.
+// WebRTCAnswerResponse содержит согласованный ответ получателя записи SDP.
 type WebRTCAnswerResponse struct {
 	Type string `json:"type"`
 	SDP  string `json:"sdp"`
 }
 
-// RecordDetails combines a recording with related files, segments and events for application
-// reads.
+// RecordDetails объединяет запись с сопутствующими файлами, сегментами и событиями для чтения
+// приложениями.
 type RecordDetails struct {
 	Record   Record
 	Files    []RecordFile
@@ -29,7 +30,8 @@ type RecordDetails struct {
 	Events   []RecordEvent
 }
 
-// RecordCard contains an authorized recording view with permitted links and related artifacts.
+// RecordCard содержит авторизованное представление записи с разрешенными ссылками и
+// сопутствующими артефактами.
 type RecordCard struct {
 	Record
 	Files    []RecordFileView    `json:"files"`
@@ -37,13 +39,15 @@ type RecordCard struct {
 	Events   []RecordEvent       `json:"events,omitempty"`
 }
 
-// RecordFileView adds a temporary authorized read link to persisted file metadata.
+// RecordFileView добавляет временную авторизованную ссылку для чтения к метаданным сохраненного
+// файла.
 type RecordFileView struct {
 	RecordFile
 	URL string `json:"url,omitempty"`
 }
 
-// RecordSegmentView adds the private bucket and temporary read link to segment metadata.
+// RecordSegmentView добавляет приватный сегмент и временную ссылку для чтения к метаданным
+// сегмента.
 type RecordSegmentView struct {
 	RecordSegment
 	Bucket string `json:"bucket,omitempty"`

@@ -1,4 +1,5 @@
-// Package platform collects read-only product capabilities and operational data.
+// Платформа пакетов собирает данные о возможностях продукта, доступных только для чтения, и
+// рабочие данные.
 package platform
 
 import (
@@ -11,51 +12,55 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 )
 
-// ReleaseVersion is injected at build time with -ldflags and contains no secrets.
+// ReleaseVersion вводится во время сборки с помощью -ldflags и не содержит секретов.
 var ReleaseVersion string
 
 type Repository interface {
-	// Summary returns bounded administrator-only operational aggregates and safe failure codes
-	// without user content.
+	// Summary возвращает ограниченные операционные агрегированные данные, доступные только
+	// администратору, и безопасные коды ошибок без пользовательского контента.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: The resulting summary.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная сводная таблица.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Summary(context.Context) (domain.Summary, error)
 }
 
 type VectorAvailability interface {
-	// Available checks whether the backing capability needed for read-only product capabilities and
-	// operational status is usable.
+	// Available проверяет, можно ли использовать возможности поддержки, необходимые для доступа
+	// только для чтения к функциям продукта и его рабочему состоянию.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Available(context.Context) (bool, error)
 }
 
 type ReadyProbe interface {
-	// Ready reports whether the component or configured dependency is currently usable.
+	// Ready сообщает, можно ли в данный момент использовать компонент или настроенную
+	// зависимость.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
 	Ready(context.Context) bool
 }
 
-// Service excludes credentials and internal addresses from public responses.
+// Service — сервис исключает учетные данные и внутренние адреса из общедоступных ответов.
 type Service struct {
 	Repo               Repository
 	Vector             VectorAvailability
@@ -66,13 +71,13 @@ type Service struct {
 	StageEight         config.StageEightConfig
 }
 
-// Capabilities returns the product or integration capabilities actually enabled by the operator.
+// Capabilities возвращает возможности продукта или интеграции, фактически доступные оператору.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: The resulting capabilities.
+// @returns:
+//   - result1: Результирующие возможности.
 func (s *Service) Capabilities(ctx context.Context) domain.Capabilities {
 	semantic := false
 	if s.StageEight.EmbeddingsEnabled && s.Vector != nil {
@@ -89,16 +94,16 @@ func (s *Service) Capabilities(ctx context.Context) domain.Capabilities {
 	}
 }
 
-// Summary returns bounded administrator-only operational aggregates and safe failure codes
-// without user content.
+// Summary возвращает ограниченные операционные агрегированные данные, доступные только
+// администратору, и безопасные коды ошибок без пользовательского контента.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: The resulting summary.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная сводная таблица.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Summary(ctx context.Context) (domain.Summary, error) {
 	value, err := s.Repo.Summary(ctx)
 	if err != nil {
@@ -119,10 +124,11 @@ func (s *Service) Summary(ctx context.Context) (domain.Summary, error) {
 	return value, nil
 }
 
-// BuildVersion returns the bounded public release identifier without paths or build flags.
+// BuildVersion возвращает ограниченный идентификатор общедоступной сборки без указания путей и
+// флагов сборки.
 //
-// Returns:
-//   - result 1: Bounded public build identifier.
+// @returns:
+//   - result1: Ограниченный идентификатор общедоступной сборки.
 func BuildVersion() string {
 	if safeBuildVersion(ReleaseVersion) {
 		return ReleaseVersion
@@ -145,14 +151,14 @@ func BuildVersion() string {
 	return "dev"
 }
 
-// safeBuildVersion validates and bounds the public build identifier.
+// safeBuildVersion проверяет и ограничивает идентификатор общедоступной сборки.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func safeBuildVersion(value string) bool {
 	if len(value) < 1 || len(value) > 64 {
 		return false

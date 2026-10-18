@@ -1,5 +1,5 @@
-// Package liveproviders implements the streaming gateway and an explicitly test-only caption
-// source.
+// Пакет liveproviders реализует потоковый шлюз и источник субтитров, предназначенный
+// исключительно для тестирования.
 package liveproviders
 
 import (
@@ -13,23 +13,24 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/captions"
 )
 
-// Provider contains operator-controlled settings and never exposes its endpoint or token to
-// clients.
+// Provider содержит настройки, управляемые оператором, и никогда не предоставляет клиентам
+// доступ к своей конечной точке или токену.
 type Provider struct {
 	Mode, Endpoint, Token string
 	Timeout               time.Duration
 }
 
-// StartSession opens one bounded live-speech provider session for the authorized audio stream.
+// StartSession открывает один ограниченный сеанс работы с провайдером для передачи речи в
+// режиме реального времени для авторизованного аудиопотока.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - config: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - config: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: The resulting session.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий сеанс.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p Provider) StartSession(ctx context.Context, config captions.SessionConfig) (captions.Session, error) {
 	if config.SampleRate != 16000 || config.Channels != 1 || config.Format != "pcm_s16le" {
 		return nil, captions.ErrUnavailable
@@ -63,7 +64,8 @@ func (p Provider) StartSession(ctx context.Context, config captions.SessionConfi
 	return s, nil
 }
 
-// wsSession bounds response size, queue capacity, write time and network goroutine count.
+// wsSession ограничивает размер ответа, вместимость очереди, время записи и количество сетевых
+// горутин.
 type wsSession struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -75,8 +77,8 @@ type wsSession struct {
 	stop    func() bool
 }
 
-// read reads incoming stream events until cancellation or terminal failure and enforces the
-// destination queue bound.
+// read считывает входящие потоковые события до тех пор, пока не произойдёт отмена или сбой
+// терминала, и обеспечивает соблюдение ограничений для очереди назначения.
 func (s *wsSession) read() {
 	defer close(s.done)
 	defer close(s.events)
@@ -99,15 +101,15 @@ func (s *wsSession) read() {
 	}
 }
 
-// WriteAudio forwards one bounded audio frame to the active speech session.
+// WriteAudio пересылает один ограниченный аудиокадр в активный речевой сеанс.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - pcm: Input bytes consumed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - pcm: Входные байты, потребляемые этой операцией.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *wsSession) WriteAudio(ctx context.Context, pcm []byte) error {
 	if len(pcm) == 0 || len(pcm) > 32768 || len(pcm)%2 != 0 {
 		return captions.ErrUnavailable
@@ -131,22 +133,24 @@ func (s *wsSession) WriteAudio(ctx context.Context, pcm []byte) error {
 	return nil
 }
 
-// Events returns the live event stream or serves its authorized transport adapter.
+// Events возвращает поток событий в реальном времени или обслуживает авторизованный
+// транспортный адаптер.
 //
-// Returns:
-//   - result 1: The bounded event or media channel owned by this operation.
+// @returns:
+//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
 func (s *wsSession) Events() <-chan captions.Event { return s.events }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *wsSession) Close() error {
 	select {
 	case <-s.done:
 	default:
-		// Ending PCM input lets the gateway flush a final utterance; this wait is always bounded.
+		// Завершение работы PCM позволяет шлюзу отправить последнее высказывание; время
+		// ожидания всегда ограничено.
 		s.mu.Lock()
 		_ = s.conn.SetWriteDeadline(time.Now().Add(min(s.timeout, 2*time.Second)))
 		err := s.conn.WriteJSON(map[string]string{"type": "end"})
@@ -168,7 +172,8 @@ func (s *wsSession) Close() error {
 	return nil
 }
 
-// mockSession generates revisable test utterances from the duration of PCM actually received.
+// mockSession генерирует изменяемые тестовые высказывания на основе фактически полученных
+// данных PCM.
 type mockSession struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -179,15 +184,15 @@ type mockSession struct {
 	closed   bool
 }
 
-// WriteAudio forwards one bounded audio frame to the active speech session.
+// WriteAudio пересылает один ограниченный аудиокадр в активный речевой сеанс.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - pcm: Input bytes consumed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - pcm: Входные байты, потребляемые этой операцией.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *mockSession) WriteAudio(ctx context.Context, pcm []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -224,17 +229,18 @@ func (s *mockSession) WriteAudio(ctx context.Context, pcm []byte) error {
 	return nil
 }
 
-// Events returns the live event stream or serves its authorized transport adapter.
+// Events возвращает поток событий в реальном времени или обслуживает авторизованный
+// транспортный адаптер.
 //
-// Returns:
-//   - result 1: The bounded event or media channel owned by this operation.
+// @returns:
+//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
 func (s *mockSession) Events() <-chan captions.Event { return s.events }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *mockSession) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

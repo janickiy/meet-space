@@ -11,32 +11,34 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// UserRepository persists account identity and credential metadata through GORM.
+// UserRepository сохраняет идентификационные данные учетной записи и метаданные учетных данных
+// через GORM.
 type UserRepository struct{ db *gorm.DB }
 
-// NewUserRepository constructs the user repository with the dependencies and limits required for
-// user.
+// NewUserRepository создает репозиторий пользователей с зависимостями и ограничениями,
+// необходимыми для работы с пользователями.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded user repository.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий пользователей.
 func NewUserRepository(db *gorm.DB) *UserRepository {
-	// An INSERT error must not cause GORM to print password_hash parameters.
+	// Ошибка INSERT не должна приводить к тому, что GORM выводит параметры password_hash.
 	return &UserRepository{db: db.Session(&gorm.Session{Logger: logger.Discard})}
 }
 
-// Create persists the validated account identity and protected password hash.
+// Create сохраняет подтвержденные данные учетной записи и защищенный хэш пароля.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Validated account record whose public identity or server session is being processed.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Подтвержденная запись учетной записи, для которой обрабатывается публичная
+//     идентификация или сеанс на сервере.
 //
-// Returns:
-//   - result 1: The resulting user.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный пользователь.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *UserRepository) Create(ctx context.Context, user users.User) (users.User, error) {
 	err := r.db.WithContext(ctx).Create(&user).Error
 	var pgErr *pgconn.PgError
@@ -46,50 +48,51 @@ func (r *UserRepository) Create(ctx context.Context, user users.User) (users.Use
 	return user, err
 }
 
-// GetByID loads the user by ID.
+// GetByID загружает пользователя с помощью ID.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting user.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный пользователь.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *UserRepository) GetByID(ctx context.Context, id string) (users.User, error) {
 	var user users.User
 	err := r.db.WithContext(ctx).Where("id = ? AND password_hash<>''", id).Take(&user).Error
 	return user, mapNotFound(err)
 }
 
-// GetByEmail loads the user by email.
+// GetByEmail загружает пользователя по электронной почте.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - email: Account or delivery email address.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - email: Адрес электронной почты для входа в аккаунт или доставки.
 //
-// Returns:
-//   - result 1: The resulting user.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный пользователь.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (users.User, error) {
 	var user users.User
 	err := r.db.WithContext(ctx).Where("email = ? AND password_hash<>''", email).Take(&user).Error
 	return user, mapNotFound(err)
 }
 
-// UpdateDisplayName updates only the public name of the account resolved from the authenticated
-// subject.
+// UpdateDisplayName обновляет только публичное имя учетной записи, полученное из субъекта
+// аутентификации.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - name: Name of the setting, cookie, resource or provider being addressed.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - name: Имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется
+//     обращение.
 //
-// Returns:
-//   - result 1: The resulting user.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный пользователь.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *UserRepository) UpdateDisplayName(ctx context.Context, userID, name string) (users.User, error) {
 	result := r.db.WithContext(ctx).Model(&users.User{}).Where("id = ? AND password_hash<>''", userID).Update("display_name", name)
 	if result.Error != nil {
@@ -101,14 +104,15 @@ func (r *UserRepository) UpdateDisplayName(ctx context.Context, userID, name str
 	return r.GetByID(ctx, userID)
 }
 
-// mapNotFound converts GORM's missing-row error to the application not-found error.
+// mapNotFound преобразует ошибку GORM, связанную с отсутствующей строкой, в ошибку «приложение
+// не найдено».
 //
-// Parameters:
-//   - err: Error to classify, wrap or report safely.
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func mapNotFound(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return apperrors.ErrNotFound

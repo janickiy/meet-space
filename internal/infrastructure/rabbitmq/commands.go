@@ -19,7 +19,8 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// Options contains broker dependencies, timeouts and component construction settings.
+// Options содержит информацию о зависимостях брокера, таймаутах и параметрах создания
+// компонентов.
 type Options struct {
 	URL         string
 	Exchange    string
@@ -29,10 +30,10 @@ type Options struct {
 	Logger      *log.Logger
 }
 
-// CommandHandler processes one recording command delivered by RabbitMQ.
+// CommandHandler обрабатывает одну команду записи, полученную от RabbitMQ.
 type CommandHandler func(context.Context, records.Command) error
 
-// Publisher holds the publisher data used by recording command delivery.
+// Publisher хранит данные издателя, используемые при доставке команд записи.
 type Publisher struct {
 	conn       *amqp.Connection
 	channel    *amqp.Channel
@@ -45,7 +46,7 @@ type Publisher struct {
 	current    atomic.Pointer[amqp.Connection]
 }
 
-// Consumer holds the consumer data used by recording command delivery.
+// Consumer хранит данные потребителя, используемые при доставке команд записи.
 type Consumer struct {
 	drainMu     sync.Mutex
 	draining    bool
@@ -61,27 +62,27 @@ type Consumer struct {
 	closed      bool
 }
 
-// BeginDrain stops accepting new work while existing operations finish.
+// BeginDrain прекращает принимать новые задачи, пока не завершатся текущие операции.
 func (c *Consumer) BeginDrain() { c.drainMu.Lock(); c.draining = true; c.drainMu.Unlock() }
 
-// Active returns the count of component-owned operations still requiring completion before
-// shutdown.
+// Active возвращает количество операций, принадлежащих компоненту, которые необходимо завершить
+// до завершения работы.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
 func (c *Consumer) Active() int { c.drainMu.Lock(); defer c.drainMu.Unlock(); return c.active }
 
-// NewPublisher constructs the publisher with the dependencies and limits required for recording
-// command delivery.
+// NewPublisher создает издателя с зависимостями и ограничениями, необходимыми для доставки
+// команд записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - options: Validated component construction or execution options.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - options: Проверенные параметры создания или выполнения компонентов.
 //
-// Returns:
-//   - result 1: The constructed or loaded publisher.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный издатель.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewPublisher(ctx context.Context, options Options) (*Publisher, error) {
 	options = normalizeOptions(options)
 	conn, channel, err := openDeclaredChannel(ctx, options)
@@ -104,16 +105,16 @@ func NewPublisher(ctx context.Context, options Options) (*Publisher, error) {
 	return p, nil
 }
 
-// StartRecord publishes the recording-start command that prepares media ingestion.
+// StartRecord публикует команду начала записи, которая подготавливает прием медиаданных.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - recordID: External recording UUID.
-//   - segmentDurationSec: Requested segment duration in seconds.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordID: Внешняя запись UUID.
+//   - segmentDurationSec: Запрошенная продолжительность сегмента в секундах.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *Publisher) StartRecord(ctx context.Context, recordID string, segmentDurationSec int) error {
 	return p.publish(ctx, records.Command{
 		Type:               "record.start",
@@ -122,17 +123,17 @@ func (p *Publisher) StartRecord(ctx context.Context, recordID string, segmentDur
 	})
 }
 
-// StopRecord publishes the recording-stop command that triggers finalization and artifact
-// publication.
+// StopRecord публикует команду остановки записи, которая запускает финализацию и публикацию
+// артефакта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - recordID: External recording UUID.
-//   - reason: Bounded lifecycle or failure reason.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordID: Внешняя запись UUID.
+//   - reason: Ограниченный жизненный цикл или причина сбоя.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *Publisher) StopRecord(ctx context.Context, recordID string, reason string) error {
 	return p.publish(ctx, records.Command{
 		Type:     "record.stop",
@@ -141,7 +142,7 @@ func (p *Publisher) StopRecord(ctx context.Context, recordID string, reason stri
 	})
 }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 func (p *Publisher) Close() {
 	if p == nil {
 		return
@@ -150,23 +151,24 @@ func (p *Publisher) Close() {
 		return
 	}
 	p.alive.Store(false)
-	// Closing the socket before taking the publish mutex also interrupts a
-	// blocked write; Channel.Close itself waits for the library's write lock.
+	// Закрытие сокета перед получением мьютекса публикации также прерывает заблокированную
+	// запись; сам Channel.Close ожидает снятия блокировки записи библиотеки.
 	closeAMQP(p.current.Load())
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	closeAMQP(p.conn)
 }
 
-// publish publishes the saved rabbitmq change through its configured event or command transport.
+// publish публикует сохраненное изменение rabbitmq через настроенный транспорт событий или
+// команд.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - command: Validated internal recording or media command.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *Publisher) publish(ctx context.Context, command records.Command) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -193,16 +195,16 @@ func (p *Publisher) publish(ctx context.Context, command records.Command) error 
 	return p.publishLocked(ctx, body, command.Type)
 }
 
-// publishLocked publishes a command while the publisher connection state is locked.
+// publishLocked публикует команду, пока состояние подключения издателя заблокировано.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - body: Input content stream or serialized request body.
-//   - commandType: Allowlisted recording command kind.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - body: Поток входного контента или сериализованное тело запроса.
+//   - commandType: Тип команды записи, внесенный в список разрешенных.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *Publisher) publishLocked(ctx context.Context, body []byte, commandType string) error {
 	if p.channel == nil {
 		return fmt.Errorf("rabbitmq channel is not configured")
@@ -234,14 +236,14 @@ func (p *Publisher) publishLocked(ctx context.Context, body []byte, commandType 
 	return nil
 }
 
-// Check checks the configured component or dependency without creating user work.
+// Check проверяет настроенный компонент или зависимость без создания пользовательских задач.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *Publisher) Check(ctx context.Context) error {
 	if p.closed.Load() {
 		return fmt.Errorf("publisher closed")
@@ -259,14 +261,14 @@ func (p *Publisher) Check(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// reconnectLocked restores the publisher channel while serializing connection changes.
+// reconnectLocked восстанавливает канал издателя при сериализации изменений подключения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *Publisher) reconnectLocked(ctx context.Context) error {
 	closeAMQP(p.conn)
 	p.channel, p.conn = nil, nil
@@ -296,11 +298,11 @@ func (p *Publisher) reconnectLocked(ctx context.Context) error {
 	return nil
 }
 
-// watch observes one broker connection so closure of an obsolete connection cannot invalidate a
-// newer publisher.
+// watch отслеживает одно подключение к брокеру, поэтому закрытие устаревшего подключения не
+// приведет к аннулированию более нового подключения издателя.
 //
-// Parameters:
-//   - conn: Connection owned by the current operation.
+// @Parameters:
+//   - conn: Подключение, принадлежащее текущей операции.
 func (p *Publisher) watch(conn *amqp.Connection) {
 	p.current.Store(conn)
 	p.alive.Store(true)
@@ -314,17 +316,17 @@ func (p *Publisher) watch(conn *amqp.Connection) {
 	}()
 }
 
-// NewConsumer constructs the consumer with the dependencies and limits required for recording
-// command delivery.
+// NewConsumer создает потребителя с зависимостями и ограничениями, необходимыми для доставки
+// команд записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - options: Validated component construction or execution options.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - options: Проверенные параметры создания или выполнения компонентов.
 //
-// Returns:
-//   - result 1: The constructed or loaded consumer.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный потребитель.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewConsumer(ctx context.Context, options Options) (*Consumer, error) {
 	options = normalizeOptions(options)
 	conn, channel, err := openDeclaredChannel(ctx, options)
@@ -352,15 +354,16 @@ func NewConsumer(ctx context.Context, options Options) (*Consumer, error) {
 	return consumer, nil
 }
 
-// Consume processes broker recording commands until its context is canceled.
+// Consume обрабатывает команды записи брокера до тех пор, пока его контекст не будет отменен.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - handler: Callback responsible for processing the scoped operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Consumer) Consume(ctx context.Context, handler CommandHandler) error {
 	if c == nil {
 		return fmt.Errorf("rabbitmq consumer is not configured")
@@ -414,14 +417,14 @@ func (c *Consumer) Consume(ctx context.Context, handler CommandHandler) error {
 	return nil
 }
 
-// Check checks the configured component or dependency without creating user work.
+// Check проверяет настроенный компонент или зависимость без создания пользовательских задач.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Consumer) Check(ctx context.Context) error {
 	if !c.alive.Load() {
 		return fmt.Errorf("consumer unavailable")
@@ -429,15 +432,15 @@ func (c *Consumer) Check(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// reconnect restores the broker connection, QoS and acknowledgement state without reviving a
-// closed consumer.
+// reconnect — переподключение восстанавливает соединение с брокером, QoS и состояние подтверждения, не
+// возвращая к жизни закрытого потребителя.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Consumer) reconnect(ctx context.Context) error {
 	conn, ch, err := openDeclaredChannel(ctx, c.options)
 	if err != nil {
@@ -464,7 +467,7 @@ func (c *Consumer) reconnect(ctx context.Context) error {
 	return nil
 }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 func (c *Consumer) Close() {
 	if c == nil {
 		return
@@ -479,13 +482,14 @@ func (c *Consumer) Close() {
 	}
 }
 
-// handleDelivery decodes an AMQP recording command and acknowledges, retries or quarantines the
-// delivery.
+// handleDelivery декодирует команду записи AMQP и подтверждает доставку, повторяет попытку или
+// помещает её в карантин.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - delivery: Broker delivery with its acknowledgement state.
-//   - handler: Callback responsible for processing the scoped operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - delivery: Доставка от брокера с указанием состояния подтверждения.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
 func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery, handler CommandHandler) {
 	started := time.Now()
 	defer func() { operations.Observe("command", time.Since(started).Seconds()) }()
@@ -508,7 +512,7 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery, h
 	}
 	c.drainMu.Unlock()
 	if deferred {
-		// This return is not a job failure and does not quarantine the retried delivery.
+		// Возврат не означает сбой задания и не помещает повторную доставку в карантин.
 		c.acknowledge(ctx, delivery, false)
 		select {
 		case <-ctx.Done():
@@ -536,12 +540,14 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery, h
 	c.acknowledge(ctx, delivery, true)
 }
 
-// acknowledge acknowledges or requeues a broker delivery according to its processing result.
+// acknowledge — подтверждение или повторная постановка в очередь доставки от брокера в соответствии с
+// результатом её обработки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - d: The delivery state processed by this operation.
-//   - ack: Whether the broker delivery should be acknowledged rather than requeued.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - d: Состояние доставки, обрабатываемое этой операцией.
+//   - ack: Указывает, следует ли подтвердить доставку от брокера, а не ставить её в очередь
+//     повторно.
 func (c *Consumer) acknowledge(ctx context.Context, d amqp.Delivery, ack bool) {
 	c.mu.Lock()
 	conn := c.conn
@@ -554,12 +560,12 @@ func (c *Consumer) acknowledge(ctx context.Context, d amqp.Delivery, ack bool) {
 	})
 }
 
-// quarantine routes a rejected message to the quarantine path instead of repeatedly processing
-// invalid input.
+// quarantine — карантин перенаправляет отклоненное сообщение в карантин, вместо того чтобы повторно
+// обрабатывать неверные входные данные.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - d: The delivery state processed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - d: Состояние доставки, обрабатываемое этой операцией.
 func (c *Consumer) quarantine(ctx context.Context, d amqp.Delivery) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -591,28 +597,29 @@ func (c *Consumer) quarantine(ctx context.Context, d amqp.Delivery) {
 	c.acknowledge(ctx, d, false)
 }
 
-// logf records a bounded diagnostic without including private payloads or credentials.
+// logf записывает ограниченную диагностическую информацию без включения конфиденциальных данных
+// или учетных данных.
 //
-// Parameters:
-//   - format: Diagnostic message format; sensitive values must not be included.
-//   - args: Command-line, process or protocol arguments.
+// @Parameters:
+//   - format: Формат диагностического сообщения; конфиденциальные данные не должны включаться.
+//   - args: Аргументы командной строки, процесса или протокола.
 func (c *Consumer) logf(format string, args ...any) {
 	if c.logger != nil {
 		c.logger.Printf(format, args...)
 	}
 }
 
-// openDeclaredChannel opens an AMQP channel and declares the required recording topology.
+// openDeclaredChannel открывает канал AMQP и объявляет требуемую топологию записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - options: Validated component construction or execution options.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - options: Проверенные параметры создания или выполнения компонентов.
 //
-// Returns:
-//   - result 1: The constructed or loaded connection.
-//   - result 2: The constructed or loaded channel.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданное или загруженное соединение.
+//   - result2: Созданный или загруженный канал.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func openDeclaredChannel(ctx context.Context, options Options) (*amqp.Connection, *amqp.Channel, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -635,18 +642,20 @@ func openDeclaredChannel(ctx context.Context, options Options) (*amqp.Connection
 	return conn, channel, nil
 }
 
-// cancelConnectionIO interrupts broker I/O when the owning operation is canceled.
+// cancelConnectionIO прерывает операции ввода-вывода брокера при отмене операции, которой он
+// принадлежит.
 //
-// amqp091-go checks publish contexts before writing but cannot interrupt a
-// socket write. Cancellation closes this uncertain connection with an I/O
-// deadline, releasing both the write and the library's shutdown locks.
+// amqp091-go проверяет контексты публикации перед записью, но не может прервать запись в сокет.
+// При отмене операции это нестабильное соединение закрывается в соответствии с установленным
+// сроком ввода-вывода, освобождая блокировки записи и блокировки завершения работы библиотеки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conn: Connection owned by the current operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conn: Подключение, принадлежащее текущей операции.
 //
-// Returns:
-//   - result 1: The callback used to complete or release the operation.
+// @returns:
+//   - result1: Обратный вызов, используемый для завершения операции или освобождения
+//     ресурсов.
 func cancelConnectionIO(ctx context.Context, conn *amqp.Connection) func() {
 	done := make(chan struct{})
 	stop := context.AfterFunc(ctx, func() {
@@ -662,26 +671,26 @@ func cancelConnectionIO(ctx context.Context, conn *amqp.Connection) func() {
 	}
 }
 
-// closeAMQP closes the owned AMQP channel and connection.
+// closeAMQP закрывает принадлежащий ему канал AMQP и соединение.
 //
-// Parameters:
-//   - conn: Connection owned by the current operation.
+// @Parameters:
+//   - conn: Подключение, принадлежащее текущей операции.
 func closeAMQP(conn *amqp.Connection) {
 	if conn != nil {
 		_ = conn.CloseDeadline(time.Now().Add(time.Second))
 	}
 }
 
-// boundedAMQPRPC runs an AMQP setup operation with a bounded cancellation window.
+// boundedAMQPRPC запускает операцию настройки AMQP с ограниченным окном отмены.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conn: Connection owned by the current operation.
-//   - call: Persisted direct-call lifecycle state.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conn: Подключение, принадлежащее текущей операции.
+//   - call: Сохраненное состояние жизненного цикла прямого вызова.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func boundedAMQPRPC(ctx context.Context, conn *amqp.Connection, call func() error) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -693,16 +702,16 @@ func boundedAMQPRPC(ctx context.Context, conn *amqp.Connection, call func() erro
 	return call()
 }
 
-// declareTopology declares the recording exchange, queues and bindings required by the
-// component.
+// declareTopology объявляет обмен данными, очереди и привязки, необходимые для работы
+// компонента.
 //
-// Parameters:
-//   - channel: Broker or in-process channel owned by this component.
-//   - options: Validated component construction or execution options.
+// @Parameters:
+//   - channel: Брокер или внутрипроцессный канал, принадлежащий этому компоненту.
+//   - options: Проверенные параметры создания или выполнения компонентов.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func declareTopology(channel *amqp.Channel, options Options) error {
 	if err := channel.ExchangeDeclare(options.Exchange, "direct", true, false, false, false, nil); err != nil {
 		return fmt.Errorf("rabbitmq declare exchange: %w", err)
@@ -720,16 +729,17 @@ func declareTopology(channel *amqp.Channel, options Options) error {
 	return nil
 }
 
-// dial opens a broker connection using the configured connection and cancellation limits.
+// dial устанавливает соединение с брокером, используя настроенные лимиты на количество
+// подключений и отмен.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - url: Validated endpoint or public resource URL.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - url: Проверенная конечная точка или общедоступный ресурс URL.
 //
-// Returns:
-//   - result 1: The constructed or loaded connection.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданное или загруженное соединение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func dial(ctx context.Context, url string) (*amqp.Connection, error) {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
@@ -772,13 +782,14 @@ func dial(ctx context.Context, url string) (*amqp.Connection, error) {
 	return conn, nil
 }
 
-// normalizeOptions fills and bounds AMQP connection, retry and consumer options.
+// normalizeOptions заполняет и ограничивает параметры подключения, повторных попыток и
+// использования AMQP.
 //
-// Parameters:
-//   - options: Validated component construction or execution options.
+// @Parameters:
+//   - options: Проверенные параметры создания или выполнения компонентов.
 //
-// Returns:
-//   - result 1: The resulting options.
+// @returns:
+//   - result1: Результирующие параметры.
 func normalizeOptions(options Options) Options {
 	options.URL = strings.TrimSpace(options.URL)
 	if options.URL == "" {

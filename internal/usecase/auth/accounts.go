@@ -8,16 +8,18 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/users"
 )
 
-// SessionAccount returns the public account view for a valid persistent session.
+// SessionAccount возвращает общедоступное представление учетной записи для действительного
+// постоянного сеанса.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - raw: Serialized access token or refresh credential to validate; never log or expose it.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - raw: Сериализованный токен доступа или обновленные учетные данные для проверки; никогда
+//     не сохраняйте и не раскрывайте их.
 //
-// Returns:
-//   - result 1: The resulting view.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее представление.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) SessionAccount(ctx context.Context, raw string) (users.View, error) {
 	session, err := s.sessionForCookie(ctx, raw)
 	if err != nil {
@@ -27,19 +29,20 @@ func (s *Service) SessionAccount(ctx context.Context, raw string) (users.View, e
 	return user.View(), err
 }
 
-// DeleteAccount verifies account ownership and removes the account together with its scoped
-// session state.
+// DeleteAccount проверяет право владения учетной записью и удаляет учетную запись вместе с ее
+// состоянием сеанса.
 //
-// Deletion always reauthenticates the current identity; a submitted user ID is never accepted.
+// При удалении всегда выполняется повторная аутентификация текущего идентификатора;
+// отправленный пользовательский ID никогда не будет принят.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - password: Plaintext password accepted only for validation or hashing.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - password: Пароль в виде обычного текста принимается только для проверки или хеширования.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) DeleteAccount(ctx context.Context, id, password string) error {
 	user, err := s.account(ctx, id)
 	if err != nil {
@@ -56,17 +59,19 @@ func (s *Service) DeleteAccount(ctx context.Context, id, password string) error 
 		return apperrors.New(apperrors.ErrInvalidInput, "incorrect account password")
 	}
 	repo, ok := s.repository.(interface {
-		// DeleteAccount verifies account ownership and removes the account together with its scoped
-		// session state.
+		// DeleteAccount проверяет право владения учетной записью и удаляет учетную запись
+		// вместе с ее состоянием сеанса.
 		//
-		// Parameters:
-		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-		//   - argument 2: Identifier of the resource addressed by this operation.
-		//   - argument 3: Plaintext password accepted only for validation or hashing.
+		// @Parameters:
+		//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+		//   операции.
+		//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+		//   - arg3: Пароль в виде обычного текста принимается только для проверки или
+		//   хеширования.
 		//
-		// Returns:
-		//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-		//     failure.
+		// @returns:
+		//   - result1: nil — в случае успеха; в противном случае — ошибка валидации,
+		//   доступа, передачи данных или сохранения.
 		DeleteAccount(context.Context, string, string) error
 	})
 	if !ok {

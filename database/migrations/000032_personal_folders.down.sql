@@ -1,4 +1,4 @@
--- A rollback must not silently discard account-owned organization metadata.
+-- При откате не должны автоматически удаляться метаданные организации, принадлежащие аккаунту.
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM folders) THEN
   RAISE EXCEPTION 'personal folders must be preserved before rollback';

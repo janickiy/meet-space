@@ -74,13 +74,13 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
-/** Token renewal is independent of the mounted account and conference. */
+/** Обновление токена не зависит от подключенной учетной записи и конференции. */
 export function subscribeAccessToken(listener: () => void): () => void {
   tokenListeners.add(listener);
   return () => tokenListeners.delete(listener);
 }
 
-/** Returns false when the account changed while the old request was pending. */
+/** Возвращает false, если учетная запись была изменена во время обработки старого запроса. */
 async function recoverSession(
   usedToken: string,
   version: number,
@@ -273,7 +273,7 @@ async function request<T>(
   return data as T;
 }
 
-/** Private bytes use the same session renewal and account-change guard as JSON. */
+/** Для приватных байтов используется тот же механизм обновления сеанса и защиты от смены учетной записи, что и для JSON. */
 async function binaryRequest(
   path: string,
   options: { method?: string; body?: File; signal?: AbortSignal } = {},
@@ -462,13 +462,13 @@ export const api = {
       `/conferences/${encodeURIComponent(id)}/participants/me`,
       { signal },
     ),
-  /** Searches registered accounts inside an authorised meeting invitation flow. */
+  /** Выполняет поиск зарегистрированных учетных записей в рамках процесса приглашения на санкционированное собрание. */
   invitationUsers: (id: string, query: string, signal?: AbortSignal) =>
     request<Items<InvitationUser>>(
       `/conferences/${encodeURIComponent(id)}/invitation-users?${new URLSearchParams({ query })}`,
       { signal },
     ),
-  /** Queues meeting invitation emails and the recipients' account notifications. */
+  /** Ставит в очередь электронные письма с приглашениями на собрание и уведомлениями для учетных записей получателей. */
   inviteParticipants: (
     id: string,
     recipients: { emails?: string[]; userIds?: string[] },
@@ -582,7 +582,7 @@ export const api = {
       sessionCookie: true,
       signal,
     }),
-  /** Restores an account using its persistent HttpOnly cookie. */
+  /** Восстанавливает учетную запись с помощью постоянного cookie-файла HttpOnly. */
   refreshSession: (signal?: AbortSignal, userId?: string) =>
     request<LoginResponse>("/auth/refresh", {
       method: "POST",
@@ -592,7 +592,7 @@ export const api = {
       recover: false,
       signal,
     }),
-  /** Upgrades a still-valid pre-existing account token to a persistent session. */
+  /** Преобразует ранее использовавшийся токен учетной записи в постоянный сеанс. */
   establishSession: (signal?: AbortSignal) =>
     request<LoginResponse>("/auth/session", {
       method: "POST",
@@ -1561,7 +1561,8 @@ export const statusLabels: Record<ConferenceStatus, string> = {
   cancelled: "Отменена",
 };
 
-// Both scopes use the same contracts and authenticated request/retry layer.
+// Обе области используют одни и те же контракты и уровень аутентификации запросов/повторных
+// попыток.
 export function createChatAPI(namespace: "conferences" | "conversations") {
   const base = (id: string) => `/${namespace}/${encodeURIComponent(id)}`;
   const history = (id: string) =>

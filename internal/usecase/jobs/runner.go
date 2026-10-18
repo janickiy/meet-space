@@ -1,4 +1,4 @@
-// Package jobs runs the durable queue with a bounded set of independent workers.
+// Пакет jobs запускает устойчивую очередь с ограниченным набором независимых рабочих процессов.
 package jobs
 
 import (
@@ -13,24 +13,26 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/jobs"
 )
 
-// Handler performs the operation; Fail persists a safe terminal failure on the related entity.
+// Handler — обработчик выполняет операцию; Fail фиксирует безопасный терминальный сбой в связанной
+// сущности.
 type Handler struct {
 	Handle func(context.Context, domain.Job) error
 	Fail   func(context.Context, domain.Job, string) error
 }
 
-// Pool reserves independent concurrency and a timeout for one fixed work category.
+// Pool — пул резервирует независимые параллельные процессы и время ожидания для одной фиксированной
+// категории рабочих процессов.
 type Pool struct {
 	Kind        string
 	Concurrency int
-	MaxAttempts int // Zero retains the row budget; values from one through ten further bound older or
-	// trigger-generated jobs.
+	MaxAttempts int // Zero сохраняет бюджет строк; значения от 1 до 10 дополнительно ограничивают количество
+	// старых или инициированных триггерами заданий.
 	Timeout time.Duration
 	Handler Handler
 }
 
-// Runner polls PostgreSQL using a fixed goroutine count, without creating one timer per
-// conference.
+// Runner опрашивает PostgreSQL, используя фиксированное количество горутин, без создания
+// отдельного таймера для каждой конференции.
 type Runner struct {
 	drainMu  sync.Mutex
 	draining bool
@@ -41,19 +43,20 @@ type Runner struct {
 	observe  func(string, string, time.Duration)
 }
 
-// New constructs the component with the dependencies and processing limits required for leased
-// background jobs.
+// New создает компонент с зависимостями и ограничениями на обработку, необходимыми для фоновых
+// заданий с ограниченным временем обработки.
 //
-// Parameters:
-//   - repo: Persistence dependency used by the application operation.
-//   - pools: Independent bounded background-job execution pools.
-//   - interval: Interval between bounded maintenance iterations.
-//   - observe: Callback recording a bounded job or provider outcome.
+// @Parameters:
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - pools: Независимые пулы для выполнения фоновых заданий с ограниченным временем обработки.
+//   - interval: Интервал между итерациями ограниченного обслуживания.
+//   - observe: Обратный вызов, фиксирующий результат выполнения ограниченного задания или
+//     провайдера.
 //
-// Returns:
-//   - result 1: The constructed or loaded runner.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный раннер.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func New(repo domain.Repository, pools []Pool, interval time.Duration, observe func(string, string, time.Duration)) (*Runner, error) {
 	if repo == nil || interval < 100*time.Millisecond || interval > time.Minute || len(pools) > 10 {
 		return nil, errors.New("invalid job runner configuration")
@@ -68,20 +71,21 @@ func New(repo domain.Repository, pools []Pool, interval time.Duration, observe f
 	return &Runner{repo: repo, pools: pools, interval: interval, observe: observe}, nil
 }
 
-// BeginDrain stops accepting new work while existing operations finish.
+// BeginDrain прекращает принимать новые задачи, пока не завершатся текущие операции.
 func (r *Runner) BeginDrain() { r.drainMu.Lock(); r.draining = true; r.drainMu.Unlock() }
 
-// Active returns the count of component-owned operations still requiring completion before
-// shutdown.
+// Active возвращает количество операций, принадлежащих компоненту, которые необходимо завершить
+// до завершения работы.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
 func (r *Runner) Active() int { r.drainMu.Lock(); defer r.drainMu.Unlock(); return r.active }
 
-// Run runs leased background jobs until the context is canceled or processing fails.
+// Run запускает арендованные фоновые задания до тех пор, пока контекст не будет отменен или
+// пока не произойдет сбой при обработке.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (r *Runner) Run(ctx context.Context) {
 	var workers sync.WaitGroup
 	for _, pool := range r.pools {
@@ -92,12 +96,11 @@ func (r *Runner) Run(ctx context.Context) {
 	workers.Wait()
 }
 
-// work processes one background-job category with its separate bounded lease and execution
-// policy.
+// work — обрабатывает одну категорию фоновых заданий с отдельной политикой аренды и выполнения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - pool: Execution policy and handlers for the selected job category.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - pool: Политика выполнения и обработчики для выбранной категории заданий.
 func (r *Runner) work(ctx context.Context, pool Pool) {
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
@@ -133,12 +136,13 @@ func (r *Runner) work(ctx context.Context, pool Pool) {
 	}
 }
 
-// execute runs a leased job outside the result transaction and applies its bounded retry policy.
+// execute запускает арендованное задание вне результирующей транзакции и применяет политику
+// ограниченных повторных попыток.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - pool: Execution policy and handlers for the selected job category.
-//   - job: Leased background job and its generation or ownership token.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - pool: Политика выполнения и обработчики для выбранной категории заданий.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
 func (r *Runner) execute(ctx context.Context, pool Pool, job domain.Job) {
 	start := time.Now()
 	if pool.MaxAttempts > 0 && pool.MaxAttempts < job.MaxAttempts {
@@ -164,8 +168,8 @@ func (r *Runner) execute(ctx context.Context, pool Pool, job domain.Job) {
 	if state == "failed" && pool.Handler.Fail != nil {
 		if failure := pool.Handler.Fail(finishCtx, job, code); failure != nil {
 			slog.Warn("product failure state not saved", "event_type", "product.failure.pending", "kind", pool.Kind, "job_id", job.ID)
-			return // The lease will expire; a subsequent claim preserves terminal state without invoking the
-			// provider.
+			return // Срок аренды истекает; при последующем запросе сохраняется терминальное состояние
+			// без обращения к провайдеру.
 		}
 	}
 	if finishErr := r.repo.Finish(finishCtx, job, state, code, retryAt); finishErr != nil {
@@ -180,16 +184,17 @@ func (r *Runner) execute(ctx context.Context, pool Pool, job domain.Job) {
 
 var safeCode = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
-// callHandler invokes the leased job handler and converts a panic into a controlled worker
-// failure.
+// callHandler вызывает обработчик арендованного задания и преобразует панику в контролируемый
+// сбой рабочего процесса.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - handle: Callback executing the leased background job.
-//   - job: Leased background job and its generation or ownership token.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - handle: Обратный вызов, выполняющий арендованное фоновое задание.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
 //
-// Returns:
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// @returns:
+//   - err: nil — в случае успеха; в противном случае — ошибка валидации, доступа, передачи
+//     данных или сохранения.
 func callHandler(ctx context.Context, handle func(context.Context, domain.Job) error, job domain.Job) (err error) {
 	defer func() {
 		if recover() != nil {
@@ -199,17 +204,19 @@ func callHandler(ctx context.Context, handle func(context.Context, domain.Job) e
 	return handle(ctx, job)
 }
 
-// classify converts a handler failure into safe retry metadata without preserving a provider
-// response body.
+// classify преобразует ошибку обработчика в метаданные для безопасной повторной попытки без
+// сохранения тела ответа от провайдера.
 //
-// Parameters:
-//   - err: Error to classify, wrap or report safely.
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 //
-// Returns:
-//   - result 1: Bounded terminal or retry job state.
-//   - result 2: Safe failure code without provider or user content.
-//   - result 3: Whether this job failure is retryable.
-//   - result 4: Provider-requested retry delay, before the runner applies its bounds.
+// @returns:
+//   - result1: Терминальное состояние задания с ограничением или состояние задания для
+//     повторной попытки.
+//   - result2: Код безопасного сбоя без содержимого от провайдера или пользователя.
+//   - result3: Возможность повторной попытки выполнения задания.
+//   - result4: Запрошенная провайдером задержка между повторными попытками, до того как
+//     исполнитель применит свои ограничения.
 func classify(err error) (string, string, bool, time.Duration) {
 	if err == nil {
 		return "done", "", false, 0
@@ -240,14 +247,16 @@ func classify(err error) (string, string, bool, time.Duration) {
 	return "failed", "internal_unavailable", true, 0
 }
 
-// Backoff computes the bounded retry delay for the background-job attempt.
+// Backoff вычисляет ограниченную задержку между повторными попытками для фонового задания.
 //
-// Parameters:
-//   - attempt: Current retry attempt.
-//   - requested: Requested retry delay before bounding it to the supported policy.
+// @Parameters:
+//   - attempt: Текущая повторная попытка.
+//   - requested: Запрошенная задержка между повторными попытками, до того как она будет
+//     ограничена в соответствии с поддерживаемой политикой.
 //
-// Returns:
-//   - result 1: The duration or bounded waiting interval computed by the operation.
+// @returns:
+//   - result1: Продолжительность или ограниченный интервал ожидания, вычисленный в ходе
+//     операции.
 func Backoff(attempt int, requested time.Duration) time.Duration {
 	if attempt < 1 {
 		attempt = 1

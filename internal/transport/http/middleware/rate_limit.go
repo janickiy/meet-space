@@ -13,27 +13,30 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/ratelimit"
 )
 
-// Limiter defines the replaceable dependency contract for HTTP.
+// Limiter определяет заменяемый контракт зависимости для HTTP.
 type Limiter interface {
-	// Allow evaluates the rate limit and returns the remaining budget and reset boundary.
+	// Функция Allow оценивает ограничение скорости и возвращает оставшийся бюджет и границу
+	// сброса.
 	//
-	// Parameters:
-	//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-	//   - key: Storage, cache or cryptographic key used by the operation.
-	//   - limit: Maximum number of results or operations in this batch.
-	//   - window: Duration of the rate-limit or observation window.
+	// @Parameters:
+	//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+	//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+	//   - limit: Максимальное количество результатов или операций в этом пакете.
+	//   - window: Продолжительность действия ограничения скорости или окна наблюдения.
 	//
-	// Returns:
-	//   - result 1: The resulting result.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий результат.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Allow(ctx context.Context, key string, limit int, window time.Duration) (ratelimit.Result, error)
 }
 
-// KeyFunc builds the client identity for one server-controlled rate rule.
+// KeyFunc формирует идентификационные данные клиента для одного правила ограничения скорости,
+// контролируемого сервером.
 type KeyFunc func(c *gin.Context) string
 
-// Rule defines a separate rate budget, scope, identity key and time window.
+// Rule — правило определяет отдельный бюджет скорости, область действия, идентификационный ключ и
+// временное окно.
 type Rule struct {
 	Method string
 	Path   string
@@ -43,20 +46,22 @@ type Rule struct {
 	Key    KeyFunc
 }
 
-// RateLimitConfig contains the rate rules and limiter failure policy.
+// RateLimitConfig содержит правила ограничения скорости и политику обработки сбоев
+// ограничителя.
 type RateLimitConfig struct {
 	Enabled bool
 	Rules   []Rule
 }
 
-// RateLimit constructs the Gin middleware that enforces the configured shared request budget.
+// RateLimit создает промежуточное ПО Gin, которое обеспечивает соблюдение заданного общего
+// бюджета запросов.
 //
-// Parameters:
-//   - limiter: Shared request-rate limiter.
-//   - cfg: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - limiter: Общий ограничитель частоты запросов.
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: The HTTP handler to register for this operation.
+// @returns:
+//   - result1: Обработчик HTTP для регистрации этой операции.
 func RateLimit(limiter Limiter, cfg RateLimitConfig) gin.HandlerFunc {
 	rulesByRoute := make(map[string][]Rule)
 	for _, rule := range cfg.Rules {
@@ -113,25 +118,28 @@ func RateLimit(limiter Limiter, cfg RateLimitConfig) gin.HandlerFunc {
 	}
 }
 
-// ClientIPKey builds the rate-limit subject from the trusted client-address resolution.
+// ClientIPKey создает объект ограничения скорости на основе доверенного разрешения клиентского
+// адреса.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 //
-// Returns:
-//   - result 1: Rate-limit identity derived from the trusted client address.
+// @returns:
+//   - result1: Идентификатор ограничения скорости, полученный на основе доверенного
+//     клиентского адреса.
 func ClientIPKey(c *gin.Context) string {
 	return c.ClientIP()
 }
 
-// redisRateLimitKey builds a namespaced Redis key without including an unbounded request value.
+// redisRateLimitKey создает ключ Redis с пространством имен без указания неограниченного
+// значения запроса.
 //
-// Parameters:
-//   - rule: Server-controlled request-rate policy.
-//   - identity: Verified account and physical-session identity.
+// @Parameters:
+//   - rule: Политика ограничения скорости запросов, контролируемая сервером.
+//   - identity: Подтвержденный аккаунт и идентификатор физического сеанса.
 //
-// Returns:
-//   - result 1: Namespaced rate-limit bucket key.
+// @returns:
+//   - result1: Ключ сегмента ограничения скорости с пространством имен.
 func redisRateLimitKey(rule Rule, identity string) string {
 	return strings.Join([]string{
 		"rate",
@@ -142,13 +150,14 @@ func redisRateLimitKey(rule Rule, identity string) string {
 	}, ":")
 }
 
-// safeKeyPart bounds and normalizes a value before using it as a rate-limit key component.
+// safeKeyPart ограничивает и нормализует значение перед использованием его в качестве
+// компонента ключа ограничения скорости.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Bounded safe key component.
+// @returns:
+//   - result1: Компонент безопасного ограниченного ключа.
 func safeKeyPart(value string) string {
 	value = strings.TrimSpace(value)
 	value = strings.ReplaceAll(value, " ", "_")
@@ -157,11 +166,12 @@ func safeKeyPart(value string) string {
 	return value
 }
 
-// abortRateLimitExceeded writes the rate-limit response and stops the Gin handler chain.
+// abortRateLimitExceeded записывает ответ с ограничением скорости и останавливает цепочку
+// обработчиков Gin.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - result: Validated processing or operation result.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
+//   - result: Подтвержденный результат обработки или операции.
 func abortRateLimitExceeded(c *gin.Context, result ratelimit.Result) {
 	setRateLimitHeaders(c, result)
 	if result.RetryAfter > 0 {
@@ -170,12 +180,14 @@ func abortRateLimitExceeded(c *gin.Context, result ratelimit.Result) {
 	httpresponse.Fail(c, apperrors.ErrRateLimited)
 }
 
-// abortRateLimitError writes the safe limiter-failure response and stops request processing.
+// abortRateLimitError записывает ответ об ошибке безопасного ограничения и останавливает
+// обработку запроса.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - status: Lifecycle state or response status to record.
-//   - message: Bounded message text used by this operation; do not include private credentials.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
+//   - message: Ограниченный текст сообщения, используемый в этой операции; не указывайте личные
+//     учетные данные.
 func abortRateLimitError(c *gin.Context, status int, message string) {
 	c.AbortWithStatusJSON(status, gin.H{
 		"status":  "failed",
@@ -183,11 +195,12 @@ func abortRateLimitError(c *gin.Context, status int, message string) {
 	})
 }
 
-// setRateLimitHeaders adds the accepted rate-limit budget and reset metadata to the response.
+// setRateLimitHeaders добавляет в ответ принятые данные о бюджете ограничения скорости и
+// метаданные сброса.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
-//   - result: Validated processing or operation result.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
+//   - result: Подтвержденный результат обработки или операции.
 func setRateLimitHeaders(c *gin.Context, result ratelimit.Result) {
 	if result.Limit > 0 {
 		c.Header("X-RateLimit-Limit", strconv.Itoa(result.Limit))

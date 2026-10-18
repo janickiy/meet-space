@@ -45,17 +45,18 @@ type ListFilter struct {
 	Search     string
 }
 
-// normalizeMetadata normalizes group metadata and enforces its length and required-field rules.
+// normalizeMetadata нормализует групповые метаданные и проверяет их длину и наличие
+// обязательных полей.
 //
-// Parameters:
-//   - text: UTF-8 text to validate, normalize or process.
-//   - maximum: Maximum permitted size or number of characters.
-//   - required: Whether an empty value must be rejected.
+// @Parameters:
+//   - text: Текст UTF-8 для проверки, нормализации или обработки.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - required: Нужно ли отклонять пустое значение.
 //
-// Returns:
-//   - result 1: Validated normalized group metadata.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Проверенные нормализованные групповые метаданные.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func normalizeMetadata(text string, maximum int, required bool) (string, error) {
 	text = strings.TrimSpace(text)
 	if !utf8.ValidString(text) || utf8.RuneCountInString(text) > maximum || (required && text == "") {
@@ -71,16 +72,16 @@ func normalizeMetadata(text string, maximum int, required bool) (string, error) 
 	return text, nil
 }
 
-// NormalizeMemberIDs validates and deduplicates the account identifiers supplied for group
-// membership.
+// NormalizeMemberIDs проверяет и дедуплицирует идентификаторы аккаунтов, указанные для членства
+// в группах.
 //
-// Parameters:
-//   - ids: Resource identifiers to process as a bounded batch.
+// @Parameters:
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
 //
-// Returns:
-//   - result 1: The collected string values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные строковые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeMemberIDs(ids []string) ([]string, error) {
 	if len(ids) > MaxGroupMembers {
 		return nil, apperrors.New(apperrors.ErrInvalidInput, "at most 100 group members are supported")
@@ -101,18 +102,18 @@ func NormalizeMemberIDs(ids []string) ([]string, error) {
 	return result, nil
 }
 
-// NormalizeCreateGroup normalizes a group request and includes the actor in its validated
-// membership.
+// NormalizeCreateGroup нормализует групповой запрос и включает актора в список подтвержденных
+// участников.
 //
-// Parameters:
-//   - actor: Identifier of the account performing the operation.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting create group request.
-//   - result 2: Stable SHA-256 fingerprint of the normalized group request.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий запрос на создание группы.
+//   - result2: Стабильный отпечаток SHA-256 нормализованного группового запроса.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeCreateGroup(actor string, request CreateGroupRequest) (CreateGroupRequest, string, error) {
 	var err error
 	request.ClientRequestID, err = chat.UUID(request.ClientRequestID)
@@ -145,15 +146,15 @@ func NormalizeCreateGroup(actor string, request CreateGroupRequest) (CreateGroup
 	return request, hex.EncodeToString(hash[:]), nil
 }
 
-// NormalizeUpdateGroup validates the optional metadata fields of a group update.
+// NormalizeUpdateGroup проверяет необязательные поля метаданных при обновлении группы.
 //
-// Parameters:
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting update group request.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий запрос на обновление группы.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeUpdateGroup(request UpdateGroupRequest) (UpdateGroupRequest, error) {
 	if request.Name == nil && request.Description == nil {
 		return request, apperrors.ErrInvalidInput
@@ -175,15 +176,15 @@ func NormalizeUpdateGroup(request UpdateGroupRequest) (UpdateGroupRequest, error
 	return request, nil
 }
 
-// NormalizeListFilter validates and normalizes the personal-conversation list filter.
+// NormalizeListFilter проверяет и нормализует фильтр списка личных бесед.
 //
-// Parameters:
-//   - filter: Validated filters restricting the result set.
+// @Parameters:
+//   - filter: Проверенные фильтры, ограничивающие набор результатов.
 //
-// Returns:
-//   - result 1: The resulting list filter.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий фильтр списка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeListFilter(filter ListFilter) (ListFilter, error) {
 	if filter.Type != "" && filter.Type != "direct" && filter.Type != "group" {
 		return filter, apperrors.ErrInvalidInput

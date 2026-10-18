@@ -24,32 +24,33 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/jobs"
 )
 
-// SMTPConfig defines a trusted delivery server; plaintext SMTP and disabled certificate
-// verification are not supported.
+// SMTPConfig определяет доверенный сервер доставки; незашифрованный текст SMTP и отключенная
+// проверка сертификатов не поддерживаются.
 type SMTPConfig struct {
 	Host, Username, Password, From, TLSMode string
 	Port                                    int
 	Timeout                                 time.Duration
 }
 
-// SMTPEmail delivers MIME email through hostname-verified TLS and AUTH PLAIN. Retries retain
-// Message-ID, but SMTP does not guarantee exactly-once delivery.
+// SMTPEmail доставляет электронную почту MIME через TLS с проверкой по имени хоста и AUTH
+// PLAIN. При повторных попытках сохраняется заголовок Message-ID, но SMTP не гарантирует
+// однократную доставку.
 type SMTPEmail struct {
 	config    SMTPConfig
 	from      *mail.Address
 	tlsConfig *tls.Config
 }
 
-// NewSMTPEmail constructs the SMTP email with the dependencies and limits required for bounded
-// external integrations.
+// NewSMTPEmail формирует электронное письмо SMTP с учетом зависимостей и ограничений,
+// необходимых для интеграции с внешними системами.
 //
-// Parameters:
-//   - cfg: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: The constructed or loaded SMTP email.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Сформированное или загруженное электронное письмо SMTP.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewSMTPEmail(cfg SMTPConfig) (*SMTPEmail, error) {
 	if !smtpHostValid(cfg.Host) || cfg.Port < 1 || cfg.Port > 65535 {
 		return nil, errors.New("SMTP requires a valid hostname and port")
@@ -73,16 +74,18 @@ func NewSMTPEmail(cfg SMTPConfig) (*SMTPEmail, error) {
 	return &SMTPEmail{config: cfg, from: from, tlsConfig: &tls.Config{ServerName: cfg.Host, MinVersion: tls.VersionTLS12}}, nil
 }
 
-// Send delivers the bounded email with a stable message identity; the configured transport
-// determines retry deduplication.
+// Send доставляет ограниченное электронное письмо со стабильным идентификатором сообщения;
+// настроенное транспортное средство определяет возможность дедупликации при повторных попытках
+// доставки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - message: Bounded email content, recipient and stable delivery identity.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - message: Ограниченное содержимое электронного письма, получатель и стабильная
+//     идентификация доставки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *SMTPEmail) Send(ctx context.Context, message d.EmailMessage) error {
 	to, raw, err := a.message(message)
 	if err != nil {
@@ -156,16 +159,18 @@ func (a *SMTPEmail) Send(ctx context.Context, message d.EmailMessage) error {
 	return nil
 }
 
-// message builds a bounded multipart email while rejecting header injection.
+// message формирует составное электронное письмо с ограничениями, не допуская внедрения
+// заголовков.
 //
-// Parameters:
-//   - message: Bounded email content, recipient and stable delivery identity.
+// @Parameters:
+//   - message: Ограниченное содержимое электронного письма, получатель и стабильная
+//     идентификация доставки.
 //
-// Returns:
-//   - result 1: The constructed or loaded address.
-//   - result 2: The collected byte values.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Сформированный или загруженный адрес.
+//   - result2: Собранные байтовые значения.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *SMTPEmail) message(message d.EmailMessage) (*mail.Address, []byte, error) {
 	to, err := smtpAddress(message.To)
 	if err != nil || len(message.To) > 512 || message.IdempotencyKey == "" || len(message.IdempotencyKey) > 512 || !utf8.ValidString(message.Subject) || len(message.Subject) > 2048 || strings.ContainsAny(message.Subject, "\r\n\x00") || len(message.Text)+len(message.HTML) > 1<<20 || !utf8.ValidString(message.Text) || !utf8.ValidString(message.HTML) {
@@ -215,29 +220,31 @@ func (a *SMTPEmail) message(message d.EmailMessage) (*mail.Address, []byte, erro
 	return to, raw.Bytes(), nil
 }
 
-// smtpSubject encodes a bounded email subject without allowing header injection.
+// smtpSubject кодирует тему письма с ограничениями, не допуская внедрения заголовков.
 //
-// Parameters:
-//   - subject: Validated email subject.
+// @Parameters:
+//   - subject: Валидированная тема письма.
 //
-// Returns:
-//   - result 1: MIME-encoded validated email subject.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Валидированная тема письма, закодированная с помощью MIME.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func smtpSubject(subject string) (string, error) {
 	return smtpHeaderValue(mime.QEncoding.Encode("UTF-8", subject), len("Subject: "))
 }
 
-// smtpHeaderValue validates an email header value before it is included in an SMTP message.
+// smtpHeaderValue проверяет значение заголовка электронного письма перед его включением в
+// сообщение SMTP.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
-//   - prefixLength: Maximum length of the safe diagnostic prefix.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//   - prefixLength: Максимальная длина безопасного диагностического префикса.
 //
-// Returns:
-//   - result 1: Validated email header without control-character injection.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Проверенный заголовок электронного письма без внедрения управляющих
+//     символов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func smtpHeaderValue(value string, prefixLength int) (string, error) {
 	words := strings.Split(value, " ")
 	var header strings.Builder
@@ -261,15 +268,16 @@ func smtpHeaderValue(value string, prefixLength int) (string, error) {
 	return header.String(), nil
 }
 
-// smtpAddress validates and formats an email address for SMTP headers and envelope commands.
+// smtpAddress проверяет и форматирует адрес электронной почты для заголовков SMTP и команд
+// конверта.
 //
-// Parameters:
-//   - raw: Untrusted serialized value to decode or validate.
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
 //
-// Returns:
-//   - result 1: The constructed or loaded address.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Сформированный или загруженный адрес.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func smtpAddress(raw string) (*mail.Address, error) {
 	if strings.ContainsAny(raw, "\r\n\x00") {
 		return nil, errors.New("invalid email address")
@@ -286,14 +294,15 @@ func smtpAddress(raw string) (*mail.Address, error) {
 	return address, nil
 }
 
-// smtpHostValid checks that the configured SMTP host can be used safely as a server name.
+// smtpHostValid проверяет, можно ли безопасно использовать настроенный хост SMTP в качестве
+// имени сервера.
 //
-// Parameters:
-//   - host: Operator-configured remote host.
+// @Parameters:
+//   - host: Удаленный хост, настроенный оператором.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func smtpHostValid(host string) bool {
 	if host == "" || len(host) > 253 || strings.ContainsAny(host, "/\\\r\n\t @?#") || strings.TrimSpace(host) != host {
 		return false
@@ -314,15 +323,15 @@ func smtpHostValid(host string) bool {
 	return true
 }
 
-// smtpError classifies an SMTP failure without exposing the server reply or credentials.
+// smtpError классифицирует ошибку SMTP, не раскрывая ответ сервера или учетные данные.
 //
-// Parameters:
-//   - code: Bounded public status or failure code.
-//   - err: Error to classify, wrap or report safely.
+// @Parameters:
+//   - code: Ограниченный публичный статус или код ошибки.
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func smtpError(code string, err error) error {
 	var response *textproto.Error
 	if errors.As(err, &response) {
@@ -331,15 +340,15 @@ func smtpError(code string, err error) error {
 	return jobs.Error{Code: code, Retryable: true}
 }
 
-// smtpTLSError classifies a TLS negotiation failure without exposing sensitive connection
-// diagnostics.
+// smtpTLSError классифицирует ошибку согласования TLS, не раскрывая конфиденциальные
+// диагностические данные о соединении.
 //
-// Parameters:
-//   - err: Error to classify, wrap or report safely.
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func smtpTLSError(err error) error {
 	var network net.Error
 	if errors.As(err, &network) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

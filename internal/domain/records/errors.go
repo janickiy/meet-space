@@ -2,12 +2,14 @@ package records
 
 import "errors"
 
-// ErrConferenceAlreadyRecording means the conference already has an active recording-start lock.
+// ErrConferenceAlreadyRecording означает, что на конференции уже активна блокировка начала
+// записи.
 var ErrConferenceAlreadyRecording = errors.New("recording already started for conferenceId")
 
-// ErrRecordStateChanged identifies a stale state update or invalid lifecycle transition order.
+// ErrRecordStateChanged указывает на устаревшее обновление состояния или недопустимый порядок
+// перехода между этапами жизненного цикла.
 var ErrRecordStateChanged = errors.New("record status no longer allows this transition")
 
-// ErrNoMedia means an ingest attempt stopped before producing media. Recording
-// orchestration recognizes this outcome independently of the ingest adapter.
+// ErrNoMedia означает, что попытка загрузки была прервана до создания медиафайла.  Оркестрация
+// записи распознаёт этот результат независимо от адаптера загрузки.
 var ErrNoMedia = errors.New("record media was not produced")

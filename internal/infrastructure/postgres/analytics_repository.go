@@ -10,32 +10,35 @@ import (
 	"time"
 )
 
-// AnalyticsRepository persists aggregates rather than one SQL row per RTP frame or
-// speech-detection sample.
+// AnalyticsRepository сохраняет агрегированные данные, а не по одной строке SQL на каждый кадр
+// RTP или выборку для распознавания речи.
 type AnalyticsRepository struct{ db *gorm.DB }
 
-// NewAnalyticsRepository constructs the analytics repository with the dependencies and limits
-// required for conference technical aggregates.
+// NewAnalyticsRepository создает аналитический репозиторий с зависимостями и ограничениями,
+// необходимыми для технических агрегированных данных конференции.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded analytics repository.
+// @returns:
+//   - result1: Созданный или загруженный аналитический репозиторий.
 func NewAnalyticsRepository(db *gorm.DB) *AnalyticsRepository { return &AnalyticsRepository{db} }
 
-// Source loads the persisted inputs needed to process conference technical aggregates.
+// Source загружает сохраненные входные данные, необходимые для обработки технических
+// агрегированных данных конференции.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
 //
-// Returns:
-//   - result 1: The timestamp or validity boundary associated with the result.
-//   - result 2: The timestamp or validity boundary associated with the result.
-//   - result 3: The collected interval values.
-//   - result 4: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result2: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result3: Собранные значения интервалов.
+//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *AnalyticsRepository) Source(ctx context.Context, job jobs.Job) (time.Time, time.Time, []domain.Interval, error) {
 	var bounds struct{ Start, End time.Time }
 	rows := []domain.Interval{}
@@ -52,16 +55,16 @@ func (r *AnalyticsRepository) Source(ctx context.Context, job jobs.Job) (time.Ti
 	return bounds.Start, bounds.End, rows, err
 }
 
-// Save persists analytics results while checking the current job or resource identity.
+// Save сохраняет результаты анализа, проверяя текущий идентификатор задания или ресурса.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *AnalyticsRepository) Save(ctx context.Context, job jobs.Job, value domain.Conference) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := contentLease(tx, job); err != nil {
@@ -82,17 +85,17 @@ func (r *AnalyticsRepository) Save(ctx context.Context, job jobs.Job, value doma
 	})
 }
 
-// Read reads the analytics state or stream required by the caller.
+// Read считывает состояние или поток аналитических данных, необходимые вызывающей стороне.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - cid: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The resulting conference.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *AnalyticsRepository) Read(ctx context.Context, user, cid string) (domain.Conference, error) {
 	if _, err := findConference(r.db.WithContext(ctx), cid, false); err != nil {
 		return domain.Conference{}, err
@@ -132,15 +135,15 @@ func (r *AnalyticsRepository) Read(ctx context.Context, user, cid string) (domai
 	return result, err
 }
 
-// Tick performs one bounded maintenance or delivery iteration after persisted state is
-// available.
+// Tick — тик выполняет одну ограниченную итерацию обслуживания или доставки после получения доступного
+// сохраненного состояния.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *AnalyticsRepository) Tick(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,dedup_key,max_attempts)
  SELECT 'analytics.aggregate',id,id,1,'analytics:'||id::text||':'||floor(extract(epoch FROM clock_timestamp())/30)::text,3

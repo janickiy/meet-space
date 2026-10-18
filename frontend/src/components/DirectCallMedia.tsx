@@ -23,8 +23,10 @@ import { MediaTile } from "./RealtimePanel";
 import { useAccountSettings } from "./AccountSettingsContext";
 import { Button, ErrorNotice } from "./ui";
 
-/** A private two-person room uses the conference media client and account settings.
- * The owning call document keeps its streams alive while account settings open.
+/**
+ * В приватной комнате для двоих используется медиа-клиент для конференций и настройки аккаунта.
+ * Документ, в котором находится вызов, поддерживает работу потоков, пока открыты настройки
+ * аккаунта.
  */
 export function DirectCallMedia({
   call,
@@ -84,7 +86,8 @@ export function DirectCallMedia({
     media.view.mediaPeerId,
     media.view.controlBusy,
   ]);
-  // Remember actual device state, including failures, before replacing the connection.
+  // Перед заменой подключения запоминаем фактическое состояние устройства, в том числе в случае
+  // сбоев.
   useEffect(() => {
     if (
       media.view.active &&
@@ -119,7 +122,8 @@ export function DirectCallMedia({
   const peerPresence = live.state?.participants.find(
     (person) => person.userId === peer.id,
   );
-  // Only the counterpart can occupy the remote tile, including during reconnects.
+  // Только собеседник может занимать удалённую плитку, в том числе во время повторного
+  // подключения.
   const remote = media.view.remoteStreams.filter(
     (stream) =>
       peerPresence?.online &&

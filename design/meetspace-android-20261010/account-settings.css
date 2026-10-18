@@ -1,4 +1,4 @@
-/* Responsive account settings, aligned with the web account dialog. */
+/* Адаптивные настройки аккаунта, соответствующие диалоговому окну веб-аккаунта. */
 .tm-shell.screen-settings .app-header { display:flex; }
 .tm-shell.screen-settings .statusbar { background:var(--bg); }
 .tm-shell.screen-settings .account-content { padding:0; }
@@ -153,7 +153,7 @@
 .account-server.active { background:var(--accent-soft); color:var(--accent); box-shadow:inset 3px 0 var(--accent); }
 .account-server.active > svg { color:var(--accent); }
 
-/* Multiple accounts: a shared identity switcher and account-specific preferences. */
+/* Несколько аккаунтов: общий переключатель идентификационных данных и настройки для каждого аккаунта. */
 button.account-identity { width:100%; border:0; background:transparent; color:var(--ink); text-align:left; }
 .account-identity > svg { width:18px; height:18px; margin-left:auto; flex-shrink:0; color:var(--muted); }
 .accounts-eyebrow { display:block; font-size:.64em; letter-spacing:1.5px; font-weight:600; color:var(--muted); margin-bottom:10px; }

@@ -1,4 +1,4 @@
 package personal
 
-// MaxPinnedMessages bounds the shared pin list for each direct or group conversation.
+// MaxPinnedMessages ограничивает общий список пин-кодов для каждой прямой или групповой беседы.
 const MaxPinnedMessages = 20

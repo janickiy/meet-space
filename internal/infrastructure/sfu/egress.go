@@ -13,8 +13,8 @@ import (
 
 var errEgressOverflow = errors.New("recording_egress_overflow")
 
-// egress passively observes encoded packets. Queue overflow ends the recording subscription
-// without delaying SFU RTP forwarding.
+// egress пассивно отслеживает закодированные пакеты.  При переполнении очереди подписка на
+// запись закрывается без задержки при пересылке SFU RTP.
 type egress struct {
 	audioOnly bool
 	manager   *Manager
@@ -30,51 +30,51 @@ type egress struct {
 	closeOnce sync.Once
 }
 
-// SubscribeRecording opens a passive bounded subscription to the SFU's encoded media for
-// recording.
+// SubscribeRecording открывает пассивную ограниченную подписку на закодированные медиаданные
+// SFU для записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - recordingID: External recording UUID.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordingID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: The resulting egress subscription.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая подписка egress.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) SubscribeRecording(ctx context.Context, conferenceID, recordingID string) (media.EgressSubscription, error) {
 	return m.subscribeEgress(ctx, conferenceID, recordingID, false)
 }
 
-// SubscribeAudio opens a separate bounded audio-only subscription without consuming the
-// recording subscription slot.
+// SubscribeAudio открывает отдельную ограниченную подписку только на аудио, не занимая слот
+// подписки на запись.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - sessionID: Persistent or physical session identifier, as defined by the operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - sessionID: Постоянный или физический идентификатор сессии, определяемый операцией.
 //
-// Returns:
-//   - result 1: The resulting egress subscription.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая подписка egress.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) SubscribeAudio(ctx context.Context, conferenceID, sessionID string) (media.EgressSubscription, error) {
 	return m.subscribeEgress(ctx, conferenceID, sessionID, true)
 }
 
-// subscribeEgress reserves at most one room subscription per purpose and binds it to the current
-// recording identity.
+// subscribeEgress резервирует не более одной подписки на комнату для каждой цели и привязывает
+// ее к текущему идентификатору записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - recordingID: External recording UUID.
-//   - audioOnly: Whether the subscription is restricted to auxiliary audio frames.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordingID: Внешняя запись UUID.
+//   - audioOnly: Ограничивается ли подписка только вспомогательными аудиокадрами.
 //
-// Returns:
-//   - result 1: The resulting egress subscription.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая подписка egress.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) subscribeEgress(ctx context.Context, conferenceID, recordingID string, audioOnly bool) (media.EgressSubscription, error) {
 	for _, id := range []string{conferenceID, recordingID} {
 		parsed, err := uuid.Parse(id)
@@ -123,30 +123,30 @@ func (m *Manager) subscribeEgress(ctx context.Context, conferenceID, recordingID
 	return e, nil
 }
 
-// Frames returns the subscription channel carrying encoded media frames.
+// Frames возвращает канал подписки, по которому передаются закодированные медиафреймы.
 //
-// Returns:
-//   - result 1: The bounded event or media channel owned by this operation.
+// @returns:
+//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
 func (e *egress) Frames() <-chan media.EgressFrame { return e.frames }
 
-// Done returns the channel closed when the owned process or subscription terminates.
+// Done возвращает канал, который закрывается при завершении собственного процесса или подписки.
 //
-// Returns:
-//   - result 1: The bounded event or media channel owned by this operation.
+// @returns:
+//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
 func (e *egress) Done() <-chan struct{} { return e.done }
 
-// Err returns the terminal subscription error, if one was recorded.
+// Err возвращает ошибку терминальной подписки, если таковая была зафиксирована.
 //
-// Returns:
-//   - result 1: The owned process or subscription's terminal error, or nil after normal
-//     completion.
+// @returns:
+//   - result1: Ошибка завершения собственного процесса или подписки, либо nil после
+//     нормального завершения.
 func (e *egress) Err() error { e.mu.Lock(); defer e.mu.Unlock(); return e.err }
 
-// enqueueLocked enqueues a media frame while holding subscription state and enforcing its queue
-// bound.
+// enqueueLocked ставит медиакадр в очередь, удерживая состояние подписки и обеспечивая
+// ограничение очереди.
 //
-// Parameters:
-//   - frame: Encoded media frame with its timing metadata.
+// @Parameters:
+//   - frame: Кодированный медиакадр с метаданными о времени.
 func (e *egress) enqueueLocked(frame media.EgressFrame) {
 	if e.closed {
 		return
@@ -170,11 +170,11 @@ func (e *egress) enqueueLocked(frame media.EgressFrame) {
 	}
 }
 
-// addTrack adds the encoded source-track description to the recording subscription under its
-// state lock.
+// addTrack добавляет описание кодированной исходной дорожки в подписку на запись, удерживая
+// блокировку состояния.
 //
-// Parameters:
-//   - t: Test handle used for assertions, cleanup and failure reporting.
+// @Parameters:
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
 func (e *egress) addTrack(t *publishedTrack) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -187,10 +187,10 @@ func (e *egress) addTrack(t *publishedTrack) {
 	e.enqueueLocked(media.EgressFrame{Type: "track", Track: &descriptor, TrackID: t.metadata.ID})
 }
 
-// endTrack marks the recording source as ended and releases its active track state.
+// endTrack помечает источник записи как завершенный и освобождает состояние активной дорожки.
 //
-// Parameters:
-//   - t: Test handle used for assertions, cleanup and failure reporting.
+// @Parameters:
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
 func (e *egress) endTrack(t *publishedTrack) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -201,12 +201,12 @@ func (e *egress) endTrack(t *publishedTrack) {
 	e.enqueueLocked(media.EgressFrame{Type: "track.end", TrackID: t.metadata.ID})
 }
 
-// packet copies an encoded packet into the recording subscription's bounded queue.
+// packet копирует закодированный пакет в ограниченную очередь подписки на запись.
 //
-// Parameters:
-//   - t: Test handle used for assertions, cleanup and failure reporting.
-//   - raw: Untrusted serialized value to decode or validate.
-//   - at: Timestamp of the event or state boundary.
+// @Parameters:
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
+//   - at: Метка времени события или границы состояния.
 func (e *egress) packet(t *publishedTrack, raw []byte, at int64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -216,10 +216,11 @@ func (e *egress) packet(t *publishedTrack, raw []byte, at int64) {
 	e.enqueueLocked(media.EgressFrame{Type: "rtp", TrackID: t.metadata.ID, RTP: raw, CapturedAt: at})
 }
 
-// fail records a safe media peer failure and starts the owned-resource cleanup path.
+// fail регистрирует сбой безопасного медиа-соединения и запускает процесс очистки собственных
+// ресурсов.
 //
-// Parameters:
-//   - err: Error to classify, wrap or report safely.
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 func (e *egress) fail(err error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -230,7 +231,7 @@ func (e *egress) fail(err error) {
 	}
 }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 func (e *egress) Close() {
 	e.closeOnce.Do(func() {
 		e.fail(nil)
@@ -247,7 +248,7 @@ func (e *egress) Close() {
 	})
 }
 
-// Keyframes requests a video keyframe from the recording subscription.
+// Keyframes запрашивает видеокадр из подписки на запись.
 func (e *egress) Keyframes() {
 	e.room.mu.Lock()
 	defer e.room.mu.Unlock()
@@ -256,18 +257,18 @@ func (e *egress) Keyframes() {
 	}
 }
 
-// Ping refreshes the liveness of the current recording subscription.
+// Ping обновляет информацию о доступности текущей подписки на запись.
 func (e *egress) Ping() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.enqueueLocked(media.EgressFrame{Type: "ping"})
 }
 
-// recordPacket copies an encoded packet to the recording egress subscriptions.
+// recordPacket копирует закодированный пакет в исходящие подписки на запись.
 //
-// Parameters:
-//   - t: Test handle used for assertions, cleanup and failure reporting.
-//   - packet: Encoded RTP or media packet.
+// @Parameters:
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
+//   - packet: Закодированный RTP или медиапакет.
 func (m *Manager) recordPacket(t *publishedTrack, packet *rtp.Packet) {
 	t.publisher.room.mu.Lock()
 	egresses := make([]*egress, 0, len(t.publisher.room.egresses))

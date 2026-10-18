@@ -9,7 +9,7 @@ import { recordingDate } from "../recordingPresentation";
 import type { ConferenceRecording, Items } from "../types";
 import { Button, ErrorNotice, Modal } from "./ui";
 
-/** Removes cached artifacts only after the server confirms storage deletion. */
+/** Кэшированные артефакты удаляются только после того, как сервер подтвердит удаление из хранилища. */
 export function DeleteRecordingDialog({
   record,
   title,
@@ -63,7 +63,8 @@ export function DeleteRecordingDialog({
         ["history", record.conferenceId],
         ["recording-conference-history", user?.id, record.conferenceId],
       ]) {
-        // Refetch offsets after removal so pagination cannot skip a recording.
+        // После удаления повторно загружаем смещения, чтобы при разбивке на страницы не
+        // пропускалась запись.
         void client.invalidateQueries({ queryKey });
       }
       onClose();

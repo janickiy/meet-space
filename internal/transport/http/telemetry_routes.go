@@ -8,13 +8,14 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// RegisterClientErrorRoutes registers the client error endpoints with the supplied
-// authentication and request middleware.
+// RegisterClientErrorRoutes регистрирует конечные точки обработки ошибок клиента с
+// предоставленными модулями аутентификации и промежуточным ПО для обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - limiter: Shared request-rate limiter.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterClientErrorRoutes(router gin.IRouter, handler *telemetry.Handler, limiter middleware.Limiter) {
 	path := APIV1Prefix + "/client-errors"
 	router.POST(path, middleware.RateLimit(limiter, middleware.RateLimitConfig{

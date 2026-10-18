@@ -1,5 +1,5 @@
-// Package composite captures and composes media only for recording, independently of SFU
-// forwarding.
+// Пакетная компоновка захватывает и компонует медиаданные только для записи, независимо от
+// переадресации SFU.
 package composite
 
 import (
@@ -9,7 +9,7 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/media"
 )
 
-// Tile defines one source rectangle in the final composite frame.
+// Tile — тайлер определяет один исходный прямоугольник в итоговом составном кадре.
 type Tile struct {
 	TrackID string `json:"trackId"`
 	X       int    `json:"x"`
@@ -18,7 +18,7 @@ type Tile struct {
 	Height  int    `json:"height"`
 }
 
-// Layout defines the final frame dimensions and source-tile positions.
+// Layout — компоновка определяет размеры итогового кадра и положение исходных тайлеров.
 type Layout struct {
 	Name   string `json:"name"`
 	Width  int    `json:"width"`
@@ -26,15 +26,15 @@ type Layout struct {
 	Tiles  []Tile `json:"tiles"`
 }
 
-// GridLayout computes the composite video grid for the visible source count.
+// GridLayout вычисляет сетку составного видео для заданного количества видимых источников.
 //
-// Parameters:
-//   - tracks: Negotiated or archived tracks included in this operation.
-//   - width: Output width in pixels.
-//   - height: Output height in pixels.
+// @Parameters:
+//   - tracks: Согласованные или архивированные дорожки, включенные в эту операцию.
+//   - width: Ширина вывода в пикселях.
+//   - height: Высота вывода в пикселях.
 //
-// Returns:
-//   - result 1: The resulting layout.
+// @returns:
+//   - result1: Итоговая компоновка.
 func GridLayout(tracks []media.Track, width, height int) Layout {
 	if width < 320 {
 		width = 1280
@@ -83,17 +83,17 @@ func GridLayout(tracks []media.Track, width, height int) Layout {
 	return result
 }
 
-// gridTiles builds the per-tile geometry used by the composite video filter.
+// gridTiles создает геометрию для каждого тайлера, используемую фильтром составного видео.
 //
-// Parameters:
-//   - tracks: Negotiated or archived tracks included in this operation.
-//   - x: Horizontal tile origin in pixels.
-//   - y: Vertical tile origin in pixels.
-//   - width: Output width in pixels.
-//   - height: Output height in pixels.
+// @Parameters:
+//   - tracks: Согласованные или архивированные дорожки, включенные в эту операцию.
+//   - x: Начало координат горизонтального тайлера в пикселях.
+//   - y: Начало координат вертикального тайлера в пикселях.
+//   - width: Ширина вывода в пикселях.
+//   - height: Высота вывода в пикселях.
 //
-// Returns:
-//   - result 1: The collected tile values.
+// @returns:
+//   - result1: Собранные значения тайлеров.
 func gridTiles(tracks []media.Track, x, y, width, height int) []Tile {
 	result := make([]Tile, 0, len(tracks))
 	if len(tracks) == 0 {

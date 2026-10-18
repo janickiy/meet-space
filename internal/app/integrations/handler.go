@@ -16,16 +16,16 @@ type Handler struct{ service *u.Service }
 
 // NewHandler создает обработчик с зависимостями и ограничениями, необходимыми для интеграции учетных записей // и настроек доставки.
 //
-// Параметры:
+// @Parameters:
 //   - service: служба приложения, вызываемая этим адаптером.
 //
-// Возвращает:
-//   - result 1: созданный или загруженный обработчик.
+// @returns:
+//   - result1: созданный или загруженный обработчик.
 func NewHandler(service *u.Service) *Handler { return &Handler{service: service} }
 
 // Capabilities возвращает возможности продукта или интеграции, фактически доступные оператору.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Capabilities(c *gin.Context) {
 	c.Header("Cache-Control", "private, no-store")
@@ -34,7 +34,7 @@ func (h *Handler) Capabilities(c *gin.Context) {
 
 // Preferences считывает сохраненные настройки доставки или переписки действующего аккаунта.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Preferences(c *gin.Context) {
 	value, err := h.service.Preferences(c.Request.Context(), middleware.UserID(c))
@@ -48,7 +48,7 @@ func (h *Handler) Preferences(c *gin.Context) {
 
 // SavePreferences проверяет и сохраняет настройки доставки аккаунта, не инициируя доставку.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) SavePreferences(c *gin.Context) {
 	var request d.Preferences
@@ -65,7 +65,7 @@ func (h *Handler) SavePreferences(c *gin.Context) {
 // Devices возвращает зарегистрированные в аккаунте устройства доставки без раскрытия их личных данных.
 // учетные данные.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Devices(c *gin.Context) {
 	items, err := h.service.Devices(c.Request.Context(), middleware.UserID(c))
@@ -80,7 +80,7 @@ func (h *Handler) Devices(c *gin.Context) {
 // RegisterDevice регистрирует проверенное устройство доставки действующей учетной записи и защищает его
 // приватный токен.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) RegisterDevice(c *gin.Context) {
 	var request d.DeviceRequest
@@ -97,7 +97,7 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 
 // RevokeDevice отзывает доступ только к выбранному устройству доставки действующей учетной записи.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) RevokeDevice(c *gin.Context) {
 	id, ok := resourceID(c, "deviceId")
@@ -114,7 +114,7 @@ func (h *Handler) RevokeDevice(c *gin.Context) {
 // Calendars возвращает подключения к календарю действующей учетной записи с учетными данными частного провайдера
 // опущено.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Calendars(c *gin.Context) {
 	items, err := h.service.Connections(c.Request.Context(), middleware.UserID(c))
@@ -129,7 +129,7 @@ func (h *Handler) Calendars(c *gin.Context) {
 // MockConnect создает фиктивное подключение к календарю только в том случае, если среда настроена явно
 // разрешает это.
 //
-// Параметры:
+// @Parameters:
 // - c: Контекст запроса и ответа Gin, включая аутентифицированный идентификатор.
 func (h *Handler) MockConnect(c *gin.Context) {
 	var request struct{}
@@ -146,7 +146,7 @@ func (h *Handler) MockConnect(c *gin.Context) {
 
 // Connect открывает настроенную зависимость или запускает процесс авторизованного подключения к ней.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Connect(c *gin.Context) {
 	authURL, state, err := h.service.OAuthStart(c.Request.Context(), middleware.UserID(c), c.Param("provider"))
@@ -167,7 +167,7 @@ type oauthCallbackRequest struct {
 
 // Callback завершает авторизованное подключение к календарю с использованием одноразового состояния и кода OAuth.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Callback(c *gin.Context) {
 	var request oauthCallbackRequest
@@ -185,7 +185,7 @@ func (h *Handler) Callback(c *gin.Context) {
 
 // Disconnect разрывает интеграционное соединение с действующим аккаунтом и прекращает его дальнейшую синхронизацию.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Disconnect(c *gin.Context) {
 	id, ok := resourceID(c, "provider")
@@ -201,7 +201,7 @@ func (h *Handler) Disconnect(c *gin.Context) {
 
 // CalendarMappings возвращает сохраненные сопоставления конференций с календарями для действующей учетной записи.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) CalendarMappings(c *gin.Context) {
 	id, ok := resourceID(c, "id")
@@ -218,13 +218,13 @@ func (h *Handler) CalendarMappings(c *gin.Context) {
 
 // resourceID проверяет идентификатор ресурса из интеграционного маршрута.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //   - name: имя настраиваемого параметра, файла cookie, ресурса или провайдера.
 //
-// Возвращаемые значения:
-//   - result 1: валидированный UUID интеграционного ресурса.
-//   - result 2: выполняется ли задокументированное условие операции или ее условное состояние
+// @returns:
+//   - result1: валидированный UUID интеграционного ресурса.
+//   - result2: выполняется ли задокументированное условие операции или ее условное состояние
 //     изменено успешно.
 func resourceID(c *gin.Context, name string) (string, bool) {
 	value, err := uuid.Parse(c.Param(name))

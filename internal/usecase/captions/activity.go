@@ -2,37 +2,40 @@ package captions
 
 import "sync"
 
-// activityMeter counts the union of one participant's 20 ms audio intervals, not the sum of
-// devices. A 30-second ring and 500-participant limit bound memory; ignore late frames from old
-// intervals.
+// activityMeter подсчитывает объединение 20-миллисекундных аудиоинтервалов одного участника, а
+// не сумму интервалов всех устройств.  Ограничение по памяти — 30 секунд на вызов и 500
+// участников; игнорируйте поздние фреймы из старых интервалов.
 type activityMeter struct {
 	mu           sync.Mutex
 	participants map[string]*activityWindow
 }
 
-// activityWindow stores only audio-present and activity bits, never PCM or text.
+// activityWindow хранит только биты наличия звука и активности, но не биты PCM или текстовые
+// биты.
 type activityWindow struct {
 	latest int64
 	slots  [1500]activitySlot
 }
 
-// activitySlot prevents a reused ring cell from counting the same time interval twice.
+// activitySlot предотвращает повторный подсчет одного и того же временного интервала в повторно
+// используемой ячейке вызова.
 type activitySlot struct {
 	bucket             int64
 	observed, speaking bool
 }
 
-// observe merges activity from parallel audio sources on the absolute conference timeline.
+// observe объединяет активность из параллельных аудиоисточников на абсолютной временной шкале
+// конференции.
 //
-// Parameters:
-//   - participant: Participant membership or public participant state.
-//   - start: Start of the time interval in the units defined by the signature.
-//   - end: End of the time interval in the units defined by the signature.
-//   - active: Whether this observed audio interval contains speech activity.
+// @Parameters:
+//   - participant: Членство в конференции или публичное состояние участника.
+//   - start: Начало временного интервала в единицах измерения, определенных сигнатурой.
+//   - end: Конец временного интервала в единицах измерения, определенных сигнатурой.
+//   - active: Содержат ли наблюдаемые аудиоинтервалы речевую активность.
 //
-// Returns:
-//   - speech: The resulting count, size or numeric value.
-//   - observed: The resulting count, size or numeric value.
+// @returns:
+//   - speech: Возвращает количество, размер или числовое значение.
+//   - observed: Возвращает количество, размер или числовое значение.
 func (m *activityMeter) observe(participant string, start, end int64, active bool) (speech, observed int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -10,46 +10,47 @@ import (
 	"gorm.io/gorm"
 )
 
-// NotificationRepository persists account-scoped notifications through GORM.
+// NotificationRepository сохраняет уведомления на уровне аккаунта через GORM.
 type NotificationRepository struct {
 	db                      *gorm.DB
 	legacyRemindersDisabled bool
 }
 
-// DisableLegacyReminders disables the superseded reminder path to prevent duplicate notification
-// generation.
+// DisableLegacyReminders отключает путь к замещающим напоминаниям, чтобы предотвратить
+// дублирование уведомлений.
 //
-// Returns:
-//   - result 1: The constructed or loaded notification repository.
+// @returns:
+//   - result1: Создан или загружен репозиторий уведомлений.
 func (r *NotificationRepository) DisableLegacyReminders() *NotificationRepository {
 	r.legacyRemindersDisabled = true
 	return r
 }
 
-// NewNotificationRepository constructs the notification repository with the dependencies and
-// limits required for notification.
+// NewNotificationRepository создает репозиторий уведомлений с зависимостями и ограничениями,
+// необходимыми для уведомлений.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded notification repository.
+// @returns:
+//   - result1: Создан или загружен репозиторий уведомлений.
 func NewNotificationRepository(db *gorm.DB) *NotificationRepository {
 	return &NotificationRepository{db: db}
 }
 
-// List returns a bounded page of notification records using the supplied pagination and filters.
+// List возвращает ограниченную страницу записей уведомлений с использованием заданных
+// параметров разбивки на страницы и фильтров.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The resulting page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *NotificationRepository) List(ctx context.Context, userID, cursor string, limit int) (domain.Page, error) {
 	page := domain.Page{Items: []domain.Notification{}}
 	if limit < 1 || limit > 100 {
@@ -77,17 +78,18 @@ func (r *NotificationRepository) List(ctx context.Context, userID, cursor string
 	return page, err
 }
 
-// Read idempotently marks the account-owned notification as read and returns its saved state.
+// Read — при идемпотентном чтении уведомление, принадлежащее учетной записи, помечается как
+// прочитанное, и возвращается его сохраненное состояние.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting notification.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее уведомление.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *NotificationRepository) Read(ctx context.Context, userID, id string) (domain.Notification, error) {
 	var item domain.Notification
 	result := r.db.WithContext(ctx).Raw("UPDATE notifications SET read_at = COALESCE(read_at, now()) WHERE id = ? AND user_id = ? AND ("+notificationVisibilitySQL("notifications")+") RETURNING *", id, userID).Scan(&item)
@@ -100,18 +102,18 @@ func (r *NotificationRepository) Read(ctx context.Context, userID, id string) (d
 	return item, nil
 }
 
-// Generate creates a bounded batch of persistent notifications from saved schedules and
-// transactional events.
+// Generate создает ограниченный пакет постоянных уведомлений из сохраненных расписаний и
+// транзакционных событий.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *NotificationRepository) Generate(ctx context.Context) error {
-	// Timezone-independent microseconds since the epoch form part of the upcoming-conference
-	// deduplication key.
+	// Независимые от часового пояса микросекунды, прошедшие с начала эпохи, являются частью
+	// ключа дедупликации для предстоящих конференций.
 	soon := `WITH candidates AS (
             SELECT p.user_id, 'soon:' || c.id::text || ':' || (extract(epoch from c.scheduled_at)*1000000)::bigint::text AS dedup_key,
               jsonb_build_object('conferenceId',c.id,'scheduledAt',c.scheduled_at) AS payload
@@ -127,7 +129,7 @@ func (r *NotificationRepository) Generate(ctx context.Context) error {
 			return err
 		}
 	}
-	// job holds the job data used by notification.
+	// job содержит данные о задании, используемые для уведомлений.
 	type job struct {
 		ID                  int64
 		Kind                string
@@ -143,7 +145,7 @@ func (r *NotificationRepository) Generate(ctx context.Context) error {
 			if err := tx.Raw(`SELECT id,kind,conference_id,recording_id,cursor_participant_id,created_at FROM notification_jobs WHERE processed_at IS NULL ORDER BY available_at,id LIMIT 100 FOR UPDATE SKIP LOCKED`).Scan(&jobs).Error; err != nil {
 				return err
 			}
-			budget := 1000 // Bound recipient count as well as source-event count.
+			budget := 1000 // Ограниченное количество получателей, а также количество исходных событий.
 			for _, item := range jobs {
 				if budget == 0 {
 					break
@@ -174,8 +176,9 @@ func (r *NotificationRepository) Generate(ctx context.Context) error {
 						return err
 					}
 					if len(ids) > 0 {
-						// Recheck current access in the INSERT query, including conference or participant removal racing
-						// the earlier bounded candidate selection.
+						// Повторная проверка текущего доступа в запросе INSERT, в том числе на
+						// случай удаления конференции или участника, опережающего выбор ранее
+						// ограниченного числа кандидатов.
 						if err := tx.Exec(`INSERT INTO notifications(id,user_id,type,payload,dedup_key,created_at)
                         SELECT gen_random_uuid(),p.user_id,j.kind,jsonb_build_object('conferenceId',j.conference_id,'recordingId',j.recording_id),
                           'recording:' || j.recording_id::text,j.created_at
@@ -211,14 +214,15 @@ func (r *NotificationRepository) Generate(ctx context.Context) error {
 	return r.generateChat(ctx)
 }
 
-// generateChat fans out one saved message at a time in bounded, resumable batches.
+// generateChat последовательно извлекает по одному сохраненному сообщению из ограниченных
+// возобновляемых пакетов.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *NotificationRepository) generateChat(ctx context.Context) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		type chatJob struct {
@@ -271,15 +275,15 @@ func (r *NotificationRepository) generateChat(ctx context.Context) error {
 	})
 }
 
-// Pending returns persisted notifications that have not yet completed event publication.
+// Pending возвращает сохраненные уведомления, публикация событий по которым еще не завершена.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: The collected notification values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения уведомлений.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *NotificationRepository) Pending(ctx context.Context) ([]domain.Notification, error) {
 	items := []domain.Notification{}
 	if err := r.db.WithContext(ctx).Exec(`UPDATE notifications n SET published_at=clock_timestamp()
@@ -290,17 +294,17 @@ func (r *NotificationRepository) Pending(ctx context.Context) ([]domain.Notifica
 	return items, err
 }
 
-// Publishable checks current room preferences immediately before the SSE event.
+// Publishable проверяет текущие настройки комнаты непосредственно перед событием SSE.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *NotificationRepository) Publishable(ctx context.Context, id string) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Table("notifications n").Where("n.id=? AND n.published_at IS NULL", id).
@@ -308,19 +312,20 @@ func (r *NotificationRepository) Publishable(ctx context.Context, id string) (bo
 	return count > 0, err
 }
 
-// Visible rechecks ownership, mute and current access at SSE delivery time;
-// PublishedAt may already be set by the producer when Redis is consumed.
+// Visible — визуально перепроверяет право собственности, отключение звука и текущий уровень доступа на
+// момент доставки SSE; PublishedAt может быть уже установлен производителем на момент получения
+// данных из Redis.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *NotificationRepository) Visible(ctx context.Context, userID, id string) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Table("notifications n").Where("n.id=? AND n.user_id=?", id, userID).
@@ -328,15 +333,16 @@ func (r *NotificationRepository) Visible(ctx context.Context, userID, id string)
 	return count == 1, err
 }
 
-// Published records that a persisted notification has completed publication or suppression.
+// Published записывает информацию о том, что сохранённое уведомление было опубликовано или
+// удалено.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *NotificationRepository) Published(ctx context.Context, id string) error {
 	err := r.db.WithContext(ctx).Model(&domain.Notification{}).Where("id=? AND published_at IS NULL", id).Update("published_at", time.Now().UTC()).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {

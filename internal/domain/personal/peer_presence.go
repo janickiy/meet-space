@@ -1,7 +1,8 @@
 package personal
 
-// PeerPresence exposes verified online state within an authorized direct conversation. It
-// contains no names, email addresses, session identifiers or connection counts.
+// PeerPresence предоставляет проверенную информацию о том, кто сейчас в сети, в рамках
+// авторизованной прямой беседы.  В ней нет имен, адресов электронной почты, идентификаторов
+// сеансов или количества подключений.
 type PeerPresence struct {
 	ConversationID string `json:"conversationId"`
 	PeerID         string `json:"peerId"`

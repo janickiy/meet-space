@@ -7,15 +7,16 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 )
 
-// NormalizeSearchQuery bounds literal message searches before any database work.
+// NormalizeSearchQuery ограничивает поиск по буквам в сообщении перед любыми операциями с базой
+// данных.
 //
-// Parameters:
-//   - query: Search text or validated query filters.
+// @Parameters:
+//   - query: Текст для поиска или валидированные фильтры запросов.
 //
-// Returns:
-//   - result 1: Bounded normalized search text.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Ограниченный нормализованный поисковый запрос.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeSearchQuery(query string) (string, error) {
 	query = strings.TrimSpace(query)
 	length := utf8.RuneCountInString(query)

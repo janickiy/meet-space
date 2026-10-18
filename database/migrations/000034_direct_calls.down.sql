@@ -1,4 +1,5 @@
--- Roll back only before calls have been used: preserving call history is required.
+-- Откат возможен только до того момента, когда были использованы вызовы: необходимо сохранить
+-- историю вызовов.
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM direct_calls) THEN RAISE EXCEPTION 'cannot remove durable call history'; END IF;
 END $$;

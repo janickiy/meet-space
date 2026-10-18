@@ -25,8 +25,8 @@ const (
 	DownloadTTL              = 5 * time.Minute
 )
 
-// Message persists chat order, revision, author and retry identity. Its internal request
-// fingerprint is excluded from JSON.
+// Message сохраняет порядок сообщений в чате, их ревизию, автора и информацию о повторных
+// попытках отправки.  Его внутренний отпечаток запроса не передаётся в JSON.
 type Message struct {
 	ID                 string        `json:"id" gorm:"type:uuid;primaryKey"`
 	Sequence           int64         `json:"sequence,string" gorm:"autoIncrement"`
@@ -50,7 +50,8 @@ type Message struct {
 	Call               *CallHistory  `json:"call,omitempty" gorm:"-"`
 }
 
-// CallHistory projects the authoritative call state without exposing room or device credentials.
+// CallHistory отображает достоверное состояние вызова, не раскрывая данные о комнате или
+// устройстве.
 type CallHistory struct {
 	ID           string     `json:"id"`
 	CallerUserID string     `json:"callerUserId"`
@@ -62,14 +63,15 @@ type CallHistory struct {
 	DurationSec  int64      `json:"durationSec"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Message) TableName() string { return "chat_messages" }
 
-// ReplyPreview contains a bounded view of the replied-to message and respects soft deletion.
+// ReplyPreview содержит ограниченное представление сообщения, на которое был отправлен ответ, и
+// поддерживает обратимое удаление.
 type ReplyPreview struct {
 	Sequence   int64  `json:"sequence,string,omitempty"`
 	ID         string `json:"id"`
@@ -78,8 +80,8 @@ type ReplyPreview struct {
 	Deleted    bool   `json:"deleted"`
 }
 
-// Attachment persists its owner, conference, object metadata and upload state. Internal object
-// paths and lease tokens are excluded from JSON.
+// Attachment сохраняет информацию о владельце, конференции, метаданные объекта и состояние
+// загрузки. Внутренние пути к объектам и токены аренды исключены из JSON.
 type Attachment struct {
 	ID               string     `json:"id" gorm:"type:uuid;primaryKey"`
 	ConferenceID     string     `json:"conferenceId,omitempty"`
@@ -102,17 +104,17 @@ type Attachment struct {
 	ExpiresAt        time.Time  `json:"expiresAt"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Attachment) TableName() string { return "chat_attachments" }
 
-// Prefix returns the server-controlled object prefix for the attachment.
+// Prefix возвращает префикс объекта, управляемый сервером, для вложения.
 //
-// Returns:
-//   - result 1: Server-controlled private attachment prefix.
+// @returns:
+//   - result1: Префикс приватного вложения, управляемый сервером.
 func (a Attachment) Prefix() string {
 	if a.ConversationID != "" {
 		return "attachments/direct/" + a.ConversationID + "/" + a.ID + "/"
@@ -120,8 +122,8 @@ func (a Attachment) Prefix() string {
 	return "attachments/" + a.ConferenceID + "/" + a.ID + "/"
 }
 
-// SendRequest contains message text, a reply reference, attachment identifiers and a retry
-// idempotency key.
+// SendRequest содержит текст сообщения, ссылку на ответ, идентификаторы вложений и ключ
+// идемпотентности повторных попыток.
 type SendRequest struct {
 	ClientRequestID string   `json:"clientRequestId"`
 	Text            string   `json:"text"`
@@ -129,12 +131,13 @@ type SendRequest struct {
 	AttachmentIDs   []string `json:"attachmentIds,omitempty"`
 }
 
-// EditRequest contains the replacement text of an existing message.
+// EditRequest содержит текст для замены существующего сообщения.
 type EditRequest struct {
 	Text string `json:"text"`
 }
 
-// InitRequest describes a future attachment before a server-owned upload key is allocated.
+// InitRequest описывает будущее вложение до выделения ключа для загрузки, принадлежащего
+// серверу.
 type InitRequest struct {
 	ClientRequestID string `json:"clientRequestId"`
 	Filename        string `json:"filename"`
@@ -142,12 +145,12 @@ type InitRequest struct {
 	Size            int64  `json:"size"`
 }
 
-// ReadRequest identifies the message through which the account has read the conversation.
+// ReadRequest идентифицирует сообщение, через которое учётная запись ознакомилась с перепиской.
 type ReadRequest struct {
 	MessageID string `json:"messageId"`
 }
 
-// ReadState contains a monotonic read boundary and the visible unread-message count.
+// ReadState содержит монотонную границу чтения и видимое количество непрочитанных сообщений.
 type ReadState struct {
 	LastReadMessageID *string `json:"lastReadMessageId"`
 	LastReadSequence  int64   `json:"-"`
@@ -155,7 +158,7 @@ type ReadState struct {
 	ParticipantID     string  `json:"-"`
 }
 
-// Page contains one bounded result page and its continuation metadata.
+// Page содержит одну страницу с ограниченным объёмом данных и метаданные о продолжении.
 type Page struct {
 	Items             []Message `json:"items"`
 	NextCursor        string    `json:"nextCursor,omitempty"`
@@ -163,15 +166,15 @@ type Page struct {
 	LastReadMessageID *string   `json:"lastReadMessageId"`
 }
 
-// UUID checks and normalizes a UUID before it is used as a resource identifier.
+// UUID проверяет и нормализует UUID перед использованием в качестве идентификатора ресурса.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Canonical nonzero UUID.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Канонический ненулевой UUID.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func UUID(value string) (string, error) {
 	id, err := uuid.Parse(value)
 	if err != nil || id == uuid.Nil {
@@ -180,16 +183,16 @@ func UUID(value string) (string, error) {
 	return id.String(), nil
 }
 
-// NormalizeText normalizes and bounds message text before persistence.
+// NormalizeText нормализует и ограничивает текст сообщения перед сохранением.
 //
-// Parameters:
-//   - text: UTF-8 text to validate, normalize or process.
-//   - allowEmpty: Whether empty normalized text is permitted.
+// @Parameters:
+//   - text: Текст UTF-8 для проверки, нормализации или обработки.
+//   - allowEmpty: Указывает, разрешён ли пустой нормализованный текст.
 //
-// Returns:
-//   - result 1: Validated normalized message text.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Проверенный нормализованный текст сообщения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeText(text string, allowEmpty bool) (string, error) {
 	text = strings.TrimSpace(text)
 	if !utf8.ValidString(text) || utf8.RuneCountInString(text) > MaxTextRunes || (!allowEmpty && text == "") || strings.ContainsRune(text, 0) {
@@ -198,17 +201,17 @@ func NormalizeText(text string, allowEmpty bool) (string, error) {
 	return text, nil
 }
 
-// NormalizeSend validates message text, reply and attachment references before a message is
-// sent.
+// NormalizeSend проверяет текст сообщения, ответ и ссылки на вложения перед отправкой
+// сообщения.
 //
-// Parameters:
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting send request.
-//   - result 2: Stable SHA-256 fingerprint of the normalized send request.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий запрос на отправку.
+//   - result2: Стабильный отпечаток SHA-256 нормализованного запроса на отправку.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeSend(request SendRequest) (SendRequest, string, error) {
 	var err error
 	request.ClientRequestID, err = UUID(request.ClientRequestID)
@@ -247,15 +250,15 @@ func NormalizeSend(request SendRequest) (SendRequest, string, error) {
 	return request, hex.EncodeToString(sum[:]), nil
 }
 
-// NormalizeInit validates attachment metadata before allocating an upload attempt.
+// NormalizeInit проверяет метаданные вложений перед попыткой их загрузки.
 //
-// Parameters:
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting init request.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий запрос на инициализацию.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeInit(request InitRequest) (InitRequest, error) {
 	var err error
 	request.ClientRequestID, err = UUID(request.ClientRequestID)

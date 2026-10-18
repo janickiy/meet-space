@@ -13,193 +13,227 @@ import (
 )
 
 type ActionRepository interface {
-	// ChatInfo returns the authenticated member's conference-chat information.
+	// ChatInfo возвращает информацию о конференц-чате для аутентифицированного участника.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: The resulting info.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная информация.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ChatInfo(context.Context, string, string) (chatdomain.Info, error)
-	// ChatMembers returns a cursor-bounded page of members visible in the authorized conference
-	// chat.
+	// ChatMembers возвращает страницу участников, ограниченную курсором, которые видны в
+	// авторизованном конференц-чате.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Opaque continuation boundary from the previous page.
-	//   - argument 5: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Непрозрачная граница продолжения с предыдущей страницы.
+	//   - arg5: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The collected member view values.
-	//   - result 2: Continuation cursor for the next authorized member page.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения представления участника.
+	//   - result2: Курсор для перехода к следующей странице авторизованных участников.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ChatMembers(context.Context, string, string, string, int) ([]chatdomain.MemberView, string, error)
-	// UpdateChatInfo updates authorized conference-chat metadata and returns its member-specific
-	// view.
+	// UpdateChatInfo обновляет авторизованные метаданные конференц-чата и возвращает их
+	// представление для конкретного участника.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Validated application request or incoming operation parameters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Валидированный запрос приложения или входящие параметры операции.
 	//
-	// Returns:
-	//   - result 1: The resulting info.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная информация.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	UpdateChatInfo(context.Context, string, string, chatdomain.UpdateInfoRequest) (chatdomain.Info, error)
-	// ChatPreferences reads the acting member's saved conference-chat notification preferences.
+	// ChatPreferences считывает сохраненные настройки уведомлений конференц-чата действующего
+	// участника.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: The resulting preferences.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующие настройки.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ChatPreferences(context.Context, string, string) (chatdomain.Preferences, error)
-	// SetChatPreferences saves only the acting member's conference-chat notification preferences.
+	// SetChatPreferences сохраняет только настройки уведомлений о конференциях и чатах
+	// действующего участника.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Whether the requested feature or preference should be enabled.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Включает или отключает запрошенную функцию или настройку.
 	//
-	// Returns:
-	//   - result 1: The resulting preferences.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующие настройки.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SetChatPreferences(context.Context, string, string, bool) (chatdomain.Preferences, error)
-	// LeaveChat records the account's departure from the conference chat according to membership
-	// rules.
+	// LeaveChat фиксирует выход аккаунта из чата конференции в соответствии с правилами
+	// членства.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	LeaveChat(context.Context, string, string) error
-	// SearchMessages returns a bounded page of visible messages matching the validated search query.
+	// SearchMessages возвращает ограниченную страницу с видимыми сообщениями, соответствующими
+	// подтвержденному поисковому запросу.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference or conversation identifier selected by the repository mode.
-	//   - argument 4: Search text or validated query filters.
-	//   - argument 5: Opaque continuation boundary from the previous page.
-	//   - argument 6: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции или диалога, выбранный в зависимости от режима
+	//   репозитория.
+	//   - arg4: Текст для поиска или валидированные фильтры запросов.
+	//   - arg5: Непрозрачная граница продолжения с предыдущей страницы.
+	//   - arg6: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting message page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая страница с сообщениями.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SearchMessages(context.Context, string, string, string, string, int) (chatdomain.MessagePage, error)
-	// ChatMessageContext returns the visible history around a requested message within its
-	// authorized scope.
+	// ChatMessageContext возвращает видимую историю сообщений вокруг запрошенного сообщения в
+	// пределах авторизованной области.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference or conversation identifier selected by the repository mode.
-	//   - argument 4: Message identifier within the authorized conversation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции или диалога, выбранный в зависимости от режима
+	//   репозитория.
+	//   - arg4: Идентификатор сообщения в рамках авторизованного диалога.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная страница.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ChatMessageContext(context.Context, string, string, string) (chatdomain.Page, error)
-	// ChatMaterials returns a bounded page of visible message attachments and links.
+	// ChatMaterials возвращает ограниченную страницу с видимыми вложениями и ссылками в
+	// сообщениях.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Validated event, job, media or resource category.
-	//   - argument 5: Opaque continuation boundary from the previous page.
-	//   - argument 6: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+	//   - arg5: Непрозрачная граница продолжения с предыдущей страницы.
+	//   - arg6: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting material page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая страница с материалами.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ChatMaterials(context.Context, string, string, string, string, int) (chatdomain.MaterialPage, error)
-	// ChatPins returns the visible pinned messages of the conference chat.
+	// ChatPins возвращает видимые закреплённые сообщения в чате конференции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Opaque continuation boundary from the previous page.
-	//   - argument 5: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Непрозрачная граница продолжения с предыдущей страницы.
+	//   - arg5: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting message page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая страница с сообщениями.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ChatPins(context.Context, string, string, string, int) (chatdomain.MessagePage, error)
-	// SetChatPin changes the pin state of a visible conference-chat message.
+	// SetChatPin изменяет статус закрепления видимого сообщения в чате конференции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Message identifier within the authorized conversation.
-	//   - argument 5: Whether the message should be pinned or marked important.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор сообщения в рамках авторизованного диалога.
+	//   - arg5: Нужно ли закрепить сообщение или пометить его как важное.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SetChatPin(context.Context, string, string, string, bool) error
 }
 
 type actionObserver interface {
-	// ConferenceChanged notifies connected sessions or observers of the conference's committed state
-	// change.
+	// ConferenceChanged уведомляет подключенные сеансы или наблюдателей об изменении состояния
+	// конференции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
 	ConferenceChanged(context.Context, string)
 }
 
 type AccountPresence interface {
-	// Online returns the currently live presence state for the requested account identifiers.
+	// Online возвращает текущее состояние присутствия для запрошенных идентификаторов учетных
+	// записей.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Account identifiers or account repository, as defined by its type.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификаторы учетных записей или репозиторий учетных записей в
+	//   соответствии с их типом.
 	//
-	// Returns:
-	//   - result 1: The resulting map[string]bool.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая карта [строка]bool.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Online(context.Context, []string) (map[string]bool, error)
 }
 
 type ConferencePresence interface {
-	// GetActiveSessions returns the current physical sessions used to authorize media commands.
+	// GetActiveSessions возвращает текущие физические сеансы, используемые для авторизации
+	// медиакоманд.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: The collected session values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения сеанса.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	GetActiveSessions(context.Context, string) ([]realtime.Session, error)
 }
 
@@ -210,67 +244,68 @@ type ActionService struct {
 	guests   ConferencePresence
 }
 
-// NewActionService constructs the action service with the dependencies and limits required for
-// persistent chat messages and private attachments.
+// NewActionService создает сервис действий с зависимостями и ограничениями, необходимыми для
+// сохранения сообщений в чате и личных вложений.
 //
-// Parameters:
-//   - repo: Persistence dependency used by the application operation.
-//   - observer: Observer notified after a persisted lifecycle change.
+// @Parameters:
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - observer: Наблюдатель получает уведомление после изменения жизненного цикла.
 //
-// Returns:
-//   - result 1: The constructed or loaded action service.
+// @returns:
+//   - result1: Созданный или загруженный сервис действий.
 func NewActionService(repo ActionRepository, observer actionObserver) *ActionService {
 	return &ActionService{repo: repo, observer: observer}
 }
 
-// WithPresence attaches presence to the component before its operations are served.
+// WithPresence привязывает присутствие к компоненту до того, как будут выполнены его операции.
 //
-// Parameters:
-//   - accounts: Account presence or account-validation dependency.
-//   - guests: Conference-session presence dependency used for guest accounts.
+// @Parameters:
+//   - accounts: Зависимость от присутствия учетной записи или ее валидации.
+//   - guests: Зависимость присутствия в конференц-сессиях, используемая для гостевых аккаунтов.
 //
-// Returns:
-//   - result 1: The constructed or loaded action service.
+// @returns:
+//   - result1: Созданный или загруженный сервис действий.
 func (s *ActionService) WithPresence(accounts AccountPresence, guests ConferencePresence) *ActionService {
 	s.presence, s.guests = accounts, guests
 	return s
 }
 
-// Info returns the member-specific chat information visible to the current account.
+// Info возвращает информацию о чате конкретного участника, доступную для текущего аккаунта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The resulting info.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная информация.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) Info(ctx context.Context, user, conference string) (chatdomain.Info, error) {
 	return s.repo.ChatInfo(ctx, user, conference)
 }
 
-// Members returns the current member identifiers or member views for the authorized
-// conversation.
+// Members возвращает текущие идентификаторы участников или их представления для авторизованного
+// диалога.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The collected member view values.
-//   - result 2: Continuation cursor for the next authorized member page.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения представления участника.
+//   - result2: Курсор для перехода к следующей странице авторизованных участников.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) Members(ctx context.Context, user, conference, cursor string, limit int) ([]chatdomain.MemberView, string, error) {
 	if limit < 1 || limit > 100 {
 		return nil, "", apperrors.ErrInvalidInput
 	}
-	// Authorization and page bounds precede Redis access: this is not a user directory.
+	// Авторизация и ограничения страниц предшествуют доступу к Redis: это не пользовательский
+	// каталог.
 	items, next, err := s.repo.ChatMembers(ctx, user, conference, cursor, limit)
 	if err != nil {
 		return nil, "", err
@@ -317,7 +352,8 @@ func (s *ActionService) Members(ctx context.Context, user, conference, cursor st
 		return nil, "", err
 	}
 	for i := range items {
-		// A presence outage must not turn a valid PG member into a false offline status.
+		// Из-за сбоя в системе присутствия действительный участник PG не должен переходить в
+		// статус false «не в сети».
 		items[i].Online = nil
 		if items[i].UserID == nil {
 			continue
@@ -335,19 +371,19 @@ func (s *ActionService) Members(ctx context.Context, user, conference, cursor st
 	return items, next, nil
 }
 
-// UpdateInfo updates the chat's validated title or description after the management permission
-// check.
+// UpdateInfo обновляет валидированный заголовок или описание чата после проверки прав
+// администратора.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting info.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная информация.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) UpdateInfo(ctx context.Context, user, conference string, request chatdomain.UpdateInfoRequest) (chatdomain.Info, error) {
 	if request.Title == nil && request.Description == nil {
 		return chatdomain.Info{}, apperrors.ErrInvalidInput
@@ -373,48 +409,48 @@ func (s *ActionService) UpdateInfo(ctx context.Context, user, conference string,
 	return info, err
 }
 
-// Preferences reads the acting account's saved delivery or conversation preferences.
+// Preferences считывает сохраненные настройки доставки или переписки действующего аккаунта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The resulting preferences.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующие настройки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) Preferences(ctx context.Context, user, conference string) (chatdomain.Preferences, error) {
 	return s.repo.ChatPreferences(ctx, user, conference)
 }
 
-// SetPreferences saves the acting account's validated conversation preferences.
+// SetPreferences сохраняет валидированные настройки диалога действующего аккаунта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - enabled: Whether the requested feature or preference should be enabled.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - enabled: Включает или отключает запрошенную функцию или настройку.
 //
-// Returns:
-//   - result 1: The resulting preferences.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующие настройки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) SetPreferences(ctx context.Context, user, conference string, enabled bool) (chatdomain.Preferences, error) {
 	return s.repo.SetChatPreferences(ctx, user, conference, enabled)
 }
 
-// Leave removes the active membership or media connection while preserving the saved
-// conversation or conference history.
+// Leave отменяет активное членство или подключение к мультимедиа, сохраняя при этом сохранённую
+// историю разговоров или конференций.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) Leave(ctx context.Context, user, conference string) error {
 	err := s.repo.LeaveChat(ctx, user, conference)
 	if err == nil && s.observer != nil {
@@ -423,21 +459,21 @@ func (s *ActionService) Leave(ctx context.Context, user, conference string) erro
 	return err
 }
 
-// Search searches persistent chat messages and private attachments using bounded input and the
-// caller's visibility filters.
+// Search — поиск выполняет поиск в постоянных сообщениях чата и личных вложениях с использованием
+// ограниченных входных данных и фильтров видимости, заданных вызывающей стороной.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - query: Search text or validated query filters.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - query: Текст для поиска или валидированные фильтры запросов.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The resulting message page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая страница с сообщениями.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) Search(ctx context.Context, user, conference, query, cursor string, limit int) (chatdomain.MessagePage, error) {
 	query = strings.TrimSpace(query)
 	queryLength := utf8.RuneCountInString(query)
@@ -450,19 +486,19 @@ func (s *ActionService) Search(ctx context.Context, user, conference, query, cur
 	return s.repo.SearchMessages(ctx, user, conference, query, cursor, limit)
 }
 
-// Context returns the visible messages surrounding a selected message so clients can navigate to
-// a search result.
+// Context возвращает видимые сообщения, окружающие выбранное сообщение, чтобы пользователь мог
+// перейти к результату поиска.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - messageID: Message identifier within the authorized conversation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
 //
-// Returns:
-//   - result 1: The resulting page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) Context(ctx context.Context, user, conference, messageID string) (chatdomain.Page, error) {
 	id, err := chatdomain.UUID(messageID)
 	if err != nil {
@@ -471,20 +507,21 @@ func (s *ActionService) Context(ctx context.Context, user, conference, messageID
 	return s.repo.ChatMessageContext(ctx, user, conference, id)
 }
 
-// Materials returns a bounded page of visible conversation attachments and shared links.
+// Materials возвращает страницу с ограниченным количеством видимых вложений и общих ссылок в
+// переписке.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - kind: Validated event, job, media or resource category.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The resulting material page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая страница с материалами.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) Materials(ctx context.Context, user, conference, kind, cursor string, limit int) (chatdomain.MaterialPage, error) {
 	if kind != "image" && kind != "file" && kind != "link" {
 		return chatdomain.MaterialPage{}, apperrors.New(apperrors.ErrInvalidInput, "kind must be image, file or link")
@@ -495,19 +532,19 @@ func (s *ActionService) Materials(ctx context.Context, user, conference, kind, c
 	return s.repo.ChatMaterials(ctx, user, conference, kind, cursor, limit)
 }
 
-// Pins returns a bounded page of the conversation's pinned messages.
+// Pins возвращает страницу с ограниченным количеством закреплённых сообщений в переписке.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The resulting message page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая страница с сообщениями.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) Pins(ctx context.Context, user, conference, cursor string, limit int) (chatdomain.MessagePage, error) {
 	if limit < 1 || limit > 50 {
 		return chatdomain.MessagePage{}, apperrors.ErrInvalidInput
@@ -515,18 +552,18 @@ func (s *ActionService) Pins(ctx context.Context, user, conference, cursor strin
 	return s.repo.ChatPins(ctx, user, conference, cursor, limit)
 }
 
-// SetPin updates pin for persistent chat messages and private attachments.
+// SetPin обновляет закреплённые сообщения в постоянных сообщениях чата и личных вложениях.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conference: Conference identifier limiting the operation scope.
-//   - messageID: Message identifier within the authorized conversation.
-//   - important: Whether the message should be pinned or marked important.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
+//   - important: Нужно ли закрепить сообщение или пометить его как важное.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *ActionService) SetPin(ctx context.Context, user, conference, messageID string, important bool) error {
 	id, err := chatdomain.UUID(messageID)
 	if err != nil {

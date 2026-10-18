@@ -1,4 +1,4 @@
--- Additive adapter: existing conference chat and object paths are untouched.
+-- Аддитивный адаптер: существующие чаты конференции и пути к объектам не затрагиваются.
 CREATE TABLE conversations (
  id UUID PRIMARY KEY, type TEXT NOT NULL DEFAULT 'direct' CHECK(type='direct'),
  user_low_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,

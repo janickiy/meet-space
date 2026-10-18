@@ -9,27 +9,27 @@ import (
 	"strings"
 )
 
-// NewDirectChatRepository changes storage and authorization, sharing all message/file
-// operations.
+// NewDirectChatRepository изменяет хранилище и права доступа, предоставляя общий доступ ко всем
+// операциям с сообщениями и файлами.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded chat repository.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий чатов.
 func NewDirectChatRepository(db *gorm.DB) *ChatRepository {
 	r := NewChatRepository(db)
 	r.direct = true
 	return r
 }
 
-// sql selects the SQL table or scope used by this repository adapter.
+// sql выбирает таблицу SQL или область видимости, используемую этим адаптером репозитория.
 //
-// Parameters:
-//   - s: Validated server-controlled SQL relation or scalar input.
+// @Parameters:
+//   - s: Проверенное отношение SQL, управляемое сервером, или скалярный входной параметр.
 //
-// Returns:
-//   - result 1: Server-selected scoped SQL relation or statement.
+// @returns:
+//   - result1: Отношение SQL или оператор, выбранное сервером в области видимости.
 func (r *ChatRepository) sql(s string) string {
 	if !r.direct {
 		return s
@@ -38,29 +38,29 @@ func (r *ChatRepository) sql(s string) string {
 	return strings.ReplaceAll(s, "chat_messages", "conversation_messages")
 }
 
-// messages returns the message relation for the repository's conversation scope.
+// messages возвращает отношение сообщений для области видимости диалога в репозитории.
 //
-// Parameters:
-//   - tx: Current database transaction.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
 //
-// Returns:
-//   - result 1: The constructed or loaded db.
+// @returns:
+//   - result1: Созданная или загруженная база данных.
 func (r *ChatRepository) messages(tx *gorm.DB) *gorm.DB {
 	if r.direct {
 		return tx.Model(&chat.Message{}).Table("conversation_messages").Omit("ConferenceID", "SenderName")
 	}
-	// CallID belongs only to conversation_messages; model-based SELECTs must not
-	// project it from conference chat_messages, which has no such column.
+	// CallID относится только к conversation_messages; SELECTs, основанный на модели, не должен
+	// проецировать его из chat_messages, в котором нет такого столбца.
 	return tx.Model(&chat.Message{}).Omit("ConversationID", "SenderName", "CallID")
 }
 
-// attachments returns the attachment relation for the repository's conversation scope.
+// attachments возвращает отношение вложений для области видимости диалога в репозитории.
 //
-// Parameters:
-//   - tx: Current database transaction.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
 //
-// Returns:
-//   - result 1: The constructed or loaded db.
+// @returns:
+//   - result1: Созданная или загруженная база данных.
 func (r *ChatRepository) attachments(tx *gorm.DB) *gorm.DB {
 	if r.direct {
 		return tx.Model(&chat.Attachment{}).Table("conversation_attachments").Omit("ConferenceID", "SenderName")
@@ -68,10 +68,10 @@ func (r *ChatRepository) attachments(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&chat.Attachment{}).Omit("ConversationID", "SenderName")
 }
 
-// readTable returns the read-state table associated with the chat scope.
+// readTable возвращает таблицу состояний чтения, связанную с областью видимости чата.
 //
-// Returns:
-//   - result 1: Read-state table for the selected conversation scope.
+// @returns:
+//   - result1: Таблица состояний чтения для выбранной области видимости диалога.
 func (r *ChatRepository) readTable() string {
 	if r.direct {
 		return "conversation_members"
@@ -79,13 +79,14 @@ func (r *ChatRepository) readTable() string {
 	return "chat_read_states"
 }
 
-// messageScope reads the conference or conversation scope from a stored message.
+// messageScope считывает область действия конференции или беседы из сохраненного сообщения.
 //
-// Parameters:
-//   - m: Validated backup manifest or media state, as defined by its type.
+// @Parameters:
+//   - m: Подтвержденный манифест резервного копирования или состояние медиафайлов в
+//     соответствии с их типом.
 //
-// Returns:
-//   - result 1: Conference or conversation identifier stored on the message.
+// @returns:
+//   - result1: Идентификатор конференции или беседы, сохраненный в сообщении.
 func (r *ChatRepository) messageScope(m chat.Message) string {
 	if r.direct {
 		return m.ConversationID
@@ -93,11 +94,13 @@ func (r *ChatRepository) messageScope(m chat.Message) string {
 	return m.ConferenceID
 }
 
-// setMessageScope sets the message scope fields for the selected repository mode.
+// setMessageScope устанавливает поля области действия сообщения для выбранного режима
+// репозитория.
 //
-// Parameters:
-//   - m: Validated backup manifest or media state, as defined by its type.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - m: Подтвержденный манифест резервного копирования или состояние медиафайлов в
+//     соответствии с их типом.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 func (r *ChatRepository) setMessageScope(m *chat.Message, id string) {
 	if r.direct {
 		m.ConferenceID = ""
@@ -105,11 +108,12 @@ func (r *ChatRepository) setMessageScope(m *chat.Message, id string) {
 	}
 }
 
-// setAttachmentScope sets the attachment scope fields for the selected repository mode.
+// setAttachmentScope устанавливает поля области действия вложений для выбранного режима
+// репозитория.
 //
-// Parameters:
-//   - a: The attachment value being compared.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - a: Сравниваемое значение вложения.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 func (r *ChatRepository) setAttachmentScope(a *chat.Attachment, id string) {
 	if r.direct {
 		a.ConferenceID = ""
@@ -117,19 +121,20 @@ func (r *ChatRepository) setAttachmentScope(a *chat.Attachment, id string) {
 	}
 }
 
-// authorize checks the current identity and saved access state before chat scope.
+// authorize проверяет текущие идентификационные данные и сохраненное состояние доступа перед
+// определением области действия чата.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - user: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
-//   - locked: Whether the query must lock the selected row before mutation.
-//   - write: Whether this access performs a mutation and requires write authorization.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - locked: Указывает, должен ли запрос блокировать выбранную строку перед изменением.
+//   - write: Выполняет ли этот доступ мутацию и требует ли авторизации на запись.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) authorize(tx *gorm.DB, user, id string, locked, write bool) (conferences.Participant, error) {
 	if !r.direct {
 		return authorizeChat(tx, user, id, locked, write)
@@ -144,21 +149,23 @@ func (r *ChatRepository) authorize(tx *gorm.DB, user, id string, locked, write b
 	if visible != 1 {
 		return conferences.Participant{}, apperrors.ErrForbidden
 	}
-	// Direct conversations have no moderator. The ID is used only to address the reader's account stream.
+	// В прямых беседах нет модератора.  ID используется только для обращения к потоку учетных
+	// записей читателя.
 	return conferences.Participant{ID: user, Role: conferences.ParticipantRole}, nil
 }
 
-// historyCutoff loads the member-specific history boundary used after a direct chat is cleared.
+// historyCutoff загружает границу истории для конкретного участника, используемую после очистки
+// прямого чата.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - user: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) historyCutoff(tx *gorm.DB, user, id string) (int64, error) {
 	if !r.direct {
 		return 0, nil
@@ -168,17 +175,17 @@ func (r *ChatRepository) historyCutoff(tx *gorm.DB, user, id string) (int64, err
 	return cutoff, err
 }
 
-// authorizeDirect checks that an account may access the direct conversation.
+// authorizeDirect проверяет, имеет ли учетная запись доступ к прямому чату.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - user: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
-//   - locked: Whether the query must lock the selected row before mutation.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - locked: Указывает, должен ли запрос блокировать выбранную строку перед изменением.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func authorizeDirect(tx *gorm.DB, user, id string, locked bool) error {
 	var row struct{ ID string }
 	q := tx.Table("conversations").Select("conversations.id").Where("conversations.id=? AND type IN('direct','group') AND deleted_at IS NULL", id)
@@ -193,8 +200,8 @@ func authorizeDirect(tx *gorm.DB, user, id string, locked bool) error {
 		}
 		return err
 	}
-	// Check membership in a new statement after acquiring the conversation lock.
-	// All group mutations lock this same row before changing member activity.
+	// Проверка членства в новом заявлении после получения блокировки диалога.  Все групповые
+	// мутации блокируют эту же строку перед изменением активности участников.
 	var count int64
 	if err := tx.Table("conversation_members m").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL AND u.password_hash<>''", id, user).Count(&count).Error; err != nil {
 		return err
@@ -205,13 +212,14 @@ func authorizeDirect(tx *gorm.DB, user, id string, locked bool) error {
 	return nil
 }
 
-// attachmentScope resolves the authorized chat scope for an attachment operation.
+// attachmentScope определяет область видимости чата, в которой разрешена операция с
+// прикреплёнными файлами.
 //
-// Parameters:
-//   - a: The attachment value being compared.
+// @Parameters:
+//   - a: Сравниваемое значение вложения.
 //
-// Returns:
-//   - result 1: Conference or conversation identifier stored on the attachment.
+// @returns:
+//   - result1: Идентификатор конференции или диалога, сохранённый во вложении.
 func (r *ChatRepository) attachmentScope(a chat.Attachment) string {
 	if r.direct {
 		return a.ConversationID

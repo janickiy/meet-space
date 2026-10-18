@@ -1,4 +1,5 @@
-// Package health checks trusted internal dependency readiness without exposing addresses.
+// Проверка работоспособности пакета проверяет готовность доверенных внутренних зависимостей без
+// раскрытия адресов.
 package health
 
 import (
@@ -8,20 +9,21 @@ import (
 	"time"
 )
 
-// HTTPReady calls the configured internal readiness endpoint without proxies or redirects.
+// HTTPReady вызывает настроенную внутреннюю конечную точку проверки готовности без
+// использования прокси-серверов или редиректов.
 type HTTPReady struct {
 	url    string
 	client *http.Client
 }
 
-// NewHTTPReady constructs the HTTP ready with the dependencies and limits required for
-// dependency readiness.
+// NewHTTPReady создает объект HTTP с учетом зависимостей и ограничений, необходимых для
+// проверки готовности зависимостей.
 //
-// Parameters:
-//   - baseURL: Operator-configured base URL of the dependency.
+// @Parameters:
+//   - baseURL: Настроенная оператором база URL зависимости.
 //
-// Returns:
-//   - result 1: The constructed or loaded HTTP ready.
+// @returns:
+//   - result1: Созданная или загруженная база HTTP готова.
 func NewHTTPReady(baseURL string) *HTTPReady {
 	return &HTTPReady{url: strings.TrimRight(baseURL, "/") + "/health/ready", client: &http.Client{
 		Timeout:       1500 * time.Millisecond,
@@ -30,14 +32,14 @@ func NewHTTPReady(baseURL string) *HTTPReady {
 	}}
 }
 
-// Ready reports whether the component or configured dependency is currently usable.
+// Ready сообщает, можно ли в данный момент использовать компонент или настроенную зависимость.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (h *HTTPReady) Ready(ctx context.Context) bool {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url, nil)
 	if err != nil {
@@ -51,5 +53,5 @@ func (h *HTTPReady) Ready(ctx context.Context) bool {
 	return response.StatusCode == http.StatusOK
 }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 func (h *HTTPReady) Close() { h.client.CloseIdleConnections() }

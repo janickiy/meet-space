@@ -11,7 +11,7 @@ import (
 // publishConversationAction публикует зафиксированное действие по ведению личной переписки для указанных получателей.
 // учетная запись или группа получателей.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //   - kind: валидированное событие, задание, медиафайл или категория ресурса.
 //   - id: идентификатор ресурса, к которому относится эта операция.
@@ -34,9 +34,8 @@ func (h *Handler) publishConversationAction(c *gin.Context, kind, id string, ite
 }
 
 // SetConversationPreferences обновляет только уведомления о переписке текущего участника.
-// предпочтение.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) SetConversationPreferences(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
@@ -62,11 +61,11 @@ func (h *Handler) SetConversationPreferences(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
 
-// ClearDirectHistory moves only the acting member's direct-chat history boundary without
-// deleting the peer's history.
+// ClearDirectHistory перемещает только границу истории прямого чата действующего участника, не
+// удаляя историю собеседника.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *Handler) ClearDirectHistory(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -81,10 +80,10 @@ func (h *Handler) ClearDirectHistory(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
 
-// HideDirectConversation скрывает прямой диалог для текущего аккаунта и сохраняет сохраненную историю переписки.
-// peer.
+// HideDirectConversation скрывает личный диалог для текущего аккаунта,
+// сохраняя историю переписки собеседника.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) HideDirectConversation(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")

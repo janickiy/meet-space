@@ -16,21 +16,24 @@ import (
 	"github.com/pion/webrtc/v4/pkg/media/samplebuilder"
 )
 
-// LiveAudio decodes one Opus track in a separate single-CPU-thread process. The shared
-// live-worker pool bounds concurrency rather than allowing unbounded publisher goroutines.
+// LiveAudio декодирует одну дорожку в формате Opus в отдельном однопоточном процессе CPU. Общий
+// пул активных рабочих ограничивает параллелизм, не допуская неограниченного количества
+// горутин-издателей.
 type LiveAudio struct{ Binary string }
 
-// Decode decodes the bounded encoded audio stream into PCM frames for the caption pipeline.
+// Decode — декодер декодирует ограниченный закодированный аудиопоток в кадры PCM для конвейера
+// субтитров.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - track: Media-track metadata or negotiated track instance.
-//   - packets: Encoded media-frame input channel.
-//   - pcm: Callback receiving each decoded PCM audio frame and reporting delivery failure.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - track: Метаданные медиадорожки или согласованный экземпляр дорожки.
+//   - packets: Входной канал закодированных медиакадров.
+//   - pcm: Обратный вызов, получающий каждый декодированный аудиокадр PCM и сообщающий об
+//     ошибке доставки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (d LiveAudio) Decode(ctx context.Context, track media.EgressTrack, packets <-chan media.EgressFrame, pcm func([]byte) error) error {
 	if track.MimeType != "audio/opus" || track.ClockRate != 48000 || track.Channels < 1 || track.Channels > 2 {
 		return fmt.Errorf("unsupported live audio codec")
@@ -112,8 +115,9 @@ loop:
 		case <-op.Done():
 			break loop
 		case <-outputDone:
-			// The decoder may exit on invalid input while the RTP queue remains open. Release its slot and
-			// call Wait without waiting for another packet.
+			// Дешифратор может завершить работу при получении неверных входных данных, пока
+			// очередь RTP остается открытой.  Освободите слот и вызовите Wait, не дожидаясь
+			// поступления следующего пакета.
 			break loop
 		case frame, ok := <-packets:
 			if !ok {
@@ -151,7 +155,7 @@ loop:
 	if readErr != nil {
 		return readErr
 	}
-	// Normal EOF does not cancel the process, so its exit-code failure remains observable.
+	// Обычный EOF не отменяет процесс, поэтому ошибка с кодом завершения остается видимой.
 	if waitErr != nil {
 		return fmt.Errorf("live decoder failed")
 	}

@@ -8,48 +8,49 @@ import (
 	"gorm.io/gorm"
 )
 
-// PlatformRepository reads global privileges and operational aggregates without private user
-// content.
+// PlatformRepository считывает глобальные привилегии и операционные агрегированные данные без
+// доступа к личному пользовательскому контенту.
 type PlatformRepository struct{ db *gorm.DB }
 
-// NewPlatformRepository constructs the platform repository with the dependencies and limits
-// required for read-only product capabilities and operational status.
+// NewPlatformRepository создает репозиторий платформы с зависимостями и ограничениями,
+// необходимыми для доступа только для чтения к возможностям продукта и его операционному
+// статусу.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded platform repository.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий платформы.
 func NewPlatformRepository(db *gorm.DB) *PlatformRepository { return &PlatformRepository{db: db} }
 
-// IsAdmin checks the configured administrative identity without exposing the administrator
-// configuration.
+// IsAdmin проверяет настроенные административные идентификационные данные, не раскрывая
+// конфигурацию администратора.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PlatformRepository) IsAdmin(ctx context.Context, userID string) (bool, error) {
 	var allowed bool
 	err := r.db.WithContext(ctx).Raw(`SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND is_admin)`, userID).Scan(&allowed).Error
 	return allowed, err
 }
 
-// Summary returns bounded administrator-only operational aggregates and safe failure codes
-// without user content.
+// Summary возвращает ограниченные операционные агрегированные данные, доступные только
+// администратору, и безопасные коды ошибок без пользовательского контента.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: The resulting summary.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная сводная таблица.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PlatformRepository) Summary(ctx context.Context) (platform.Summary, error) {
 	var counts struct {
 		ActiveConferences       int64 `gorm:"column:active_conferences"`
@@ -96,14 +97,14 @@ func (r *PlatformRepository) Summary(ctx context.Context) (platform.Summary, err
 	return value, nil
 }
 
-// safeOperationCode bounds an operational status code before exposing it in an administrator
-// response.
+// safeOperationCode ограничивает код операционного статуса, прежде чем отобразить его в ответе
+// администратора.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: Allowlisted bounded operational status code.
+// @returns:
+//   - result1: Код ограниченного рабочего состояния из списка разрешенных.
 func safeOperationCode(value string) string {
 	if len(value) == 0 || len(value) > 64 {
 		return "failed"

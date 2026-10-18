@@ -10,11 +10,11 @@ type syncCounts struct {
 
 // acquire резервирует выделенный для каждого пользователя слот подключения до открытия потока.
 //
-// Параметры:
+// @Parameters:
 //   - userID: действующий идентификатор учетной записи, используемый для ограничения доступа.
 //
-// Возвращаемые значения:
-//   - result 1: выполняется ли задокументированное условие операции или ее условное состояние
+// @returns:
+//   - result1: выполняется ли задокументированное условие операции или ее условное состояние
 //     изменено успешно.
 func (s *syncCounts) acquire(userID string) bool {
 	s.mu.Lock()
@@ -26,11 +26,11 @@ func (s *syncCounts) acquire(userID string) bool {
 	return true
 }
 
-// release releases only the personal notification resource owned by the matching operation or
-// token.
+// release освобождает только ресурс персональных уведомлений, принадлежащий соответствующей
+// операции или токену.
 //
-// Parameters:
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 func (s *syncCounts) release(userID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

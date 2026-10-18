@@ -9,36 +9,38 @@ import (
 )
 
 type Bus interface {
-	// Publish publishes the saved private folder change through its configured event or command
-	// transport.
+	// Publish — при публикации сохраненные изменения в закрытой папке публикуются через настроенный
+	// транспорт событий или команд.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Trusted event to publish or process.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Доверенное событие для публикации или обработки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Publish(context.Context, string, realtime.Envelope) error
 }
 
-// Events carries only invalidation identifiers to the folder owner's global
-// channel. Membership of an item must never make its other users recipients.
+// Events — события передают только идентификаторы аннулирования в глобальный канал владельца папки.
+// Другие пользователи не должны становиться получателями информации о принадлежности элемента.
 type Events struct{ Bus Bus }
 
-// PublishFolder publishes a committed folder change only to the owning account's realtime
-// channel.
+// PublishFolder публикует зафиксированные изменения в папке только в канале реального времени
+// аккаунта владельца.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - kind: Validated event, job, media or resource category.
-//   - folderID: Identifier of the acting account's private folder.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - folderID: Идентификатор личной папки действующего аккаунта.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (e *Events) PublishFolder(ctx context.Context, userID, kind, folderID string) error {
 	if err := ctx.Err(); err != nil {
 		return err

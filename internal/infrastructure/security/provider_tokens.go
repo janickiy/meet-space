@@ -8,20 +8,20 @@ import (
 	"errors"
 )
 
-// ProviderTokens encrypts private values with AES-256-GCM; authenticated context prevents moving
-// a token between accounts or devices.
+// ProviderTokens шифрует приватные значения с помощью AES-256-GCM; аутентифицированный контекст
+// предотвращает перемещение токена между учетными записями или устройствами.
 type ProviderTokens struct{ aead cipher.AEAD }
 
-// NewProviderTokens constructs the provider tokens with the dependencies and limits required for
-// authentication and cryptographic bindings.
+// NewProviderTokens создает токены провайдера с зависимостями и ограничениями, необходимыми для
+// аутентификации и криптографических привязок.
 //
-// Parameters:
-//   - key: Storage, cache or cryptographic key used by the operation.
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// Returns:
-//   - result 1: The constructed or loaded provider tokens.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданные или загруженные токены провайдера.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewProviderTokens(key string) (*ProviderTokens, error) {
 	if key == "" {
 		return nil, nil
@@ -41,16 +41,17 @@ func NewProviderTokens(key string) (*ProviderTokens, error) {
 	return &ProviderTokens{aead: aead}, nil
 }
 
-// Encrypt encrypts a private provider value with a random nonce and authenticated owner binding.
+// Encrypt шифрует приватное значение провайдера с помощью случайного одноразового номера и
+// аутентифицированной привязки владельца.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
-//   - binding: Verified account, session and media-connection identity.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//   - binding: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
 //
-// Returns:
-//   - result 1: Authenticated encrypted provider value.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Аутентифицированное зашифрованное значение провайдера.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *ProviderTokens) Encrypt(value, binding string) (string, error) {
 	if p == nil {
 		return "", errors.New("provider encryption disabled")
@@ -63,17 +64,18 @@ func (p *ProviderTokens) Encrypt(value, binding string) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
-// Decrypt authenticates the stored ciphertext and owner binding before returning the private
-// value.
+// Decrypt аутентифицирует сохраненный зашифрованный текст и привязку владельца, после чего
+// возвращает приватное значение.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
-//   - binding: Verified account, session and media-connection identity.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//   - binding: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
 //
-// Returns:
-//   - result 1: Authenticated plaintext provider value for server-side use only.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Аутентифицированное значение провайдера в виде открытого текста только для
+//     использования на стороне сервера.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *ProviderTokens) Decrypt(value, binding string) (string, error) {
 	if p == nil {
 		return "", errors.New("provider encryption disabled")

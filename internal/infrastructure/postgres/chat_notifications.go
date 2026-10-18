@@ -2,20 +2,20 @@ package postgres
 
 import "gorm.io/gorm"
 
-// createConversationNotifications creates idempotent notifications for eligible conversation
-// recipients after a new message is stored.
+// createConversationNotifications создаёт идемпотентные уведомления для получателей сообщений,
+// соответствующих критериям, после сохранения нового сообщения.
 //
-// Notifications share the message transaction: retries, failures and attachments
-// cannot create a notice without a committed message. Groups are bounded by the
-// existing member limit; mute, inactive members and the sender are excluded.
+// Уведомления связаны с транзакцией сообщения: повторные попытки, сбои и вложения не могут
+// создать уведомление без подтверждённого сообщения.  Группы ограничены существующим лимитом на
+// количество участников; неактивные участники, а также отправитель исключаются.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - messageID: Message identifier within the authorized conversation.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func createConversationNotifications(tx *gorm.DB, messageID string) error {
 	return tx.Exec(`INSERT INTO notifications(id,user_id,type,payload,dedup_key,created_at)
 		SELECT gen_random_uuid(),member.user_id,'chat.message',
@@ -32,18 +32,18 @@ func createConversationNotifications(tx *gorm.DB, messageID string) error {
 		ON CONFLICT(user_id,dedup_key) DO NOTHING`, messageID).Error
 }
 
-// notificationVisibilitySQL builds the access predicate used to hide notifications whose source
-// is no longer visible.
+// notificationVisibilitySQL формирует предикат доступа, используемый для скрытия уведомлений,
+// источник которых больше не виден.
 //
-// Resource IDs are compared as text so malformed historical JSON fails closed
-// rather than breaking the whole notification feed. Payloads carry no message
-// text or attachments; opening the target always checks the current permissions.
+// Ресурсы IDs сравниваются как текстовые, поэтому некорректные исторические данные JSON не
+// приводят к закрытию, а не к разрыву всей ленты уведомлений.  В полезных данных нет текста
+// сообщения или вложений; при открытии целевого объекта всегда проверяются текущие разрешения.
 //
-// Parameters:
-//   - alias: Server-controlled SQL relation alias.
+// @Parameters:
+//   - alias: Псевдоним отношения SQL, управляемый сервером.
 //
-// Returns:
-//   - result 1: Server-constructed notification access predicate.
+// @returns:
+//   - result1: Предикат доступа к уведомлениям, созданный сервером.
 func notificationVisibilitySQL(alias string) string {
 	return `NOT EXISTS (SELECT 1 FROM conference_chat_preferences cp
 		WHERE cp.user_id=` + alias + `.user_id AND cp.conference_id::text=` + alias + `.payload->>'conferenceId'

@@ -1,4 +1,4 @@
-/* Multiple-account design prototype. No server requests or credential storage. */
+/* Прототип дизайна с несколькими аккаунтами.  Никаких запросов к серверу и хранения учетных данных. */
 (() => {
   const M = window.MS, I = (name) => M.icon(name), E = (value) => M.escape(value);
   const s = M.state.account;
@@ -123,7 +123,7 @@
       const form = document.getElementById("account-add-form");
       if (form) {
         addDraft.email = form.elements.email.value; addDraft.name = form.elements.name?.value || addDraft.name;
-        try { const url = new URL(form.elements.server.value.trim()); if (url.protocol === "https:" && !url.username && !url.password) addDraft.server = url.href.replace(/\/$/, ""); } catch { /* Keep the previous valid address. */ }
+        try { const url = new URL(form.elements.server.value.trim()); if (url.protocol === "https:" && !url.username && !url.password) addDraft.server = url.href.replace(/\/$/, ""); } catch { /* Сохранять предыдущий действительный адрес. */ }
       }
       addMode = button.dataset.mode === "register" ? "register" : "login"; M.render();
     },

@@ -2,7 +2,7 @@ package config
 
 import (
 	"crypto/hmac"
-	"crypto/sha1" // Coturn REST compatibility; this is not used for password hashing.
+	"crypto/sha1" // совместимость с Coturn REST; не используется для хеширования паролей.
 	"encoding/base64"
 	"fmt"
 	"net/url"
@@ -16,9 +16,9 @@ import (
 	"github.com/pion/stun/v3"
 )
 
-// TURNConfig contains the shared server secret, TURN endpoints and temporary credential
-// lifetime. ForceRelay affects only new browser connections. Secret is never serialized into
-// HTTP responses or logs.
+// TURNConfig содержит общий секретный ключ сервера, конечные точки TURN и время действия
+// временных учетных данных. ForceRelay влияет только на новые подключения через браузер.
+// Секретный ключ никогда не сериализуется в ответах HTTP или в логах.
 type TURNConfig struct {
 	URLs       []string
 	Secret     string `json:"-"`
@@ -29,9 +29,9 @@ type TURNConfig struct {
 // LoadTURN загружает и проверяет конечные точки TURN, общий секретный ключ и временные учетные данные
 // на время жизни.
 //
-// Возвращает:
-//   - результат 1: результирующая конфигурация turn.
-//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка при проверке, доступе, передаче или сохранении
+// @returns:
+//   - result1: результирующая конфигурация turn.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка при проверке, доступе, передаче или сохранении
 //     данных.
 func LoadTURN() (TURNConfig, error) {
 	if v := strings.ToLower(os.Getenv("TURN_FORCE_RELAY")); v != "" && !strings.Contains("|true|false|1|0|yes|no|on|off|", "|"+v+"|") {
@@ -65,12 +65,12 @@ func LoadTURN() (TURNConfig, error) {
 
 // ClientICE формирует настройки ICE для браузера, включая временные учетные данные TURN, если функция TURN включена.
 //
-// Параметры:
+// @Parameters:
 //   - base: базовая конфигурация или значение, на основе которого формируется результат.
 //   - now: эталонное время, используемое для расчета срока действия или продолжительности.
 //
 // Возвращаемое значение:
-//   - result 1: результирующая конфигурация ICE.
+//   - result1: результирующая конфигурация ICE.
 func (c TURNConfig) ClientICE(base realtime.ICEConfig, now time.Time) realtime.ICEConfig {
 	result := realtime.ICEConfig{ICEServers: append([]realtime.ICEServer{}, base.ICEServers...), ICETransportPolicy: "all"}
 	for i := range result.ICEServers {

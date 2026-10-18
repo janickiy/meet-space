@@ -1,9 +1,11 @@
-// Package platform defines safe product capabilities and read-only operational summaries.
+// Платформа пакета определяет безопасные возможности продукта и сводные операционные данные
+// только для чтения.
 package platform
 
 import "time"
 
-// Capabilities describes server features without provider addresses, tokens or secrets.
+// Capabilities описывает функции сервера без указания адресов провайдеров, токенов или
+// секретных данных.
 type Capabilities struct {
 	LiveCaptions     bool     `json:"liveCaptions"`
 	Transcription    bool     `json:"transcription"`
@@ -13,14 +15,15 @@ type Capabilities struct {
 	RecordingModes   []string `json:"recordingModes"`
 }
 
-// Failure is a bounded operational event without user or conference identifiers or user content.
+// Failure — это ограниченное операционное событие без идентификаторов пользователя или
+// конференции, а также без пользовательского контента.
 type Failure struct {
 	Kind string    `json:"kind"`
 	Code string    `json:"code"`
 	At   time.Time `json:"at"`
 }
 
-// Summary contains an aggregate snapshot for a globally authorized administrator.
+// Summary содержит сводный моментальный снимок для администратора с глобальными правами.
 type Summary struct {
 	AsOf                    time.Time       `json:"asOf"`
 	ActiveConferences       int64           `json:"activeConferences"`

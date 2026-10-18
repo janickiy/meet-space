@@ -32,55 +32,56 @@ type Call struct {
 	DurationSec        int64      `json:"durationSec" gorm:"-"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Call) TableName() string { return "direct_calls" }
 
-// Active reports whether the direct call is still in a nonterminal state.
+// Active сообщает, находится ли прямой вызов в нетерминальном состоянии.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c Call) Active() bool { return c.Status == "ringing" || c.Status == "accepted" }
 
-// IsParticipant checks whether the account is one of the two participants in the direct call.
+// IsParticipant проверяет, является ли учетная запись одним из двух участников прямого вызова.
 //
-// Parameters:
-//   - user: Acting account identifier used to scope access.
+// @Parameters:
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c Call) IsParticipant(user string) bool {
 	return user == c.CallerUserID || user == c.CalleeUserID
 }
 
-// OwnsMedia checks whether the account and physical client own the active direct-call media
-// connection.
+// OwnsMedia проверяет, принадлежат ли учетная запись и физический клиент активному
+// медиасоединению прямого вызова.
 //
-// Parameters:
-//   - user: Acting account identifier used to scope access.
-//   - client: Browser media-client identity or transport dependency, as defined by its type.
+// @Parameters:
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - client: Идентификация медиа-клиента браузера или зависимость от транспорта, определяемая
+//     его типом.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c Call) OwnsMedia(user, client string) bool {
 	return client != "" && ((user == c.CallerUserID && client == c.CallerClientID) ||
 		(user == c.CalleeUserID && c.AcceptedByClientID != nil && client == *c.AcceptedByClientID))
 }
 
-// Expired checks whether the direct call has passed its state-dependent expiration boundary.
+// Expired проверяет, не истек ли срок действия прямого вызова.
 //
-// Parameters:
-//   - now: Reference time used for expiration or duration calculations.
+// @Parameters:
+//   - now: Время, используемое для расчета срока действия или продолжительности.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c Call) Expired(now time.Time) bool {
 	if c.Status == "ringing" {
 		return !now.Before(c.ExpiresAt)
@@ -88,11 +89,11 @@ func (c Call) Expired(now time.Time) bool {
 	return c.Status == "accepted" && ((c.CallerLeaseUntil != nil && !now.Before(*c.CallerLeaseUntil)) || (c.CalleeLeaseUntil != nil && !now.Before(*c.CalleeLeaseUntil)))
 }
 
-// SetDuration computes the nonnegative accepted-call duration through its saved end time or the
-// supplied current time.
+// SetDuration вычисляет неотрицательную продолжительность принятого вызова, исходя из
+// сохраненного времени окончания или текущего времени.
 //
-// Parameters:
-//   - now: Reference time used for expiration or duration calculations.
+// @Parameters:
+//   - now: Время, используемое для расчета срока действия или продолжительности.
 func (c *Call) SetDuration(now time.Time) {
 	if c.AcceptedAt == nil {
 		return

@@ -5,12 +5,12 @@ import (
 	"encoding/base64"
 )
 
-// GenerateInviteCode generates a cryptographically random conference invitation code.
+// GenerateInviteCode генерирует криптографически случайный код приглашения на конференцию.
 //
-// Returns:
-//   - result 1: Cryptographically random invitation code.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Криптографически случайный код приглашения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func GenerateInviteCode() (string, error) {
 	var random [24]byte
 	if _, err := rand.Read(random[:]); err != nil {

@@ -16,16 +16,17 @@ import (
 	"github.com/janickiy/meet-space/internal/operations"
 )
 
-// handleMessage owns protocol dispatch. false ends the reader; recoverable
-// request failures use the existing error envelope and keep the socket alive.
-// Heartbeat deadlines, rate limiting and connection teardown stay in read.
+// handleMessage отвечает за диспетчеризацию протокола.  false завершает работу модуля чтения;
+// при восстанавливаемых ошибках запроса используется существующая оболочка ошибки, а сокет
+// продолжает работать.  Сроки подтверждения активности, ограничение частоты запросов и разрыв
+// соединения остаются в модуле чтения.
 //
-// Parameters:
-//   - raw: Untrusted serialized value to decode or validate.
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c *client) handleMessage(raw []byte) bool {
 	event, code := decodeEnvelope(raw, c.session.ConferenceID)
 	if code != "" {
@@ -64,10 +65,10 @@ func (c *client) handleMessage(raw []byte) bool {
 	return true
 }
 
-// handleMedia dispatches a media command bound to the authenticated WebSocket session.
+// handleMedia отправляет медиакоманду, привязанную к аутентифицированному сеансу WebSocket.
 //
-// Parameters:
-//   - event: Trusted event to publish or process.
+// @Parameters:
+//   - event: Доверенное событие для публикации или обработки.
 func (c *client) handleMedia(event domain.Envelope) {
 	if c.handler.media == nil {
 		c.failure(event.ID, "media_unavailable")
@@ -81,19 +82,21 @@ func (c *client) handleMedia(event domain.Envelope) {
 	}
 }
 
-// decodeEnvelope strictly decodes the realtime envelope before dispatching its payload.
+// decodeEnvelope строго декодирует огибающую сигнала в реальном времени перед отправкой
+// полезной нагрузки.
 //
-// Parameters:
-//   - raw: Untrusted serialized value to decode or validate.
-//   - conferenceID: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The resulting envelope.
-//   - result 2: Safe failure code, or an empty string on success.
+// @returns:
+//   - result1: Результирующий конверт.
+//   - result2: Код безопасной ошибки или пустая строка в случае успешного выполнения.
 func decodeEnvelope(raw []byte, conferenceID string) (domain.Envelope, string) {
 	var event domain.Envelope
 	if !utf8.Valid(raw) || strictJSON(raw, &event) != nil {
-		// Discard partially decoded IDs, as the reader did before extraction.
+		// Отбрасывает частично декодированный IDs, как это сделал считывающий модуль перед
+		// извлечением.
 		return domain.Envelope{}, "invalid_message"
 	}
 	if parsed, err := uuid.Parse(event.ID); err != nil || parsed == uuid.Nil || event.Version != 1 || event.ConferenceID != conferenceID || event.Timestamp.IsZero() || event.ReplyTo != "" {
@@ -102,17 +105,19 @@ func decodeEnvelope(raw []byte, conferenceID string) (domain.Envelope, string) {
 	return event, ""
 }
 
-// decodeSignal validates legacy signaling, normalizes the target, and injects
-// only the authenticated physical session identity. No transport side effects.
+// decodeSignal проверяет устаревшие сигналы, нормализует целевую систему и подставляет только
+// аутентифицированный идентификатор физического сеанса.  Никаких побочных эффектов на
+// транспортном уровне.
 //
-// Parameters:
-//   - event: Trusted event to publish or process.
-//   - session: Persistent or physical session state, as defined by its type.
-//   - cfg: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - event: Доверенное событие для публикации или обработки.
+//   - session: Постоянное или физическое состояние сессии, определяемое ее типом.
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: The resulting signal.
-//   - result 2: Safe signaling failure code, or an empty string on success.
+// @returns:
+//   - result1: Результирующий сигнал.
+//   - result2: Код безопасной ошибки при передаче сигнала или пустая строка в случае
+//     успешного выполнения.
 func decodeSignal(event domain.Envelope, session domain.Session, cfg config.RealtimeConfig) (domain.Signal, string) {
 	if event.Type != "webrtc.offer" && event.Type != "webrtc.answer" && event.Type != "webrtc.ice" {
 		return domain.Signal{}, "unsupported_event"

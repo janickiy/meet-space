@@ -1,5 +1,5 @@
-// Package sfu handles media transport. The media worker's internal control handlers validate
-// application permissions, tickets and distributed ownership.
+// Пакет sfu отвечает за передачу медиаданных.  Внутренние обработчики управления медиа-воркера
+// проверяют права доступа приложения, билеты и распределенное владение.
 package sfu
 
 import (
@@ -19,7 +19,8 @@ import (
 	pion "github.com/pion/webrtc/v4"
 )
 
-// Options contains the SFU's dependencies, media limits and lifecycle callbacks.
+// Options содержит зависимости SFU, ограничения на передачу медиаданных и обратные вызовы
+// жизненного цикла.
 type Options struct {
 	WorkerID                                                                           string
 	ICE                                                                                []pion.ICEServer
@@ -29,13 +30,15 @@ type Options struct {
 	MaxScreenSharers, EgressQueueSize                                                  int
 	ICEDisconnectedTimeout, ICEFailedTimeout, ICEKeepaliveInterval, NegotiationTimeout time.Duration
 	Logger                                                                             *slog.Logger
-	// Emit must be bounded. A connection-owned bounded event worker invokes it without SFU locks and
-	// outside RTP forwarding. Lifecycle operations requested by Emit run asynchronously: synchronous
-	// Leave would wait for the event worker currently calling Emit.
+	// Emit должен быть ограничен. Ограниченный обработчик событий, связанный с соединением,
+	// вызывает его без блокировок SFU и без переадресации RTP. Операции жизненного цикла,
+	// запрашиваемые Emit, выполняются асинхронно: синхронный Leave будет ожидать обработчик
+	// событий, который в данный момент вызывает Emit.
 	Emit func(media.Binding, string, any)
 }
 
-// Stats contains connection, track and bounded-queue counters used for diagnostics.
+// Stats содержит счетчики соединений, треков и ограниченных очередей, используемые для
+// диагностики.
 type Stats struct {
 	Rooms             int    `json:"roomsActive"`
 	Peers             int    `json:"mediaPeersActive"`
@@ -43,8 +46,8 @@ type Stats struct {
 	Subscriptions     int    `json:"subscriptions"`
 	PeerConnections   uint64 `json:"peerConnectionTotal"`
 	Failures          uint64 `json:"peerConnectionFailures"`
-	RelayConnections  uint64 `json:"relayConnections"`  // Cumulative count of selected candidate pairs using TURN.
-	DirectConnections uint64 `json:"directConnections"` // Cumulative count of selected candidate pairs not using TURN.
+	RelayConnections  uint64 `json:"relayConnections"`  // Суммарное количество выбранных пар кандидатов с использованием TURN.
+	DirectConnections uint64 `json:"directConnections"` // Совокупное количество выбранных пар кандидатов, не использующих TURN.
 	Packets           uint64 `json:"packetsForwarded"`
 	Bytes             uint64 `json:"bytesForwarded"`
 	Dropped           uint64 `json:"packetsDropped"`
@@ -54,7 +57,8 @@ type Stats struct {
 	AudioTapDrops     uint64 `json:"audioTapDrops"`
 }
 
-// Manager owns local media resources and synchronizes their creation, use and teardown.
+// Manager — менеджер управляет локальными медиаресурсами и синхронизирует их создание, использование и
+// удаление.
 type Manager struct {
 	opts                                     Options
 	api                                      *pion.API
@@ -75,7 +79,8 @@ type Manager struct {
 	relay, direct                            atomic.Uint64
 }
 
-// room groups one local SFU room's peers, publications and lifetime state.
+// room группирует одноранговые узлы, публикации и состояние жизненного цикла локальной комнаты
+// SFU.
 type room struct {
 	id       string
 	mu       sync.Mutex
@@ -86,13 +91,14 @@ type room struct {
 	egresses map[string]*egress
 }
 
-// defaults fills missing component settings with their supported bounded defaults.
+// defaults заполняет отсутствующие настройки компонентов поддерживаемыми стандартными
+// значениями по умолчанию.
 //
-// Parameters:
-//   - o: Component dependencies and construction options.
+// @Parameters:
+//   - o: Зависимости компонентов и параметры создания.
 //
-// Returns:
-//   - result 1: The resulting options.
+// @returns:
+//   - result1: Результирующие параметры.
 func defaults(o Options) Options {
 	if o.MaxPeers == 0 {
 		o.MaxPeers = 10
@@ -136,16 +142,16 @@ func defaults(o Options) Options {
 	return o
 }
 
-// NewManager constructs the manager with the dependencies and limits required for SFU peers and
-// media forwarding.
+// NewManager создаёт менеджер с зависимостями и ограничениями, необходимыми для одноранговых
+// узлов SFU и пересылки медиаданных.
 //
-// Parameters:
-//   - options: Validated component construction or execution options.
+// @Parameters:
+//   - options: Проверенные параметры создания или выполнения компонентов.
 //
-// Returns:
-//   - result 1: The constructed or loaded manager.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный менеджер.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewManager(options Options) (*Manager, error) {
 	o := defaults(options)
 	if o.MaxPeers < 2 || o.MaxPeers > 100 || o.MaxRooms < 1 || o.MaxRooms > 10000 ||
@@ -217,7 +223,8 @@ func NewManager(options Options) (*Manager, error) {
 				return nil, media.ErrInvalid
 			}
 		}
-		// Replace preserves NAT 1:1 mapping for the SFU's configured IPv4 host candidates.
+		// Replace сохраняет соответствие 1:1 между NAT и настроенными хостами SFU для
+		// кандидатов IPv4.
 		if err := settings.SetICEAddressRewriteRules(pion.ICEAddressRewriteRule{
 			External:        o.NATIPs,
 			AsCandidateType: pion.ICECandidateTypeHost,
@@ -228,23 +235,24 @@ func NewManager(options Options) (*Manager, error) {
 		}
 	}
 	m.api = pion.NewAPI(pion.WithMediaEngine(engine), pion.WithInterceptorRegistry(registry), pion.WithSettingEngine(settings))
-	// The sentinel protects WaitGroup additions until Shutdown detaches every registered connection.
-	// Add a connection to closeWG before removing it from the map.
+	// Страж защищает добавления WaitGroup до тех пор, пока Shutdown не разорвёт все
+	// зарегистрированные соединения. Добавьте соединение в closeWG, прежде чем удалить его с
+	// карты.
 	m.closeWG.Add(1)
 	return m, nil
 }
 
-// Join creates or resumes the authorized membership or media-room connection, preserving its
-// current identity.
+// Join создает или возобновляет авторизованное членство или подключение к медиакомнате,
+// сохраняя текущие идентификационные данные.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - binding: Verified account, session and media-connection identity.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - binding: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
 //
-// Returns:
-//   - result 1: The resulting peer view.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное представление одноранговых узлов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerView, error) {
 	for _, id := range []string{binding.ConferenceID, binding.ParticipantID, binding.SessionID, binding.ConnectionID} {
 		if parsed, err := uuid.Parse(id); err != nil || parsed == uuid.Nil {
@@ -266,8 +274,9 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 		}
 		return media.PeerView{}, media.ErrUnauthorized
 	}
-	// Create the connection outside the shared lock, but make Shutdown wait until an in-flight
-	// NewPeerConnection has been registered or closed.
+	// Создайте соединение вне общей блокировки, но сделайте так, чтобы функция Shutdown
+	// дождалась завершения регистрации или закрытия NewPeerConnection, находящегося в процессе
+	// обработки.
 	m.closeWG.Add(1)
 	m.mu.Unlock()
 	defer m.closeWG.Done()
@@ -282,8 +291,9 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 	registered := false
 	defer func() {
 		if !registered {
-			// Before registration Join owns the peer; all rejection paths release
-			// it through the same lifecycle owner, outside manager/room locks.
+			// До регистрации функция Join владеет одноранговым узлом; все пути с отказом
+			// освобождают его через того же владельца жизненного цикла, вне блокировок
+			// менеджера/комнаты.
 			p.close()
 		}
 	}()
@@ -325,9 +335,9 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 	m.peers[p.id] = p
 	m.connections[binding.ConnectionID] = p
 	m.total.Add(1)
-	registered = true // The manager now owns Leave/Shutdown and peer.close.
-	// Install callbacks and start background tasks only after registration is protected against
-	// Shutdown.
+	registered = true // Теперь менеджер владеет функциями Leave/Shutdown и peer.close.  Устанавливайте обратные
+	// вызовы и запускайте фоновые задачи только после того, как регистрация будет защищена от
+	// функции Shutdown.
 	p.install()
 	m.mu.Unlock()
 	m.syncPeer(p)
@@ -335,28 +345,30 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 	return p.view(), nil
 }
 
-// sameBinding compares the full server-side identity of two media bindings.
+// sameBinding сравнивает полные идентификационные данные на стороне сервера для двух привязок
+// мультимедиа.
 //
-// Parameters:
-//   - a: The binding value being compared.
-//   - b: The binding value being compared.
+// @Parameters:
+//   - a: Сравниваемое значение привязки.
+//   - b: Сравниваемое значение привязки.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func sameBinding(a, b media.Binding) bool {
 	return a.ConferenceID == b.ConferenceID && a.ParticipantID == b.ParticipantID && a.SessionID == b.SessionID && a.ConnectionID == b.ConnectionID && a.UserID == b.UserID
 }
 
-// get looks up the current component-owned media connection under the manager state lock.
+// get ищет текущее медиасоединение, принадлежащее компоненту, под блокировкой состояния
+// менеджера.
 //
-// Parameters:
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The constructed or loaded peer.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный одноранговый узел.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) get(id string) (*peer, error) {
 	m.mu.Lock()
 	p := m.peers[id]
@@ -367,15 +379,16 @@ func (m *Manager) get(id string) (*peer, error) {
 	return p, nil
 }
 
-// PeerBinding returns the server-side session identity bound to a peer connection.
+// PeerBinding возвращает идентификационные данные сеанса на стороне сервера, привязанные к
+// одноранговому соединению.
 //
-// Parameters:
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting binding.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Полученная привязка.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (m *Manager) PeerBinding(id string) (media.Binding, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -386,10 +399,11 @@ func (m *Manager) PeerBinding(id string) (media.Binding, bool) {
 	return p.binding, true
 }
 
-// Bindings returns the current peer identity bindings for the requested media room.
+// Bindings возвращает текущие идентификационные данные однорангового узла для запрошенной
+// медиакомнаты.
 //
-// Returns:
-//   - result 1: The collected binding values.
+// @returns:
+//   - result1: Собранные значения привязок.
 func (m *Manager) Bindings() []media.Binding {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -400,16 +414,16 @@ func (m *Manager) Bindings() []media.Binding {
 	return bindings
 }
 
-// Leave removes the active membership or media connection while preserving the saved
-// conversation or conference history.
+// Leave отменяет активное членство или подключение к мультимедиа, сохраняя при этом сохранённую
+// историю разговоров или конференций.
 //
-// Parameters:
-//   - _: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - _: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) Leave(_ context.Context, id string) error {
 	m.mu.Lock()
 	p := m.peers[id]
@@ -423,11 +437,11 @@ func (m *Manager) Leave(_ context.Context, id string) error {
 	return nil
 }
 
-// detachLocked removes the peer from active manager state before performing network cleanup
-// outside the lock.
+// detachLocked выводит одноранговый узел из активного состояния менеджера перед выполнением
+// очистки сети вне блокировки.
 //
-// Parameters:
-//   - p: The peer state processed by this operation.
+// @Parameters:
+//   - p: Состояние однорангового узла, обрабатываемое в ходе этой операции.
 func (m *Manager) detachLocked(p *peer) {
 	m.closeWG.Add(1)
 	p.mu.Lock()
@@ -446,21 +460,22 @@ func (m *Manager) detachLocked(p *peer) {
 	}
 }
 
-// finishDetached closes a detached peer's media resources outside the manager lock.
+// finishDetached закрывает медиаресурсы отсоединенного однорангового узла вне блокировки
+// менеджера.
 //
-// Parameters:
-//   - p: The peer state processed by this operation.
+// @Parameters:
+//   - p: Состояние однорангового узла, обрабатываемое в ходе этой операции.
 func (m *Manager) finishDetached(p *peer) {
 	defer m.closeWG.Done()
 	p.close()
 	m.log(p, "media_leave", nil)
 }
 
-// LeaveConnection disconnects only the specified physical media connection.
+// LeaveConnection отключает только указанное физическое медиасоединение.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - connectionID: Physical media-connection identifier.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - connectionID: Идентификатор физического подключения к медиа.
 func (m *Manager) LeaveConnection(ctx context.Context, connectionID string) {
 	m.mu.Lock()
 	p := m.connections[connectionID]
@@ -470,15 +485,15 @@ func (m *Manager) LeaveConnection(ctx context.Context, connectionID string) {
 	}
 }
 
-// CloseConference closes the media peers and owned resources of one conference.
+// CloseConference закрывает медиаузлы и принадлежащие ресурсы одной конференции.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) CloseConference(ctx context.Context, id string) error {
 	m.mu.Lock()
 	if m.closing {
@@ -512,8 +527,8 @@ func (m *Manager) CloseConference(ctx context.Context, id string) error {
 	}
 	done := make(chan struct{})
 	m.roomClosures[id] = done
-	// Account for the coordinator and connection cleanup. Shutdown waits for every conference close
-	// started before the global shutdown flag was set.
+	// Учитываются очистка координатора и очистка соединения.  При завершении работы ожидается
+	// закрытие всех конференций, начатое до установки глобального флага завершения работы.
 	m.closeWG.Add(1)
 	for _, p := range peers {
 		m.detachLocked(p)
@@ -535,14 +550,15 @@ func (m *Manager) CloseConference(ctx context.Context, id string) error {
 	return waitClosed(ctx, done)
 }
 
-// Shutdown stops new work and waits for the component-owned resources to finish closing.
+// Shutdown останавливает выполнение новых задач и ожидает завершения закрытия ресурсов,
+// принадлежащих компоненту.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.shutdownOnce.Do(func() {
 		m.mu.Lock()
@@ -584,15 +600,15 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	return waitClosed(ctx, m.closed)
 }
 
-// waitClosed waits for the manager's detached peer resources to finish closing.
+// waitClosed ожидает завершения закрытия ресурсов отсоединенных одноранговых узлов менеджера.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - done: Channel closed when the owned background resource terminates.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - done: Канал закрывается после завершения работы принадлежащего фонового ресурса.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func waitClosed(ctx context.Context, done <-chan struct{}) error {
 	select {
 	case <-done:
@@ -602,10 +618,11 @@ func waitClosed(ctx context.Context, done <-chan struct{}) error {
 	}
 }
 
-// Snapshot returns a consistent snapshot of the manager's current media state and counters.
+// Snapshot возвращает согласованный снимок текущего состояния медиаресурсов и счетчиков
+// менеджера.
 //
-// Returns:
-//   - result 1: The resulting stats.
+// @returns:
+//   - result1: Итоговая статистика.
 func (m *Manager) Snapshot() Stats {
 	m.mu.Lock()
 	rooms := make([]*room, 0, len(m.rooms))
@@ -647,51 +664,52 @@ func (m *Manager) Snapshot() Stats {
 	return s
 }
 
-// newRoom creates the room-local track and peer registries.
+// newRoom создает локальные для комнаты реестры треков и одноранговых подключений.
 //
-// Parameters:
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The constructed or loaded room.
+// @returns:
+//   - result1: Созданная или загруженная комната.
 func newRoom(id string) *room {
 	return &room{id: id, peers: map[string]*peer{}, tracks: map[string]*publishedTrack{}, policies: map[string]media.ParticipantPolicy{}, screens: map[string]bool{}, egresses: map[string]*egress{}}
 }
 
-// HasConference reports whether this manager currently owns the requested conference room.
+// HasConference сообщает, является ли данный менеджер владельцем запрашиваемого конференц-зала.
 //
-// Parameters:
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (m *Manager) HasConference(id string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.rooms[id] != nil
 }
 
-// log records a bounded component diagnostic without private signaling content.
+// log — записывает в журнал ограниченную диагностику компонента без использования приватных
+// сигнальных данных.
 //
-// Parameters:
-//   - p: The peer state processed by this operation.
-//   - event: Trusted event to publish or process.
-//   - fields: Bounded structured diagnostic fields.
+// @Parameters:
+//   - p: Состояние однорангового узла, обрабатываемое в ходе этой операции.
+//   - event: Доверенное событие для публикации или обработки.
+//   - fields: Ограниченные структурированные диагностические поля.
 func (m *Manager) log(p *peer, event string, fields []any) {
 	args := []any{"worker_id", m.opts.WorkerID, "conference_id", p.binding.ConferenceID, "participant_id", p.binding.ParticipantID, "session_id", p.binding.SessionID, "connection_id", p.binding.ConnectionID, "media_peer_id", p.id, "event_type", event}
 	args = append(args, fields...)
 	m.opts.Logger.Info("media event", args...)
 }
 
-// supported checks whether the supplied media codec is supported by the SFU.
+// supported — поддерживает проверку того, поддерживается ли предоставленный медиакодек в SFU.
 //
-// Parameters:
-//   - track: Media-track metadata or negotiated track instance.
+// @Parameters:
+//   - track: Метаданные медиадорожки или согласованный экземпляр дорожки.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func supported(track *pion.TrackRemote) bool {
 	return (track.Kind() == pion.RTPCodecTypeAudio && strings.EqualFold(track.Codec().MimeType, pion.MimeTypeOpus)) ||
 		(track.Kind() == pion.RTPCodecTypeVideo && strings.EqualFold(track.Codec().MimeType, pion.MimeTypeVP8))

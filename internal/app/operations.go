@@ -15,8 +15,8 @@ import (
 
 // hostname возвращает метку хоста процесса, не раскрывая конфиденциальные данные конфигурации.
 //
-// Возвращает:
-//   - результат 1: ограниченная метка хоста процесса.
+// @returns:
+//   - result1: ограниченная метка хоста процесса.
 func hostname() string {
 	value, err := os.Hostname()
 	if err != nil {
@@ -27,7 +27,7 @@ func hostname() string {
 
 // runProfiling запускает прослушиватель ограниченного профилирования, если диагностика явно включена.
 //
-// Параметры:
+// @Parameters:
 //   - ctx: контекст, управляющий отменой, дедлайнами и временем жизни операций.
 //   - ops: операции процесса и среда выполнения готовности.
 func runProfiling(ctx context.Context, ops *operations.Runtime) {
@@ -38,7 +38,7 @@ func runProfiling(ctx context.Context, ops *operations.Runtime) {
 
 // sampleDatabase обновляет метрики пула подключений к ограниченной базе данных.
 //
-// Параметры:
+// @Parameters:
 //   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
 //   - db: дескриптор базы данных, используемый для операции или транзакции.
 func sampleDatabase(ctx context.Context, db *sql.DB) {
@@ -60,7 +60,7 @@ func sampleDatabase(ctx context.Context, db *sql.DB) {
 
 // sampleMedia обновляет ограниченные показатели активности медиа-воркера.
 //
-// Параметры:
+// @Parameters:
 //   - ctx: контекст, управляющий отменой, дедлайнами и временем жизни операции.
 //   - engine: медиа-движок, которому принадлежат комната и ресурсы пиров.
 func sampleMedia(ctx context.Context, engine *sfu.Manager) {

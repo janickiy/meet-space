@@ -180,15 +180,16 @@ export function rememberDirectConversationHistoryCutoff(
   return cutoff > known;
 }
 
-/** Clears search results and observers without refetching a revoked or cleared history. */
+/** Очищает результаты поиска и наблюдателей без повторной загрузки отозванной или очищенной истории. */
 export function purgePersonalConversationSearch(
   client: QueryClient,
   id: string,
   userId: string,
 ) {
   const filters = { queryKey: ["personal-chat-search", id, userId] };
-  // Removal alone leaves the last result in a mounted observer until its next render.
-  // Reset also cancels pending requests, so a late response cannot restore a snippet.
+  // При удалении последний результат в подключённом наблюдателе остаётся до следующего
+  // рендеринга.  Сброс также отменяет ожидающие запросы, поэтому при позднем ответе
+  // восстановить сниппет не получится.
   for (const query of client.getQueryCache().findAll(filters)) query.reset();
   client.removeQueries(filters);
 }

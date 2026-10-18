@@ -14,20 +14,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// migration contains an immutable migration file and the checksum of its exact bytes.
+// migration — миграция содержит неизменяемый файл миграции и контрольную сумму его байтов.
 type migration struct {
 	name, checksum, sql string
 }
 
-// migrationFiles loads ordered migration definitions and their checksums.
+// migrationFiles загружает упорядоченные определения миграций и их контрольные суммы.
 //
-// Parameters:
-//   - dir: Validated local directory.
+// @Parameters:
+//   - dir: Проверенный локальный каталог.
 //
-// Returns:
-//   - result 1: The collected migration values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения миграций.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func migrationFiles(dir string) ([]migration, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "*.up.sql"))
 	if err != nil || len(paths) == 0 {
@@ -48,16 +48,16 @@ func migrationFiles(dir string) ([]migration, error) {
 	return files, nil
 }
 
-// RunStartupMigrations starts startup migrations with the configured dependencies and propagates
-// startup or shutdown failures.
+// RunStartupMigrations запускает стартовые миграции с настроенными зависимостями и обрабатывает
+// ошибки при запуске или завершении работы.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
-//   - dir: Validated local directory.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - dir: Проверенный локальный каталог.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func RunStartupMigrations(db *gorm.DB, dir string) error {
 	automatic := true
 	if value := os.Getenv("AUTO_MIGRATE"); value != "" {
@@ -79,15 +79,16 @@ func RunStartupMigrations(db *gorm.DB, dir string) error {
 	return verifyMigrations(db.WithContext(ctx), files)
 }
 
-// verifyMigrations compares the applied migration ledger with the checked-in migration files.
+// verifyMigrations сравнивает реестр примененных миграций с зарегистрированными файлами
+// миграций.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
-//   - files: Ordered migration or artifact files included in this operation.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - files: Упорядоченные файлы миграций или артефактов, включенные в эту операцию.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func verifyMigrations(db *gorm.DB, files []migration) error {
 	var rows []struct{ Name, Checksum string }
 	if err := db.Table("release_schema_migrations").Select("name, checksum").Find(&rows).Error; err != nil {
@@ -109,16 +110,16 @@ func verifyMigrations(db *gorm.DB, files []migration) error {
 	return nil
 }
 
-// RunMigrations starts migrations with the configured dependencies and propagates startup or
-// shutdown failures.
+// RunMigrations запускает миграцию с настроенными зависимостями и распространяет информацию о
+// сбоях при запуске или завершении работы.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
-//   - dir: Validated local directory.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - dir: Проверенный локальный каталог.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func RunMigrations(db *gorm.DB, dir string) error {
 	files, err := migrationFiles(dir)
 	if err != nil {

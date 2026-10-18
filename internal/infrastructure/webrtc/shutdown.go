@@ -7,14 +7,15 @@ import (
 	"time"
 )
 
-// Shutdown stops new work and waits for the component-owned resources to finish closing.
+// Shutdown останавливает выполнение новых задач и ожидает завершения закрытия ресурсов,
+// принадлежащих компоненту.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()
 	if done := m.shutdownDone; done != nil {

@@ -10,14 +10,14 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/media"
 )
 
-// serviceCommand executes a trusted room moderation or closure command after its identity
-// checks.
+// serviceCommand выполняет доверенную команду модерации или закрытия комнаты после проверки
+// подлинности.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - r: Incoming HTTP request.
-//   - operation: Fixed allowlisted provider or protocol operation.
-//   - cmd: Validated internal media command.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - r: Входящий запрос HTTP.
+//   - operation: Фиксированный провайдер из списка разрешенных или операция протокола.
+//   - cmd: Проверенная внутренняя команда для работы с медиа.
 func (h *Handler) serviceCommand(w http.ResponseWriter, r *http.Request, operation string, cmd media.Command) {
 	if !validUUID(cmd.ConferenceID) || !validUUID(cmd.Route.LeaseID) || cmd.Route.WorkerID != h.cfg.WorkerID || cmd.Route.Endpoint != h.cfg.WorkerInternalURL || cmd.MediaPeerID != "" || cmd.SDP != "" || len(cmd.Candidate) > 0 || cmd.Ticket != "" {
 		h.fail(w, media.ErrInvalid)
@@ -47,17 +47,19 @@ func (h *Handler) serviceCommand(w http.ResponseWriter, r *http.Request, operati
 			return
 		}
 		engine, ok := h.engine.(interface {
-			// SetPolicy updates policy for mediaworker.
+			// SetPolicy обновляет политику для медиаворкера.
 			//
-			// Parameters:
-			//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-			//   - argument 2: Conference identifier limiting the operation scope.
-			//   - argument 3: Conference participant identifier.
-			//   - argument 4: Effective server-side media policy.
+			// @Parameters:
+			//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность
+			//   выполнения операции.
+			//   - arg2: Идентификатор конференции, ограничивающий область действия
+			//   операции.
+			//   - arg3: Идентификатор участника конференции.
+			//   - arg4: Эффективная политика в отношении медиаданных на стороне сервера.
 			//
-			// Returns:
-			//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-			//     failure.
+			// @returns:
+			//   - result1: nil — в случае успеха; в противном случае — ошибка валидации,
+			//   доступа, передачи данных или сохранения.
 			SetPolicy(context.Context, string, string, media.ParticipantPolicy) error
 		})
 		if !ok {
@@ -75,12 +77,12 @@ func (h *Handler) serviceCommand(w http.ResponseWriter, r *http.Request, operati
 	h.json(w, http.StatusOK, media.Result{})
 }
 
-// egress opens the protected encoded-media stream for a recording while enforcing current room
-// ownership.
+// egress открывает защищенный поток закодированных медиаданных для записи, сохраняя при этом
+// право собственности на текущую комнату.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - r: Incoming HTTP request.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - r: Входящий запрос HTTP.
 func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 	var req media.EgressRequest
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
@@ -90,18 +92,19 @@ func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	engine, ok := h.engine.(interface {
-		// SubscribeRecording opens a passive bounded subscription to the SFU's encoded media for
-		// recording.
+		// SubscribeRecording открывает пассивную ограниченную подписку на закодированные
+		// медиаданные SFU для записи.
 		//
-		// Parameters:
-		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-		//   - argument 2: Conference identifier limiting the operation scope.
-		//   - argument 3: External recording UUID.
+		// @Parameters:
+		//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+		//   операции.
+		//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
+		//   - arg3: Внешняя запись UUID.
 		//
-		// Returns:
-		//   - result 1: The resulting egress subscription.
-		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-		//     failure.
+		// @returns:
+		//   - result1: Результирующая подписка egress.
+		//   - result2: nil — в случае успеха; в противном случае — ошибка валидации,
+		//   доступа, передачи данных или сохранения.
 		SubscribeRecording(context.Context, string, string) (media.EgressSubscription, error)
 	})
 	if req.Purpose != "" && req.Purpose != "recording" && req.Purpose != "captions" {
@@ -151,18 +154,21 @@ func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 	var sub media.EgressSubscription
 	if req.Purpose == "captions" {
 		if audio, available := h.engine.(interface {
-			// SubscribeAudio opens a separate bounded audio-only subscription without consuming the
-			// recording subscription slot.
+			// SubscribeAudio открывает отдельную ограниченную подписку только на аудио, не
+			// занимая слот подписки на запись.
 			//
-			// Parameters:
-			//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-			//   - argument 2: Conference identifier limiting the operation scope.
-			//   - argument 3: Persistent or physical session identifier, as defined by the operation.
+			// @Parameters:
+			//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность
+			//   выполнения операции.
+			//   - arg2: Идентификатор конференции, ограничивающий область действия
+			//   операции.
+			//   - arg3: Постоянный или физический идентификатор сессии, определяемый
+			//   операцией.
 			//
-			// Returns:
-			//   - result 1: The resulting egress subscription.
-			//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-			//     failure.
+			// @returns:
+			//   - result1: Результирующая подписка egress.
+			//   - result2: nil — в случае успеха; в противном случае — ошибка валидации,
+			//   доступа, передачи данных или сохранения.
 			SubscribeAudio(context.Context, string, string) (media.EgressSubscription, error)
 		}); available {
 			sub, err = audio.SubscribeAudio(setup, req.ConferenceID, req.RecordingID)

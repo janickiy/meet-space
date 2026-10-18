@@ -13,13 +13,14 @@ import (
 	"unicode/utf8"
 )
 
-// ProviderConfig describes a server-configured adapter; endpoint and token are never accepted
-// from a user.
+// ProviderConfig описывает адаптер, настроенный на сервере; конечная точка и токен никогда не
+// принимаются от пользователя.
 type ProviderConfig struct {
 	Mode, Endpoint, Token string
 }
 
-// SMTPConfig contains only operator-controlled secure email delivery settings.
+// SMTPConfig содержит только параметры безопасной доставки электронной почты, контролируемые
+// оператором.
 type SMTPConfig struct {
 	Host, Username, Password, From, TLSMode string
 	Port                                    int
@@ -50,12 +51,12 @@ type StageSevenConfig struct {
 // LoadStageSeven загружает бюджет продукта и явно включенную внешнюю интеграцию
 // настройки.
 //
-// Параметры:
+// @Parameters:
 //   - local: разрешено ли явно использовать только локальные настройки.
 //
-// Возвращаемые значения:
-//   - result 1: итоговая конфигурация седьмого этапа.
-//   - result 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+// @returns:
+//   - result1: итоговая конфигурация седьмого этапа.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
 //     данных.
 func LoadStageSeven(local bool) (StageSevenConfig, error) {
 	c := StageSevenConfig{MockAllowed: local, TempRoot: env("PRODUCT_TEMP_PATH", os.TempDir()), AIModel: env("AI_PROVIDER_MODEL", "configured-model")}
@@ -201,9 +202,9 @@ func LoadStageSeven(local bool) (StageSevenConfig, error) {
 
 // loadSMTP загружает и проверяет настройки доставки SMTP, управляемые оператором.
 //
-// Возвращает:
-//   - результат 1: итоговая конфигурация SMTP.
-//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
+// @returns:
+//   - result1: итоговая конфигурация SMTP.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func loadSMTP() (SMTPConfig, error) {
 	c := SMTPConfig{Host: os.Getenv("SMTP_HOST"), Username: os.Getenv("SMTP_USERNAME"), Password: os.Getenv("SMTP_PASSWORD"), From: os.Getenv("SMTP_FROM"), TLSMode: env("SMTP_TLS_MODE", "tls")}
 	if c.Host == "" || len(c.Host) > 253 || strings.ContainsAny(c.Host, "/\\\r\n\t @?#") || strings.TrimSpace(c.Host) != c.Host {
@@ -250,11 +251,11 @@ func loadSMTP() (SMTPConfig, error) {
 // smtpASCIIAddress проверяет, можно ли передать адрес электронной почты в поддерживаемом формате ASCII
 // SMTP-путь.
 //
-// Параметры:
+// @Parameters:
 //   - address: адрес для проверки перед подключением или доставкой.
 //
-// Возвращаемые значения:
-//   - result 1: выполняется ли задокументированное условие операции или изменяется ли ее условное состояние
+// @returns:
+//   - result1: выполняется ли задокументированное условие операции или изменяется ли ее условное состояние
 //     успешно.
 func smtpASCIIAddress(address *mail.Address) bool {
 	if address == nil || !strings.Contains(address.Address, "@") {
@@ -270,13 +271,13 @@ func smtpASCIIAddress(address *mail.Address) bool {
 
 // stageSevenURL проверяет интеграционный URL на соответствие специфичным для среды ограничениям транспорта
 //
-// Параметры:
+// @Parameters:
 //   - name: имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется обращение.
 //   - raw: недоверенное сериализованное значение для декодирования или проверки.
 //   - local: разрешено ли явное использование только локального режима.
 //
-// Возвращаемые значения:
-//   - result 1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения
+// @returns:
+//   - result1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения
 //     данных.
 func stageSevenURL(name, raw string, local bool) error {
 	u, err := url.Parse(raw)

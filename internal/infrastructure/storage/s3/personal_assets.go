@@ -9,32 +9,35 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-// personalAvatarKey builds the server-owned object key for a personal-group avatar.
+// personalAvatarKey создает ключ для приватных объектов, принадлежащих серверу, для аватара
+// личной группы.
 //
-// Parameters:
-//   - key: Storage, cache or cryptographic key used by the operation.
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func personalAvatarKey(key string) bool {
 	parts := strings.Split(key, "/")
 	return len(parts) == 4 && parts[0] == "avatars" && parts[1] == "conversations" && attachmentID(parts[2]) && attachmentID(parts[3])
 }
 
-// PutPersonalAvatar stores normalized avatar bytes under the server-owned group-avatar key.
+// PutPersonalAvatar сохраняет нормализованные байты аватара под ключом для приватных объектов,
+// принадлежащих серверу, для группового аватара.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - key: Storage, cache or cryptographic key used by the operation.
-//   - reader: Source content stream or recording-card reader, as defined by its type.
-//   - size: Content size in bytes or the requested bounded capacity.
-//   - contentType: Declared or detected MIME type of the content.
-//   - checksum: Expected content digest used to verify transfer integrity.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - reader: Поток исходного контента или устройство чтения карт памяти, в зависимости от его
+//     типа.
+//   - size: Размер контента в байтах или запрошенная ограниченная емкость.
+//   - contentType: Объявленный или обнаруженный тип контента MIME.
+//   - checksum: Ожидаемый дайджест содержимого, используемый для проверки целостности передачи.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) PutPersonalAvatar(ctx context.Context, key string, reader io.Reader, size int64, contentType, checksum string) error {
 	if !personalAvatarKey(key) || size < 1 || size > 2<<20 || (contentType != "image/jpeg" && contentType != "image/png") || len(checksum) != 64 {
 		return fmt.Errorf("invalid personal avatar object")
@@ -43,19 +46,20 @@ func (c *Client) PutPersonalAvatar(ctx context.Context, key string, reader io.Re
 	return err
 }
 
-// OpenPersonalAsset never creates a public URL. The caller owns and closes the
-// reader; Stat forces the lazy MinIO request before any HTTP headers are sent.
+// OpenPersonalAsset никогда не создает публичный URL.  Вызывающая сторона владеет потоком
+// чтения и закрывает его; Stat принудительно отправляет отложенный запрос MinIO до отправки
+// каких-либо заголовков HTTP.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - key: Storage, cache or cryptographic key used by the operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// Returns:
-//   - result 1: The resulting read closer.
-//   - result 2: The resulting count, size or numeric value.
-//   - result 3: Detected asset content type.
-//   - result 4: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий считывающий модуль.
+//   - result2: Возвращает количество, размер или числовое значение.
+//   - result3: Обнаружен тип содержимого ресурса.
+//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) OpenPersonalAsset(ctx context.Context, key string) (io.ReadCloser, int64, string, error) {
 	if !personalAvatarKey(key) && !attachmentKey(key) {
 		return nil, 0, "", fmt.Errorf("invalid personal asset key")
@@ -72,15 +76,16 @@ func (c *Client) OpenPersonalAsset(ctx context.Context, key string) (io.ReadClos
 	return object, info.Size, info.ContentType, nil
 }
 
-// DeletePersonalAvatar removes only the private object identified by the obsolete avatar key.
+// DeletePersonalAvatar удаляет только приватный объект, идентифицируемый по устаревшему ключу
+// аватара.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - key: Storage, cache or cryptographic key used by the operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) DeletePersonalAvatar(ctx context.Context, key string) error {
 	if !personalAvatarKey(key) {
 		return fmt.Errorf("invalid personal avatar key")

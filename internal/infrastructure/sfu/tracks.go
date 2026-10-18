@@ -14,7 +14,7 @@ import (
 	pion "github.com/pion/webrtc/v4"
 )
 
-// publishedTrack owns a published source track and its subscribers.
+// publishedTrack владеет опубликованным исходным треком и его подписчиками.
 type publishedTrack struct {
 	metadata    media.Track
 	publisher   *peer
@@ -31,15 +31,15 @@ type publishedTrack struct {
 	permitted   atomic.Bool
 }
 
-// receiver owns the transport receiver, which outlives publication pauses and may reuse a
-// negotiated SSRC.
+// receiver — получатель владеет транспортным приёмником, который продолжает работать после приостановки
+// публикации и может повторно использовать согласованный SSRC.
 type receiver struct {
 	mid         string
 	remote      *pion.TrackRemote
-	publication *publishedTrack // Protected by publisher.mu.
+	publication *publishedTrack // Защищено publisher.mu.
 }
 
-// subscription binds one published track to a particular recipient's outgoing stream.
+// subscription — подписка привязывает один опубликованный трек к исходящему потоку конкретного получателя.
 type subscription struct {
 	source   *publishedTrack
 	peer     *peer
@@ -52,13 +52,13 @@ type subscription struct {
 	ready    atomic.Bool
 }
 
-// receive reads incoming media peer events and forwards them to the corresponding bounded
-// delivery path.
+// receive считывает входящие медиа-события от одноранговых узлов и перенаправляет их по
+// соответствующему ограниченному пути доставки.
 //
-// Parameters:
-//   - p: The peer state processed by this operation.
-//   - remote: Negotiated incoming remote media track.
-//   - transport: Transport implementation or RTP receiver for this operation.
+// @Parameters:
+//   - p: Состояние однорангового узла, обрабатываемое в ходе этой операции.
+//   - remote: Согласованный входящий удаленный медиа-трек.
+//   - transport: Реализация транспорта или приемник RTP для этой операции.
 func (m *Manager) receive(p *peer, remote *pion.TrackRemote, transport *pion.RTPReceiver) {
 	if !supported(remote) || remote.RID() != "" {
 		p.emit("media.error", map[string]string{"mediaPeerId": p.id, "code": "unsupported_codec_or_simulcast"})
@@ -115,9 +115,10 @@ func (m *Manager) receive(p *peer, remote *pion.TrackRemote, transport *pion.RTP
 		if t == nil || !t.permitted.Load() {
 			continue
 		}
-		// Do not copy publisher-specific MID, RID or TWCC extension IDs into a subscriber transport with
-		// different negotiation. Pion rewrites SSRC and payload type for each local sender; encoded
-		// payload and timestamps remain intact.
+		// Не копируйте специфичные для издателя расширения MID, RID или TWCC, а также IDs в
+		// транспорт подписчика с другими настройками согласования.  Pion перезаписывает SSRC и
+		// тип полезной нагрузки для каждого локального отправителя; закодированная полезная
+		// нагрузка и временные метки остаются без изменений.
 		packet.Header.Extension = false
 		packet.Header.ExtensionProfile = 0
 		packet.Header.Extensions = nil
@@ -151,15 +152,14 @@ func (m *Manager) receive(p *peer, remote *pion.TrackRemote, transport *pion.RTP
 	}
 }
 
-// activate activates an incoming source only after its negotiation and publication checks
-// succeed.
+// activate активирует входящий источник только после успешного согласования и публикации.
 //
-// Parameters:
-//   - p: The peer state processed by this operation.
-//   - r: Source transport receiver whose negotiated publication is being activated.
+// @Parameters:
+//   - p: Состояние однорангового узла, обрабатываемое в ходе этой операции.
+//   - r: Приемник транспорта источника, согласованная публикация которого активируется.
 //
-// Returns:
-//   - result 1: The constructed or loaded published track.
+// @returns:
+//   - result1: Сконструированный или загруженный опубликованный трек.
 func (m *Manager) activate(p *peer, r *receiver) *publishedTrack {
 	p.mu.Lock()
 	if p.closing || p.receivers[r.mid] != r {
@@ -233,10 +233,10 @@ func (m *Manager) activate(p *peer, r *receiver) *publishedTrack {
 	return t
 }
 
-// syncPeer reconciles a peer's subscribed tracks with the current room publications.
+// syncPeer сверяет подписанные одноранговыми узлами треки с текущими публикациями в комнате.
 //
-// Parameters:
-//   - p: The peer state processed by this operation.
+// @Parameters:
+//   - p: Состояние однорангового узла, обрабатываемое в ходе этой операции.
 func (m *Manager) syncPeer(p *peer) {
 	p.room.mu.Lock()
 	tracks := make([]*publishedTrack, 0, len(p.room.tracks))
@@ -249,14 +249,14 @@ func (m *Manager) syncPeer(p *peer) {
 	}
 }
 
-// subscribe adds an eligible media subscription and starts its forwarding path.
+// subscribe добавляет подходящую медиа-подписку и запускает ее путь пересылки.
 //
-// Parameters:
-//   - t: Test handle used for assertions, cleanup and failure reporting.
-//   - p: The peer state processed by this operation.
+// @Parameters:
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
+//   - p: Состояние однорангового узла, обрабатываемое в ходе этой операции.
 func (m *Manager) subscribe(t *publishedTrack, p *peer) {
-	// Tabs use distinct physical connections, but an account's own microphone and camera are never
-	// looped back into its other connections.
+	// Табы используют отдельные физические соединения, но микрофон и камера, подключенные к
+	// аккаунту, никогда не подключаются повторно к другим соединениям.
 	if t.publisher.binding.ParticipantID == p.binding.ParticipantID {
 		return
 	}
@@ -307,7 +307,8 @@ func (m *Manager) subscribe(t *publishedTrack, p *peer) {
 	t.requestPLI()
 }
 
-// forward forwards encoded media to the selected subscriber until its lifetime ends.
+// forward пересылает закодированные медиафайлы выбранному подписчику до окончания срока
+// действия подписки.
 func (s *subscription) forward() {
 	for {
 		select {
@@ -336,7 +337,8 @@ func (s *subscription) forward() {
 	}
 }
 
-// readRTCP reads subscriber RTCP feedback and forwards the supported control messages.
+// readRTCP считывает обратную связь от подписчика RTCP и пересылает поддерживаемые управляющие
+// сообщения.
 func (s *subscription) readRTCP() {
 	for {
 		packets, _, err := s.sender.ReadRTCP()
@@ -357,7 +359,7 @@ func (s *subscription) readRTCP() {
 	}
 }
 
-// requestPLI requests a video keyframe using the negotiated RTCP feedback path.
+// requestPLI запрашивает ключевой кадр видео, используя согласованный путь обратной связи RTCP.
 func (t *publishedTrack) requestPLI() {
 	if t.metadata.Kind != media.KindVideo {
 		return
@@ -368,7 +370,7 @@ func (t *publishedTrack) requestPLI() {
 	}
 }
 
-// keyframes requests keyframes for the currently active video subscriptions.
+// keyframes запрашивает ключевые кадры для активных в данный момент подписок на видео.
 func (t *publishedTrack) keyframes() {
 	for {
 		select {
@@ -402,10 +404,10 @@ func (t *publishedTrack) keyframes() {
 	}
 }
 
-// unsubscribe removes a media subscription and releases its forwarding resources.
+// unsubscribe отменяет подписку на медиафайлы и освобождает ресурсы для их пересылки.
 //
-// Parameters:
-//   - s: The subscription state processed by this operation.
+// @Parameters:
+//   - s: Состояние подписки, обрабатываемое этой операцией.
 func (m *Manager) unsubscribe(s *subscription) {
 	s.stopOnce.Do(func() {
 		s.cancel()
@@ -414,7 +416,8 @@ func (m *Manager) unsubscribe(s *subscription) {
 		delete(s.peer.subscriptions, s.source.metadata.ID)
 		s.peer.mu.Unlock()
 		_ = s.peer.pc.RemoveTrack(s.sender)
-		// Stop separately: RemoveTrack returns early on a closed PeerConnection without invoking Stop.
+		// Отдельная остановка: RemoveTrack досрочно завершает работу при закрытии
+		// PeerConnection без вызова Stop.
 		_ = s.sender.Stop()
 		s.peer.negotiation.Unlock()
 		s.source.mu.Lock()
@@ -424,10 +427,10 @@ func (m *Manager) unsubscribe(s *subscription) {
 	})
 }
 
-// unpublish removes a published source and reconciles dependent subscribers.
+// unpublish удаляет опубликованный источник и синхронизирует зависимые подписки.
 //
-// Parameters:
-//   - t: Test handle used for assertions, cleanup and failure reporting.
+// @Parameters:
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
 func (m *Manager) unpublish(t *publishedTrack) {
 	t.stopOnce.Do(func() {
 		t.permitted.Store(false)
@@ -486,13 +489,13 @@ func (m *Manager) unpublish(t *publishedTrack) {
 	})
 }
 
-// Tracks returns a snapshot of the requested room's visible published tracks.
+// Tracks возвращает моментальный снимок видимых опубликованных треков запрашиваемой комнаты.
 //
-// Parameters:
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The collected track values.
+// @returns:
+//   - result1: Собранные значения треков.
 func (m *Manager) Tracks(id string) []media.Track {
 	p, err := m.get(id)
 	if err != nil {

@@ -13,36 +13,41 @@ import (
 	"time"
 )
 
-// Registry resolves only the current room owner's address from the trusted internal registry.
+// Registry — реестр извлекает адрес текущего владельца комнаты только из доверенного внутреннего реестра.
 type Registry interface {
-	// GetOwner loads the current distributed owner and fencing version of the media room.
+	// GetOwner загружает текущую версию медиакомнаты с распределенным владельцем и защитой от
+	// несанкционированного доступа.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: The resulting route.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий маршрут.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	GetOwner(context.Context, string) (media.Route, error)
 }
 
-// Tap opens a separate HTTP stream without proxying media through the API or RabbitMQ.
+// Tap открывает отдельный поток HTTP без проксирования медиа через API или RabbitMQ.
 type Tap struct {
 	Registry Registry
 	Secret   string
 	Client   *http.Client
 }
 
-// NewTap constructs the tap with the dependencies and limits required for live speech providers.
+// NewTap создает ответвление с зависимостями и ограничениями, необходимыми для провайдеров
+// прямой речи.
 //
-// Parameters:
-//   - registry: Dependency or metrics registry used to locate or register the component.
-//   - secret: Private key material or raw secret; it must not be logged or exposed.
+// @Parameters:
+//   - registry: Реестр зависимостей или метрик, используемый для поиска или регистрации
+//     компонента.
+//   - secret: Материал для создания закрытого ключа или необработанный секретный ключ; его
+//     нельзя регистрировать или раскрывать.
 //
-// Returns:
-//   - result 1: The constructed or loaded tap.
+// @returns:
+//   - result1: Созданное или загруженное ответвление.
 func NewTap(registry Registry, secret string) *Tap {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.ResponseHeaderTimeout = 5 * time.Second
@@ -50,17 +55,18 @@ func NewTap(registry Registry, secret string) *Tap {
 	return &Tap{registry, secret, &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
-// Open opens the scoped media, recording or session resource required by this component.
+// Open открывает доступ к медиафайлам, записям или сеансам, необходимым для работы этого
+// компонента.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - cid: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting read closer.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий считывающий модуль.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (t *Tap) Open(ctx context.Context, cid, id string) (io.ReadCloser, error) {
 	op, cancel := context.WithTimeout(ctx, 5*time.Second)
 	route, err := t.Registry.GetOwner(op, cid)

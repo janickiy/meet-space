@@ -20,70 +20,85 @@ import (
 )
 
 type UserBus interface {
-	// Subscribe opens a scoped event subscription whose lifetime is bounded by the supplied context.
+	// Subscribe открывает подписку на события с областью видимости, время жизни которой
+	// ограничено предоставленным контекстом.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
 	//
-	// Returns:
-	//   - result 1: The constructed or loaded pub sub.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Созданная или загруженная шина pub sub.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Subscribe(context.Context, string) (*goredis.PubSub, error)
-	// Publish publishes the saved websocket change through its configured event or command
-	// transport.
+	// Publish публикует сохраненные изменения в веб-сокетах через настроенный транспорт событий
+	// или команд.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Trusted event to publish or process.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Доверенное событие для публикации или обработки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Publish(context.Context, string, domain.Envelope) error
 }
 type UserPresence interface {
-	// Touch renews presence using the supplied confirmed transport activity time.
+	// Функция Touch обновляет данные о присутствии, используя предоставленное время
+	// подтвержденной активности на транспортном уровне.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Current account integration or physical transport connection.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Текущая интеграция учетной записи или физическое транспортное соединение.
 	//
-	// Returns:
-	//   - result 1: The resulting count, size or numeric value.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Возвращает количество, размер или числовое значение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Touch(context.Context, string, string) (int64, error)
-	// Remove removes the specified physical client from the account's presence set.
+	// Remove удаляет указанного физического клиента из набора данных о присутствии учетной
+	// записи.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Current account integration or physical transport connection.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Текущая интеграция учетной записи или физическое транспортное соединение.
 	//
-	// Returns:
-	//   - result 1: The resulting count, size or numeric value.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Возвращает количество, размер или числовое значение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Remove(context.Context, string, string) (int64, error)
 }
 type AccountChecker interface {
-	// Account checks that the acting identity is a registered non-guest account.
+	// Account проверяет, является ли действующий аккаунт зарегистрированным и не является ли он
+	// гостевым.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Account identifier to validate before opening the user socket.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор учетной записи для проверки перед открытием
+	//   пользовательского сокета.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Account(context.Context, string) error
 }
 
-// UserHandler is independent of conference sessions and Pion. It shares ticket/origin rules.
+// UserHandler не зависит от конференц-сессий и Pion. Он разделяет правила для тикетов и
+// источников.
 type UserHandler struct {
 	auth     *Handler
 	bus      UserBus
@@ -96,43 +111,46 @@ type UserHandler struct {
 	wg       sync.WaitGroup
 }
 
-// NewUserHandler constructs the user handler with the dependencies and limits required for
-// websocket.
+// NewUserHandler создает пользовательский обработчик с зависимостями и ограничениями,
+// необходимыми для работы с веб-сокетами.
 //
-// Parameters:
-//   - verifier: Token verifier or private PKCE verifier, as defined by its type.
-//   - tickets: One-use or signed media-ticket issuer and verifier.
-//   - limiter: Shared request-rate limiter.
-//   - cfg: Operator-controlled configuration and processing limits.
-//   - bus: Scoped publication and subscription transport.
-//   - presence: Distributed account-presence reader or writer.
-//   - accounts: Account presence or account-validation dependency.
+// @Parameters:
+//   - verifier: Верификатор токена или приватный верификатор PKCE в зависимости от его типа.
+//   - tickets: Одноразовый или подписанный эмитент и верификатор медиа-билетов.
+//   - limiter: Общий ограничитель частоты запросов.
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
+//   - bus: Публикация и подписка с ограничением области видимости.
+//   - presence: Распределенный модуль чтения или записи данных о присутствии учетной записи.
+//   - accounts: Зависимость от присутствия учетной записи или ее валидации.
 //
-// Returns:
-//   - result 1: The constructed or loaded user handler.
+// @returns:
+//   - result1: Созданный или загруженный пользовательский обработчик.
 func NewUserHandler(verifier Verifier, tickets Tickets, limiter Limiter, cfg config.RealtimeConfig, bus UserBus, presence UserPresence, accounts AccountChecker) *UserHandler {
 	return &UserHandler{auth: NewHandler(nil, verifier, tickets, limiter, cfg), bus: bus, presence: presence, accounts: accounts, clients: map[*ws.Conn]context.CancelFunc{}}
 }
 
-// RegisterRoutes registers the authenticated realtime endpoints and their request limits.
+// RegisterRoutes регистрирует аутентифицированные конечные точки в режиме реального времени и
+// ограничения для их запросов.
 //
-// Parameters:
-//   - r: Router on which the authenticated realtime endpoints are registered.
+// @Parameters:
+//   - r: Маршрутизатор, на котором зарегистрированы аутентифицированные конечные точки
+//     реального времени.
 func (h *UserHandler) RegisterRoutes(r gin.IRouter) {
 	r.POST("/api/v1/ws-ticket", h.Ticket)
 	r.GET("/api/v1/ws", h.Connect)
 }
 
-// LocalCount returns the number of locally registered sockets under the registry lock.
+// LocalCount возвращает количество локально зарегистрированных сокетов, находящихся под
+// блокировкой реестра.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
 func (h *UserHandler) LocalCount() int { h.mu.Lock(); defer h.mu.Unlock(); return h.reserved }
 
-// BeginDrain stops accepting new work while existing operations finish.
+// BeginDrain прекращает принимать новые задачи, пока не завершатся текущие операции.
 //
-// Parameters:
-//   - v: Requested boolean state.
+// @Parameters:
+//   - v: Запрошенное логическое состояние.
 func (h *UserHandler) BeginDrain(v bool) {
 	h.mu.Lock()
 	h.draining = v
@@ -145,19 +163,20 @@ func (h *UserHandler) BeginDrain(v bool) {
 	h.mu.Unlock()
 }
 
-// Shutdown stops new work and waits for the component-owned resources to finish closing.
+// Shutdown останавливает выполнение новых задач и ожидает завершения закрытия ресурсов,
+// принадлежащих компоненту.
 func (h *UserHandler) Shutdown() { h.BeginDrain(true); h.wg.Wait() }
 
-// valid checks that the account, physical client and current conversation authorization still
-// permit socket use.
+// valid проверяет, что учетная запись, физический клиент и текущий уровень авторизации в
+// диалоге по-прежнему позволяют использовать сокет.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (h *UserHandler) valid(ctx context.Context, id domain.Identity) error {
 	if id.AuthSessionID != "" {
 		v, ok := h.auth.verifier.(PersistentVerifier)
@@ -173,10 +192,10 @@ func (h *UserHandler) valid(ctx context.Context, id domain.Identity) error {
 	return h.accounts.Account(ctx, id.UserID)
 }
 
-// Ticket issues a short-lived one-use connection ticket after authorization succeeds.
+// После успешной авторизации Ticket выдает одноразовый билет для подключения.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *UserHandler) Ticket(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
@@ -215,10 +234,10 @@ func (h *UserHandler) Ticket(c *gin.Context) {
 	c.JSON(201, gin.H{"ticket": ticket, "expiresAt": time.Now().UTC().Add(ttl)})
 }
 
-// Connect opens the configured dependency or starts its authorized connection flow.
+// Connect открывает настроенную зависимость или запускает авторизованный процесс подключения.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *UserHandler) Connect(c *gin.Context) {
 	h.mu.Lock()
 	if h.draining || (h.auth.cfg.MaxConnections > 0 && h.reserved >= h.auth.cfg.MaxConnections) {
@@ -279,10 +298,11 @@ func (h *UserHandler) Connect(c *gin.Context) {
 	go h.run(lifetime, stop, conn, sub, id)
 }
 
-// release releases only the websocket resource owned by the matching operation or token.
+// release освобождает только ресурс веб-сокета, принадлежащий соответствующей операции или
+// токену.
 //
-// Parameters:
-//   - conn: Connection owned by the current operation.
+// @Parameters:
+//   - conn: Подключение, принадлежащее текущей операции.
 func (h *UserHandler) release(conn *ws.Conn) {
 	h.mu.Lock()
 	delete(h.clients, conn)
@@ -291,14 +311,15 @@ func (h *UserHandler) release(conn *ws.Conn) {
 	h.wg.Done()
 }
 
-// run runs websocket until the context is canceled or processing fails.
+// run — запускает веб-сокеты до тех пор, пока контекст не будет отменён или пока не произойдёт сбой
+// при обработке.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - cancel: Cancellation function for the component-owned context.
-//   - conn: Connection owned by the current operation.
-//   - sub: Owned Redis event subscription.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - cancel: Функция отмены для контекста, принадлежащего компоненту.
+//   - conn: Подключение, принадлежащее текущей операции.
+//   - sub: Подписка на события Redis, принадлежащая компоненту.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *ws.Conn, sub *goredis.PubSub, id domain.Identity) {
 	operations.WSActive(1)
 	defer operations.WSActive(-1)
@@ -344,7 +365,8 @@ func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *
 	go func() {
 		defer children.Done()
 		defer cancel()
-		// This is a server-only stream. Application commands use authorized REST.
+		// Это поток только для сервера.  Команды приложения используют авторизованный
+		// REST.
 		_, _, _ = conn.ReadMessage()
 
 	}()
@@ -369,7 +391,7 @@ func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *
 			case <-ctx.Done():
 				return
 			default:
-				return /* slow socket reconnects to authoritative history */
+				return /* медленное повторное подключение сокета к достоверной истории */
 			}
 		}
 	}()

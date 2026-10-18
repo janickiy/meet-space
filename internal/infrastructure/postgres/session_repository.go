@@ -11,59 +11,61 @@ import (
 	"gorm.io/gorm"
 )
 
-// SessionRepository persists physical session history and room authorization state through GORM.
+// SessionRepository сохраняет историю физических сеансов и состояние авторизации в комнате с
+// помощью GORM.
 type SessionRepository struct{ db *gorm.DB }
 
-// NewSessionRepository constructs the session repository with the dependencies and limits
-// required for session.
+// NewSessionRepository создаёт репозиторий сеансов с зависимостями и ограничениями,
+// необходимыми для сеанса.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded session repository.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий сеансов.
 func NewSessionRepository(db *gorm.DB) *SessionRepository { return &SessionRepository{db: db} }
 
-// authorizeSession checks that the participant may open a live physical session for the
-// conference.
+// authorizeSession проверяет, может ли участник открыть активный физический сеанс для
+// конференции.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
-//   - locked: Whether the query must lock the selected row before mutation.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - locked: Указывает, должен ли запрос блокировать выбранную строку перед изменением.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func authorizeSession(db *gorm.DB, conferenceID, userID string, locked bool) (conferences.Participant, error) {
 	return authorizeRoomSession(db, conferenceID, userID, locked, "", false)
 }
 
-// authorizeRoomSession checks the persisted room membership and conference state for a physical
-// session.
+// authorizeRoomSession проверяет сохранённое членство в комнате и состояние конференции для
+// физического сеанса.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
-//   - locked: Whether the query must lock the selected row before mutation.
-//   - clientID: Physical browser or socket client identifier.
-//   - requireClient: Whether a physical client binding is mandatory for authorization.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - locked: Указывает, должен ли запрос блокировать выбранную строку перед изменением.
+//   - clientID: Идентификатор физического браузера или сокетного клиента.
+//   - requireClient: Проверяет, требуется ли привязка физического клиента для авторизации.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func authorizeRoomSession(db *gorm.DB, conferenceID, userID string, locked bool, clientID string, requireClient bool) (conferences.Participant, error) {
 	c, err := findMediaRoom(db, conferenceID, locked)
 	if err != nil {
 		return conferences.Participant{}, err
 	}
 	if c.Kind == "direct_call" {
-		// A membership alone cannot grant access to another device or revive an
-		// ended call. Only the two clients that started/accepted may connect.
+		// Само по себе членство в конференции не даёт доступа к другому устройству и не
+		// позволяет возобновить прерванный вызов.  Подключиться могут только два клиента,
+		// которые инициировали или приняли вызов.
 		q := db.Table("direct_calls").Where("conference_id=? AND status='accepted' AND caller_lease_until>clock_timestamp() AND callee_lease_until>clock_timestamp()", conferenceID)
 		if requireClient {
 			if clientID == "" {
@@ -104,47 +106,49 @@ func authorizeRoomSession(db *gorm.DB, conferenceID, userID string, locked bool,
 	return p, nil
 }
 
-// Authorize checks the current identity and saved access state before session.
+// Authorize проверяет текущие идентификационные данные и сохранённое состояние доступа перед
+// началом сеанса.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *SessionRepository) Authorize(ctx context.Context, conferenceID, userID string) (conferences.Participant, error) {
 	return authorizeSession(r.db.WithContext(ctx), conferenceID, userID, false)
 }
 
-// AuthorizeClient validates conference access for the specified account and physical client
-// identity.
+// AuthorizeClient проверяет доступ к конференции для указанной учётной записи и
+// идентификационных данных физического клиента.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
-//   - clientID: Physical browser or socket client identifier.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - clientID: Идентификатор физического браузера или сокетного клиента.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *SessionRepository) AuthorizeClient(ctx context.Context, conferenceID, userID, clientID string) (conferences.Participant, error) {
 	return authorizeRoomSession(r.db.WithContext(ctx), conferenceID, userID, false, clientID, true)
 }
 
-// Open opens the scoped media, recording or session resource required by this component.
+// Open открывает доступ к медиафайлам, записям или сеансам, необходимым для работы этого
+// компонента.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - session: Persistent or physical session state, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - session: Постоянное или физическое состояние сессии, определяемое ее типом.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *SessionRepository) Open(ctx context.Context, session realtime.Session) error {
 	return r.db.WithContext(ctx).Transaction(
 
@@ -160,18 +164,19 @@ func (r *SessionRepository) Open(ctx context.Context, session realtime.Session) 
 		})
 }
 
-// Close closes the component-owned resources and ends their lifecycle.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - connectionID: Physical media-connection identifier.
-//   - seen: Reference timestamp of confirmed transport activity.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - connectionID: Идентификатор физического подключения к медиа.
+//   - seen: Контрольная временная метка подтвержденной активности транспорта.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *SessionRepository) Close(ctx context.Context, connectionID string, seen time.Time) error {
-	// Idempotent: PostgreSQL changes only on open and close, not on every pong.
+	// Идемпотентность: PostgreSQL изменяется только при открытии и закрытии, а не при каждом
+	// pong-сеансе.
 	return r.db.WithContext(ctx).Transaction(
 
 		func(tx *gorm.DB) error {
@@ -182,7 +187,8 @@ func (r *SessionRepository) Close(ctx context.Context, connectionID string, seen
 				}
 				return err
 			}
-			// Use the same lock order as media updates, Open, participant removal and conference completion.
+			// Используйте тот же порядок блокировки, что и при обновлении медиаданных,
+			// открытии, удалении участников и завершении конференции.
 			if _, err := findMediaRoom(tx, session.ConferenceID, true); err != nil {
 				return err
 			}
@@ -191,17 +197,18 @@ func (r *SessionRepository) Close(ctx context.Context, connectionID string, seen
 		})
 }
 
-// Stale returns historical physical sessions that remain open beyond the liveness boundary.
+// Stale возвращает данные об исторических физических сеансах, которые остаются открытыми после
+// достижения порога активности.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - before: Boundary before which results or state are selected.
-//   - cursor: Opaque continuation boundary from the previous page.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - before: Порог, после достижения которого выбираются результаты или состояние.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
 //
-// Returns:
-//   - result 1: The collected session values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения сеанса.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *SessionRepository) Stale(ctx context.Context, before time.Time, cursor string) ([]realtime.Session, error) {
 	var rows []realtime.Session
 	query := r.db.WithContext(ctx).Where("status = 'connected' AND connected_at < ?", before)
@@ -212,17 +219,18 @@ func (r *SessionRepository) Stale(ctx context.Context, before time.Time, cursor 
 	return rows, err
 }
 
-// Roster loads the conference and memberships needed to authorize the current room snapshot.
+// Roster загружает данные о конференции и членстве в ней, необходимые для авторизации текущего
+// снимка состояния комнаты.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The resulting status.
-//   - result 2: The collected participant values.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий статус.
+//   - result2: Собранные данные об участниках.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *SessionRepository) Roster(ctx context.Context, conferenceID string) (conferences.Status, []conferences.Participant, error) {
 	c, err := findMediaRoom(r.db.WithContext(ctx), conferenceID, false)
 	if err != nil {

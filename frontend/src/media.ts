@@ -583,7 +583,7 @@ export class ConferenceMediaClient {
         );
         return;
       }
-      // Own raw capture before awaiting audio processing, including its video track.
+      // Собственный необработанный захват перед обработкой аудио, включая видеодорожку.
       this.local = stream;
       for (const track of stream.getTracks()) {
         if (
@@ -691,7 +691,8 @@ export class ConferenceMediaClient {
               trackId: publication.id,
             });
           } catch {
-            // Closing WS removes server publications; local capture must still stop.
+            // При закрытии WS публикации на сервере удаляются; локальный захват все равно
+            // должен быть остановлен.
           }
         }
       }
@@ -821,7 +822,7 @@ export class ConferenceMediaClient {
    *
    * @returns Promise, который после завершения операции возвращает: значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
    */
-  /** Applies account settings without enabling a muted microphone or camera. */
+  /** Применяет настройки учетной записи, не отключая микрофон и камеру. */
   configure(options: MediaStartOptions) {
     if (this.disposed || !this.pc || this.view.controlBusy) return;
     if (this.noiseSuppression !== (options.noiseSuppression !== false)) {
@@ -842,8 +843,8 @@ export class ConferenceMediaClient {
     }
     if (this.receiveVideo !== !options.hideParticipantVideo) {
       this.receiveVideo = !options.hideParticipantVideo;
-      // Preserve transceivers and publications. The SFU pauses forwarding by
-      // the negotiated receive preference instead of stopping WebRTC receivers.
+      // Сохраняет трансиверы и публикации. SFU приостанавливает пересылку в соответствии с
+      // согласованными настройками приема, не останавливая приемники WebRTC.
       void this.mutate(async () => {});
     }
     for (const [source, id] of [
@@ -852,12 +853,13 @@ export class ConferenceMediaClient {
     ] as const) {
       if (id === undefined || (this.configuredInputs.get(source) || "") === id)
         continue;
-      // Save before acquiring: an unavailable preferred device must not cause a retry loop.
+      // Сохранять перед получением: недоступное предпочтительное устройство не должно приводить
+      // к повторным попыткам подключения.
       this.configuredInputs.set(source, id);
       this.preferredInputs.set(source, id);
       if (this.sources.get(source)?.track?.readyState === "live") {
         void this.changeSource(source, true, id);
-        return; // controlBusy changing back to false applies the next selection.
+        return; // При изменении controlBusy на false применяется следующий выбор.
       }
     }
   }

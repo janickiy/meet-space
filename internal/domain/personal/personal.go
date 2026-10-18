@@ -2,7 +2,8 @@ package personal
 
 import "time"
 
-// Peer contains public conversation-partner information without email, roles or session data.
+// Peer содержит общедоступную информацию о собеседниках без указания электронной почты, ролей
+// или данных о сеансе.
 type Peer struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`

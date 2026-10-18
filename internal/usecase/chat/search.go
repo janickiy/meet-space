@@ -9,56 +9,63 @@ import (
 )
 
 type SearchRepository interface {
-	// SearchMessagePage returns a bounded message-history search page within the authorized chat
-	// scope.
+	// SearchMessagePage возвращает страницу с ограниченным количеством результатов поиска по
+	// истории сообщений в рамках авторизованной области чата.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference or conversation identifier selected by the repository mode.
-	//   - argument 4: Search text or validated query filters.
-	//   - argument 5: Opaque continuation boundary from the previous page.
-	//   - argument 6: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции или диалога, выбранный в зависимости от режима
+	//   репозитория.
+	//   - arg4: Текст для поиска или валидированные фильтры запросов.
+	//   - arg5: Непрозрачная граница продолжения с предыдущей страницы.
+	//   - arg6: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная страница.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SearchMessagePage(context.Context, string, string, string, string, int) (domain.Page, error)
-	// ChatMessageContext returns the visible history around a requested message within its
-	// authorized scope.
+	// ChatMessageContext возвращает видимую историю сообщений вокруг запрошенного сообщения в
+	// пределах авторизованной области.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference or conversation identifier selected by the repository mode.
-	//   - argument 4: Message identifier within the authorized conversation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции или диалога, выбранный в зависимости от режима
+	//   репозитория.
+	//   - arg4: Идентификатор сообщения в рамках авторизованного диалога.
 	//
-	// Returns:
-	//   - result 1: The resulting page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная страница.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ChatMessageContext(context.Context, string, string, string) (domain.Page, error)
 }
 
-// SearchService shares the ordinary chat visibility policy without marking results read.
+// SearchService использует обычную политику видимости в чате, не помечая результаты как
+// прочитанные.
 type SearchService struct{ Repo SearchRepository }
 
-// Search searches persistent chat messages and private attachments using bounded input and the
-// caller's visibility filters.
+// Search — поиск выполняет поиск в постоянных сообщениях чата и личных вложениях с использованием
+// ограниченных входных данных и фильтров видимости, заданных вызывающей стороной.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conversation: Conversation identifier limiting the operation scope.
-//   - query: Search text or validated query filters.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//   - query: Текст для поиска или валидированные фильтры запросов.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The resulting page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *SearchService) Search(ctx context.Context, user, conversation, query, cursor string, limit int) (domain.Page, error) {
 	query, err := domain.NormalizeSearchQuery(query)
 	if err != nil {
@@ -72,19 +79,19 @@ func (s *SearchService) Search(ctx context.Context, user, conversation, query, c
 	return s.Repo.SearchMessagePage(bounded, user, conversation, query, cursor, limit)
 }
 
-// Context returns the visible messages surrounding a selected message so clients can navigate to
-// a search result.
+// Context возвращает видимые сообщения, окружающие выбранное сообщение, чтобы пользователь мог
+// перейти к результату поиска.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conversation: Conversation identifier limiting the operation scope.
-//   - messageID: Message identifier within the authorized conversation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
 //
-// Returns:
-//   - result 1: The resulting page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *SearchService) Context(ctx context.Context, user, conversation, messageID string) (domain.Page, error) {
 	id, err := domain.UUID(messageID)
 	if err != nil {

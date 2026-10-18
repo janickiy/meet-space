@@ -14,21 +14,24 @@ import (
 	"unicode/utf8"
 )
 
-// Service separates HTTP reads and queueing from bounded external STT and AI processing.
+// Service — сервис отделяет чтение и постановку в очередь HTTP от ограниченной внешней обработки STT и
+// AI.
 type Service struct {
 	search interface {
-		// Search searches recording transcripts and summaries using bounded input and the caller's
-		// visibility filters.
+		// Search — поиск выполняет поиск расшифровок и резюме записей с использованием ограниченных
+		// входных данных и фильтров видимости, заданных вызывающей стороной.
 		//
-		// Parameters:
-		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-		//   - argument 2: Acting account identifier used to scope access.
-		//   - argument 3: Search text or validated query filters.
+		// @Parameters:
+		//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+		//   операции.
+		//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+		//   доступа.
+		//   - arg3: Текст для поиска или валидированные фильтры запросов.
 		//
-		// Returns:
-		//   - result 1: The resulting search page.
-		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-		//     failure.
+		// @returns:
+		//   - result1: Результирующая страница поиска.
+		//   - result2: nil — в случае успеха; в противном случае — ошибка валидации,
+		//   доступа, передачи данных или сохранения.
 		Search(context.Context, string, domain.SearchQuery) (domain.SearchPage, error)
 	}
 	repo  Repository
@@ -38,42 +41,44 @@ type Service struct {
 	cfg   Config
 }
 
-// SetSearch updates search for recording transcripts and summaries.
+// SetSearch обновляет поиск для записи стенограмм и резюме.
 //
-// Parameters:
-//   - search: Authorized search service attached to content operations.
+// @Parameters:
+//   - search: авторизованный поисковый сервис, подключенный к операциям с контентом.
 func (s *Service) SetSearch(search interface {
-	// Search searches recording transcripts and summaries using bounded input and the caller's
-	// visibility filters.
+	// Search — поиск выполняет поиск расшифровок и резюме записей с использованием ограниченных входных
+	// данных и фильтров видимости, заданных вызывающей стороной.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Search text or validated query filters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Текст для поиска или валидированные фильтры запросов.
 	//
-	// Returns:
-	//   - result 1: The resulting search page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая страница поиска.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Search(context.Context, string, domain.SearchQuery) (domain.SearchPage, error)
 }) {
 	s.search = search
 }
 
-// NewService constructs the service with the dependencies and limits required for recording
-// transcripts and summaries.
+// NewService создает сервис с зависимостями и ограничениями, необходимыми для записи стенограмм
+// и резюме.
 //
-// Parameters:
-//   - repo: Persistence dependency used by the application operation.
-//   - audio: Bounded private recording-audio source.
-//   - stt: Configured transcription-provider adapter.
-//   - ai: Configured schema-constrained summary-generation provider.
-//   - cfg: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - audio: Ограниченный частный источник аудиозаписи.
+//   - stt: Настроенный адаптер для провайдера транскрипции.
+//   - ai: Настроенный провайдер генерации резюме с ограничениями по схеме.
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: The constructed or loaded service.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный сервис.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewService(repo Repository, audio AudioSource, stt domain.TranscriptionProvider, ai domain.AIProvider, cfg Config) (*Service, error) {
 	if repo == nil || stt == nil || ai == nil || (cfg.TranscriptionEnabled && audio == nil) {
 		return nil, fmt.Errorf("content dependencies are required")
@@ -84,19 +89,19 @@ func NewService(repo Repository, audio AudioSource, stt domain.TranscriptionProv
 	return &Service{repo: repo, audio: audio, stt: stt, ai: ai, cfg: cfg}, nil
 }
 
-// Transcript returns the current transcript metadata and provider capabilities without starting
-// transcription.
+// Transcript возвращает текущие метаданные стенограммы и возможности провайдера без запуска
+// процесса расшифровки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - cid: Conference identifier limiting the operation scope.
-//   - rid: Recording identifier used by the current operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
 //
-// Returns:
-//   - result 1: The resulting transcript state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее состояние расшифровки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Transcript(ctx context.Context, userID, cid, rid string) (domain.TranscriptState, error) {
 	t, manage, err := s.repo.Transcript(ctx, userID, cid, rid)
 	enabled := s.cfg.TranscriptionEnabled && s.stt.Name() != "noop"
@@ -104,20 +109,21 @@ func (s *Service) Transcript(ctx context.Context, userID, cid, rid string) (doma
 	return domain.TranscriptState{Item: t, Enabled: enabled, CanRetry: can, ProviderMode: s.stt.Name()}, err
 }
 
-// Segments returns a bounded page of saved transcript segments for timestamp navigation.
+// Segments возвращает страницу с ограниченным количеством сохраненных сегментов стенограммы для
+// навигации по временным меткам.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - cid: Conference identifier limiting the operation scope.
-//   - rid: Recording identifier used by the current operation.
-//   - limit: Maximum number of results or operations in this batch.
-//   - offset: Number of results skipped before the requested page.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
 //
-// Returns:
-//   - result 1: The resulting segment page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая страница с сегментами.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Segments(ctx context.Context, userID, cid, rid string, limit, offset int) (domain.SegmentPage, error) {
 	if limit < 1 || limit > 200 || offset < 0 || offset > 100000 {
 		return domain.SegmentPage{}, apperrors.ErrInvalidInput
@@ -125,18 +131,18 @@ func (s *Service) Segments(ctx context.Context, userID, cid, rid string, limit, 
 	return s.repo.Segments(ctx, userID, cid, rid, limit, offset)
 }
 
-// Summary returns the current persisted summary without invoking an external provider.
+// Summary возвращает текущее сохраненное краткое резюме без обращения к внешнему провайдеру.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - cid: Conference identifier limiting the operation scope.
-//   - rid: Recording identifier used by the current operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
 //
-// Returns:
-//   - result 1: The resulting summary state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее состояние резюме.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Summary(ctx context.Context, userID, cid, rid string) (domain.SummaryState, error) {
 	summary, manage, err := s.repo.Summary(ctx, userID, cid, rid)
 	enabled := s.cfg.AIEnabled && s.ai.Name() != "noop"
@@ -151,19 +157,19 @@ func (s *Service) Summary(ctx context.Context, userID, cid, rid string) (domain.
 	return domain.SummaryState{Item: summary, Enabled: enabled, CanRegenerate: can, ProviderMode: s.ai.Name()}, err
 }
 
-// RetryTranscript queues an authorized transcription retry instead of running the expensive
-// provider call in the HTTP request.
+// RetryTranscript ставит в очередь повторную авторизованную расшифровку вместо того, чтобы
+// выполнять дорогостоящий вызов провайдера в запросе HTTP.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - cid: Conference identifier limiting the operation scope.
-//   - rid: Recording identifier used by the current operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
 //
-// Returns:
-//   - result 1: The resulting transcript state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее состояние расшифровки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) RetryTranscript(ctx context.Context, userID, cid, rid string) (domain.TranscriptState, error) {
 	if !s.cfg.TranscriptionEnabled || s.stt.Name() == "noop" {
 		return domain.TranscriptState{}, apperrors.New(apperrors.ErrUnavailable, "transcription is disabled")
@@ -172,19 +178,19 @@ func (s *Service) RetryTranscript(ctx context.Context, userID, cid, rid string) 
 	return domain.TranscriptState{Item: t, Enabled: true, ProviderMode: s.stt.Name()}, err
 }
 
-// RegenerateSummary queues a bounded summary generation without blocking the HTTP request on the
-// AI provider.
+// RegenerateSummary формирует ограниченную сводную сводку, не блокируя запрос HTTP к провайдеру
+// AI.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - cid: Conference identifier limiting the operation scope.
-//   - rid: Recording identifier used by the current operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
 //
-// Returns:
-//   - result 1: The resulting summary state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее состояние резюме.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) RegenerateSummary(ctx context.Context, userID, cid, rid string) (domain.SummaryState, error) {
 	if !s.cfg.AIEnabled || s.ai.Name() == "noop" {
 		return domain.SummaryState{}, apperrors.New(apperrors.ErrUnavailable, "AI summary is disabled")
@@ -193,18 +199,18 @@ func (s *Service) RegenerateSummary(ctx context.Context, userID, cid, rid string
 	return domain.SummaryState{Item: item, Enabled: true, ProviderMode: s.ai.Name()}, err
 }
 
-// Search searches recording transcripts and summaries using bounded input and the caller's
-// visibility filters.
+// Search — поиск выполняет поиск расшифровок и резюме записей с использованием ограниченных входных
+// данных и фильтров видимости, заданных вызывающей стороной.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - query: Search text or validated query filters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - query: Текст для поиска или валидированные фильтры запросов.
 //
-// Returns:
-//   - result 1: The resulting search page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая страница поиска.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Search(ctx context.Context, userID string, query domain.SearchQuery) (domain.SearchPage, error) {
 	if query.Mode == "" {
 		query.Mode = "keyword"
@@ -248,15 +254,15 @@ func (s *Service) Search(ctx context.Context, userID string, query domain.Search
 	return s.repo.Search(ctx, userID, query)
 }
 
-// Handle dispatches the validated recording content operation to its application handler.
+// Handle — обработчик перенаправляет проверенную операцию с содержимым записи в обработчик приложения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	switch job.Kind {
 	case "content.transcribe":
@@ -307,8 +313,8 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 		if err != nil {
 			return err
 		}
-		// No recognized speech is a valid empty result, not a reason to pay for an AI call or invent
-		// conference content.
+		// Отсутствие распознанной речи — допустимый пустой результат, а не повод платить за
+		// вызов AI или создавать контент для конференции.
 		if len(segments) == 0 {
 			empty := domain.SummaryOutput{KeyPoints: []string{}, ActionItems: []domain.ActionItem{}, Topics: []string{}}
 			return s.repo.SaveSummary(ctx, job, summary, empty, "none", "", PromptVersion, SchemaVersion, s.cfg.MaxAttempts)
@@ -323,31 +329,31 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	}
 }
 
-// FailJob records a bounded job failure without exposing provider responses or replacing a newer
-// generation.
+// FailJob регистрирует сбой задания с ограничением, не раскрывая ответы провайдера и не заменяя
+// более новую версию.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - code: Bounded public status or failure code.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - code: Ограниченный публичный статус или код ошибки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) FailJob(ctx context.Context, job jobs.Job, code string) error {
 	return s.repo.FailJob(ctx, job, code)
 }
 
-// providerError classifies a provider failure without exposing source media, text or
-// credentials.
+// providerError классифицирует сбой в работе провайдера, не раскрывая исходные медиафайлы,
+// текст или учетные данные.
 //
-// Parameters:
-//   - err: Error to classify, wrap or report safely.
-//   - code: Bounded public status or failure code.
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
+//   - code: Ограниченный публичный статус или код ошибки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func providerError(err error, code string) error {
 	if errors.Is(err, jobs.ErrSkip) || errors.Is(err, jobs.ErrLeaseLost) {
 		return err
@@ -363,18 +369,18 @@ func providerError(err error, code string) error {
 	return &jobs.Error{Code: code, Retryable: true}
 }
 
-// ValidateTranscript checks transcript shape, time ranges and text limits before accepting
-// provider output.
+// ValidateTranscript проверяет структуру расшифровки, временные диапазоны и ограничения по
+// количеству символов, прежде чем принять выходные данные провайдера.
 //
-// Parameters:
-//   - result: Validated processing or operation result.
-//   - duration: Duration or validity window used by the operation.
-//   - maxSegments: Maximum number of transcript segments.
-//   - maxBytes: Maximum accepted text or content bytes.
+// @Parameters:
+//   - result: Подтвержденный результат обработки или операции.
+//   - duration: Продолжительность или период действия, используемый в ходе операции.
+//   - maxSegments: Максимальное количество сегментов расшифровки.
+//   - maxBytes: Максимальное количество допустимых символов в тексте или содержимом.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ValidateTranscript(result *domain.TranscriptionResult, duration, maxSegments int, maxBytes int64) error {
 	if result == nil || duration < 1 || len(result.Segments) > maxSegments {
 		return fmt.Errorf("invalid transcript size")

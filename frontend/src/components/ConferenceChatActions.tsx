@@ -27,7 +27,7 @@ import {
 } from "./ConferenceChatInfo";
 import "./conference-chat-info.css";
 
-/** Meeting actions are fetched only after opening this row's menu. */
+/** Действия во время собрания отображаются только после открытия меню этой строки. */
 export function ConferenceChatActions({
   conference,
 }: {

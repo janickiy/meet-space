@@ -12,12 +12,12 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// PresenceTimeout bounds unconfirmed connectivity: a physical connection is no longer active
-// after five seconds without a confirmed pong.
+// PresenceTimeout ограничение неподтвержденной возможности подключения: физическое подключение
+// становится неактивным через пять секунд без подтвержденного подтверждения приема данных.
 const PresenceTimeout = 5 * time.Second
 
-// RealtimeConfig bounds WebSocket timing, presence, one-use tickets, queues, messages, origins
-// and ICE settings.
+// RealtimeConfig ограничивает время WebSocket, присутствие, одноразовые билеты, очереди,
+// сообщения, источники и настройки ICE.
 type RealtimeConfig struct {
 	PingInterval      time.Duration
 	PongTimeout       time.Duration
@@ -41,9 +41,9 @@ type RealtimeConfig struct {
 // LoadRealtime загружает и проверяет ограничения WebSocket, сроки доступности и connection-ticket
 // настройки.
 //
-// Возвращает:
-//   - результат 1: итоговая конфигурация реального времени.
-//   - результат 2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+// @returns:
+//   - result1: итоговая конфигурация реального времени.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
 //     данных.
 func LoadRealtime() (RealtimeConfig, error) {
 	c := RealtimeConfig{
@@ -79,8 +79,8 @@ func LoadRealtime() (RealtimeConfig, error) {
 
 // Validate отклоняет несогласованные или выходящие за пределы допустимых значений поля realtime.go перед использованием значения.
 //
-// Возвращает:
-//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения данных.
+// @returns:
+//   - result1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения данных.
 //     ошибка.
 func (c RealtimeConfig) Validate() error {
 	if c.MaxConnections < 0 || c.MaxConnections > 100000 {

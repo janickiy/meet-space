@@ -6,16 +6,16 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 )
 
-// LegacyConferenceAllowed checks whether a legacy recording operation may access the referenced
-// conference recording.
+// LegacyConferenceAllowed проверяет, может ли устаревшая операция записи получить доступ к
+// указанной записи конференции.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) LegacyConferenceAllowed(ctx context.Context, id string) error {
 	var count int64
 	if err := r.db.WithContext(ctx).Table("conferences").Where("id = ?", id).Count(&count).Error; err != nil {

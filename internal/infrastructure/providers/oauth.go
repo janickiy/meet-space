@@ -14,7 +14,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/jobs"
 )
 
-// OAuthConfig contains only trusted server endpoints and the calendar adapter's minimal scopes.
+// OAuthConfig содержит только доверенные конечные точки сервера и минимальные области действия
+// адаптера календаря.
 type OAuthConfig struct {
 	AuthorizationURL, TokenURL, RevokeURL, ClientID, ClientSecret, RedirectURL string
 	Scopes                                                                     []string
@@ -22,23 +23,23 @@ type OAuthConfig struct {
 	AllowHTTP                                                                  bool
 }
 
-// OAuth implements server-side S256 PKCE code exchange, refresh and revocation without a
-// provider SDK.
+// OAuth реализует обмен, обновление и отзыв кодов S256 и PKCE на стороне сервера без
+// использования провайдера SDK.
 type OAuth struct {
 	cfg    OAuthConfig
 	client *http.Client
 }
 
-// NewOAuth constructs the o auth with the dependencies and limits required for bounded external
-// integrations.
+// NewOAuth создает объект o auth с зависимостями и ограничениями, необходимыми для интеграции с
+// внешними системами.
 //
-// Parameters:
-//   - cfg: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: The constructed or loaded o auth.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный объект o auth.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewOAuth(cfg OAuthConfig) (*OAuth, error) {
 	if cfg.ClientID == "" || cfg.ClientSecret == "" || len(cfg.Scopes) == 0 {
 		return nil, errors.New("calendar OAuth client credentials and minimal scopes are required")
@@ -58,17 +59,17 @@ func NewOAuth(cfg OAuthConfig) (*OAuth, error) {
 	return &OAuth{cfg: cfg, client: &http.Client{Timeout: cfg.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
-// AuthorizeURL builds the provider authorization redirect with one-time state and S256 PKCE
-// challenge, without exposing a client secret.
+// AuthorizeURL формирует перенаправление авторизации провайдера с одноразовым состоянием и
+// запросом S256 PKCE, не раскрывая клиентский секрет.
 //
-// Parameters:
-//   - state: Current state or validated state update.
-//   - challenge: S256 PKCE challenge sent to the authorization provider.
+// @Parameters:
+//   - state: Текущее состояние или обновлённое валидированное состояние.
+//   - challenge: Запрос S256 PKCE отправляется провайдеру авторизации.
 //
-// Returns:
-//   - result 1: Provider authorization URL without a client secret.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Авторизация провайдера URL без клиентского секрета.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (o *OAuth) AuthorizeURL(state, challenge string) (string, error) {
 	u, err := url.Parse(o.cfg.AuthorizationURL)
 	if err != nil {
@@ -86,7 +87,8 @@ func (o *OAuth) AuthorizeURL(state, challenge string) (string, error) {
 	return u.String(), nil
 }
 
-// tokenResponse restricts parsed OAuth JSON to the credential fields required by the calendar.
+// tokenResponse ограничивает анализируемые OAuth и JSON поля учетными данными, необходимыми для
+// работы календаря.
 type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -95,17 +97,19 @@ type tokenResponse struct {
 	Scope        string `json:"scope"`
 }
 
-// request calls the fixed OAuth endpoint without exposing provider response bodies in errors.
+// request — запрос вызывает фиксированную конечную точку OAuth, не раскрывая содержимое ответов
+// провайдера в случае ошибок.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - endpoint: Operator-configured service endpoint.
-//   - form: Server-constructed OAuth form fields.
-//   - response: Application response whose session or public metadata is being processed.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - endpoint: Конечная точка сервиса, настраиваемая оператором.
+//   - form: Поля формы OAuth, созданные на сервере.
+//   - response: Ответ приложения, в котором обрабатываются метаданные сеанса или общедоступные
+//     метаданные.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (o *OAuth) request(ctx context.Context, endpoint string, form url.Values, response *tokenResponse) error {
 	form.Set("client_id", o.cfg.ClientID)
 	form.Set("client_secret", o.cfg.ClientSecret)
@@ -139,14 +143,15 @@ func (o *OAuth) request(ctx context.Context, endpoint string, form url.Values, r
 	return nil
 }
 
-// credentials decodes and validates provider credentials without returning them in public
-// responses.
+// credentials декодирует и проверяет учетные данные провайдера, не возвращая их в общедоступных
+// ответах.
 //
-// Parameters:
-//   - r: Untrusted provider token response to validate and convert to private credentials.
+// @Parameters:
+//   - r: Недоверенный ответ токена провайдера для проверки и преобразования в закрытые учетные
+//     данные.
 //
-// Returns:
-//   - result 1: The resulting calendar credentials.
+// @returns:
+//   - result1: Результирующие учетные данные календаря.
 func credentials(r tokenResponse) d.CalendarCredentials {
 	var at *time.Time
 	if r.ExpiresIn > 0 {
@@ -156,35 +161,35 @@ func credentials(r tokenResponse) d.CalendarCredentials {
 	return d.CalendarCredentials{AccessToken: r.AccessToken, RefreshToken: r.RefreshToken, ExpiresAt: at, Scopes: r.Scope}
 }
 
-// Exchange exchanges the one-time authorization code and PKCE verifier for provider credentials
-// on the server.
+// Exchange обменивает одноразовый код авторизации и верификатор PKCE на учетные данные
+// провайдера на сервере.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - code: Bounded public status or failure code.
-//   - verifier: Token verifier or private PKCE verifier, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - code: Ограниченный публичный статус или код ошибки.
+//   - verifier: Верификатор токена или приватный верификатор PKCE в зависимости от его типа.
 //
-// Returns:
-//   - result 1: The resulting calendar credentials.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующие учетные данные календаря.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (o *OAuth) Exchange(ctx context.Context, code, verifier string) (d.CalendarCredentials, error) {
 	var r tokenResponse
 	err := o.request(ctx, o.cfg.TokenURL, url.Values{"grant_type": {"authorization_code"}, "code": {code}, "code_verifier": {verifier}, "redirect_uri": {o.cfg.RedirectURL}}, &r)
 	return credentials(r), err
 }
 
-// Refresh renews the short-lived access credential using the current provider or account refresh
-// session.
+// Refresh обновляет краткосрочные учетные данные для доступа, используя текущий провайдер или
+// сеанс обновления учетной записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - token: Signed credential or operation-ownership token to verify.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
 //
-// Returns:
-//   - result 1: The resulting calendar credentials.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующие учетные данные календаря.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (o *OAuth) Refresh(ctx context.Context, token string) (d.CalendarCredentials, error) {
 	var r tokenResponse
 	err := o.request(ctx, o.cfg.TokenURL, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {token}}, &r)
@@ -194,16 +199,16 @@ func (o *OAuth) Refresh(ctx context.Context, token string) (d.CalendarCredential
 	return credentials(r), err
 }
 
-// Revoke revokes the stored provider authorization without changing the account's local delivery
-// preferences.
+// Revoke отзывает сохраненные права доступа к провайдеру без изменения локальных настроек
+// доставки учетной записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - token: Signed credential or operation-ownership token to verify.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (o *OAuth) Revoke(ctx context.Context, token string) error {
 	return o.request(ctx, o.cfg.RevokeURL, url.Values{"token": {token}}, nil)
 }

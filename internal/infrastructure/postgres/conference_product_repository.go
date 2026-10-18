@@ -9,19 +9,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// DecideAdmission records an authorized waiting-room acceptance or rejection.
+// DecideAdmission запись о подтверждении или отклонении заявки на участие в конференц-зале.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
-//   - participantID: Conference participant identifier.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - participantID: Идентификатор участника конференции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) DecideAdmission(ctx context.Context, conferenceID, userID, participantID string, request conferences.AdmissionRequest) (conferences.Participant, error) {
 	var target conferences.Participant
 	if err := request.Validate(); err != nil {
@@ -78,19 +78,19 @@ func (r *ConferenceRepository) DecideAdmission(ctx context.Context, conferenceID
 	return target, err
 }
 
-// UpdateSchedule saves the authorized conference schedule and its updated synchronization
-// version.
+// UpdateSchedule сохраняет утвержденное расписание конференции и его обновленную версию для
+// синхронизации.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting conference.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) UpdateSchedule(ctx context.Context, conferenceID, userID string, request conferences.ScheduleRequest) (conferences.Conference, error) {
 	var c conferences.Conference
 	err := r.db.WithContext(ctx).Transaction(
@@ -119,19 +119,20 @@ func (r *ConferenceRepository) UpdateSchedule(ctx context.Context, conferenceID,
 	return c, err
 }
 
-// ParticipantsVisible returns only the participant information visible to the acting account.
+// ParticipantsVisible возвращает только информацию об участниках, доступную для действующего
+// аккаунта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - userID: Acting account identifier used to scope access.
-//   - limit: Maximum number of results or operations in this batch.
-//   - offset: Number of results skipped before the requested page.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
 //
-// Returns:
-//   - result 1: The collected participant values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные данные об участниках.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) ParticipantsVisible(ctx context.Context, id, userID string, limit, offset int) ([]conferences.Participant, error) {
 	rows := []conferences.Participant{}
 	actor, err := findMembership(r.db.WithContext(ctx), id, userID)
@@ -151,17 +152,18 @@ func (r *ConferenceRepository) ParticipantsVisible(ctx context.Context, id, user
 
 const timelineDate = "COALESCE(conferences.finished_at, conferences.scheduled_at, conferences.created_at)"
 
-// Timeline returns the account's paginated upcoming, active or past conference timeline.
+// Timeline возвращает разбитую на страницы хронологию предстоящих, текущих и прошедших
+// конференций для аккаунта.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - query: Search text or validated query filters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - query: Текст для поиска или валидированные фильтры запросов.
 //
-// Returns:
-//   - result 1: The collected conference values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные данные о конференции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Timeline(ctx context.Context, userID string, query conferences.TimelineQuery) ([]conferences.Conference, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
@@ -206,22 +208,23 @@ func (r *ConferenceRepository) Timeline(ctx context.Context, userID string, quer
 	return rows, err
 }
 
-// History builds the authorized completed-conference view with participant history and recording
-// summaries.
+// History формирует авторизованное представление о завершенной конференции с историей
+// участников и краткими описаниями записей.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: The resulting history view.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее представление об истории.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) History(ctx context.Context, conferenceID, userID string) (conferences.HistoryView, error) {
 	var result conferences.HistoryView
-	// The shared conference lifecycle lock prevents deletion, completion or admission from changing
-	// access while the bounded history snapshot is assembled.
+	// Блокировка общего жизненного цикла конференции предотвращает изменение доступа при
+	// удалении, завершении или допуске участников, пока формируется ограниченный моментальный
+	// снимок истории.
 	err := r.db.WithContext(ctx).Transaction(
 
 		func(tx *gorm.DB) error {

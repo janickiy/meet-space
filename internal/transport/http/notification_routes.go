@@ -5,13 +5,14 @@ import (
 	notificationsapp "github.com/janickiy/meet-space/internal/app/notifications"
 )
 
-// RegisterNotificationRoutes registers the notification endpoints with the supplied
-// authentication and request middleware.
+// RegisterNotificationRoutes регистрирует конечные точки уведомлений с предоставленными
+// средствами аутентификации и промежуточным программным обеспечением для обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - auth: Authentication middleware or account handler dependency.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
 func RegisterNotificationRoutes(router gin.IRouter, handler *notificationsapp.Handler, auth gin.HandlerFunc) {
 	group := router.Group(APIV1Prefix+"/notifications", auth)
 	group.GET("", handler.List)

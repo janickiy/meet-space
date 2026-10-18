@@ -13,11 +13,11 @@ type Handler struct{ Service *usecase.Service }
 
 // validID проверяет, является ли предоставленный идентификатор ресурса допустимым ненулевым UUID.
 //
-// Параметры:
+// @Parameters:
 //   - value: значение для проверки, нормализации или преобразования.
 //
-// Возвращаемые значения:
-//   - result 1: выполняется ли задокументированное условие операции или ее условное состояние
+// @returns:
+//   - result1: выполняется ли задокументированное условие операции или ее условное состояние
 //     изменено успешно.
 func validID(value string) bool {
 	id, err := uuid.Parse(value)
@@ -26,7 +26,7 @@ func validID(value string) bool {
 
 // Create проверяет запрос и возвращает только что созданный прямой вызов для действующего аккаунта.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Create(c *gin.Context) {
 	var body struct {
@@ -56,7 +56,7 @@ func (h *Handler) Create(c *gin.Context) {
 
 // Get обслуживает запрошенный прямой вызов в рамках полномочий вызывающей стороны.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Get(c *gin.Context) {
 	id := c.Param("id")
@@ -74,7 +74,7 @@ func (h *Handler) Get(c *gin.Context) {
 
 // Active возвращает текущий нетерминальный прямой вызов аккаунта, если таковой имеется.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Active(c *gin.Context) {
 	item, err := h.Service.Active(c.Request.Context(), middleware.UserID(c))
@@ -87,11 +87,11 @@ func (h *Handler) Active(c *gin.Context) {
 
 // Change применяет запрошенное действие жизненного цикла прямого вызова и возвращает обновленное состояние.
 //
-// Параметры:
+// @Parameters:
 //   - action: Запрошенное действие жизненного цикла или модерации.
 //
-// Возвращает:
-//   - result 1: HTTP-обработчик для регистрации этой операции.
+// @returns:
+//   - result1: HTTP-обработчик для регистрации этой операции.
 func (h *Handler) Change(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

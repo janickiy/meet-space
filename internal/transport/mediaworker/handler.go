@@ -1,5 +1,5 @@
-// Package mediaworker exposes only authenticated internal signaling. RTP never passes through
-// these HTTP handlers.
+// Пакет mediaworker предоставляет только аутентифицированные внутренние сигналы.  RTP никогда
+// не проходит через эти обработчики HTTP.
 package mediaworker
 
 import (
@@ -26,221 +26,247 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
-// Engine defines the replaceable dependency contract for mediaworker.
+// Engine определяет заменяемый контракт зависимостей для медиаворкера.
 type Engine interface {
-	// Join creates or resumes the authorized membership or media-room connection, preserving its
-	// current identity.
+	// Join создает или возобновляет авторизованное членство или подключение к медиакомнате,
+	// сохраняя текущие идентификационные данные.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Verified account, session and media-connection identity.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
 	//
-	// Returns:
-	//   - result 1: The resulting peer view.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное представление одноранговых узлов.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Join(context.Context, media.Binding) (media.PeerView, error)
-	// Offer processes an SDP offer for the currently bound WebRTC connection.
+	// Offer обрабатывает предложение SDP для текущего подключенного соединения WebRTC.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
-	//   - argument 3: Identifier correlating this offer with its negotiation cycle.
-	//   - argument 4: Untrusted serialized value to decode or validate.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg3: Идентификатор, связывающий это предложение с его циклом согласования.
+	//   - arg4: Недоверенное сериализованное значение для декодирования или проверки.
 	//
-	// Returns:
-	//   - result 1: The resulting session description.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное описание сеанса.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Offer(context.Context, string, string, string) (webrtc.SessionDescription, error)
-	// Ready accepts confirmation that the client applied the SDP answer and enables tracks only for
-	// the matching current negotiation.
+	// Ready принимает подтверждение того, что клиент применил ответ SDP, и активирует треки
+	// только для текущего согласования.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
-	//   - argument 3: Identifier correlating this offer with its negotiation cycle.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg3: Идентификатор, связывающий это предложение с его циклом согласования.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Ready(context.Context, string, string) error
-	// ICE applies a validated ICE candidate to the current media connection.
+	// ICE применяет валидированный кандидат ICE к текущему медиасоединению.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
-	//   - argument 3: Candidate session or ICE record to validate before use.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg3: Сессия кандидата или запись ICE для проверки перед использованием.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ICE(context.Context, string, *webrtc.ICECandidateInit) error
-	// Unpublish stops publishing the specified authorized media source.
+	// Unpublish прекращает публикацию указанного авторизованного источника медиаданных.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
-	//   - argument 3: Identifier of the published media track.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg3: Идентификатор опубликованного медиа-трека.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Unpublish(context.Context, string, string) error
-	// Leave removes the active membership or media connection while preserving the saved
-	// conversation or conference history.
+	// Leave отменяет активное членство или подключение к мультимедиа, сохраняя при этом
+	// сохранённую историю разговоров или конференций.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Leave(context.Context, string) error
-	// LeaveConnection disconnects only the specified physical media connection.
+	// LeaveConnection отключает только указанное физическое медиасоединение.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Physical media-connection identifier.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор физического подключения к медиа.
 	LeaveConnection(context.Context, string)
-	// PeerBinding returns the server-side session identity bound to a peer connection.
+	// PeerBinding возвращает идентификационные данные сеанса на стороне сервера, привязанные к
+	// одноранговому соединению.
 	//
-	// Parameters:
-	//   - argument 1: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting binding.
-	//   - result 2: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
+	// @returns:
+	//   - result1: Полученная привязка.
+	//   - result2: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
 	PeerBinding(string) (media.Binding, bool)
-	// Bindings returns the current peer identity bindings for the requested media room.
+	// Bindings возвращает текущие идентификационные данные однорангового узла для запрошенной
+	// медиакомнаты.
 	//
-	// Returns:
-	//   - result 1: The collected binding values.
+	// @returns:
+	//   - result1: Собранные значения привязок.
 	Bindings() []media.Binding
-	// Tracks returns a snapshot of the requested room's visible published tracks.
+	// Tracks возвращает моментальный снимок видимых опубликованных треков запрашиваемой
+	// комнаты.
 	//
-	// Parameters:
-	//   - argument 1: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The collected track values.
+	// @returns:
+	//   - result1: Собранные значения треков.
 	Tracks(string) []media.Track
-	// CloseConference closes the media peers and owned resources of one conference.
+	// CloseConference закрывает медиаузлы и принадлежащие ресурсы одной конференции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	CloseConference(context.Context, string) error
-	// Shutdown stops new work and waits for the component-owned resources to finish closing.
+	// Shutdown останавливает выполнение новых задач и ожидает завершения закрытия ресурсов,
+	// принадлежащих компоненту.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Shutdown(context.Context) error
 }
 
-// Registry defines the replaceable dependency contract for mediaworker.
+// Registry определяет заменяемый контракт зависимостей для медиаворкера.
 type Registry interface {
-	// RegisterWorker saves the media worker's current address, capacity and bounded presence
-	// lifetime.
+	// RegisterWorker сохраняет текущий адрес медиа-воркера, его мощность и ограниченный срок
+	// присутствия.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Live media-worker metadata and ownership identity.
-	//   - argument 3: Lifetime assigned to the temporary value or ownership record.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Текущие метаданные медиа-воркера и информация о владельце.
+	//   - arg3: Срок действия, назначенный для временного значения или записи о
+	//   владельце.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	RegisterWorker(context.Context, media.Worker, time.Duration) error
-	// GetOwner loads the current distributed owner and fencing version of the media room.
+	// GetOwner загружает текущую версию медиакомнаты с распределенным владельцем и защитой от
+	// несанкционированного доступа.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: The resulting route.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий маршрут.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	GetOwner(context.Context, string) (media.Route, error)
-	// Renew extends the mediaworker lease only while its owner and fencing identity still match.
+	// Renew продлевает аренду медиаворкера только до тех пор, пока совпадают его владелец и
+	// идентификатор ограждения.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
-	//   - argument 3: Current media-room owner and fencing version.
-	//   - argument 4: Lifetime assigned to the temporary value or ownership record.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg3: Текущий владелец медиа-комнаты и версия ограждения.
+	//   - arg4: Срок действия, назначенный для временного значения или записи о
+	//   владельце.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Renew(context.Context, string, media.Route, time.Duration) error
-	// Release releases only the mediaworker resource owned by the matching operation or token.
+	// Release освобождает только тот ресурс медиаворкера, который принадлежит соответствующей
+	// операции или токену.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
-	//   - argument 3: Current media-room owner and fencing version.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg3: Текущий владелец медиа-комнаты и версия ограждения.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Release(context.Context, string, media.Route) error
-	// RemoveWorker removes the specified media worker's presence from the registry.
+	// RemoveWorker удаляет данные о присутствии указанного медиа-воркера из реестра.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identity of the worker owning this operation.
-	//   - argument 3: Operator-configured service endpoint.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор работника, которому принадлежит эта операция.
+	//   - arg3: Конечная точка сервиса, настраиваемая оператором.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	RemoveWorker(context.Context, string, string) error
 }
 
-// Sessions defines the replaceable dependency contract for mediaworker.
+// Sessions — сессии определяют заменяемый контракт зависимостей для медиаворкера.
 type Sessions interface {
-	// Get loads the requested mediaworker within the caller's authorized scope.
+	// Get загружает запрошенный медиаворкер в авторизованную область действия вызывающей
+	// стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting session.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий сеанс.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Get(context.Context, string) (realtime.Session, error)
 }
 
-// Tickets defines the replaceable dependency contract for mediaworker.
+// Tickets — билеты определяют заменяемый контракт зависимостей для медиаворкера.
 type Tickets interface {
-	// Verify validates the supplied credentials or signed binding before accepting the caller's
-	// identity.
+	// Verify проверяет предоставленные учётные данные или подписанную привязку, прежде чем
+	// подтвердить личность вызывающего абонента.
 	//
-	// Parameters:
-	//   - argument 1: Untrusted serialized value to decode or validate.
+	// @Parameters:
+	//   - arg1: Недоверенное сериализованное значение для декодирования или проверки.
 	//
-	// Returns:
-	//   - result 1: The resulting binding.
-	//   - result 2: The resulting route.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная привязка.
+	//   - result2: Результирующий маршрут.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Verify(string) (media.Binding, media.Route, error)
 }
 
-// offerCache retains a negotiated SDP result so repeated offers can be processed safely.
+// offerCache сохраняет согласованный результат SDP, чтобы можно было безопасно обрабатывать
+// повторяющиеся предложения.
 type offerCache struct {
 	mu     sync.Mutex
 	id     string
@@ -248,19 +274,21 @@ type offerCache struct {
 	answer string
 }
 
-// roomGate serializes control operations for one media room.
+// roomGate сериализует операции управления для одной медиакомнаты.
 type roomGate struct {
 	token chan struct{}
 	refs  int
 }
 
-// roomLease contains the worker's local ownership confirmation and its expiration boundary.
+// roomLease содержит локальное подтверждение права собственности на медиаворкера и информацию о
+// сроке его действия.
 type roomLease struct {
 	route    media.Route
 	deadline time.Time
 }
 
-// Handler adapts HTTP requests to mediaworker, validates input and writes the response.
+// Handler — обработчик адаптирует запросы HTTP для медиаворкера, проверяет входные данные и формирует
+// ответ.
 type Handler struct {
 	registrationMu sync.Mutex
 	draining       bool
@@ -282,33 +310,36 @@ type Handler struct {
 	closing        bool
 }
 
-// NewHandler constructs the handler with the dependencies and limits required for mediaworker.
+// NewHandler создает обработчик с зависимостями и ограничениями, необходимыми для медиаворкера.
 //
-// Parameters:
-//   - cfg: Operator-controlled configuration and processing limits.
-//   - registry: Dependency or metrics registry used to locate or register the component.
-//   - sessions: Physical-session authorization dependency.
-//   - tickets: One-use or signed media-ticket issuer and verifier.
-//   - engine: Media engine that owns the room and peer resources.
-//   - metrics: Callback returning bounded operational metrics.
-//   - logger: Bounded diagnostic logger.
+// @Parameters:
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
+//   - registry: Реестр зависимостей или метрик, используемый для поиска или регистрации
+//     компонента.
+//   - sessions: Зависимость авторизации физического сеанса.
+//   - tickets: Одноразовый или подписанный эмитент и верификатор медиа-билетов.
+//   - engine: Медиадвижок, которому принадлежат комната и ресурсы одноранговых узлов.
+//   - metrics: Обратный вызов, возвращающий ограниченные операционные показатели.
+//   - logger: Ограниченный диагностический логгер.
 //
-// Returns:
-//   - result 1: The constructed or loaded handler.
+// @returns:
+//   - result1: Сконструированный или загруженный обработчик.
 func NewHandler(cfg config.MediaConfig, registry Registry, sessions Sessions, tickets Tickets, engine Engine, metrics func() any, logger *slog.Logger) *Handler {
 	return &Handler{cfg: cfg, registry: registry, sessions: sessions, tickets: tickets, engine: engine, metrics: metrics, logger: logger, gate: make(chan struct{}, 128), leases: make(map[string]roomLease), offers: make(map[string]*offerCache), roomGates: make(map[string]*roomGate)}
 }
 
-// lockRoom serializes a control operation for one media room and returns its unlock callback.
+// lockRoom сериализует управляющую операцию для одной медиакомнаты и возвращает обратный вызов
+// для разблокировки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The callback used to complete or release the operation.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Обратный вызов, используемый для завершения операции или освобождения
+//     ресурсов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (h *Handler) lockRoom(ctx context.Context, id string) (func(), error) {
 	if ctx.Err() != nil {
 		return nil, media.ErrUnavailable
@@ -341,11 +372,11 @@ func (h *Handler) lockRoom(ctx context.Context, id string) (func(), error) {
 	}
 }
 
-// Routes builds the media worker's internal HTTP router with authentication and readiness
-// checks.
+// Routes создает внутренний маршрутизатор HTTP медиа-воркера с проверкой аутентификации и
+// готовности.
 //
-// Returns:
-//   - result 1: The resulting handler.
+// @returns:
+//   - result1: Результирующий обработчик.
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz",
@@ -370,13 +401,13 @@ func (h *Handler) Routes() http.Handler {
 	return mux
 }
 
-// auth verifies the protected internal API-to-media-worker request credential.
+// auth проверяет защищенные учетные данные для запроса API к медиа-воркеру.
 //
-// Parameters:
-//   - next: Next HTTP handler or newer event, as defined by its type.
+// @Parameters:
+//   - next: Следующий обработчик HTTP или более новое событие, в зависимости от его типа.
 //
-// Returns:
-//   - result 1: The HTTP handler to register for this operation.
+// @returns:
+//   - result1: Обработчик HTTP для регистрации этой операции.
 func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -390,15 +421,17 @@ func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// strictJSON decodes bounded JSON with unknown-field and trailing-data rejection.
+// strictJSON декодирует ограниченный JSON с отбрасыванием неизвестных полей и завершающих
+// данных.
 //
-// Parameters:
-//   - raw: Untrusted serialized value to decode or validate.
-//   - target: Target state, account or decoded value, as defined by its type.
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func strictJSON(raw []byte, target any) error {
 	if !utf8.Valid(raw) {
 		return media.ErrInvalid
@@ -414,55 +447,57 @@ func strictJSON(raw []byte, target any) error {
 	return nil
 }
 
-// validUUID checks that an identifier is a nonzero UUID before it is used in storage or routing.
+// validUUID проверяет, что идентификатор является ненулевым UUID, прежде чем использовать его
+// для хранения или маршрутизации.
 //
-// Parameters:
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func validUUID(id string) bool {
 	parsed, err := uuid.Parse(id)
 	return err == nil && parsed != uuid.Nil && parsed.String() == id
 }
 
-// sameBinding compares the full server-side identity of two media bindings.
+// sameBinding сравнивает полные идентификационные данные на стороне сервера для двух привязок
+// мультимедиа.
 //
-// Parameters:
-//   - a: The binding value being compared.
-//   - b: The binding value being compared.
+// @Parameters:
+//   - a: Сравниваемое значение привязки.
+//   - b: Сравниваемое значение привязки.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func sameBinding(a, b media.Binding) bool {
 	return a.ConferenceID == b.ConferenceID && a.ParticipantID == b.ParticipantID && a.SessionID == b.SessionID && a.ConnectionID == b.ConnectionID && a.UserID == b.UserID && a.AuthorizationExpiresAt.Equal(b.AuthorizationExpiresAt)
 }
 
-// sameRoute compares the media-room owner and fencing version of two routing records.
+// sameRoute сравнивает владельца медиакомнаты и версию ограждения в двух записях маршрутизации.
 //
-// Parameters:
-//   - a: The route value being compared.
-//   - b: The route value being compared.
+// @Parameters:
+//   - a: Сравниваемое значение маршрута.
+//   - b: Сравниваемое значение маршрута.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func sameRoute(a, b media.Route) bool {
 	return a.WorkerID == b.WorkerID && a.Endpoint == b.Endpoint && a.LeaseID == b.LeaseID
 }
 
-// active checks whether the active resource still has the required session or ownership
-// identity.
+// active проверяет, есть ли у активного ресурса необходимые идентификационные данные для сеанса
+// или владения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - binding: Verified account, session and media-connection identity.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - binding: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (h *Handler) active(ctx context.Context, binding media.Binding) error {
 	if !binding.AuthorizationExpiresAt.After(time.Now()) {
 		return media.ErrUnauthorized
@@ -480,12 +515,12 @@ func (h *Handler) active(ctx context.Context, binding media.Binding) error {
 	return nil
 }
 
-// command strictly decodes and executes an allowed internal media control command.
+// command — команда строго декодирует и выполняет разрешенную внутреннюю команду управления мультимедиа.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - r: Incoming HTTP request.
-//   - operation: Fixed allowlisted provider or protocol operation.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - r: Входящий запрос HTTP.
+//   - operation: Фиксированный провайдер из списка разрешенных или операция протокола.
 func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation string) {
 	select {
 	case h.gate <- struct{}{}:
@@ -531,7 +566,8 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 		defer unlock()
 	}
 	if operation == "leave" {
-		// Expired authorization or lost ownership must not prevent resource cleanup.
+		// Истечение срока действия авторизации или потеря права собственности не должны
+		// препятствовать очистке ресурсов.
 		if binding, ok := h.engine.PeerBinding(cmd.MediaPeerID); ok && !sameBinding(binding, cmd.Binding) {
 			h.fail(w, media.ErrUnauthorized)
 			return
@@ -544,7 +580,8 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 			h.fail(w, err)
 			return
 		}
-		// Periodic cleanup releases an empty room under the same room lock.
+		// При периодической очистке освобождается пустая комната, находящаяся под той же
+		// блокировкой.
 		h.json(w, http.StatusOK, media.Result{MediaPeerID: cmd.MediaPeerID})
 		return
 	}
@@ -576,8 +613,8 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 			h.fail(w, media.ErrOwnership)
 			return
 		}
-		// Reassigning a room to this process must not reuse the previous lease's state. Serialize join
-		// and leave operations for that room.
+		// При повторном назначении комнаты этому процессу состояние предыдущей аренды не должно
+		// использоваться повторно.  Сериализуйте операции входа и выхода из комнаты.
 		h.mu.Lock()
 		old, existed := h.leases[binding.ConferenceID]
 		h.mu.Unlock()
@@ -594,21 +631,25 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 			h.fail(w, media.ErrUnavailable)
 			return
 		}
-		// A valid leave and rejoin carries a newly saved policy. Apply it to an existing room before
-		// admission and again to a newly created room.
+		// При корректном выходе и повторном входе используется новая сохраненная политика.
+		// Примените ее к существующей комнате перед входом и еще раз — к вновь созданной
+		// комнате.
 		if cmd.Policy != nil {
 			engine, ok := h.engine.(interface {
-				// SetPolicy updates policy for mediaworker.
+				// SetPolicy обновляет политику для медиаворкера.
 				//
-				// Parameters:
-				//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-				//   - argument 2: Conference identifier limiting the operation scope.
-				//   - argument 3: Conference participant identifier.
-				//   - argument 4: Effective server-side media policy.
+				// @Parameters:
+				//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность
+				//   выполнения операции.
+				//   - arg2: Идентификатор конференции, ограничивающий область действия
+				//   операции.
+				//   - arg3: Идентификатор участника конференции.
+				//   - arg4: Эффективная политика в отношении медиаданных на стороне
+				//   сервера.
 				//
-				// Returns:
-				//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-				//     failure.
+				// @returns:
+				//   - result1: nil — в случае успеха; в противном случае — ошибка
+				//   валидации, доступа, передачи данных или сохранения.
 				SetPolicy(context.Context, string, string, media.ParticipantPolicy) error
 			})
 			if !ok {
@@ -627,17 +668,20 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 		}
 		if cmd.Policy != nil {
 			if policyEngine, ok := h.engine.(interface {
-				// SetPolicy updates policy for mediaworker.
+				// SetPolicy обновляет политику для медиаворкера.
 				//
-				// Parameters:
-				//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-				//   - argument 2: Conference identifier limiting the operation scope.
-				//   - argument 3: Conference participant identifier.
-				//   - argument 4: Effective server-side media policy.
+				// @Parameters:
+				//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность
+				//   выполнения операции.
+				//   - arg2: Идентификатор конференции, ограничивающий область действия
+				//   операции.
+				//   - arg3: Идентификатор участника конференции.
+				//   - arg4: Эффективная политика в отношении медиаданных на стороне
+				//   сервера.
 				//
-				// Returns:
-				//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-				//     failure.
+				// @returns:
+				//   - result1: nil — в случае успеха; в противном случае — ошибка
+				//   валидации, доступа, передачи данных или сохранения.
 				SetPolicy(context.Context, string, string, media.ParticipantPolicy) error
 			}); ok {
 				if err = policyEngine.SetPolicy(ctx, binding.ConferenceID, binding.ParticipantID, *cmd.Policy); err != nil {
@@ -659,16 +703,18 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 		h.logger.Info("media peer admitted", "conference_id", binding.ConferenceID, "participant_id", binding.ParticipantID, "session_id", binding.SessionID, "media_peer_id", peer.MediaPeerID, "worker_id", h.cfg.WorkerID, "request_id", cmd.RequestID)
 		policy := cmd.Policy
 		if provider, ok := h.engine.(interface {
-			// ParticipantPolicy returns the participant's current effective media restrictions.
+			// ParticipantPolicy возвращает текущие действующие ограничения на доступ к
+			// медиаданным для участника.
 			//
-			// Parameters:
-			//   - argument 1: Conference identifier limiting the operation scope.
-			//   - argument 2: Conference participant identifier.
+			// @Parameters:
+			//   - arg1: Идентификатор конференции, ограничивающий область действия
+			//   операции.
+			//   - arg2: Идентификатор участника конференции.
 			//
-			// Returns:
-			//   - result 1: The resulting participant policy.
-			//   - result 2: Whether the operation's documented condition holds or its conditional state
-			//     change succeeded.
+			// @returns:
+			//   - result1: Результирующая политика в отношении участника.
+			//   - result2: Указывает, выполняется ли задокументированное условие операции и
+			//   произошло ли успешное изменение ее условного состояния.
 			ParticipantPolicy(string, string) (media.ParticipantPolicy, bool)
 		}); ok {
 			if current, exists := provider.ParticipantPolicy(binding.ConferenceID, binding.ParticipantID); exists {
@@ -697,17 +743,20 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 		}
 		if cmd.Policy != nil {
 			policyEngine, ok := h.engine.(interface {
-				// SetPolicy updates policy for mediaworker.
+				// SetPolicy обновляет политику для медиаворкера.
 				//
-				// Parameters:
-				//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-				//   - argument 2: Conference identifier limiting the operation scope.
-				//   - argument 3: Conference participant identifier.
-				//   - argument 4: Effective server-side media policy.
+				// @Parameters:
+				//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность
+				//   выполнения операции.
+				//   - arg2: Идентификатор конференции, ограничивающий область действия
+				//   операции.
+				//   - arg3: Идентификатор участника конференции.
+				//   - arg4: Эффективная политика в отношении медиаданных на стороне
+				//   сервера.
 				//
-				// Returns:
-				//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-				//     failure.
+				// @returns:
+				//   - result1: nil — в случае успеха; в противном случае — ошибка
+				//   валидации, доступа, передачи данных или сохранения.
 				SetPolicy(context.Context, string, string, media.ParticipantPolicy) error
 			})
 			if !ok {
@@ -742,19 +791,23 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 		} else {
 			var answer webrtc.SessionDescription
 			if engine, ok := h.engine.(interface {
-				// OfferSources processes an SDP offer with its explicit media-source declarations.
+				// OfferSources обрабатывает предложение SDP с явными декларациями о
+				// медиаисточниках.
 				//
-				// Parameters:
-				//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-				//   - argument 2: Identifier of the resource addressed by this operation.
-				//   - argument 3: Identifier correlating this offer with its negotiation cycle.
-				//   - argument 4: Untrusted serialized value to decode or validate.
-				//   - argument 5: Validated declarations of the peer's media sources.
+				// @Parameters:
+				//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность
+				//   выполнения операции.
+				//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+				//   - arg3: Идентификатор, связывающий это предложение с его циклом
+				//   согласования.
+				//   - arg4: Недоверенное сериализованное значение для декодирования или
+				//   проверки.
+				//   - arg5: Проверенные декларации о медиаисточниках пиров.
 				//
-				// Returns:
-				//   - result 1: The resulting session description.
-				//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-				//     failure.
+				// @returns:
+				//   - result1: Полученное описание сеанса.
+				//   - result2: nil — в случае успеха; в противном случае — ошибка
+				//   валидации, доступа, передачи данных или сохранения.
 				OfferSources(context.Context, string, string, string, []media.Publication) (webrtc.SessionDescription, error)
 			}); ok {
 				answer, err = engine.OfferSources(ctx, cmd.MediaPeerID, cmd.NegotiationID, cmd.SDP, cmd.Publications)
@@ -817,11 +870,12 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 	h.json(w, http.StatusOK, result)
 }
 
-// fail records a safe mediaworker failure and starts the owned-resource cleanup path.
+// fail регистрирует сбой безопасного медиаворкера и запускает процесс очистки ресурсов,
+// принадлежащих этому воркеру.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - err: Error to classify, wrap or report safely.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 func (h *Handler) fail(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest
 	switch {
@@ -841,27 +895,27 @@ func (h *Handler) fail(w http.ResponseWriter, err error) {
 	h.json(w, status, map[string]string{"code": media.ErrorCode(err)})
 }
 
-// json serializes the payload as a JSON response with the selected HTTP status.
+// json сериализует полезную нагрузку в ответ JSON с выбранным статусом HTTP.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - status: Lifecycle state or response status to record.
-//   - data: Input bytes or structured event payload.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
+//   - data: Входные байты или структурированная полезная информация о событии.
 func (h *Handler) json(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(data)
 }
 
-// Start starts mediaworker and prepares the resources owned by that operation.
+// Start запускает медиаворкера и подготавливает ресурсы, принадлежащие этой операции.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: The bounded event or media channel owned by this operation.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (h *Handler) Start(ctx context.Context) (<-chan struct{}, error) {
 	startedAt := time.Now()
 	operation, cancel := context.WithTimeout(ctx, h.cfg.OperationTimeout)
@@ -903,7 +957,7 @@ func (h *Handler) Start(ctx context.Context) (<-chan struct{}, error) {
 	return done, nil
 }
 
-// updateReadyLocked refreshes the worker readiness flag while its state lock is held.
+// updateReadyLocked обновляет флаг готовности воркера, удерживая блокировку состояния.
 func (h *Handler) updateReadyLocked() {
 	now := time.Now()
 	valid := !h.fencing && !h.closing && h.workerDeadline.After(now)
@@ -916,16 +970,16 @@ func (h *Handler) updateReadyLocked() {
 	h.ready.Store(valid)
 }
 
-// leaseValid checks that the room still belongs to this worker with the expected fencing
-// version.
+// leaseValid проверяет, что комната по-прежнему принадлежит этому воркеру с ожидаемой версией
+// ограждения.
 //
-// Parameters:
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - route: Current media-room owner and fencing version.
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - route: Текущий владелец медиа-комнаты и версия ограждения.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (h *Handler) leaseValid(conferenceID string, route media.Route) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -933,10 +987,10 @@ func (h *Handler) leaseValid(conferenceID string, route media.Route) bool {
 	return ok && !h.fencing && !h.closing && h.workerDeadline.After(time.Now()) && lease.deadline.After(time.Now()) && sameRoute(lease.route, route)
 }
 
-// watchdog closes media resources that have lost their authorization or distributed ownership.
+// watchdog закрывает медиаресурсы, которые утратили авторизацию или право владения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (h *Handler) watchdog(ctx context.Context) {
 	h.mu.Lock()
 	now := time.Now()
@@ -953,11 +1007,12 @@ func (h *Handler) watchdog(ctx context.Context) {
 	}
 }
 
-// fence stops a stale worker from continuing media processing after ownership is lost.
+// fence не позволяет зависшему воркеру продолжать обработку медиаданных после утраты права
+// владения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - reason: Bounded lifecycle or failure reason.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - reason: Ограниченный жизненный цикл или причина сбоя.
 func (h *Handler) fence(ctx context.Context, reason string) {
 	h.mu.Lock()
 	if h.fencing || h.closing {
@@ -976,7 +1031,7 @@ func (h *Handler) fence(ctx context.Context, reason string) {
 		if !expired {
 			h.mu.Unlock()
 			return
-		} // A concurrent renewal completed first.
+		} // Параллельное обновление завершается первым.
 	}
 	h.fencing = true
 	h.ready.Store(false)
@@ -1000,16 +1055,16 @@ func (h *Handler) fence(ctx context.Context, reason string) {
 	h.mu.Lock()
 	h.offers = make(map[string]*offerCache)
 	h.fencing = false
-	// The worker becomes ready again only after a successful heartbeat beyond the previous lease
-	// boundary.
+	// Воркер снова становится готовым к работе только после успешного подтверждения доступности
+	// по истечении срока аренды.
 	h.ready.Store(false)
 	h.mu.Unlock()
 }
 
-// heartbeat periodically renews the worker's distributed presence.
+// heartbeat периодически обновляет информацию о присутствии воркера в сети.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (h *Handler) heartbeat(ctx context.Context) {
 	h.registrationMu.Lock()
 	defer h.registrationMu.Unlock()
@@ -1032,7 +1087,8 @@ func (h *Handler) heartbeat(ctx context.Context) {
 	h.mu.Unlock()
 	for id, lease := range leases {
 		renewedAt := time.Now()
-		// Presence renewal must not wait for a slow room lock held during join or leave.
+		// Обновление присутствия не должно дожидаться медленной блокировки комнаты,
+		// удерживаемой во время регистрации или выхода.
 		if err := h.registry.Renew(operation, id, lease.route, h.cfg.OwnershipTTL); err != nil {
 			if !errors.Is(err, media.ErrOwnership) {
 				h.fence(operation, "registry_unavailable")
@@ -1070,10 +1126,11 @@ func (h *Handler) heartbeat(ctx context.Context) {
 	h.mu.Unlock()
 }
 
-// sweep removes expired sessions and closes resources that no longer have valid access.
+// sweep удаляет сеансы с истекшим сроком действия и закрывает ресурсы, к которым больше нет
+// действительного доступа.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (h *Handler) sweep(ctx context.Context) {
 	operation, cancel := context.WithTimeout(ctx, h.cfg.OperationTimeout)
 	defer cancel()
@@ -1100,10 +1157,11 @@ func (h *Handler) sweep(ctx context.Context) {
 	h.releaseEmpty(operation)
 }
 
-// releaseEmpty releases ownership of media rooms that have no active connections.
+// releaseEmpty освобождает от ответственности владельцев медиа-комнат, которые не имеют
+// активных подключений.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (h *Handler) releaseEmpty(ctx context.Context) {
 	h.mu.Lock()
 	leases := make(map[string]roomLease, len(h.leases))
@@ -1123,14 +1181,15 @@ func (h *Handler) releaseEmpty(ctx context.Context) {
 		}
 		active := false
 		if engine, ok := h.engine.(interface {
-			// HasConference reports whether this manager currently owns the requested conference room.
+			// HasConference сообщает, является ли данный менеджер владельцем запрашиваемого
+			// конференц-зала.
 			//
-			// Parameters:
-			//   - argument 1: Identifier of the resource addressed by this operation.
+			// @Parameters:
+			//   - arg1: Идентификатор ресурса, к которому обращается данная операция.
 			//
-			// Returns:
-			//   - result 1: Whether the operation's documented condition holds or its conditional state
-			//     change succeeded.
+			// @returns:
+			//   - result1: Указывает, выполняется ли задокументированное условие операции и
+			//   произошло ли успешное изменение ее условного состояния.
 			HasConference(string) bool
 		}); ok {
 			active = engine.HasConference(id)
@@ -1153,14 +1212,14 @@ func (h *Handler) releaseEmpty(ctx context.Context) {
 	}
 }
 
-// Stop stops the active mediaworker operation and releases its owned resources.
+// Stop останавливает активную работу mediaworker и освобождает принадлежащие ему ресурсы.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (h *Handler) Stop(ctx context.Context) error {
 	h.mu.Lock()
 	h.closing = true
@@ -1172,18 +1231,18 @@ func (h *Handler) Stop(ctx context.Context) error {
 	return err
 }
 
-// Ready reports whether the component or configured dependency is currently usable.
+// Ready сообщает, можно ли в данный момент использовать компонент или настроенную зависимость.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (h *Handler) Ready() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.ready.Load() && !h.draining
 }
 
-// BeginDrain stops accepting new work while existing operations finish.
+// BeginDrain прекращает принимать новые задачи, пока не завершатся текущие операции.
 func (h *Handler) BeginDrain() {
 	h.mu.Lock()
 	h.draining = true
@@ -1191,11 +1250,11 @@ func (h *Handler) BeginDrain() {
 	h.heartbeat(context.Background())
 }
 
-// ActiveRooms counts rooms with active participants so deployment can detect media that would be
-// interrupted.
+// ActiveRooms подсчитывает комнаты с активными участниками, чтобы при развертывании можно было
+// обнаружить, что передача мультимедиа может быть прервана.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
 func (h *Handler) ActiveRooms() int {
 	rooms := make(map[string]struct{})
 	for _, binding := range h.engine.Bindings() {

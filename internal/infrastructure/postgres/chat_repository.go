@@ -22,32 +22,32 @@ type ChatRepository struct {
 	direct bool
 }
 
-// NewChatRepository constructs the chat repository with the dependencies and limits required for
-// persistent chat messages and private attachments.
+// NewChatRepository создаёт репозиторий чатов с зависимостями и ограничениями, необходимыми для
+// хранения сообщений в чатах и приватных вложений.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded chat repository.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий чатов.
 func NewChatRepository(db *gorm.DB) *ChatRepository {
 	return &ChatRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
 }
 
-// authorizeChat checks persisted membership and conference state before accessing conference
-// chat resources.
+// authorizeChat проверяет сохранённые данные о членстве и состоянии конференции перед доступом
+// к ресурсам чата конференции.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - locked: Whether the query must lock the selected row before mutation.
-//   - write: Whether this access performs a mutation and requires write authorization.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - locked: Указывает, должен ли запрос блокировать выбранную строку перед изменением.
+//   - write: Выполняет ли этот доступ мутацию и требует ли авторизации на запись.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func authorizeChat(tx *gorm.DB, userID, conferenceID string, locked, write bool) (conferences.Participant, error) {
 	c, err := findConference(tx, conferenceID, locked)
 	if err != nil {
@@ -76,28 +76,28 @@ func authorizeChat(tx *gorm.DB, userID, conferenceID string, locked, write bool)
 	return p, nil
 }
 
-// chatCursor encodes a stable message-history pagination boundary.
+// chatCursor кодирует стабильную границу разбивки истории сообщений на страницы.
 //
-// Parameters:
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - sequence: Stable message or event ordering sequence.
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - sequence: Стабильная последовательность упорядочивания сообщений или событий.
 //
-// Returns:
-//   - result 1: Opaque message-history continuation cursor.
+// @returns:
+//   - result1: Непрозрачный курсор продолжения истории сообщений.
 func chatCursor(conferenceID string, sequence int64) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(conferenceID + ":" + strconv.FormatInt(sequence, 10)))
 }
 
-// parseChatCursor decodes and validates a message-history pagination boundary.
+// parseChatCursor декодирует и проверяет границу разбивки истории сообщений на страницы.
 //
-// Parameters:
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - cursor: Opaque continuation boundary from the previous page.
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func parseChatCursor(conferenceID, cursor string) (int64, error) {
 	if cursor == "" {
 		return 0, nil
@@ -120,13 +120,13 @@ func parseChatCursor(conferenceID, cursor string) (int64, error) {
 	return n, nil
 }
 
-// messageQuery builds the message query scoped to the authorized conversation.
+// messageQuery формирует запрос к сообщениям с привязкой к авторизованному диалогу.
 //
-// Parameters:
-//   - tx: Current database transaction.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
 //
-// Returns:
-//   - result 1: The constructed or loaded db.
+// @returns:
+//   - result1: Созданная или загруженная база данных.
 func (r *ChatRepository) messageQuery(tx *gorm.DB) *gorm.DB {
 	if r.direct {
 		return r.messages(tx).Select("conversation_messages.*, COALESCE(NULLIF(u.display_name,''),'Пользователь') AS sender_name").Joins("JOIN users u ON u.id=conversation_messages.sender_user_id")
@@ -134,18 +134,19 @@ func (r *ChatRepository) messageQuery(tx *gorm.DB) *gorm.DB {
 	return r.messages(tx).Select("chat_messages.*, p.display_name AS sender_name").Joins(r.sql("JOIN conference_participants p ON p.conference_id=chat_messages.conference_id AND p.user_id=chat_messages.sender_user_id"))
 }
 
-// loadMessage loads a message together with the related metadata needed by the caller.
+// loadMessage загружает сообщение вместе с сопутствующими метаданными, необходимыми вызывающей
+// стороне.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: The resulting message.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) loadMessage(tx *gorm.DB, conferenceID, id, userID string) (chat.Message, error) {
 	var message chat.Message
 	cutoff, err := r.historyCutoff(tx, userID, conferenceID)
@@ -161,16 +162,17 @@ func (r *ChatRepository) loadMessage(tx *gorm.DB, conferenceID, id, userID strin
 	return rows[0], err
 }
 
-// decorateMessages loads related attachment and call metadata for a page of messages.
+// decorateMessages загружает сопутствующие метаданные о вложениях и вызовах для страницы
+// сообщений.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - items: Bounded collection of records to process.
-//   - cutoffs: Optional member-specific history boundaries.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - items: Ограниченная коллекция записей для обработки.
+//   - cutoffs: Необязательные границы истории для конкретного участника.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) decorateMessages(tx *gorm.DB, items []chat.Message, cutoffs ...int64) error {
 	if len(items) == 0 {
 		return nil
@@ -234,17 +236,18 @@ func (r *ChatRepository) decorateMessages(tx *gorm.DB, items []chat.Message, cut
 	return nil
 }
 
-// readState loads the saved read boundary and unread count for the authorized chat scope.
+// readState загружает сохранённую границу прочитанных сообщений и количество непрочитанных
+// сообщений для авторизованной области чата.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The resulting read state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное состояние чтения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) readState(tx *gorm.DB, userID, conferenceID string) (chat.ReadState, error) {
 	var state chat.ReadState
 	if err := tx.Table(r.readTable()).Select("last_read_message_id,last_read_sequence").Where(r.sql("conference_id=? AND user_id=?"), conferenceID, userID).Scan(&state).Error; err != nil {
@@ -264,19 +267,20 @@ func (r *ChatRepository) readState(tx *gorm.DB, userID, conferenceID string) (ch
 	return state, err
 }
 
-// List returns a bounded page of chat records using the supplied pagination and filters.
+// List возвращает страницу с ограниченным количеством записей чата с использованием заданных
+// параметров разбивки на страницы и фильтров.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - cursor: Opaque continuation boundary from the previous page.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The resulting page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) List(ctx context.Context, userID, conferenceID, cursor string, limit int) (chat.Page, error) {
 	page := chat.Page{Items: []chat.Message{}}
 	before, err := parseChatCursor(conferenceID, cursor)
@@ -322,18 +326,19 @@ func (r *ChatRepository) List(ctx context.Context, userID, conferenceID, cursor 
 	return page, err
 }
 
-// markImportant projects personal bookmarks only into authenticated REST reads.
-// Conference broadcasts and stored messages never carry another member's marker.
+// markImportant проецирует персональные закладки только в аутентифицированные чтения REST.  В
+// рассылках конференций и сохранённых сообщениях никогда не используется маркер другого
+// участника.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - items: Bounded collection of records to process.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - items: Ограниченная коллекция записей для обработки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) markImportant(tx *gorm.DB, userID, conferenceID string, items []chat.Message) error {
 	if r.direct || len(items) == 0 {
 		return nil
@@ -356,21 +361,23 @@ func (r *ChatRepository) markImportant(tx *gorm.DB, userID, conferenceID string,
 	return nil
 }
 
-// Send validates access, reply and attachment references and persists the chat message with
-// idempotency protection against duplicate retries.
+// Send проверяет ссылки на доступ, ответы и вложения и сохраняет сообщение чата с защитой от
+// повторяющихся идентичных запросов.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - request: Validated application request or incoming operation parameters.
-//   - fingerprint: Stable request fingerprint used to detect conflicting idempotent retries.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//   - fingerprint: Стабильный отпечаток запроса, используемый для обнаружения повторяющихся
+//     идентичных запросов.
 //
-// Returns:
-//   - result 1: The resulting message.
-//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) Send(ctx context.Context, userID, conferenceID string, request chat.SendRequest, fingerprint string) (chat.Message, bool, error) {
 	var message chat.Message
 	created := false
@@ -459,20 +466,20 @@ func (r *ChatRepository) Send(ctx context.Context, userID, conferenceID string, 
 	return message, created, nil
 }
 
-// Edit changes the author's existing message text after checking visibility and edit
-// eligibility.
+// Edit — при редактировании существующий текст сообщения автора изменяется после проверки видимости и
+// возможности редактирования.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
-//   - text: UTF-8 text to validate, normalize or process.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - text: Текст UTF-8 для проверки, нормализации или обработки.
 //
-// Returns:
-//   - result 1: The resulting message.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) Edit(ctx context.Context, userID, conferenceID, id, text string) (chat.Message, error) {
 	var item chat.Message
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -517,18 +524,19 @@ func (r *ChatRepository) Edit(ctx context.Context, userID, conferenceID, id, tex
 	return item, nil
 }
 
-// Delete removes the requested chat using the caller's scope and the resource lifecycle rules.
+// Delete удаляет запрошенный чат, используя область видимости вызывающей стороны и правила
+// жизненного цикла ресурса.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting message.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) Delete(ctx context.Context, userID, conferenceID, id string) (chat.Message, error) {
 	var item chat.Message
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -569,17 +577,18 @@ func (r *ChatRepository) Delete(ctx context.Context, userID, conferenceID, id st
 	return item, nil
 }
 
-// ReadState returns the member's saved read boundary and visible unread-message count.
+// ReadState возвращает сохраненную границу прочитанных сообщений участника и количество видимых
+// непрочитанных сообщений.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// Returns:
-//   - result 1: The resulting read state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное состояние чтения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ReadState(ctx context.Context, userID, conferenceID string) (chat.ReadState, error) {
 	var state chat.ReadState
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -594,19 +603,19 @@ func (r *ChatRepository) ReadState(ctx context.Context, userID, conferenceID str
 	return state, err
 }
 
-// MarkRead advances the saved read boundary without allowing late or repeated requests to move
-// it backward.
+// MarkRead перемещает сохраненную границу прочитанных сообщений, не позволяя поздним или
+// повторным запросам сдвигать ее назад.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - messageID: Message identifier within the authorized conversation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
 //
-// Returns:
-//   - result 1: The resulting read state.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученное состояние чтения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) MarkRead(ctx context.Context, userID, conferenceID, messageID string) (chat.ReadState, error) {
 	var state chat.ReadState
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

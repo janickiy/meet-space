@@ -5,13 +5,15 @@ import (
 	recordingsapp "github.com/janickiy/meet-space/internal/app/recordings"
 )
 
-// RegisterConferenceRecordingRoutes registers the conference recording endpoints with the
-// supplied authentication and request middleware.
+// RegisterConferenceRecordingRoutes регистрирует конечные точки для записи конференций с
+// предоставленными промежуточными модулями аутентификации и обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - authentication: Middleware that resolves the authenticated account identity.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
 func RegisterConferenceRecordingRoutes(router gin.IRouter, handler *recordingsapp.Handler, authentication gin.HandlerFunc) {
 	routes := router.Group(APIV1Prefix+"/conferences", authentication)
 	routes.POST("/:id/recordings", handler.Start)

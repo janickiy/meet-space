@@ -15,33 +15,37 @@ import (
 // ControlService определяет заменяемый контракт зависимости для управления жизненным циклом конференции и
 // членством участников.
 type ControlService interface {
-	// Moderate applies a participant moderation action after checking the actor's role and the
-	// target restrictions.
+	// Moderate применяет действие по модерации участников после проверки роли субъекта и
+	// целевых ограничений.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Conference participant identifier.
-	//   - argument 5: Validated application request or incoming operation parameters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор участника конференции.
+	//   - arg5: Валидированный запрос приложения или входящие параметры операции.
 	//
-	// Returns:
-	//   - result 1: The resulting participant view.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное представление участника.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Moderate(context.Context, string, string, string, conferences.ModerationRequest) (conferences.ParticipantView, error)
-	// UpdateMediaState saves the participant's declared media-source state.
+	// UpdateMediaState сохраняет заявленное участником состояние источника мультимедиа.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Current state or validated state update.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Текущее состояние или обновлённое валидированное состояние.
 	//
-	// Returns:
-	//   - result 1: The resulting participant view.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученное представление участника.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	UpdateMediaState(context.Context, string, string, conferences.MediaState) (conferences.ParticipantView, error)
 }
 
@@ -51,18 +55,18 @@ type ControlHandler struct{ service ControlService }
 // NewControlHandler создает обработчик управления с зависимостями и ограничениями, необходимыми для
 // жизненного цикла конференции и управления членством участников.
 //
-// Параметры:
+// @Parameters:
 //   - service: служба приложения, вызываемая этим адаптером.
 //
-// Возвращает:
-//   - result 1: созданный или загруженный обработчик управления.
+// @returns:
+//   - result1: созданный или загруженный обработчик управления.
 func NewControlHandler(service ControlService) *ControlHandler {
 	return &ControlHandler{service: service}
 }
 
 // Moderate применяет действие по модерации участников после проверки роли пользователя и целевых ограничений.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ControlHandler) Moderate(c *gin.Context) {
 	id, ok := conferenceID(c)
@@ -88,7 +92,7 @@ func (h *ControlHandler) Moderate(c *gin.Context) {
 
 // Media принимает данные о состоянии микрофона, камеры и экрана текущего участника.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ControlHandler) Media(c *gin.Context) {
 	id, ok := conferenceID(c)

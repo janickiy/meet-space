@@ -9,28 +9,32 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// RegisterChatRoutes registers the chat endpoints with the supplied authentication and request
-// middleware.
+// RegisterChatRoutes регистрирует конечные точки чата с предоставленными промежуточными
+// модулями аутентификации и обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - authentication: Middleware that resolves the authenticated account identity.
-//   - limiter: Shared request-rate limiter.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterChatRoutes(router gin.IRouter, handler *chatapp.Handler, authentication gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	registerMessageRoutes(router, handler, authentication, limiter, "conferences")
 }
 
-// registerMessageRoutes registers message, attachment and read-state routes for the selected
-// conversation scope.
+// registerMessageRoutes регистрирует маршруты для сообщений, вложений и состояния чтения для
+// выбранной области диалога.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - authentication: Middleware that resolves the authenticated account identity.
-//   - limiter: Shared request-rate limiter.
-//   - namespace: Namespace isolating this component's distributed keys and channels.
-//   - checks: Named dependency readiness probes or route checks.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
+//   - limiter: Общий ограничитель частоты запросов.
+//   - namespace: Пространство имен, изолирующее распределенные ключи и каналы этого компонента.
+//   - checks: Именованные проверки готовности зависимостей или маршрутные проверки.
 func registerMessageRoutes(router gin.IRouter, handler *chatapp.Handler, authentication gin.HandlerFunc, limiter httpmiddleware.Limiter, namespace string, checks ...gin.HandlerFunc) {
 
 	key := func(c *gin.Context) string {

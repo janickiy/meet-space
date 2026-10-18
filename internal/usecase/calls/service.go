@@ -10,92 +10,107 @@ import (
 )
 
 type Repository interface {
-	// Create creates and persists a new direct call for the acting account.
+	// Create создает и сохраняет новый прямой вызов для действующей учетной записи.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Target state, account or decoded value, as defined by its type.
-	//   - argument 4: Validated application request or incoming operation parameters.
-	//   - argument 5: Browser media-client identity or transport dependency, as defined by its type.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: Целевое состояние, учетная запись или декодированное значение в
+	//   соответствии с типом.
+	//   - arg4: Валидированный запрос приложения или входящие параметры операции.
+	//   - arg5: Идентификация медиа-клиента браузера или зависимость от транспорта,
+	//   определяемая его типом.
 	//
-	// Returns:
-	//   - result 1: The resulting call.
-	//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий вызов.
+	//   - result2: Указывает, создал ли этот запрос новое состояние или повторно
+	//   использовал идемпотентный результат.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Create(context.Context, string, string, string, string) (domain.Call, bool, error)
-	// Get loads the requested direct call within the caller's authorized scope.
+	// Get загружает запрошенный прямой вызов в рамках авторизованной области действия
+	// вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting call.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий вызов.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Get(context.Context, string, string) (domain.Call, error)
-	// Active returns the account's current nonterminal direct call, if any.
+	// Active возвращает текущий неконечный прямой вызов аккаунта, если таковой имеется.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор учетной записи, выполняющей операцию.
 	//
-	// Returns:
-	//   - result 1: The constructed or loaded call.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Сформированный или загруженный вызов.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Active(context.Context, string) (*domain.Call, error)
-	// Change applies the requested direct-call lifecycle action and returns its updated state.
+	// Change применяет запрошенное действие жизненного цикла прямого вызова и возвращает его
+	// обновленное состояние.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Identifier of the resource addressed by this operation.
-	//   - argument 4: Requested lifecycle or moderation action.
-	//   - argument 5: Browser media-client identity or transport dependency, as defined by its type.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg4: Запрошенное действие по управлению жизненным циклом или модерации.
+	//   - arg5: Идентификация медиа-клиента браузера или зависимость от транспорта,
+	//   определяемая его типом.
 	//
-	// Returns:
-	//   - result 1: The resulting call.
-	//   - result 2: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий вызов.
+	//   - result2: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Change(context.Context, string, string, string, string) (domain.Call, bool, error)
-	// Expiring returns the direct calls eligible for timeout processing.
+	// Expiring возвращает прямые вызовы, которые могут быть обработаны по истечении времени
+	// ожидания.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: The collected string values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные строковые значения.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Expiring(context.Context) ([]string, error)
 }
 type Bus interface {
-	// Publish publishes the saved direct call change through its configured event or command
-	// transport.
+	// Publish — при публикации сохраненное изменение прямого вызова публикуется через настроенный
+	// транспорт событий или команд.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Trusted event to publish or process.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Доверенное событие для публикации или обработки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Publish(context.Context, string, realtime.Envelope) error
 }
 type Observer interface {
-	// ConferenceChanged notifies connected sessions or observers of the conference's committed state
-	// change.
+	// ConferenceChanged уведомляет подключенные сеансы или наблюдателей об изменении состояния
+	// конференции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
 	ConferenceChanged(context.Context, string)
 }
 type Service struct {
@@ -104,15 +119,15 @@ type Service struct {
 	Observer Observer
 }
 
-// notify publishes the committed direct-call change to its authorized participants.
+// notify публикует зафиксированные изменения в прямом вызове для авторизованных участников.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - c: The call value processed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - c: Значение вызова, обработанное в ходе этой операции.
 func (s *Service) notify(ctx context.Context, c domain.Call) {
 	event := realtime.Event("call.updated", "", map[string]any{"call": c})
-	// Pubsub is an acceleration only: every client also restores authoritative
-	// state after reconnect and periodically while a call is displayed.
+	// Pubsub Это лишь ускорение процесса: каждый клиент также восстанавливает достоверное
+	// состояние после повторного подключения и периодически во время отображения вызова.
 	for _, user := range []string{c.CallerUserID, c.CalleeUserID} {
 		if s.Bus != nil {
 			if err := s.Bus.Publish(ctx, user, event); err != nil {
@@ -126,20 +141,24 @@ func (s *Service) notify(ctx context.Context, c domain.Call) {
 	}
 }
 
-// Create creates and persists a new direct call for the acting account.
+// Create создает и сохраняет новый прямой вызов для действующей учетной записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - actor: Identifier of the account performing the operation.
-//   - target: Target state, account or decoded value, as defined by its type.
-//   - request: Client-generated idempotency key identifying this direct-call request.
-//   - client: Browser media-client identity or transport dependency, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
+//   - request: Сгенерированный клиентом ключ идемпотентности, идентифицирующий этот запрос на
+//     прямой вызов.
+//   - client: Идентификация медиа-клиента браузера или зависимость от транспорта, определяемая
+//     его типом.
 //
-// Returns:
-//   - result 1: The resulting call.
-//   - result 2: Whether this request created new state rather than reusing an idempotent result.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий вызов.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Create(ctx context.Context, actor, target, request, client string) (domain.Call, bool, error) {
 	c, created, err := s.Repo.Create(ctx, actor, target, request, client)
 	if err == nil && created {
@@ -148,17 +167,18 @@ func (s *Service) Create(ctx context.Context, actor, target, request, client str
 	return c, created, err
 }
 
-// Get loads the requested direct call within the caller's authorized scope.
+// Get загружает запрошенный прямой вызов в рамках авторизованной области действия вызывающей
+// стороны.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - actor: Identifier of the account performing the operation.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting call.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий вызов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Get(ctx context.Context, actor, id string) (domain.Call, error) {
 	c, err := s.Repo.Get(ctx, actor, id)
 	if err != nil || !c.Expired(time.Now().UTC()) {
@@ -167,16 +187,16 @@ func (s *Service) Get(ctx context.Context, actor, id string) (domain.Call, error
 	return s.Change(ctx, actor, id, "expire", "")
 }
 
-// Active returns the account's current nonterminal direct call, if any.
+// Active возвращает текущий неконечный прямой вызов аккаунта, если таковой имеется.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - actor: Identifier of the account performing the operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
 //
-// Returns:
-//   - result 1: The constructed or loaded call.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Сформированный или загруженный вызов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Active(ctx context.Context, actor string) (*domain.Call, error) {
 	c, err := s.Repo.Active(ctx, actor)
 	if err != nil || c == nil || !c.Expired(time.Now().UTC()) {
@@ -186,19 +206,21 @@ func (s *Service) Active(ctx context.Context, actor string) (*domain.Call, error
 	return nil, err
 }
 
-// Change applies the requested direct-call lifecycle action and returns its updated state.
+// Change применяет запрошенное действие жизненного цикла прямого вызова и возвращает его
+// обновленное состояние.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - actor: Identifier of the account performing the operation.
-//   - id: Identifier of the resource addressed by this operation.
-//   - action: Requested lifecycle or moderation action.
-//   - client: Browser media-client identity or transport dependency, as defined by its type.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - action: Запрошенное действие по управлению жизненным циклом или модерации.
+//   - client: Идентификация медиа-клиента браузера или зависимость от транспорта, определяемая
+//     его типом.
 //
-// Returns:
-//   - result 1: The resulting call.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий вызов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Change(ctx context.Context, actor, id, action, client string) (domain.Call, error) {
 	c, changed, err := s.Repo.Change(ctx, actor, id, action, client)
 	if err == nil && changed {
@@ -207,10 +229,11 @@ func (s *Service) Change(ctx context.Context, actor, id, action, client string) 
 	return c, err
 }
 
-// Run runs direct-call lifecycle management until the context is canceled or processing fails.
+// Run управляет жизненным циклом прямого вызова до тех пор, пока контекст не будет отменён или
+// пока не произойдёт сбой при обработке.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()

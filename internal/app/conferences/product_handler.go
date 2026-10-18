@@ -15,7 +15,7 @@ import (
 
 // Self возвращает информацию о членстве действующего аккаунта, включая статус ожидания и допуск.
 //
-// Параметры:
+// @Parameters:
 // - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Self(c *gin.Context) {
 	id, ok := conferenceID(c)
@@ -32,7 +32,7 @@ func (h *Handler) Self(c *gin.Context) {
 
 // Admission принимает или отклоняет запрос на вход в зал ожидания после проверки полномочий действующего участника.
 //
-// Параметры:
+// @Parameters:
 // - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Admission(c *gin.Context) {
 	id, ok := conferenceID(c)
@@ -58,7 +58,7 @@ func (h *Handler) Admission(c *gin.Context) {
 
 // Schedule обновляет запланированное расписание конференции после проверки прав собственности и временных ограничений.
 //
-// Параметры:
+// @Parameters:
 // - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Schedule(c *gin.Context) {
 	id, ok := conferenceID(c)
@@ -79,7 +79,7 @@ func (h *Handler) Schedule(c *gin.Context) {
 
 // History формирует авторизованное представление о завершенной конференции с историей участников и записями резюме.
 //
-// Параметры:
+// @Parameters:
 // - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) History(c *gin.Context) {
 	id, ok := conferenceID(c)
@@ -96,7 +96,7 @@ func (h *Handler) History(c *gin.Context) {
 
 // Timeline возвращает разбитую на страницы ленту предстоящих, текущих и прошедших конференций аккаунта.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Timeline(c *gin.Context) {
 	query := conferences.TimelineQuery{View: c.DefaultQuery("view", "upcoming"), Scope: c.DefaultQuery("scope", "all"), Status: conferences.Status(c.Query("status")), Cursor: c.Query("cursor"), Limit: 20}

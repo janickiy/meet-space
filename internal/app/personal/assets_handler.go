@@ -18,24 +18,24 @@ type AssetHandler struct{ service *personalusecase.AssetService }
 
 // NewAssetHandler создает обработчик ресурсов с зависимостями и ограничениями, необходимыми для // личных и групповых чатов.
 //
-// Параметры:
+// @Parameters:
 //   - service: служба приложения, вызываемая этим адаптером.
 //
-// Возвращает:
-//   - result 1: созданный или загруженный обработчик ресурсов.
+// @returns:
+//   - result1: созданный или загруженный обработчик ресурсов.
 func NewAssetHandler(service *personalusecase.AssetService) *AssetHandler {
 	return &AssetHandler{service: service}
 }
 
 // assetParameter проверяет идентификатор частного актива из маршрута перед обращением к хранилищу.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //   - name: имя настраиваемого параметра, файла cookie, ресурса или провайдера.
 //
-// Возвращаемые значения:
-//   - result 1: проверенный идентификатор частного актива.
-//   - result 2: выполняется ли задокументированное условие операции или ее условное состояние
+// @returns:
+//   - result1: проверенный идентификатор частного актива.
+//   - result2: выполняется ли задокументированное условие операции или ее условное состояние
 //     изменено успешно.
 func assetParameter(c *gin.Context, name string) (string, bool) {
 	id, err := chat.UUID(c.Param(name))
@@ -48,7 +48,7 @@ func assetParameter(c *gin.Context, name string) (string, bool) {
 
 // PutAvatar проверяет и сохраняет нормализованный групповой аватар, а затем публикует зафиксированное изменение в диалоге.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) PutAvatar(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
@@ -70,7 +70,7 @@ func (h *AssetHandler) PutAvatar(c *gin.Context) {
 // DeleteAvatar очищает аватар авторизованной группы и планирует удаление устаревших приватных объектов для
 // очистки.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) DeleteAvatar(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
@@ -87,7 +87,7 @@ func (h *AssetHandler) DeleteAvatar(c *gin.Context) {
 
 // AvatarContent предоставляет аватар для закрытой группы только после проверки членства запрашивающей учетной записи.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) AvatarContent(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
@@ -97,11 +97,11 @@ func (h *AssetHandler) AvatarContent(c *gin.Context) {
 	h.content(c, id, "")
 }
 
-// AttachmentContent serves a visible group-message attachment through the authorized content
-// endpoint.
+// AttachmentContent обслуживает видимое вложение группового сообщения через авторизованную
+// конечную точку для работы с контентом.
 //
-// Parameters:
-//   - c: Gin request and response context, including the authenticated identity.
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *AssetHandler) AttachmentContent(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -117,7 +117,7 @@ func (h *AssetHandler) AttachmentContent(c *gin.Context) {
 // content открывает авторизованный приватный аватар или вложение и передает его через HTTP
 // ответ.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 //   - id: идентификатор ресурса, на который указывает эта операция.
 //   - attachment: идентификатор приватного вложения или метаданные в соответствии с его типом.

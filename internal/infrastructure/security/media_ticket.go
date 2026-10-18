@@ -9,14 +9,16 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/media"
 )
 
-// MediaTickets issues and verifies internal tickets bound to physical media connections.
+// MediaTickets выдает и проверяет внутренние тикеты, привязанные к физическим
+// медиаподключениям.
 type MediaTickets struct {
 	secret []byte
 	ttl    time.Duration
 	now    func() time.Time
 }
 
-// mediaClaims contains the signed media ticket identity and expiration claims.
+// mediaClaims содержит подписанные утверждения об идентификаторе медиа-тикета и сроке его
+// действия.
 type mediaClaims struct {
 	jwt.RegisteredClaims
 	Purpose string        `json:"purpose"`
@@ -24,17 +26,18 @@ type mediaClaims struct {
 	Route   media.Route   `json:"route"`
 }
 
-// NewMediaTickets constructs the media tickets with the dependencies and limits required for
-// authentication and cryptographic bindings.
+// NewMediaTickets создает медиа-тикеты с зависимостями и ограничениями, необходимыми для
+// аутентификации и криптографических привязок.
 //
-// Parameters:
-//   - secret: Private key material or raw secret; it must not be logged or exposed.
-//   - ttl: Lifetime assigned to the temporary value or ownership record.
+// @Parameters:
+//   - secret: Материал для создания закрытого ключа или необработанный секретный ключ; его
+//     нельзя регистрировать или раскрывать.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// Returns:
-//   - result 1: The constructed or loaded media tickets.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданные или загруженные медиа-тикеты.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewMediaTickets(secret string, ttl time.Duration) (*MediaTickets, error) {
 	if len(secret) < 32 || ttl < 30*time.Second || ttl > 60*time.Second {
 		return nil, fmt.Errorf("media ticket secret must contain >=32 bytes and TTL must be 30–60 seconds")
@@ -42,14 +45,15 @@ func NewMediaTickets(secret string, ttl time.Duration) (*MediaTickets, error) {
 	return &MediaTickets{secret: []byte(secret), ttl: ttl, now: time.Now}, nil
 }
 
-// validMediaBinding validates the complete identity binding used by internal media tickets.
+// validMediaBinding проверяет полную привязку идентификационных данных, используемых во
+// внутренних медиа-тикетах.
 //
-// Parameters:
-//   - binding: Verified account, session and media-connection identity.
+// @Parameters:
+//   - binding: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func validMediaBinding(binding media.Binding) bool {
 	for _, id := range []string{binding.ConferenceID, binding.ParticipantID, binding.SessionID, binding.ConnectionID, binding.UserID} {
 		parsed, err := uuid.Parse(id)
@@ -60,16 +64,17 @@ func validMediaBinding(binding media.Binding) bool {
 	return !binding.AuthorizationExpiresAt.IsZero()
 }
 
-// Issue creates a signed token bound to the supplied identity and expiry.
+// Issue создает подписанный токен, привязанный к предоставленным идентификационным данным и
+// сроку действия.
 //
-// Parameters:
-//   - binding: Verified account, session and media-connection identity.
-//   - route: Current media-room owner and fencing version.
+// @Parameters:
+//   - binding: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
+//   - route: Текущий владелец медиа-комнаты и версия ограждения.
 //
-// Returns:
-//   - result 1: Signed short-lived credential for the verified identity.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Подписанные краткосрочные учетные данные для подтвержденной личности.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaTickets) Issue(binding media.Binding, route media.Route) (string, error) {
 	now := s.now().UTC()
 	lease, err := uuid.Parse(route.LeaseID)
@@ -87,17 +92,18 @@ func (s *MediaTickets) Issue(binding media.Binding, route media.Route) (string, 
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 }
 
-// Verify validates the supplied credentials or signed binding before accepting the caller's
-// identity.
+// Verify проверяет предоставленные учётные данные или подписанную привязку, прежде чем
+// подтвердить личность вызывающего абонента.
 //
-// Parameters:
-//   - raw: Serialized access token or refresh credential to validate; never log or expose it.
+// @Parameters:
+//   - raw: Сериализованный токен доступа или обновленные учетные данные для проверки; никогда
+//     не сохраняйте и не раскрывайте их.
 //
-// Returns:
-//   - result 1: The resulting binding.
-//   - result 2: The resulting route.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная привязка.
+//   - result2: Результирующий маршрут.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaTickets) Verify(raw string) (media.Binding, media.Route, error) {
 	if len(raw) == 0 || len(raw) > 8192 {
 		return media.Binding{}, media.Route{}, media.ErrUnauthorized

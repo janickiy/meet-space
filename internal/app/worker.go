@@ -29,8 +29,8 @@ import (
 
 // RunWorker запускает воркер с настроенными зависимостями и сообщает о сбоях при запуске или завершении работы.
 //
-// Возвращает:
-//   - результат 1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
+// @returns:
+//   - result1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
 func RunWorker() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -183,18 +183,18 @@ func RunWorker() error {
 	}
 }
 
-// serveWorkerHTTP runs the recorder worker HTTP endpoint with graceful shutdown.
+// serveWorkerHTTP запускает обработчик HTTP с функцией корректного завершения работы.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - port: Configured TCP or UDP listener port.
-//   - service: Application service invoked by this adapter.
-//   - logger: Bounded diagnostic logger.
-//   - ops: Process operations and readiness runtime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - port: Настроенный порт прослушивателя TCP или UDP.
+//   - service: Служба приложения, вызываемая этим адаптером.
+//   - logger: Ограниченный диагностический логгер.
+//   - ops: Операции по обработке и обеспечению готовности к работе.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func serveWorkerHTTP(ctx context.Context, port int, service *recorder.WorkerService, logger *log.Logger, ops *operations.Runtime) error {
 	mux := http.NewServeMux()
 	ops.Register(mux)
@@ -240,11 +240,11 @@ func serveWorkerHTTP(ctx context.Context, port int, service *recorder.WorkerServ
 	return nil
 }
 
-// sampleRecorder updates bounded recording-worker activity metrics.
+// sampleRecorder обновляет ограниченные метрики активности рабочих процессов записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - service: Application service invoked by this adapter.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - service: Служба приложения, вызываемая этим адаптером.
 func sampleRecorder(ctx context.Context, service *recorder.CompositeService) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -259,13 +259,13 @@ func sampleRecorder(ctx context.Context, service *recorder.CompositeService) {
 	}
 }
 
-// handleWorkerRecords serves the internal worker recording-card request.
+// handleWorkerRecords обрабатывает запрос на запись внутренней рабочей карты.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - r: Incoming HTTP request.
-//   - service: Application service invoked by this adapter.
-//   - logger: Bounded diagnostic logger.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - r: Входящий запрос HTTP.
+//   - service: Служба приложения, вызываемая этим адаптером.
+//   - logger: Ограниченный диагностический логгер.
 func handleWorkerRecords(w http.ResponseWriter, r *http.Request, service *recorder.WorkerService, logger *log.Logger) {
 	if r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -293,14 +293,14 @@ func handleWorkerRecords(w http.ResponseWriter, r *http.Request, service *record
 	}
 }
 
-// handleWorkerCommand handles one authenticated internal recording command.
+// handleWorkerCommand обрабатывает одну аутентифицированную команду внутренней записи.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - r: Incoming HTTP request.
-//   - service: Application service invoked by this adapter.
-//   - logger: Bounded diagnostic logger.
-//   - command: Validated internal recording or media command.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - r: Входящий запрос HTTP.
+//   - service: Служба приложения, вызываемая этим адаптером.
+//   - logger: Ограниченный диагностический логгер.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 func handleWorkerCommand(w http.ResponseWriter, r *http.Request, service *recorder.WorkerService, logger *log.Logger, command records.Command) {
 	var request records.Command
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -319,15 +319,15 @@ func handleWorkerCommand(w http.ResponseWriter, r *http.Request, service *record
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
-// recordingWorkerEvent builds the bounded recording event sent after a committed lifecycle
-// change.
+// recordingWorkerEvent формирует событие записи, отправляемое после зафиксированного изменения
+// жизненного цикла.
 //
-// Parameters:
-//   - kind: Validated event, job, media or resource category.
-//   - record: Recording and its persisted lifecycle metadata.
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - record: Запись и сохраненные метаданные ее жизненного цикла.
 //
-// Returns:
-//   - result 1: The resulting envelope.
+// @returns:
+//   - result1: Результирующий конверт.
 func recordingWorkerEvent(kind string, record records.Record) realtime.Envelope {
 	return realtime.Event(kind, record.ConferenceID, map[string]any{
 		"recordingId": record.UUID, "conferenceId": record.ConferenceID,
@@ -336,14 +336,14 @@ func recordingWorkerEvent(kind string, record records.Record) realtime.Envelope 
 	})
 }
 
-// handleWorkerWebRTCOffer handles a recording-ingestion SDP offer through the internal worker
-// service.
+// handleWorkerWebRTCOffer обрабатывает предложение SDP по приему записей через внутреннюю
+// рабочую службу.
 //
-// Parameters:
-//   - w: Destination HTTP response writer.
-//   - r: Incoming HTTP request.
-//   - service: Application service invoked by this adapter.
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - r: Входящий запрос HTTP.
+//   - service: Служба приложения, вызываемая этим адаптером.
+//   - recordID: Внешняя запись UUID.
 func handleWorkerWebRTCOffer(w http.ResponseWriter, r *http.Request, service *recorder.WorkerService, recordID string) {
 	var request records.WebRTCOfferRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {

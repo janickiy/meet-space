@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-// RegisterFolderRoutes registers the folder endpoints with the supplied authentication and
-// request middleware.
+// RegisterFolderRoutes регистрирует конечные точки для работы с папками с предоставленными
+// промежуточными модулями аутентификации и обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - h: HTTP handler adapter to register or bind to the client.
-//   - auth: Authentication middleware or account handler dependency.
-//   - limiter: Shared request-rate limiter.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - h: Адаптер обработчика HTTP для регистрации или привязки к клиенту.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterFolderRoutes(router gin.IRouter, h *foldersapp.Handler, auth gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	rules := []httpmiddleware.Rule{}
 	for _, route := range []struct {

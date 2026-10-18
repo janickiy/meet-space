@@ -10,20 +10,20 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// Delete checks the same ownership policy as Stop and serializes with recording
-// workers, retention, and conference moderation before touching storage.
+// Delete проверяет ту же политику владения, что и Stop, и сериализует данные с помощью
+// записывающих модулей, сохранения и модерации конференций, прежде чем обращаться к хранилищу.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - recordID: External recording UUID.
-//   - remove: Callback removing the authorized recording's owned storage objects.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
+//   - remove: Обратный вызов, удаляющий объекты хранения, принадлежащие авторизованной записи.
 //
-// Returns:
-//   - result 1: The resulting record.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая запись.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) Delete(ctx context.Context, userID, conferenceID, recordID string, remove func(context.Context, records.Record) error) (records.Record, error) {
 	var record records.Record
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -59,7 +59,7 @@ func (r *ConferenceRecordingRepository) Delete(ctx context.Context, userID, conf
 			return err
 		}
 		if state.Deleted {
-			return nil // Repeat requests after a lost response are safe.
+			return nil // Повторные запросы после получения неверного ответа безопасны.
 		}
 		if !records.IsTerminalStatus(record.Status) || state.Leased {
 			return apperrors.New(apperrors.ErrConflict, "recording is still being processed")

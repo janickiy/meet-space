@@ -9,32 +9,33 @@ import (
 	"gorm.io/gorm"
 )
 
-// JobRepository stores the independent product queue without changing RabbitMQ media commands.
+// JobRepository сохраняет независимую очередь продуктов без изменения медиакоманд RabbitMQ.
 type JobRepository struct{ db *gorm.DB }
 
-// NewJobRepository constructs the job repository with the dependencies and limits required for
-// job.
+// NewJobRepository создает репозиторий заданий с зависимостями и ограничениями, необходимыми
+// для выполнения задания.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded job repository.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий заданий.
 func NewJobRepository(db *gorm.DB) *JobRepository { return &JobRepository{db: db} }
 
-// Claim atomically acquires the current job lease or ownership record.
+// Claim — требование атомарно получает текущую арендуемую запись задания или запись о владении.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - kind: Validated event, job, media or resource category.
-//   - lease: Current lease identity used to fence stale workers.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - lease: Идентификатор текущего резервирования, используемый для изоляции устаревших
+//     рабочих процессов.
 //
-// Returns:
-//   - result 1: The resulting job.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующее задание.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *JobRepository) Claim(ctx context.Context, kind string, lease time.Duration) (jobs.Job, bool, error) {
 	var job jobs.Job
 	result := r.db.WithContext(ctx).Raw(`UPDATE background_jobs SET state='processing',attempts=attempts+1,
@@ -45,18 +46,19 @@ func (r *JobRepository) Claim(ctx context.Context, kind string, lease time.Durat
 	return job, result.RowsAffected != 0, result.Error
 }
 
-// Finish records completion of the leased job operation.
+// Finish фиксирует завершение аренды операции задания.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - state: Current state or validated state update.
-//   - code: Bounded public status or failure code.
-//   - retryAt: Next eligible retry time; nil means no scheduled retry.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - state: Текущее состояние или обновлённое валидированное состояние.
+//   - code: Ограниченный публичный статус или код ошибки.
+//   - retryAt: Следующее допустимое время для повторной попытки; nil означает, что повторная
+//     попытка не запланирована.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *JobRepository) Finish(ctx context.Context, job jobs.Job, state, code string, retryAt *time.Time) error {
 	query := `UPDATE background_jobs SET state=?,error_code=NULLIF(?,''),updated_at=clock_timestamp(),
         lease_token=NULL,lease_until=NULL,finished_at=clock_timestamp()
@@ -78,15 +80,16 @@ func (r *JobRepository) Finish(ctx context.Context, job jobs.Job, state, code st
 	return nil
 }
 
-// Counts returns the bounded queue-state counts used by operational monitoring.
+// Counts возвращает количество элементов в ограниченной очереди, используемое для мониторинга
+// операционной деятельности.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: The collected count values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения количества.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *JobRepository) Counts(ctx context.Context) ([]jobs.Count, error) {
 	items := []jobs.Count{}
 	err := r.db.WithContext(ctx).Raw(`SELECT kind,state,count(*) AS count FROM background_jobs

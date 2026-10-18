@@ -11,26 +11,28 @@ import (
 	"sync"
 )
 
-// RecordingObjectReader reads only private stored objects and never accepts external URLs.
+// RecordingObjectReader считывает только приватные сохраненные объекты и никогда не принимает
+// внешние URLs.
 type RecordingObjectReader interface {
-	// OpenRecording opens the private recording audio or media stream using its stored artifact
-	// identity.
+	// OpenRecording открывает приватный аудиопоток или медиапоток для записи, используя
+	// сохраненный идентификатор артефакта.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Storage, cache or cryptographic key used by the operation.
-	//   - argument 3: Maximum permitted size or number of characters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+	//   - arg3: Максимально допустимый размер или количество символов.
 	//
-	// Returns:
-	//   - result 1: The resulting read closer.
-	//   - result 2: The resulting count, size or numeric value.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий считывающий модуль.
+	//   - result2: Возвращает количество, размер или числовое значение.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	OpenRecording(context.Context, string, int64) (io.ReadCloser, int64, error)
 }
 
-// TranscriptionAudio extracts WAV audio independently of recording finalization and media
-// transport.
+// TranscriptionAudio извлекает аудио WAV независимо от завершения записи и передачи
+// медиаданных.
 type TranscriptionAudio struct {
 	objects                      RecordingObjectReader
 	binary, tempRoot             string
@@ -38,33 +40,35 @@ type TranscriptionAudio struct {
 	maxDuration                  int
 }
 
-// NewTranscriptionAudio constructs the transcription audio with the dependencies and limits
-// required for FFmpeg recording and post-processing.
+// NewTranscriptionAudio создает аудиозапись расшифровки с учетом зависимостей и ограничений,
+// необходимых для записи и постобработки FFmpeg.
 //
-// Parameters:
-//   - objects: Private recording-object reader.
-//   - binary: Path to the configured external executable.
-//   - tempRoot: Root directory restricting temporary media files.
-//   - maxVideoBytes: Maximum video input size in bytes.
-//   - maxAudioBytes: Maximum audio input size in bytes.
-//   - maxDuration: Maximum media duration accepted by this processing path.
+// @Parameters:
+//   - objects: Закрытый объект для чтения записей.
+//   - binary: Путь к настроенному внешнему исполняемому файлу.
+//   - tempRoot: Корневой каталог, ограничивающий размер временных медиафайлов.
+//   - maxVideoBytes: Максимальный размер входного видеопотока в байтах.
+//   - maxAudioBytes: Максимальный размер входного аудиопотока в байтах.
+//   - maxDuration: Максимальная продолжительность медиафайлов, поддерживаемая этим путем
+//     обработки.
 //
-// Returns:
-//   - result 1: The constructed or loaded transcription audio.
+// @returns:
+//   - result1: Созданная или загруженная аудиозапись расшифровки.
 func NewTranscriptionAudio(objects RecordingObjectReader, binary, tempRoot string, maxVideoBytes, maxAudioBytes int64, maxDuration int) *TranscriptionAudio {
 	return &TranscriptionAudio{objects: objects, binary: binary, tempRoot: tempRoot, maxVideoBytes: maxVideoBytes, maxAudioBytes: maxAudioBytes, maxDuration: maxDuration}
 }
 
-// Open opens the scoped media, recording or session resource required by this component.
+// Open открывает доступ к медиафайлам, записям или сеансам, необходимым для работы этого
+// компонента.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - source: Media or content source belonging to the current operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - source: Медиа или источник контента, связанный с текущей операцией.
 //
-// Returns:
-//   - result 1: The resulting audio.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный аудиофайл.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *TranscriptionAudio) Open(ctx context.Context, source domain.RecordingSource) (domain.Audio, error) {
 	if a.objects == nil || a.binary == "" || a.maxVideoBytes < 1 || a.maxAudioBytes < 44 || a.maxDuration < 1 || source.DurationSec < 1 || source.DurationSec > a.maxDuration || source.SizeBytes > a.maxVideoBytes {
 		return domain.Audio{}, &jobs.Error{Code: "audio_input_limit", Retryable: false}

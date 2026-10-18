@@ -10,36 +10,37 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// ListActiveComposite returns active composite recordings so the worker can reconcile or recover
-// processing.
+// ListActiveComposite возвращает активные составные записи, чтобы работник мог сверить их или
+// восстановить процесс обработки.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// Returns:
-//   - result 1: The collected record values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения записей.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ListActiveComposite(ctx context.Context) ([]records.Record, error) {
 	var result []records.Record
 	err := r.db.WithContext(ctx).Where("mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status IN ?", []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).Order("created_at ASC").Limit(100).Find(&result).Error
 	return result, err
 }
 
-// ClaimComposite claims a versioned composite-recording lease for one worker.
+// ClaimComposite запрашивает аренду составной записи с версионным доступом для одного
+// работника.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - token: Signed credential or operation-ownership token to verify.
-//   - workerID: Identity of the worker owning this operation.
-//   - ttl: Lifetime assigned to the temporary value or ownership record.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - workerID: Идентификатор работника, которому принадлежит эта операция.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ClaimComposite(ctx context.Context, id, token, workerID string, ttl time.Duration) (bool, error) {
 	result := r.db.WithContext(ctx).Model(&records.Record{}).
 		Where("uuid = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status IN ?", id, []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).
@@ -48,20 +49,20 @@ func (r *RecordRepository) ClaimComposite(ctx context.Context, id, token, worker
 	return result.RowsAffected == 1, result.Error
 }
 
-// RenewComposite renews a composite-recording lease only when its worker and lease version still
-// match.
+// RenewComposite продлевает аренду составной записи только в том случае, если её работник и
+// версия аренды по-прежнему совпадают.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - token: Signed credential or operation-ownership token to verify.
-//   - ttl: Lifetime assigned to the temporary value or ownership record.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) RenewComposite(ctx context.Context, id, token string, ttl time.Duration) (bool, error) {
 	result := r.db.WithContext(ctx).Model(&records.Record{}).
 		Where("uuid = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus') AND recorder_token = ? AND recorder_lease_until > clock_timestamp() AND status IN ?", id, token, []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).
@@ -69,32 +70,33 @@ func (r *RecordRepository) RenewComposite(ctx context.Context, id, token string,
 	return result.RowsAffected == 1, result.Error
 }
 
-// ReleaseComposite releases only the currently owned composite-recording lease.
+// ReleaseComposite освобождает только ту аренду составной записи, которой он владеет в данный
+// момент.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - token: Signed credential or operation-ownership token to verify.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ReleaseComposite(ctx context.Context, id, token string) error {
 	return r.db.WithContext(ctx).Model(&records.Record{}).Where("uuid = ? AND recorder_token = ?", id, token).Updates(map[string]any{"recorder_token": nil, "recorder_lease_until": nil}).Error
 }
 
-// TransitionComposite changes composite-recording state only for the current fenced lease.
+// TransitionComposite изменяет состояние составной записи только для текущей аренды.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - token: Signed credential or operation-ownership token to verify.
-//   - status: Lifecycle state or response status to record.
-//   - cause: Underlying error that caused the operation to fail.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
+//   - cause: Основная ошибка, из-за которой операция завершилась неудачно.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) TransitionComposite(ctx context.Context, id, token, status string, cause error) error {
 	var from []string
 	updates := map[string]any{"status": status}
@@ -125,20 +127,20 @@ func (r *RecordRepository) TransitionComposite(ctx context.Context, id, token, s
 	return nil
 }
 
-// SaveCompositeArtifacts commits composite artifacts only for the recording generation still
-// owned by the worker.
+// SaveCompositeArtifacts коммитит составные артефакты только для той генерации записи, которой
+// по-прежнему владеет работник.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - id: Identifier of the resource addressed by this operation.
-//   - token: Signed credential or operation-ownership token to verify.
-//   - final: The record file state processed by this operation.
-//   - preview: Optional preview-file metadata associated with the recording.
-//   - segments: Ordered transcript or media segments.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - final: состояние файла записи, обработанное в ходе этой операции.
+//   - preview: Необязательные метаданные файла предварительного просмотра, связанные с записью.
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) SaveCompositeArtifacts(ctx context.Context, id, token string, final records.RecordFile, preview *records.RecordFile, segments []records.RecordSegment) error {
 	return r.db.WithContext(ctx).Transaction(
 

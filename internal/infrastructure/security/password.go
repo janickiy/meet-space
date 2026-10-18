@@ -18,18 +18,19 @@ const (
 	keyLength    = 32
 )
 
-// PasswordHasher hashes and verifies passwords without storing plaintext credentials.
+// PasswordHasher хеширует и проверяет пароли, не сохраняя учетные данные в открытом виде.
 type PasswordHasher struct{}
 
-// Hash hashes the password for safe credential storage.
+// Hash — хеширование хеширует пароль для безопасного хранения учетных данных.
 //
-// Parameters:
-//   - password: Plaintext password accepted only for validation or hashing.
+// @Parameters:
+//   - password: Пароль в виде обычного текста принимается только для проверки или хеширования.
 //
-// Returns:
-//   - result 1: Protected password hash or content digest, according to this component.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Защищенный хеш пароля или дайджест содержимого, согласно требованиям этого
+//     компонента.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (PasswordHasher) Hash(password string) (string, error) {
 	salt := make([]byte, saltLength)
 	if _, err := rand.Read(salt); err != nil {
@@ -40,22 +41,22 @@ func (PasswordHasher) Hash(password string) (string, error) {
 		argonMemory, argonTime, argonThreads, base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
 
-// Verify compares a plaintext password with the stored encoded hash using the bounded supported
-// hash parameters.
+// Функция Verify сравнивает пароль в открытом виде с сохраненным хешем в кодировке, используя
+// поддерживаемые параметры хеширования.
 //
-// Parameters:
-//   - password: Plaintext password accepted only for validation or hashing.
-//   - encoded: Stored encoded password hash or token value.
+// @Parameters:
+//   - password: Пароль в виде обычного текста принимается только для проверки или хеширования.
+//   - encoded: Сохраненный хеш пароля в кодировке или значение токена.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (PasswordHasher) Verify(password, encoded string) (bool, error) {
 	parts := strings.Split(encoded, "$")
-	// Fixed parameters and version checks prevent a corrupted hash from causing excessive memory
-	// allocation.
+	// Фиксированные параметры и проверка версии предотвращают чрезмерное выделение памяти при
+	// повреждении хеша.
 	if len(parts) != 6 || parts[1] != "argon2id" || parts[2] != "v=19" || parts[3] != "m=65536,t=3,p=4" {
 		return false, fmt.Errorf("invalid password hash format")
 	}

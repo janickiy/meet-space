@@ -6,14 +6,16 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// RegisterPlatformStatusRoutes registers the platform status endpoints with the supplied
-// authentication and request middleware.
+// RegisterPlatformStatusRoutes регистрирует платформенные конечные точки доступа для получения
+// статуса с использованием предоставленного промежуточного программного обеспечения для
+// аутентификации и обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - auth: Authentication middleware or account handler dependency.
-//   - checker: Persisted administrator-access checker.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - checker: Проверка сохранённого доступа администратора.
 func RegisterPlatformStatusRoutes(router gin.IRouter, handler *platformapp.Handler, auth gin.HandlerFunc, checker middleware.AdminChecker) {
 	private := func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")

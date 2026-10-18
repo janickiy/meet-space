@@ -8,15 +8,16 @@ import (
 	"time"
 )
 
-// RegisterPersonalRoutes registers the personal endpoints with the supplied authentication and
-// request middleware.
+// RegisterPersonalRoutes регистрирует персональные конечные точки доступа с использованием
+// предоставленного промежуточного программного обеспечения для аутентификации и обработки
+// запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - h: HTTP handler adapter to register or bind to the client.
-//   - chat: Chat HTTP handler registered for personal conversations.
-//   - auth: Authentication middleware or account handler dependency.
-//   - limiter: Shared request-rate limiter.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - h: Адаптер обработчика HTTP для регистрации или привязки к клиенту.
+//   - chat: обработчик чата HTTP зарегистрирован для персональных чатов.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *chatapp.Handler, auth gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	rules := []httpmiddleware.Rule{}
 	for _, v := range []struct {
@@ -58,6 +59,6 @@ func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *ch
 	g.POST("/conversations/:id/leave", h.LeaveGroup)
 	g.POST("/conversations/:id/ownership", h.TransferGroupOwnership)
 	g.POST("/conversations/:id/read", chat.MarkRead)
-	// AccountOnly is also applied to all shared message/file routes.
+	// AccountOnly также применяется ко всем общим маршрутам для сообщений и файлов.
 	registerMessageRoutes(router, chat, auth, limiter, "conversations", h.AccountOnly)
 }

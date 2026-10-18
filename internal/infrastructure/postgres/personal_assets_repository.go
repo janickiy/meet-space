@@ -14,14 +14,14 @@ import (
 
 type PersonalAssetRepository struct{ db *gorm.DB }
 
-// NewPersonalAssetRepository constructs the personal asset repository with the dependencies and
-// limits required for personal assets.
+// NewPersonalAssetRepository создаёт репозиторий личных активов с зависимостями и
+// ограничениями, необходимыми для работы с личными активами.
 //
-// Parameters:
-//   - db: Database handle used for the operation or transaction.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// Returns:
-//   - result 1: The constructed or loaded personal asset repository.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий личных активов.
 func NewPersonalAssetRepository(db *gorm.DB) *PersonalAssetRepository {
 	return &PersonalAssetRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
 }
@@ -32,21 +32,22 @@ type assetConversation struct {
 	AvatarKey, AvatarVersion *string
 }
 
-// lockAssetConversation locks the authorized group before changing its avatar metadata.
+// lockAssetConversation блокирует авторизованную группу перед изменением метаданных её аватара.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - id: Identifier of the resource addressed by this operation.
-//   - lock: Lock mode or lock requirement for the database operation.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - lock: Режим блокировки или требование блокировки для операции с базой данных.
 //
-// Returns:
-//   - result 1: The resulting asset conversation.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий диалог об активе.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func lockAssetConversation(tx *gorm.DB, id, lock string) (assetConversation, error) {
 	var row assetConversation
-	// The lock mode is an internal constant, never request input. Membership is
-	// checked in the next SQL statement, after any concurrent mutation commits.
+	// Режим блокировки — это внутренняя константа, не требующая ввода данных.  Проверка
+	// членства в группе выполняется в следующем операторе SQL после завершения всех
+	// параллельных мутаций.
 	result := tx.Raw("SELECT id,type,deleted_at,avatar_key,avatar_version FROM conversations WHERE id=? FOR "+lock, id).Scan(&row)
 	if result.Error != nil {
 		return row, result.Error
@@ -57,17 +58,18 @@ func lockAssetConversation(tx *gorm.DB, id, lock string) (assetConversation, err
 	return row, nil
 }
 
-// authorizeAsset checks group membership before serving a private avatar or attachment.
+// authorizeAsset проверяет членство в группе перед предоставлением доступа к приватному аватару
+// или вложению.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - user: Acting account identifier used to scope access.
-//   - row: The asset conversation state processed by this operation.
-//   - manage: Whether the operation requires group-management permission.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - row: Состояние диалога об активе, обработанное в ходе этой операции.
+//   - manage: Требует ли операция разрешения на управление группами.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func authorizeAsset(tx *gorm.DB, user string, row assetConversation, manage bool) error {
 	if row.Type != "group" || row.DeletedAt != nil {
 		return apperrors.ErrNotFound
@@ -84,17 +86,18 @@ func authorizeAsset(tx *gorm.DB, user string, row assetConversation, manage bool
 	return nil
 }
 
-// BeginAvatar creates a pending avatar publication after locking the authorized group.
+// BeginAvatar создает ожидающую публикации публикацию с аватаром после блокировки
+// авторизованной группы.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
-//   - asset: Private avatar or attachment metadata.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - asset: Личные метаданные аватара или вложения.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalAssetRepository) BeginAvatar(ctx context.Context, user, id string, asset assets.Asset) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := lockAssetConversation(tx, id, "UPDATE")
@@ -109,18 +112,19 @@ func (r *PersonalAssetRepository) BeginAvatar(ctx context.Context, user, id stri
 	})
 }
 
-// ActivateAvatar atomically makes the current avatar upload visible in the group conversation.
+// ActivateAvatar атомарно делает текущий загруженный аватар видимым в групповом чате.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
-//   - version: Version or fencing value used to reject stale ownership.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - version: Версия или значение ограждения, используемое для предотвращения устаревания прав
+//     собственности.
 //
-// Returns:
-//   - result 1: The resulting conversation.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalAssetRepository) ActivateAvatar(ctx context.Context, user, id, version string) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -157,20 +161,20 @@ func (r *PersonalAssetRepository) ActivateAvatar(ctx context.Context, user, id, 
 	return item, err
 }
 
-// ClearAvatar clears the group's active avatar metadata and identifies obsolete objects for
-// cleanup.
+// ClearAvatar очищает активные метаданные аватара группы и определяет устаревшие объекты для
+// удаления.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting conversation.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalAssetRepository) ClearAvatar(ctx context.Context, user, id string) (personal.Conversation, bool, error) {
 	var item personal.Conversation
 	changed := false
@@ -197,18 +201,18 @@ func (r *PersonalAssetRepository) ClearAvatar(ctx context.Context, user, id stri
 	return item, changed, err
 }
 
-// attachedGroupAsset loads a finalized attachment that is actually attached to a visible group
-// message.
+// attachedGroupAsset загружает завершенное вложение, которое на самом деле прикреплено к
+// видимому групповому сообщению.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - conversation: Conversation identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The resulting asset.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий актив.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func attachedGroupAsset(tx *gorm.DB, conversation, id string) (assets.Asset, error) {
 	var item assets.Asset
 	result := tx.Raw(`SELECT a.object_key AS key,a.filename,a.mime_type AS content_type,a.size,a.checksum,a.conversation_id
@@ -223,20 +227,21 @@ func attachedGroupAsset(tx *gorm.DB, conversation, id string) (assets.Asset, err
 	return item, nil
 }
 
-// GroupAttachment loads a finalized attachment only when a visible group message references it.
+// GroupAttachment загружает завершенное вложение только в том случае, если на него ссылается
+// видимое групповое сообщение.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conversation: Conversation identifier limiting the operation scope.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: The resulting asset.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: Результирующий актив.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalAssetRepository) GroupAttachment(ctx context.Context, user, conversation, id string) (bool, assets.Asset, error) {
 	handled := true
 	var item assets.Asset
@@ -258,19 +263,20 @@ func (r *PersonalAssetRepository) GroupAttachment(ctx context.Context, user, con
 	return handled, item, err
 }
 
-// VisitAsset runs a scoped asset operation while its authorization and resource identity remain
-// valid.
+// VisitAsset выполняет операцию с активом в рамках области видимости, пока актив и его
+// идентификационные данные действительны.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - conversation: Conversation identifier limiting the operation scope.
-//   - attachment: Private attachment identity or metadata, as defined by its type.
-//   - visit: Callback invoked while asset authorization and identity remain valid.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//   - attachment: Идентификатор личного вложения или метаданные, в зависимости от его типа.
+//   - visit: Обратный вызов, вызываемый, пока актив и его идентификационные данные
+//     действительны.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalAssetRepository) VisitAsset(ctx context.Context, user, conversation, attachment string, visit func(assets.Asset) error) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := lockAssetConversation(tx, conversation, "SHARE")
@@ -301,22 +307,22 @@ func (r *PersonalAssetRepository) VisitAsset(ctx context.Context, user, conversa
 	})
 }
 
-// AvatarCleanupCandidates returns a bounded batch of obsolete group-avatar objects.
+// AvatarCleanupCandidates возвращает пакет устаревших объектов групповых аватаров.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The collected string values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные строковые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalAssetRepository) AvatarCleanupCandidates(ctx context.Context, limit int) ([]string, error) {
 	if limit < 1 || limit > 25 {
 		return nil, apperrors.ErrInvalidInput
 	}
-	// Keep a short reconciliation history without allowing successfully cleaned
-	// metadata to grow forever. Never purge a current pointer or live lifecycle.
+	// Сохраняйте краткую историю сверки, не допуская бесконечного роста успешно очищенных
+	// метаданных. Никогда не удаляйте текущий указатель или активный объект жизненного цикла.
 	if err := r.db.WithContext(ctx).Exec(`WITH stale AS (
 	 SELECT a.id FROM conversation_avatar_objects a
 	 WHERE a.state='cleaned' AND a.updated_at<clock_timestamp()-INTERVAL '7 days'
@@ -333,17 +339,18 @@ func (r *PersonalAssetRepository) AvatarCleanupCandidates(ctx context.Context, l
 	return ids, err
 }
 
-// ClaimAvatarCleanup claims one obsolete avatar object so concurrent workers cannot delete a
-// current avatar.
+// ClaimAvatarCleanup запрашивает один устаревший объект-аватар, чтобы параллельные рабочие
+// процессы не могли удалить текущий аватар.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - version: Version or fencing value used to reject stale ownership.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - version: Версия или значение ограждения, используемое для предотвращения устаревания прав
+//     собственности.
 //
-// Returns:
-//   - result 1: The constructed or loaded asset.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Созданный или загруженный ресурс.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalAssetRepository) ClaimAvatarCleanup(ctx context.Context, version string) (*assets.Asset, error) {
 	var item *assets.Asset
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -368,8 +375,8 @@ func (r *PersonalAssetRepository) ClaimAvatarCleanup(ctx context.Context, versio
 		if result.Error != nil {
 			return result.Error
 		}
-		// A current avatar is never claimed. A soft-deleted group is no longer
-		// readable and its active object may be retired atomically here.
+		// Текущий аватар никогда не запрашивается. Группа с обратимым удалением больше не
+		// доступна для чтения, и её активный объект может быть атомарно удалён.
 		current := row.AvatarVersion != nil && *row.AvatarVersion == version && row.AvatarKey != nil && *row.AvatarKey == candidate.Key
 		if current && row.DeletedAt == nil {
 			return nil
@@ -391,16 +398,16 @@ func (r *PersonalAssetRepository) ClaimAvatarCleanup(ctx context.Context, versio
 	return item, err
 }
 
-// FinishAvatarCleanup records whether the claimed avatar object was successfully removed.
+// FinishAvatarCleanup записывает, был ли успешно удалён запрошенный объект-аватар.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - item: The asset state processed by this operation.
-//   - success: Whether the claimed object cleanup completed successfully.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - item: Состояние ресурса, обработанное в ходе этой операции.
+//   - success: Успешно ли завершена очистка запрошенного объекта.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalAssetRepository) FinishAvatarCleanup(ctx context.Context, item assets.Asset, success bool) error {
 	state := "retired"
 	if success {

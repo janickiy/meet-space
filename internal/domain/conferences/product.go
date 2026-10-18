@@ -9,61 +9,64 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 )
 
-// IsRejectedOrKicked identifies a revoked membership before rejoin or invitation.
-// Waiting, absent and unknown states are not revocation; admission checks remain separate.
+// IsRejectedOrKicked определяет, было ли членство отозвано до повторного вступления в
+// конференцию или получения приглашения. Состояния ожидания, отсутствия и неизвестности не
+// являются основанием для отзыва членства; проверка на допуск проводится отдельно.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (p Participant) IsRejectedOrKicked() bool {
 	return p.Status == Kicked || p.Status == Rejected || p.AdmissionState == AdmissionKicked || p.AdmissionState == AdmissionRejected
 }
 
-// IsAdmitted reports whether the saved membership permits admission to the conference.
+// IsAdmitted сообщает, позволяет ли сохраненное членство участвовать в конференции.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (p Participant) IsAdmitted() bool {
 	return (p.AdmissionState == AdmissionAdmitted || p.AdmissionState == "") && p.Status != Waiting && p.Status != Rejected && p.Status != Kicked
 }
 
-// CanParticipate checks whether a membership and conference state permit active participation.
+// CanParticipate проверяет, позволяет ли членство и статус участника в конференции принимать
+// активное участие.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (p Participant) CanParticipate() bool { return p.IsAdmitted() && p.Status == Joined }
 
-// CanReadHistory checks whether the membership permits access to the conference history.
+// CanReadHistory проверяет, позволяет ли членство получать доступ к истории конференции.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (p Participant) CanReadHistory() bool {
 	return p.IsAdmitted() && (p.Status == Joined || p.Status == Left)
 }
 
-// CanAdmit checks whether the membership has the authority to decide waiting-room admission.
+// CanAdmit проверяет, есть ли у участника право принимать решения о допуске в зал ожидания.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (p Participant) CanAdmit() bool {
 	return p.CanParticipate() && (p.Role == Owner || p.Role == CoHost)
 }
 
-// AdmissionRequest contains the organizer's acceptance or rejection decision for a waiting
-// participant.
+// AdmissionRequest содержит решение организатора о допуске или отказе в допуске участника,
+// ожидающего своей очереди.
 type AdmissionRequest struct {
 	Decision string `json:"decision"`
 }
 
-// Validate rejects inconsistent or out-of-range conference fields before the value is used.
+// Validate отклоняет несогласованные или выходящие за пределы допустимых значений поля
+// конференции до того, как значение будет использовано.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r AdmissionRequest) Validate() error {
 	if r.Decision != "admit" && r.Decision != "reject" {
 		return apperrors.New(apperrors.ErrInvalidInput, "decision must be admit or reject")
@@ -71,22 +74,24 @@ func (r AdmissionRequest) Validate() error {
 	return nil
 }
 
-// ScheduleRequest contains an unambiguous start time and an optional planned duration.
+// ScheduleRequest содержит однозначное время начала и, при необходимости, запланированную
+// продолжительность.
 type ScheduleRequest struct {
 	ScheduledAt        time.Time `json:"scheduledAt"`
 	PlannedDurationMin *int      `json:"plannedDurationMin"`
 }
 
-// ValidateSchedule checks the requested start and end times before a conference is scheduled.
+// ValidateSchedule проверяет запрошенное время начала и окончания перед тем, как конференция
+// будет запланирована.
 //
-// Parameters:
-//   - at: Timestamp of the event or state boundary.
-//   - duration: Duration or validity window used by the operation.
-//   - now: Reference time used for expiration or duration calculations.
+// @Parameters:
+//   - at: Метка времени события или границы состояния.
+//   - duration: Продолжительность или период действия, используемый в ходе операции.
+//   - now: Время, используемое для расчета срока действия или продолжительности.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ValidateSchedule(at *time.Time, duration *int, now time.Time) error {
 	if duration != nil && (*duration < 1 || *duration > 1440) {
 		return apperrors.New(apperrors.ErrInvalidInput, "plannedDurationMin must be between 1 and 1440")
@@ -103,7 +108,7 @@ func ValidateSchedule(at *time.Time, duration *int, now time.Time) error {
 	return nil
 }
 
-// TimelineQuery contains the account's server-side conference filters and pagination cursor.
+// TimelineQuery содержит серверные фильтры конференции для учетной записи и курсор пагинации.
 type TimelineQuery struct {
 	View   string
 	Scope  string
@@ -114,17 +119,18 @@ type TimelineQuery struct {
 	Limit  int
 }
 
-// TimelineCursor contains the date and UUID of a conference-list page boundary.
+// TimelineCursor содержит дату и UUID границы страницы со списком конференций.
 type TimelineCursor struct {
 	At time.Time `json:"at"`
 	ID string    `json:"id"`
 }
 
-// Validate rejects inconsistent or out-of-range conference fields before the value is used.
+// Validate отклоняет несогласованные или выходящие за пределы допустимых значений поля
+// конференции до того, как значение будет использовано.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (q TimelineQuery) Validate() error {
 	if q.View != "upcoming" && q.View != "active" && q.View != "past" {
 		return apperrors.New(apperrors.ErrInvalidInput, "view must be upcoming, active or past")
@@ -142,16 +148,16 @@ func (q TimelineQuery) Validate() error {
 	return err
 }
 
-// DecodeTimelineCursor decodes and validates the continuation boundary for the conference
-// timeline.
+// DecodeTimelineCursor декодирует и проверяет границу продолжения для временной шкалы
+// конференций.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// Returns:
-//   - result 1: The constructed or loaded timeline cursor.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Курсор для построения или загрузки временной шкалы.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func DecodeTimelineCursor(value string) (*TimelineCursor, error) {
 	if value == "" {
 		return nil, nil
@@ -172,13 +178,13 @@ func DecodeTimelineCursor(value string) (*TimelineCursor, error) {
 	return &c, nil
 }
 
-// EncodeTimelineCursor encodes a stable continuation boundary for the conference timeline.
+// EncodeTimelineCursor кодирует стабильную границу продолжения для временной шкалы конференций.
 //
-// Parameters:
-//   - c: The conference value processed by this operation.
+// @Parameters:
+//   - c: Значение конференции, обработанное в ходе этой операции.
 //
-// Returns:
-//   - result 1: Opaque conference-timeline continuation cursor.
+// @returns:
+//   - result1: Непрозрачный курсор для продолжения временной шкалы конференций.
 func EncodeTimelineCursor(c Conference) string {
 	at := c.CreatedAt
 	if c.ScheduledAt != nil {
@@ -191,14 +197,14 @@ func EncodeTimelineCursor(c Conference) string {
 	return base64.RawURLEncoding.EncodeToString(data)
 }
 
-// TimelinePage contains filtered conferences and the continuation cursor.
+// TimelinePage содержит отфильтрованные конференции и курсор для продолжения.
 type TimelinePage struct {
 	Items      []View  `json:"items"`
 	NextCursor *string `json:"nextCursor"`
 }
 
-// RecordingSummary aggregates recording states without duplicating file metadata in the
-// conference.
+// RecordingSummary объединяет состояния записи без дублирования метаданных файлов в
+// конференции.
 type RecordingSummary struct {
 	Total      int64 `json:"total"`
 	Ready      int64 `json:"ready"`
@@ -206,15 +212,15 @@ type RecordingSummary struct {
 	Failed     int64 `json:"failed"`
 }
 
-// HistoryOwner holds the history owner data used by conference lifecycle and participant
-// membership.
+// HistoryOwner хранит данные о владельцах истории, которые используются для отслеживания
+// жизненного цикла конференции и членства участников.
 type HistoryOwner struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`
 }
 
-// HistoryView combines completed-conference information, visible memberships and recording
-// summaries.
+// HistoryView объединяет информацию о завершённых конференциях, видимое членство и сводные
+// данные о записях.
 type HistoryView struct {
 	Conference            View              `json:"conference"`
 	Owner                 HistoryOwner      `json:"owner"`
@@ -227,20 +233,22 @@ type HistoryView struct {
 	ChatReadOnly          bool              `json:"chatReadOnly"`
 }
 
-// CanParticipate applies the same membership policy to a realtime/public view.
+// CanParticipate применяет ту же политику членства к общедоступному представлению в режиме
+// реального времени.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (p ParticipantView) CanParticipate() bool {
 	return Participant{Status: p.Status, AdmissionState: p.AdmissionState}.CanParticipate()
 }
 
-// CanReadHistory includes admitted former participants, unlike live participation.
+// CanReadHistory включает в себя бывших участников, допущенных к конференции, в отличие от
+// участников в режиме реального времени.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (p ParticipantView) CanReadHistory() bool {
 	return Participant{Status: p.Status, AdmissionState: p.AdmissionState}.CanReadHistory()
 }

@@ -1,5 +1,5 @@
-// Package content coordinates isolated transcription and AI background jobs and authorized
-// access to their results.
+// Содержимое пакета координирует изолированную транскрипцию и фоновые задания AI, а также
+// авторизованный доступ к их результатам.
 package content
 
 import (
@@ -9,212 +9,251 @@ import (
 	"time"
 )
 
-// Config bounds external-processing cost, result size and execution time. TranscriptionEnabled
-// and AIEnabled independently disable sending content to providers.
+// Config ограничивает затраты на внешнюю обработку, размер результата и время выполнения.
+// TranscriptionEnabled и AIEnabled независимо друг от друга отключают отправку контента
+// провайдерам.
 type Config struct {
-	// Independent enable flags permit sending audio and text to external adapters.
+	// Независимые флаги включения позволяют отправлять аудио- и текстовые данные на внешние
+	// адаптеры.
 	TranscriptionEnabled, AIEnabled bool
-	// Duration and segment limits bound both the accepted recording and the provider response.
+	// Ограничения по продолжительности и сегментам определяют как продолжительность записи, так
+	// и ответ провайдера.
 	MaxDurationSec, MaxSegments int
-	// The text budget counts UTF-8 bytes, not character count.
+	// Текстовый бюджет учитывает UTF-8 байт, а не количество символов.
 	MaxTranscriptBytes int64
-	// Chunk and worker budgets bound model input and concurrent AI calls.
+	// Бюджеты чанков и воркеров ограничивают входные данные модели и количество одновременных
+	// вызовов AI.
 	ChunkRunes, MaxChunks, AIConcurrency int
-	// Deadline bounds each job; cooldown prevents expensive manual replay.
+	// Deadline Ограничивает каждое задание; функция восстановления работоспособности
+	// предотвращает дорогостоящее повторное выполнение вручную.
 	STTTimeout, AITimeout, ReprocessCooldown time.Duration
-	// Reprocess counts new generations; Attempts counts transient retries within one generation.
+	// Reprocess подсчитывает новые поколения; Attempts подсчитывает временные повторные попытки
+	// в рамках одного поколения.
 	MaxReprocess, MaxAttempts int
 }
 
-// DefaultConfig returns the bounded default settings for content processing.
+// DefaultConfig возвращает ограниченные настройки по умолчанию для обработки контента.
 //
-// Returns:
-//   - result 1: The resulting config.
+// @returns:
+//   - result1: Результирующий файл config.
 func DefaultConfig() Config {
 	return Config{MaxDurationSec: 7200, MaxSegments: 10000, MaxTranscriptBytes: 8 << 20, ChunkRunes: 12000, MaxChunks: 256, AIConcurrency: 2, STTTimeout: 10 * time.Minute, AITimeout: 2 * time.Minute, ReprocessCooldown: 5 * time.Minute, MaxReprocess: 3, MaxAttempts: 5}
 }
 
-// AudioSource extracts bounded audio from a private object after the database source is
-// verified.
+// AudioSource извлекает ограниченные аудиоданные из частного объекта после проверки источника в
+// базе данных.
 type AudioSource interface {
-	// Open opens the scoped media, recording or session resource required by this component.
+	// Open открывает доступ к медиафайлам, записям или сеансам, необходимым для работы этого
+	// компонента.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Media or content source belonging to the current operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Медиа или источник контента, связанный с текущей операцией.
 	//
-	// Returns:
-	//   - result 1: The resulting audio.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученный аудиофайл.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Open(context.Context, domain.RecordingSource) (domain.Audio, error)
 }
 
-// Repository combines history-based authorization with atomic generation transitions and an
-// outbox. Every worker commit checks lease and generation; every read checks current access
-// policy.
+// Repository — репозиторий сочетает авторизацию на основе истории с атомарными переходами между поколениями
+// и исходящими данными.  При каждом коммите воркера проверяется срок действия аренды и
+// поколение; при каждом чтении проверяется текущая политика доступа.
 type Repository interface {
-	// Transcript returns the current transcript metadata and provider capabilities without starting
-	// transcription.
+	// Transcript возвращает текущие метаданные стенограммы и возможности провайдера без запуска
+	// процесса расшифровки.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор записи, используемый текущей операцией.
 	//
-	// Returns:
-	//   - result 1: The constructed or loaded transcript.
-	//   - result 2: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Созданная или загруженная стенограмма.
+	//   - result2: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Transcript(context.Context, string, string, string) (*domain.Transcript, bool, error)
-	// Segments returns a bounded page of saved transcript segments for timestamp navigation.
+	// Segments возвращает страницу с ограниченным количеством сохраненных сегментов стенограммы
+	// для навигации по временным меткам.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
-	//   - argument 5: Maximum number of results or operations in this batch.
-	//   - argument 6: Number of results skipped before the requested page.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор записи, используемый текущей операцией.
+	//   - arg5: Максимальное количество результатов или операций в этом пакете.
+	//   - arg6: Количество результатов, пропущенных до перехода на запрошенную страницу.
 	//
-	// Returns:
-	//   - result 1: The resulting segment page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая страница с сегментами.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Segments(context.Context, string, string, string, int, int) (domain.SegmentPage, error)
-	// Summary returns the current persisted summary without invoking an external provider.
+	// Summary возвращает текущее сохраненное краткое резюме без обращения к внешнему
+	// провайдеру.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор записи, используемый текущей операцией.
 	//
-	// Returns:
-	//   - result 1: The constructed or loaded summary.
-	//   - result 2: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Созданное или загруженное краткое резюме.
+	//   - result2: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Summary(context.Context, string, string, string) (*domain.Summary, bool, error)
-	// QueueTranscript queues an authorized transcription generation with deduplication and retry
-	// limits.
+	// QueueTranscript ставит в очередь авторизованную генерацию транскрипции с ограничениями на
+	// дедупликацию и повторные попытки.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
-	//   - argument 5: Maximum permitted size or number of characters.
-	//   - argument 6: Minimum interval between expensive retriable processing requests.
-	//   - argument 7: Maximum permitted job attempts or the current retry count.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор записи, используемый текущей операцией.
+	//   - arg5: Максимально допустимый размер или количество символов.
+	//   - arg6: Минимальный интервал между дорогостоящими запросами на повторную
+	//   обработку.
+	//   - arg7: Максимально допустимое количество попыток выполнения задания или текущее
+	//   количество повторных попыток.
 	//
-	// Returns:
-	//   - result 1: The constructed or loaded transcript.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Созданная или загруженная стенограмма.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	QueueTranscript(context.Context, string, string, string, int, time.Duration, int) (*domain.Transcript, error)
-	// QueueSummary queues an authorized summary generation with deduplication and retry limits.
+	// QueueSummary ставит в очередь авторизованную генерацию сводной информации с ограничениями
+	// на дедупликацию и повторные попытки.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Recording identifier used by the current operation.
-	//   - argument 5: Maximum permitted size or number of characters.
-	//   - argument 6: Minimum interval between expensive retriable processing requests.
-	//   - argument 7: Maximum permitted job attempts or the current retry count.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Идентификатор записи, используемый текущей операцией.
+	//   - arg5: Максимально допустимый размер или количество символов.
+	//   - arg6: Минимальный интервал между дорогостоящими запросами на повторную
+	//   обработку.
+	//   - arg7: Максимально допустимое количество попыток выполнения задания или текущее
+	//   количество повторных попыток.
 	//
-	// Returns:
-	//   - result 1: The constructed or loaded summary.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Созданное или загруженное краткое резюме.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	QueueSummary(context.Context, string, string, string, int, time.Duration, int) (*domain.Summary, error)
-	// StartTranscript claims the current transcript generation before expensive provider processing
-	// starts.
+	// StartTranscript запрашивает создание текущей расшифровки до начала ресурсоемкой обработки
+	// поставщиком.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Leased background job and its generation or ownership token.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Зарезервированное фоновое задание и токен его генерации или владельца.
 	//
-	// Returns:
-	//   - result 1: The resulting transcript.
-	//   - result 2: The resulting recording source.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая расшифровка.
+	//   - result2: Результирующий источник записи.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	StartTranscript(context.Context, jobs.Job) (domain.Transcript, domain.RecordingSource, error)
-	// SaveTranscript commits transcript output only for the current recording generation and job
-	// lease.
+	// SaveTranscript фиксирует выходные данные транскрипта только для текущей генерации записи
+	// и аренды задания.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Leased background job and its generation or ownership token.
-	//   - argument 3: Test handle used for assertions, cleanup and failure reporting.
-	//   - argument 4: Validated processing or operation result.
-	//   - argument 5: Configured external-provider adapter.
-	//   - argument 6: Whether summary generation should be scheduled for the completed transcript.
-	//   - argument 7: Maximum permitted job attempts or the current retry count.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Зарезервированное фоновое задание и токен его генерации или владельца.
+	//   - arg3: Test дескриптор, используемый для утверждений, очистки и сообщений об
+	//   ошибках.
+	//   - arg4: Подтвержденный результат обработки или операции.
+	//   - arg5: Настроенный адаптер внешнего провайдера.
+	//   - arg6: Нужно ли запланировать создание сводной таблицы для расшифровки.
+	//   - arg7: Максимально допустимое количество попыток выполнения задания или текущее
+	//   количество повторных попыток.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SaveTranscript(context.Context, jobs.Job, domain.Transcript, domain.TranscriptionResult, string, bool, int) error
-	// StartSummary claims the current summary generation before invoking the configured provider.
+	// StartSummary запрашивает текущее создание сводной таблицы перед вызовом настроенного
+	// провайдера.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Leased background job and its generation or ownership token.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Зарезервированное фоновое задание и токен его генерации или владельца.
 	//
-	// Returns:
-	//   - result 1: The resulting summary.
-	//   - result 2: The collected segment values.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная сводная таблица.
+	//   - result2: Собранные значения сегментов.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	StartSummary(context.Context, jobs.Job) (domain.Summary, []domain.Segment, error)
-	// SaveSummary commits a validated summary only for its current transcript generation and job
-	// lease.
+	// SaveSummary сохраняет валидированную сводную таблицу только для текущего создания
+	// расшифровки и аренды задания.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Leased background job and its generation or ownership token.
-	//   - argument 3: Validated server-controlled SQL relation or scalar input.
-	//   - argument 4: Destination or generated result required by this operation.
-	//   - argument 5: Configured external-provider adapter.
-	//   - argument 6: Configured provider model identifier.
-	//   - argument 7: Versioned model-instruction identity used by the summary.
-	//   - argument 8: Expected output-schema version.
-	//   - argument 9: Maximum permitted job attempts or the current retry count.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Зарезервированное фоновое задание и токен его генерации или владельца.
+	//   - arg3: Проверенное отношение SQL, управляемое сервером, или скалярный входной
+	//   параметр.
+	//   - arg4: Целевой или сгенерированный результат, необходимый для выполнения этой
+	//   операции.
+	//   - arg5: Настроенный адаптер внешнего провайдера.
+	//   - arg6: Настроенный идентификатор модели провайдера.
+	//   - arg7: Версионированный идентификатор модели-инструкции, используемый в сводной
+	//   таблице.
+	//   - arg8: Ожидаемая версия выходной схемы.
+	//   - arg9: Максимально допустимое количество попыток выполнения задания или текущее
+	//   количество повторных попыток.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SaveSummary(context.Context, jobs.Job, domain.Summary, domain.SummaryOutput, string, string, string, string, int) error
-	// FailJob records a bounded job failure without exposing provider responses or replacing a newer
-	// generation.
+	// FailJob регистрирует сбой задания с ограничением, не раскрывая ответы провайдера и не
+	// заменяя более новую версию.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Leased background job and its generation or ownership token.
-	//   - argument 3: Bounded public status or failure code.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Зарезервированное фоновое задание и токен его генерации или владельца.
+	//   - arg3: Ограниченный публичный статус или код ошибки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	FailJob(context.Context, jobs.Job, string) error
-	// Search searches recording transcripts and summaries using bounded input and the caller's
-	// visibility filters.
+	// Search — поиск выполняет поиск расшифровок и резюме записей с использованием ограниченных входных
+	// данных и фильтров видимости, заданных вызывающей стороной.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Search text or validated query filters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Текст для поиска или валидированные фильтры запросов.
 	//
-	// Returns:
-	//   - result 1: The resulting search page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая страница поиска.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Search(context.Context, string, domain.SearchQuery) (domain.SearchPage, error)
 }

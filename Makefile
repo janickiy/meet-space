@@ -73,7 +73,7 @@ docker-down:
 docker-restart:
 	$(MAKE) restart
 
-# RELEASE_ARGS содержит явные --environment, --env-file, --manifest и --project.
+# RELEASE_ARGS содержит явные параметры --environment, --env-file, --manifest и --project.
 .PHONY: release-validate release-pull release-migrate release-drain release-resume release-deploy release-rollback release-build release-package
 release-validate:
 	bash scripts/release/release.sh validate $(RELEASE_ARGS)

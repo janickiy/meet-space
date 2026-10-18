@@ -1,4 +1,4 @@
-// Package search coordinates bounded indexing and search with repository-level authorization.
+// Поиск пакетов координирует индексирование и поиск с авторизацией на уровне репозитория.
 package search
 
 import (
@@ -19,87 +19,99 @@ import (
 	"time"
 )
 
-// Repository accepts results only for the current lease and generation and filters access inside
-// SQL.
+// Repository — репозиторий принимает результаты только для текущей аренды и генерации и фильтрует доступ
+// внутри SQL.
 type Repository interface {
-	// Available checks whether the backing capability needed for authorized transcript indexing and
-	// search is usable.
+	// Available проверяет, можно ли использовать возможности резервного копирования,
+	// необходимые для авторизованной индексации и поиска по расшифровкам.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Available(context.Context) (bool, error)
-	// Source loads the persisted inputs needed to process authorized transcript indexing and search.
+	// Source загружает сохраненные входные данные, необходимые для авторизованной индексации и
+	// поиска по расшифровкам.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Leased background job and its generation or ownership token.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Зарезервированное фоновое задание и токен его генерации или владельца.
 	//
-	// Returns:
-	//   - result 1: The resulting transcript.
-	//   - result 2: The collected segment values.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая расшифровка.
+	//   - result2: Собранные значения сегментов.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Source(context.Context, jobs.Job) (content.Transcript, []content.Segment, error)
-	// Cached loads reusable vectors by content hash and the complete embedding-model identity.
+	// Cached загружает повторно используемые векторы по хешу содержимого и полному
+	// идентификатору модели встраивания.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Configured provider model identifier.
-	//   - argument 3: Content digests to look up in the model-specific vector cache.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Настроенный идентификатор модели провайдера.
+	//   - arg3: Дайджесты содержимого для поиска в специфичном для модели векторном кэше.
 	//
-	// Returns:
-	//   - result 1: The resulting map[string][]float32.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая карта[string][]float32.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Cached(context.Context, string, []string) (map[string][]float32, error)
-	// Save persists search results while checking the current job or resource identity.
+	// Save сохраняет результаты поиска при проверке текущего задания или идентификатора
+	// ресурса.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Leased background job and its generation or ownership token.
-	//   - argument 3: Operator-controlled configuration and processing limits.
-	//   - argument 4: Bounded transcript search chunks.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Зарезервированное фоновое задание и токен его генерации или владельца.
+	//   - arg3: Ограничения конфигурации и обработки, контролируемые оператором.
+	//   - arg4: Ограниченные фрагменты поиска по транскриптону.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Save(context.Context, jobs.Job, config.StageEightConfig, []domain.Chunk) error
-	// Fail records a safe search failure and starts the owned-resource cleanup path.
+	// Fail регистрирует сбой безопасного поиска и запускает процесс очистки ресурсов,
+	// принадлежащих пользователю.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Leased background job and its generation or ownership token.
-	//   - argument 3: Operator-controlled configuration and processing limits.
-	//   - argument 4: Bounded public status or failure code.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Зарезервированное фоновое задание и токен его генерации или владельца.
+	//   - arg3: Ограничения конфигурации и обработки, контролируемые оператором.
+	//   - arg4: Ограниченный публичный статус или код ошибки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Fail(context.Context, jobs.Job, config.StageEightConfig, string) error
-	// Search searches authorized transcript indexing and search using bounded input and the caller's
-	// visibility filters.
+	// Search — поиск выполняет авторизованную индексацию и поиск по транскриптону с использованием
+	// ограниченных входных данных и фильтров видимости вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Search text or validated query filters.
-	//   - argument 4: Configured provider model identifier.
-	//   - argument 5: Validated embedding vector.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Текст для поиска или валидированные фильтры запросов.
+	//   - arg4: Настроенный идентификатор модели провайдера.
+	//   - arg5: Валидированный вектор эмбеддинга.
 	//
-	// Returns:
-	//   - result 1: The resulting search page.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая страница поиска.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Search(context.Context, string, content.SearchQuery, string, []float32) (content.SearchPage, error)
 }
 
-// Service separates durable indexing jobs from bounded query-vector generation.
+// Service — сервис отделяет задачи по созданию устойчивых индексов от задач по генерации векторов с
+// ограниченным количеством запросов.
 type Service struct {
 	Repo       Repository
 	Provider   domain.EmbeddingProvider
@@ -107,54 +119,55 @@ type Service struct {
 	querySlots chan struct{}
 }
 
-// New constructs the component with the dependencies and processing limits required for
-// authorized transcript indexing and search.
+// New создает компонент с зависимостями и ограничениями обработки, необходимыми для
+// авторизованной индексации и поиска по расшифровкам.
 //
-// Parameters:
-//   - repo: Persistence dependency used by the application operation.
-//   - provider: Configured external-provider adapter.
-//   - cfg: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - provider: Настроенный адаптер внешнего провайдера.
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: The constructed or loaded service.
+// @returns:
+//   - result1: Созданный или загруженный сервис.
 func New(repo Repository, provider domain.EmbeddingProvider, cfg config.StageEightConfig) *Service {
 	return &Service{repo, provider, cfg, make(chan struct{}, cfg.EmbeddingWorkers)}
 }
 
-// ModelKey hashes the embedding model identity so vectors from incompatible models are never
-// mixed.
+// ModelKey хеширует идентификаторы моделей встраивания, чтобы векторы из несовместимых моделей
+// никогда не смешивались.
 //
-// Parameters:
-//   - cfg: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: Stable SHA-256 identity of the complete embedding-model space.
+// @returns:
+//   - result1: Стабильный идентификатор SHA-256 для всего пространства моделей встраивания.
 func ModelKey(cfg config.StageEightConfig) string {
 	raw, _ := json.Marshal([]any{cfg.EmbeddingModel, cfg.EmbeddingVersion, cfg.EmbeddingDimensions})
 	return Hash(string(raw))
 }
 
-// Hash hashes the content to obtain a stable integrity or cache key.
+// Hash — хеширует содержимое для обеспечения стабильной целостности или получения ключа кэширования.
 //
-// Parameters:
-//   - text: UTF-8 text to validate, normalize or process.
+// @Parameters:
+//   - text: Текст UTF-8 для проверки, нормализации или обработки.
 //
-// Returns:
-//   - result 1: Protected password hash or content digest, according to this component.
+// @returns:
+//   - result1: Защищенный хеш пароля или дайджест содержимого, согласно требованиям этого
+//     компонента.
 func Hash(text string) string { sum := sha256.Sum256([]byte(text)); return hex.EncodeToString(sum[:]) }
 
-// Chunks deterministically splits transcript segments into bounded search chunks while
-// preserving speaker and time references.
+// Chunks — чанки детерминированно разбивают сегменты расшифровок на блоки для поиска с сохранением
+// ссылок на говорящих и временные метки.
 //
-// Parameters:
-//   - transcript: Current transcript generation and its metadata.
-//   - segments: Ordered transcript or media segments.
-//   - cfg: Operator-controlled configuration and processing limits.
+// @Parameters:
+//   - transcript: Текущая генерация расшифровки и ее метаданные.
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
 //
-// Returns:
-//   - result 1: The collected chunk values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения чанков.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func Chunks(transcript content.Transcript, segments []content.Segment, cfg config.StageEightConfig) ([]domain.Chunk, error) {
 	result := []domain.Chunk{}
 	model := ModelKey(cfg)
@@ -178,17 +191,17 @@ func Chunks(transcript content.Transcript, segments []content.Segment, cfg confi
 	return result, nil
 }
 
-// ValidVectors checks vector count, dimensions and finite nonzero values before storage or
-// search.
+// ValidVectors проверяет количество векторов, их размерность и наличие конечных ненулевых
+// значений перед сохранением или поиском.
 //
-// Parameters:
-//   - vectors: Untrusted vectors returned by the embedding provider.
-//   - count: Expected or maximum number of items.
-//   - dimensions: Expected embedding-vector dimensions.
+// @Parameters:
+//   - vectors: Недоверенные векторы, возвращаемые провайдером встраивания.
+//   - count: Ожидаемое или максимальное количество элементов.
+//   - dimensions: Ожидаемое количество измерений вектора встраивания.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func ValidVectors(vectors [][]float32, count, dimensions int) bool {
 	if len(vectors) != count {
 		return false
@@ -211,15 +224,15 @@ func ValidVectors(vectors [][]float32, count, dimensions int) bool {
 	return true
 }
 
-// Handle dispatches the validated search operation to its application handler.
+// Handle — обработчик перенаправляет проверенную операцию поиска обработчику приложения.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	started := time.Now()
 	defer func() { operations.Observe("embedding", time.Since(started).Seconds()) }()
@@ -280,33 +293,33 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	return s.Repo.Save(ctx, job, s.Config, chunks)
 }
 
-// FailJob records a bounded job failure without exposing provider responses or replacing a newer
-// generation.
+// FailJob регистрирует сбой задания с ограничением, не раскрывая ответы провайдера и не заменяя
+// более новую версию.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - job: Leased background job and its generation or ownership token.
-//   - code: Bounded public status or failure code.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - code: Ограниченный публичный статус или код ошибки.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) FailJob(ctx context.Context, job jobs.Job, code string) error {
 	return s.Repo.Fail(ctx, job, s.Config, code)
 }
 
-// Search searches authorized transcript indexing and search using bounded input and the caller's
-// visibility filters.
+// Search — поиск выполняет авторизованную индексацию и поиск по транскриптону с использованием
+// ограниченных входных данных и фильтров видимости вызывающей стороны.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - user: Acting account identifier used to scope access.
-//   - query: Search text or validated query filters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - query: Текст для поиска или валидированные фильтры запросов.
 //
-// Returns:
-//   - result 1: The resulting search page.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая страница поиска.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Search(ctx context.Context, user string, query content.SearchQuery) (content.SearchPage, error) {
 	started := time.Now()
 	defer func() { operations.Observe("hybrid_search", time.Since(started).Seconds()) }()

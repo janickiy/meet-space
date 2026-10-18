@@ -19,15 +19,15 @@ type Handler struct {
 
 // NewHandler сохраняет HTTP API, предоставляя SSE собственного владельца жизненного цикла.
 //
-// Параметры:
+// @Parameters:
 //   - service: служба приложения, вызываемая этим адаптером.
 //   - bus: транспортный протокол для публикации и подписки с ограниченной областью видимости.
 //   - tokens: эмитент или верификатор токенов, используемый для проверки подлинности.
 //   - limiter: общий ограничитель частоты запросов.
 //   - namespace: пространство имен, изолирующее распределенные ключи и каналы этого компонента.
 //
-// Возвращает:
-//   - result 1: созданный или загруженный обработчик.
+// @returns:
+//   - result1: созданный или загруженный обработчик.
 func NewHandler(service *usecase.Service, bus Subscriber, tokens Verifier, limiter Limiter, namespace string) *Handler {
 	return &Handler{service: service, events: &eventStreams{
 		service: service, bus: bus, tokens: tokens, limiter: limiter,
@@ -45,7 +45,7 @@ func (h *Handler) BeginDrain() {
 
 // List возвращает ограниченную страницу записей о личных уведомлениях с использованием заданных параметров разбивки на страницы и фильтров.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) List(c *gin.Context) {
 	limit := 30
@@ -68,7 +68,7 @@ func (h *Handler) List(c *gin.Context) {
 
 // Read помечается как прочитанное и возвращается в сохраненное состояние.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Read(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("notificationId"))
@@ -89,6 +89,6 @@ func (h *Handler) Read(c *gin.Context) {
 
 // Events открывает авторизованный поток уведомлений, принадлежащий компоненту SSE.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Events(c *gin.Context) { h.events.serve(c) }

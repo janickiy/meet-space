@@ -53,15 +53,14 @@ import (
 
 // RunAPI запускает API с настроенными зависимостями и сообщает о сбоях при запуске или завершении работы.
 //
-// Возвращает:
-//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
+// @returns:
+//   - result1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
 func RunAPI() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	// Validate this only when starting the API: recorder workers and the migration command do not
-	// issue JWTs.
+	// Проверьте это только при запуске API: рабочие записи и команда миграции не выдают JWTs.
 	tokens, err := security.NewTokenService(cfg.JWTSecret)
 	if err != nil {
 		return err
@@ -242,7 +241,7 @@ func RunAPI() error {
 		}
 	case <-ctx.Done():
 	}
-	// http.Server.Shutdown does not close WebSocket connections already handed to the application.
+	// http.Server.Shutdown не закрывает соединения WebSocket, уже переданные приложению.
 	ops.Drain()
 	notificationHandler.BeginDrain()
 	_ = listener.Close()
@@ -258,11 +257,11 @@ func RunAPI() error {
 
 // rateLimitConfig преобразует настройки приложения в конфигурацию HTTP-ограничителя скорости.
 //
-// Параметры:
+// @Parameters:
 //   - cfg: управляемая оператором конфигурация и ограничения на обработку.
 //
-// Возвращает:
-//   - result 1: результирующая конфигурация ограничения скорости.
+// @returns:
+//   - result1: результирующая конфигурация ограничения скорости.
 func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 	window := cfg.RateLimitWindow
 	defaultLimit := cfg.RateLimit.DefaultRPM
@@ -296,8 +295,8 @@ func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 // RunMigrations запускает миграции с настроенными зависимостями и распространяет ошибки запуска или
 // завершения работы.
 //
-// Возвращает:
-//   - результат 1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+// @returns:
+//   - result1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, транспорта или сохранения
 //     данных.
 func RunMigrations() error {
 	cfg, err := config.Load()

@@ -1,4 +1,5 @@
--- Never discard the only durable cleanup ledger while object-store bytes remain.
+-- Никогда не удаляйте единственный надёжный реестр очистки, пока сохраняются байты в объектном
+-- хранилище.
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM conversation_avatar_objects WHERE state<>'cleaned')
  OR EXISTS(SELECT 1 FROM conversations WHERE avatar_version IS NOT NULL) THEN

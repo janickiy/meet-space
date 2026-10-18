@@ -1,5 +1,5 @@
-// Package captions defines a live-transcription contract independent of the media engine and
-// provider SDK.
+// Подписи к пакетам определяют контракт на расшифровку речи в режиме реального времени, не
+// зависящий от медиадвижка и провайдера SDK.
 package captions
 
 import (
@@ -10,8 +10,9 @@ import (
 
 var ErrUnavailable = errors.New("live_provider_unavailable")
 
-// SessionConfig describes one connection's track without biometric identification. Audio is
-// signed PCM16LE, mono, 16000 Hz; event times are relative to the first PCM sample.
+// SessionConfig описывает дорожку одного соединения без биометрической идентификации.
+// Аудиосигнал подписан PCM16LE, моно, 16000 Гц; время событий отсчитывается от первого сэмпла
+// PCM.
 type SessionConfig struct {
 	SessionID       string `json:"sessionId"`
 	TrackInstanceID string `json:"trackInstanceId"`
@@ -21,8 +22,8 @@ type SessionConfig struct {
 	Format          string `json:"format"`
 }
 
-// Event carries a provider utterance revision; a final result cannot subsequently be replaced by
-// a partial result.
+// Event — событие содержит информацию о ревизии высказывания провайдера; окончательный результат не
+// может быть заменен частичным результатом.
 type Event struct {
 	UtteranceID string `json:"utteranceId"`
 	Sequence    int64  `json:"sequence"`
@@ -34,48 +35,53 @@ type Event struct {
 	Final       bool   `json:"final"`
 }
 
-// LiveTranscriptionProvider opens a streaming session while its adapter hides provider SDK
-// details.
+// LiveTranscriptionProvider открывает сеанс потоковой передачи, при этом адаптер скрывает
+// информацию о провайдере SDK.
 type LiveTranscriptionProvider interface {
-	// StartSession opens one bounded live-speech provider session for the authorized audio stream.
+	// StartSession открывает один ограниченный сеанс работы с провайдером для передачи речи в
+	// режиме реального времени для авторизованного аудиопотока.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Operator-controlled configuration and processing limits.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Ограничения конфигурации и обработки, контролируемые оператором.
 	//
-	// Returns:
-	//   - result 1: The resulting session.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий сеанс.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	StartSession(context.Context, SessionConfig) (Session, error)
 }
 
-// Session owns one external connection and a bounded result stream.
+// Session — сеанс включает в себя одно внешнее соединение и ограниченный поток результатов.
 type Session interface {
-	// WriteAudio forwards one bounded audio frame to the active speech session.
+	// WriteAudio пересылает один ограниченный аудиокадр в активный речевой сеанс.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: The byte value required by the contract.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Значение в байтах, требуемое по контракту.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	WriteAudio(context.Context, []byte) error
-	// Events returns the live event stream or serves its authorized transport adapter.
+	// Events возвращает поток событий в реальном времени или обслуживает авторизованный
+	// транспортный адаптер.
 	//
-	// Returns:
-	//   - result 1: The bounded event or media channel owned by this operation.
+	// @returns:
+	//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
 	Events() <-chan Event
-	// Close closes the component-owned resources and ends their lifecycle.
+	// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Close() error
 }
 
-// Caption binds text to the server-verified speaker identity and conference timeline.
+// Caption — подпись привязывает текст к подтверждённой сервером информации об участнике и хронологии
+// конференции.
 type Caption struct {
 	Cursor          int64  `json:"cursor"`
 	Generation      int64  `json:"generation"`
@@ -89,7 +95,8 @@ type Caption struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// State tells admitted participants whether conference audio is being sent for transcription.
+// State — состояние сообщает допущенным участникам, отправляется ли аудиозапись конференции на
+// расшифровку.
 type State struct {
 	ConferenceID         string    `json:"conferenceId"`
 	SessionID            string    `json:"sessionId"`

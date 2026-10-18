@@ -30,14 +30,14 @@ const (
 	FileTypeDebugLog      = "debug_log"
 )
 
-// IsTerminalStatus reports whether a recording has reached a final lifecycle state.
+// IsTerminalStatus сообщает, достигла ли запись финального этапа жизненного цикла.
 //
-// Parameters:
-//   - status: Lifecycle state or response status to record.
+// @Parameters:
+//   - status: Состояние жизненного цикла или статус ответа на запись.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func IsTerminalStatus(status string) bool {
 	switch status {
 	case StatusReady, StatusPartialReady, StatusFailed, StatusCancelled:
@@ -47,8 +47,8 @@ func IsTerminalStatus(status string) bool {
 	}
 }
 
-// Record persists recording settings, lifecycle state, ownership lease and bounded failure
-// metadata.
+// Record сохраняет настройки записи, состояние жизненного цикла, данные о правах владения и
+// метаданные о возможных сбоях.
 type Record struct {
 	ID                   int64          `gorm:"primaryKey" json:"id"`
 	UUID                 string         `gorm:"column:uuid;type:uuid;default:gen_random_uuid()" json:"uuid"`
@@ -80,14 +80,14 @@ type Record struct {
 	UpdatedAt            time.Time      `gorm:"column:updated_at" json:"updatedAt"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Record) TableName() string { return "record" }
 
-// RecordSegment persists the metadata of one recording segment.
+// RecordSegment сохраняет метаданные одного сегмента записи.
 type RecordSegment struct {
 	ID             int64      `gorm:"primaryKey" json:"id"`
 	RecordID       int64      `gorm:"column:record_id" json:"recordId"`
@@ -106,16 +106,17 @@ type RecordSegment struct {
 	UpdatedAt      time.Time  `gorm:"column:updated_at" json:"updatedAt"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (RecordSegment) TableName() string { return "record_segment" }
 
-// RecordFile persists final artifact metadata in private object storage.
+// RecordFile сохраняет метаданные финального артефакта в приватном объектном хранилище.
 type RecordFile struct {
-	// Related contains additional private artifacts committed atomically with recording readiness.
+	// Related содержит дополнительные приватные артефакты, атомарно зафиксированные вместе с
+	// подтверждением готовности записи.
 	Related        []RecordFile   `gorm:"-" json:"-"`
 	ID             int64          `gorm:"primaryKey" json:"id"`
 	UUID           string         `gorm:"column:uuid;type:uuid;default:gen_random_uuid()" json:"uuid"`
@@ -135,14 +136,14 @@ type RecordFile struct {
 	UpdatedAt      time.Time      `gorm:"column:updated_at" json:"updatedAt"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (RecordFile) TableName() string { return "record_file" }
 
-// RecordEvent persists a bounded recording lifecycle diagnostic.
+// RecordEvent сохраняет ограниченную диагностику жизненного цикла записи.
 type RecordEvent struct {
 	ID          int64          `gorm:"primaryKey" json:"id"`
 	RecordID    int64          `gorm:"column:record_id" json:"recordId"`
@@ -155,9 +156,9 @@ type RecordEvent struct {
 	CreatedAt   time.Time      `gorm:"column:created_at" json:"createdAt"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (RecordEvent) TableName() string { return "record_event" }

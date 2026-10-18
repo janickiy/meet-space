@@ -7,14 +7,15 @@ import (
 	"time"
 )
 
-// RegisterCaptionRoutes registers the caption endpoints with the supplied authentication and
-// request middleware.
+// RegisterCaptionRoutes регистрирует конечные точки с заголовками с предоставленными средствами
+// аутентификации и промежуточным ПО для обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - auth: Authentication middleware or account handler dependency.
-//   - limiter: Shared request-rate limiter.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterCaptionRoutes(router gin.IRouter, handler *app.Handler, auth gin.HandlerFunc, limiter middleware.Limiter) {
 	base := APIV1Prefix + "/conferences/:id/captions"
 	limited := middleware.RateLimit(limiter, middleware.RateLimitConfig{Enabled: limiter != nil, Rules: []middleware.Rule{{Method: "PUT", Path: base, Scope: "live_caption_control", Limit: 6, Window: time.Minute, Key: func(c *gin.Context) string { return middleware.UserID(c) }}}})

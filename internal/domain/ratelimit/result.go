@@ -4,9 +4,9 @@ import (
 	"time"
 )
 
-// Result contains the limiter decision and HTTP budget metadata. Limit is the request budget per
-// window; Remaining is its unused portion. RetryAfter bounds the retry wait. A zero ResetAt does
-// not produce an X-RateLimit-Reset header.
+// Result содержит решение ограничителя и метаданные бюджета HTTP.  Limit — это бюджет запроса
+// на одно окно; Remaining — его неиспользованная часть.  RetryAfter ограничивает время ожидания
+// повторной попытки.  При нулевом значении ResetAt не формируется заголовок X-RateLimit-Reset.
 type Result struct {
 	Allowed    bool
 	Limit      int

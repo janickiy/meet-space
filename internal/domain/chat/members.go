@@ -2,7 +2,7 @@ package chat
 
 import "github.com/janickiy/meet-space/internal/domain/conferences"
 
-// MemberView keeps conference membership separate from confirmed live presence.
+// MemberView отделяет членство в конференции от подтверждённого присутствия в реальном времени.
 type MemberView struct {
 	conferences.ParticipantView
 	Online  *bool `json:"online" gorm:"-"`

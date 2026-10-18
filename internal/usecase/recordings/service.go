@@ -9,128 +9,144 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 )
 
-// Repository is the atomic conference recording API boundary. Delivery of its
-// durable commands belongs to CommandRepository, not the request service.
+// Repository является границей атомарной записи конференции API.  Доставка устойчивых команд
+// осуществляется CommandRepository, а не службой обработки запросов.
 type Repository interface {
-	// Start starts conference recording lifecycle management and prepares the resources owned by
-	// that operation.
+	// Start запускает управление жизненным циклом записи конференции и подготавливает ресурсы,
+	// используемые в рамках этой операции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Requested recording-segment duration.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Запрошенная продолжительность сегмента записи.
 	//
-	// Returns:
-	//   - result 1: The resulting record.
-	//   - result 2: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая запись.
+	//   - result2: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Start(context.Context, string, string, int) (records.Record, bool, error)
-	// Stop stops the active conference recording operation and releases its owned resources.
+	// Stop останавливает активную операцию записи конференции и освобождает принадлежащие ей
+	// ресурсы.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: External recording UUID.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Внешняя запись UUID.
 	//
-	// Returns:
-	//   - result 1: The resulting record.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая запись.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Stop(context.Context, string, string, string) (records.Record, error)
-	// Accessible loads a recording only within the acting account's authorized conference scope.
+	// Accessible загружает запись только в рамках полномочий действующего аккаунта в рамках
+	// конференции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: External recording UUID.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Внешняя запись UUID.
 	//
-	// Returns:
-	//   - result 1: The resulting record.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая запись.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Accessible(context.Context, string, string, string) (records.Record, error)
-	// List returns a bounded page of conference recording records using the supplied pagination and
-	// filters.
+	// List возвращает ограниченную страницу записей конференции с использованием заданных
+	// параметров разбивки на страницы и фильтров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Maximum number of results or operations in this batch.
-	//   - argument 5: Number of results skipped before the requested page.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Максимальное количество результатов или операций в этом пакете.
+	//   - arg5: Количество результатов, пропущенных до перехода на запрошенную страницу.
 	//
-	// Returns:
-	//   - result 1: The collected record values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения записей.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	List(context.Context, string, string, int, int) ([]records.Record, error)
-	// Delete removes the requested conference recording using the caller's scope and the resource
-	// lifecycle rules.
+	// Delete удаляет запрошенную запись конференции, используя область видимости вызывающей
+	// стороны и правила управления жизненным циклом ресурсов.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: External recording UUID.
-	//   - argument 5: Callback removing the authorized recording's owned storage objects.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Внешняя запись UUID.
+	//   - arg5: Обратный вызов, удаляющий объекты хранения, принадлежащие авторизованной
+	//   записи.
 	//
-	// Returns:
-	//   - result 1: The resulting record.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая запись.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Delete(context.Context, string, string, string, func(context.Context, records.Record) error) (records.Record, error)
 }
 
 type Storage interface {
-	// RemoveRecording removes only the validated private object prefixes belonging to the selected
-	// recording.
+	// RemoveRecording удаляет только проверенные префиксы приватных объектов, относящиеся к
+	// выбранной записи.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Recording and its persisted lifecycle metadata.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Запись и сохраненные метаданные ее жизненного цикла.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	RemoveRecording(context.Context, records.Record) error
 }
 
-// Reader loads recording cards after the repository has checked access.
+// Reader загружает карточки с записями после того, как репозиторий проверит доступ.
 type Reader interface {
-	// ReadComposite loads one recording and its artifacts.
+	// ReadComposite загружает одну запись и связанные с ней артефакты.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting record card.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Полученная карта записи.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ReadComposite(context.Context, string) (records.RecordCard, error)
 }
 
-// Events publishes recording changes to conference participants.
+// Events публикует изменения в записях для участников конференции.
 type Events interface {
-	// Broadcast publishes a trusted conference event.
+	// Broadcast публикует доверенное событие конференции.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Trusted event to publish or process.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Доверенное событие для публикации или обработки.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Broadcast(context.Context, realtime.Envelope) error
 }
 
-// Service handles authorized recording requests and reads. It owns no polling
-// goroutine, queue connection or distributed lock.
+// Service обрабатывает авторизованные запросы на запись и чтение. Не использует горутины
+// опроса, очереди подключений или распределённые блокировки.
 type Service struct {
 	repo    Repository
 	reader  Reader
@@ -138,32 +154,33 @@ type Service struct {
 	storage Storage
 }
 
-// NewConferenceService constructs the conference service with the dependencies and limits
-// required for conference recording lifecycle management.
+// NewConferenceService создаёт сервис конференции с зависимостями и ограничениями, необходимыми
+// для управления жизненным циклом записей конференции.
 //
-// Parameters:
-//   - repo: Persistence dependency used by the application operation.
-//   - reader: Source content stream or recording-card reader, as defined by its type.
-//   - events: Destination for committed lifecycle or chat events.
-//   - storage: Private object or file storage dependency.
+// @Parameters:
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - reader: Поток исходного контента или устройство чтения карт памяти, в зависимости от его
+//     типа.
+//   - events: Место назначения для зафиксированных событий жизненного цикла или чатов.
+//   - storage: Зависимость от приватного объекта или хранилища файлов.
 //
-// Returns:
-//   - result 1: The constructed or loaded service.
+// @returns:
+//   - result1: Созданный или загруженный сервис.
 func NewConferenceService(repo Repository, reader Reader, events Events, storage Storage) *Service {
 	return &Service{repo: repo, reader: reader, events: events, storage: storage}
 }
 
-// Delete removes artifacts only after authorization and publishes after commit.
+// Delete удаляет артефакты только после авторизации и публикует их после фиксации.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Delete(ctx context.Context, userID, conferenceID, recordID string) error {
 	operation, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -178,18 +195,18 @@ func (s *Service) Delete(ctx context.Context, userID, conferenceID, recordID str
 	return nil
 }
 
-// Start commits a recording request; the dispatcher delivers its durable command.
+// Start фиксирует запрос на запись; диспетчер отправляет команду на сохранение.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting record card.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная карта записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Start(ctx context.Context, userID, conferenceID string, request records.ConferenceStartRequest) (records.RecordCard, error) {
 	if request.Mode == "" {
 		request.Mode = records.ModeComposite
@@ -208,21 +225,23 @@ func (s *Service) Start(ctx context.Context, userID, conferenceID string, reques
 	var created bool
 	var err error
 	if modes, ok := s.repo.(interface {
-		// StartMode starts a recording in the selected validated conference recording mode.
+		// StartMode запускает запись в выбранном режиме валидированной записи конференции.
 		//
-		// Parameters:
-		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-		//   - argument 2: Acting account identifier used to scope access.
-		//   - argument 3: Conference identifier limiting the operation scope.
-		//   - argument 4: Requested recording-segment duration.
-		//   - argument 5: Validated operation or recording mode.
+		// @Parameters:
+		//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+		//   операции.
+		//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+		//   доступа.
+		//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+		//   - arg4: Запрошенная продолжительность сегмента записи.
+		//   - arg5: Проверенная операция или режим записи.
 		//
-		// Returns:
-		//   - result 1: The resulting record.
-		//   - result 2: Whether the operation's documented condition holds or its conditional state
-		//     change succeeded.
-		//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-		//     failure.
+		// @returns:
+		//   - result1: Результирующая запись.
+		//   - result2: Указывает, выполняется ли задокументированное условие операции и
+		//   произошло ли успешное изменение ее условного состояния.
+		//   - result3: nil — в случае успеха; в противном случае — ошибка валидации,
+		//   доступа, передачи данных или сохранения.
 		StartMode(context.Context, string, string, int, string) (records.Record, bool, error)
 	}); ok {
 		record, created, err = modes.StartMode(ctx, userID, conferenceID, segmentDurationSec, request.Mode)
@@ -240,18 +259,18 @@ func (s *Service) Start(ctx context.Context, userID, conferenceID string, reques
 	return s.card(ctx, record.UUID)
 }
 
-// Stop requests a stop; the capture worker releases the recording resources.
+// Stop запрашивает остановку; обработчик захвата освобождает ресурсы для записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: The resulting record card.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная карта записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Stop(ctx context.Context, userID, conferenceID, recordID string) (records.RecordCard, error) {
 	record, err := s.repo.Stop(ctx, userID, conferenceID, recordID)
 	if err != nil {
@@ -263,18 +282,18 @@ func (s *Service) Stop(ctx context.Context, userID, conferenceID, recordID strin
 	return s.card(ctx, record.UUID)
 }
 
-// Read checks access before loading the recording card.
+// Read проверяет доступ перед загрузкой карточки с записью.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: The resulting record card.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная карта записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Read(ctx context.Context, userID, conferenceID, recordID string) (records.RecordCard, error) {
 	record, err := s.repo.Accessible(ctx, userID, conferenceID, recordID)
 	if err != nil {
@@ -283,35 +302,38 @@ func (s *Service) Read(ctx context.Context, userID, conferenceID, recordID strin
 	return s.card(ctx, record.UUID)
 }
 
-// List checks access and uses batched reads when the reader supports them.
+// List проверяет доступ и использует пакетное чтение, если считывающее устройство его
+// поддерживает.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - userID: Acting account identifier used to scope access.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - limit: Maximum number of results or operations in this batch.
-//   - offset: Number of results skipped before the requested page.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
 //
-// Returns:
-//   - result 1: The collected record card values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения карты записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) List(ctx context.Context, userID, conferenceID string, limit, offset int) ([]records.RecordCard, error) {
 	rows, err := s.repo.List(ctx, userID, conferenceID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	if batch, ok := s.reader.(interface {
-		// ReadComposites loads authorized composite-recording cards in a bounded batch.
+		// ReadComposites загружает авторизованные карточки с составными записями в ограниченном
+		// пакете.
 		//
-		// Parameters:
-		//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-		//   - argument 2: Resource identifiers to process as a bounded batch.
+		// @Parameters:
+		//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+		//   операции.
+		//   - arg2: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
 		//
-		// Returns:
-		//   - result 1: The collected record card values.
-		//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-		//     failure.
+		// @returns:
+		//   - result1: Собранные значения карты записи.
+		//   - result2: nil — в случае успеха; в противном случае — ошибка валидации,
+		//   доступа, передачи данных или сохранения.
 		ReadComposites(context.Context, []string) ([]records.RecordCard, error)
 	}); ok {
 		ids := make([]string, 0, len(rows))
@@ -338,29 +360,30 @@ func (s *Service) List(ctx context.Context, userID, conferenceID string, limit, 
 	return items, nil
 }
 
-// card maps internal finalization states to the public recording status.
+// card — карта сопоставляет внутренние состояния финализации с общедоступным статусом записи.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - recordID: External recording UUID.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordID: Внешняя запись UUID.
 //
-// Returns:
-//   - result 1: The resulting record card.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученная карта записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) card(ctx context.Context, recordID string) (records.RecordCard, error) {
 	card, err := s.reader.ReadComposite(ctx, recordID)
 	card.Status = records.PublicStatus(card.Status)
 	return card, err
 }
 
-// publish sends a best-effort notification; delivery failure does not undo the request.
+// publish — при публикации отправляется уведомление о том, что сделано все возможное; в случае сбоя
+// доставки запрос не отменяется.
 //
-// Parameters:
-//   - events: Destination for committed lifecycle or chat events.
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - record: Recording and its persisted lifecycle metadata.
-//   - eventType: Bounded recording lifecycle event category.
+// @Parameters:
+//   - events: Место назначения для зафиксированных событий жизненного цикла или чатов.
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - record: Запись и сохраненные метаданные ее жизненного цикла.
+//   - eventType: Ограниченная категория событий жизненного цикла записи.
 func publish(events Events, ctx context.Context, record records.Record, eventType string) {
 	if events != nil {
 		_ = events.Broadcast(ctx, realtime.Event(eventType, record.ConferenceID, map[string]any{"recordingId": record.UUID, "conferenceId": record.ConferenceID, "status": records.PublicStatus(record.Status), "mode": record.Mode, "requestedBy": record.RequestedBy}))

@@ -1,5 +1,5 @@
-// Package captions coordinates isolated live speech recognition and recovery of saved final
-// utterances.
+// Пакет субтитров координирует изолированное распознавание речи в реальном времени и
+// восстановление сохраненных окончательных речевых фрагментов.
 package captions
 
 import (
@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Lease binds auxiliary processing to the current conference-settings version.
+// Lease — аренда привязывает вспомогательную обработку к текущей версии настроек конференции.
 type Lease struct {
 	domain.State
 	Token     string
@@ -19,183 +19,213 @@ type Lease struct {
 	Attempts  int
 }
 
-// Repository keeps SQL authorization and ownership checks separate from audio processing.
+// Repository — репозиторий отделяет проверку авторизации и прав владения SQL от обработки аудио.
 type Repository interface {
-	// Read reads the live-caption state state or stream required by the caller.
+	// Read считывает состояние субтитров в реальном времени или поток, необходимый вызывающей
+	// стороне.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
 	//
-	// Returns:
-	//   - result 1: The resulting state.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее состояние.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Read(context.Context, string, string) (domain.State, error)
-	// Set updates the persisted live-caption state settings after validating the request.
+	// Set обновляет сохраненные настройки субтитров в реальном времени после проверки запроса.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Whether the requested feature or preference should be enabled.
-	//   - argument 5: Requested speech language within the supported provider contract.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Включает или отключает запрошенную функцию или настройку.
+	//   - arg5: Запрошенный язык речи в рамках поддерживаемого контракта поставщика.
 	//
-	// Returns:
-	//   - result 1: The resulting state.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующее состояние.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Set(context.Context, string, string, bool, string) (domain.State, error)
-	// Finals returns a cursor-bounded page of saved final captions so clients can recover missed
-	// realtime events.
+	// Finals возвращает страницу сохранённых конечных субтитров с ограничением по курсору,
+	// чтобы клиенты могли восстановить пропущенные события в реальном времени.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Acting account identifier used to scope access.
-	//   - argument 3: Conference identifier limiting the operation scope.
-	//   - argument 4: Boundary after which results or state are selected.
-	//   - argument 5: Maximum number of results or operations in this batch.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg4: Граница, после которой выбираются результаты или состояние.
+	//   - arg5: Максимальное количество результатов или операций в этом пакете.
 	//
-	// Returns:
-	//   - result 1: The collected caption values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения субтитров.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Finals(context.Context, string, string, int64, int) ([]domain.Caption, error)
-	// Claim atomically acquires the current live-caption state lease or ownership record.
+	// Claim — запрос атомарно получает текущую аренду субтитров в реальном времени или запись о правах
+	// владения.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Whether the requested processing lease includes technical activity
-	//     aggregation.
-	//   - argument 3: Maximum permitted size or number of characters.
-	//   - argument 4: Maximum permitted job attempts or the current retry count.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Включает ли запрашиваемая аренда на обработку агрегацию технической
+	//   активности.
+	//   - arg3: Максимально допустимый размер или количество символов.
+	//   - arg4: Максимально допустимое количество попыток выполнения задания или текущее
+	//   количество повторных попыток.
 	//
-	// Returns:
-	//   - result 1: The resulting lease.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая аренда.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Claim(context.Context, bool, int, int) (Lease, error)
-	// Renew extends the live-caption state lease only while its owner and fencing identity still
-	// match.
+	// Renew — продление продлевает аренду субтитров в реальном времени только до тех пор, пока
+	// совпадают владелец и идентификатор ограждения.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Current lease identity used to fence stale workers.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор текущего резервирования, используемый для изоляции
+	//   устаревших рабочих процессов.
 	//
-	// Returns:
-	//   - result 1: Whether the operation's documented condition holds or its conditional state
-	//     change succeeded.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Renew(context.Context, Lease) (bool, error)
-	// Finish records completion of the leased live-caption state operation.
+	// Finish фиксирует завершение операции с субтитрами в реальном времени.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Current lease identity used to fence stale workers.
-	//   - argument 3: Lifecycle state or response status to record.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор текущего резервирования, используемый для изоляции
+	//   устаревших рабочих процессов.
+	//   - arg3: Состояние жизненного цикла или статус ответа на запись.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Finish(context.Context, Lease, string) error
-	// Status records the bounded processing status associated with the current caption lease.
+	// Status записывает ограниченный статус обработки, связанный с текущей арендой субтитров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Current lease identity used to fence stale workers.
-	//   - argument 3: Lifecycle state or response status to record.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор текущего резервирования, используемый для изоляции
+	//   устаревших рабочих процессов.
+	//   - arg3: Состояние жизненного цикла или статус ответа на запись.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Status(context.Context, Lease, string) error
-	// SaveFinal persists a final live-caption event only for the current lease and revision.
+	// SaveFinal сохраняет последнее событие с субтитрами в реальном времени только для текущей
+	// аренды и ревизии.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Current lease identity used to fence stale workers.
-	//   - argument 3: Validated caption event to persist.
-	//   - argument 4: Maximum permitted size or number of characters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор текущего резервирования, используемый для изоляции
+	//   устаревших рабочих процессов.
+	//   - arg3: Подтверждённое событие с субтитрами для сохранения.
+	//   - arg4: Максимально допустимый размер или количество символов.
 	//
-	// Returns:
-	//   - result 1: The resulting caption.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующие субтитры.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SaveFinal(context.Context, Lease, domain.Caption, int) (domain.Caption, error)
-	// Speaker resolves the public speaker label for the caption's authorized participant.
+	// Speaker — спикер определяет общедоступный тег выступающего для авторизованного участника субтитров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
-	//   - argument 3: Participant identifier whose speaker information is requested.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg3: Идентификатор участника, для которого запрашивается информация о
+	//   выступающем.
 	//
-	// Returns:
-	//   - result 1: Verified public speaker label.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Подтверждённый общедоступный тег выступающего.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Speaker(context.Context, string, string) (string, error)
-	// Observe persists bounded activity observations for the currently leased conference-caption
-	// run.
+	// Observe сохраняет ограниченные по времени наблюдения за активностью для текущего сеанса
+	// конференции с субтитрами.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Current lease identity used to fence stale workers.
-	//   - argument 3: Participant identifier whose speaker information is requested.
-	//   - argument 4: Observed speech duration in milliseconds.
-	//   - argument 5: Total observed audio duration in milliseconds.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор текущего резервирования, используемый для изоляции
+	//   устаревших рабочих процессов.
+	//   - arg3: Идентификатор участника, для которого запрашивается информация о
+	//   выступающем.
+	//   - arg4: Наблюдаемая продолжительность речи в миллисекундах.
+	//   - arg5: Общая наблюдаемая продолжительность аудиозаписи в миллисекундах.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Observe(context.Context, Lease, string, int64, int64) error
 }
 
-// AudioTap opens a protected SFU stream without using RabbitMQ for individual frames.
+// AudioTap открывает защищенный поток SFU без использования RabbitMQ для отдельных кадров.
 type AudioTap interface {
-	// Open opens the scoped media, recording or session resource required by this component.
+	// Open открывает доступ к медиафайлам, записям или сеансам, необходимым для работы этого
+	// компонента.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Conference identifier limiting the operation scope.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The resulting read closer.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующий считывающий модуль.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Open(context.Context, string, string) (io.ReadCloser, error)
 }
 
-// Decoder converts Opus into bounded PCM chunks outside the SFU.
+// Decoder — декодер преобразует Opus в ограниченные фрагменты PCM вне SFU.
 type Decoder interface {
-	// Decode decodes the bounded encoded audio stream into PCM frames for the caption pipeline.
+	// Decode — декодер декодирует ограниченный закодированный аудиопоток в кадры PCM для конвейера
+	// субтитров.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Media-track metadata or negotiated track instance.
-	//   - argument 3: Encoded media-frame input channel.
-	//   - argument 4: Callback invoked while the operation's resource ownership and authorization
-	//     remain valid.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Метаданные медиадорожки или согласованный экземпляр дорожки.
+	//   - arg3: Входной канал закодированных медиакадров.
+	//   - arg4: Обратный вызов вызывается до тех пор, пока сохраняется право владения и
+	//   авторизации на использование ресурсов операции.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Decode(context.Context, media.EgressTrack, <-chan media.EgressFrame, func([]byte) error) error
 }
 
-// Events publishes bounded caption results through the existing realtime transport.
+// Events публикует ограниченные результаты субтитров через существующий транспортный канал
+// реального времени.
 type Events interface {
-	// Publish publishes the saved live-caption state change through its configured event or command
-	// transport.
+	// Publish публикует сохраненные изменения состояния субтитров в реальном времени через
+	// настроенный транспортный канал событий или команд.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Scoped publication and subscription transport.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Публикация и подписка с ограничением области видимости.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Publish(context.Context, realtime.Bus) error
 }

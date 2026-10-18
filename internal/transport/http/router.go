@@ -9,16 +9,17 @@ import (
 	"github.com/janickiy/meet-space/internal/operations"
 )
 
-// APIV1Prefix is the primary versioned REST API prefix.
+// APIV1Prefix — это основная версия префикса REST API.
 const APIV1Prefix = "/api/v1"
 
-// NewRouter constructs the router with the dependencies and limits required for HTTP.
+// NewRouter создает маршрутизатор с зависимостями и ограничениями, необходимыми для HTTP.
 //
-// Parameters:
-//   - middleware: Additional request middleware applied in registration order.
+// @Parameters:
+//   - middleware: Дополнительное промежуточное ПО для обработки запросов, применяемое в порядке
+//     регистрации.
 //
-// Returns:
-//   - result 1: The constructed or loaded engine.
+// @returns:
+//   - result1: Созданный или загруженный движок.
 func NewRouter(middleware ...gin.HandlerFunc) *gin.Engine {
 	router := gin.New()
 	router.Use(
@@ -36,7 +37,8 @@ func NewRouter(middleware ...gin.HandlerFunc) *gin.Engine {
 		func(c *gin.Context) {
 			start := time.Now()
 			c.Next()
-			// Never log query strings: one-use WebSocket tickets are credentials too.
+			// Никогда не логируйте строки запроса: одноразовые билеты WebSocket — это тоже
+			// учетные данные.
 			slog.Info("http request", "method", c.Request.Method, "route", c.FullPath(), "status", c.Writer.Status(), "duration_ms", time.Since(start).Milliseconds(), "request_id", operations.ID(c.Request.Context()))
 		})
 	if len(middleware) > 0 {

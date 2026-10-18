@@ -12,20 +12,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// Moderate applies a participant moderation action after checking the actor's role and the
-// target restrictions.
+// Moderate применяет действие по модерации участников после проверки роли субъекта и целевых
+// ограничений.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
-//   - participantID: Conference participant identifier.
-//   - request: Validated application request or incoming operation parameters.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - participantID: Идентификатор участника конференции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Moderate(ctx context.Context, conferenceID, userID, participantID string, request conferences.ModerationRequest) (conferences.Participant, error) {
 	var target conferences.Participant
 	if err := request.Validate(); err != nil {
@@ -93,8 +93,8 @@ func (r *ConferenceRepository) Moderate(ctx context.Context, conferenceID, userI
 					updates["role"] = request.Role
 				}
 			}
-			// Lifting a restriction does not restore another tab's media state that moderation already
-			// cleared.
+			// Снятие ограничения не приводит к восстановлению медиа-состояния другой вкладки,
+			// которое было очищено модераторами.
 			if request.Blocked != nil && *request.Blocked {
 				cleared := map[string]any{}
 				switch request.Action {
@@ -127,13 +127,13 @@ func (r *ConferenceRepository) Moderate(ctx context.Context, conferenceID, userI
 	return target, err
 }
 
-// nullRole converts an optional persisted role into the domain role representation.
+// nullRole преобразует необязательную сохранённую роль в представление роли домена.
 //
-// Parameters:
-//   - role: Requested participant or group-member role.
+// @Parameters:
+//   - role: Запрошенная роль участника или члена группы.
 //
-// Returns:
-//   - result 1: The resulting any.
+// @returns:
+//   - result1: Результирующий тип — any.
 func nullRole(role conferences.Role) any {
 	if role == "" {
 		return nil
@@ -141,14 +141,14 @@ func nullRole(role conferences.Role) any {
 	return role
 }
 
-// membershipError maps a membership or admission failure to its application error.
+// membershipError сопоставляет ошибку членства или допуска с ошибкой приложения.
 //
-// Parameters:
-//   - err: Error to classify, wrap or report safely.
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func membershipError(err error) error {
 	if errors.Is(err, apperrors.ErrNotFound) {
 		return apperrors.ErrForbidden
@@ -156,18 +156,18 @@ func membershipError(err error) error {
 	return err
 }
 
-// UpdateMediaState saves the participant's declared media-source state.
+// UpdateMediaState сохраняет заявленное участником состояние источника мультимедиа.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - userID: Acting account identifier used to scope access.
-//   - state: Current state or validated state update.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - state: Текущее состояние или обновлённое валидированное состояние.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) UpdateMediaState(ctx context.Context, conferenceID, userID string, state conferences.MediaState) (conferences.Participant, error) {
 	var participant conferences.Participant
 	connectionID, parseErr := uuid.Parse(state.ConnectionID)
@@ -214,17 +214,17 @@ func (r *ConferenceRepository) UpdateMediaState(ctx context.Context, conferenceI
 	return participant, err
 }
 
-// MediaPolicy loads the effective saved media restrictions for a participant.
+// MediaPolicy загружает действующие сохранённые медиа-ограничения для участника.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - participantID: Conference participant identifier.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - participantID: Идентификатор участника конференции.
 //
-// Returns:
-//   - result 1: The resulting participant policy.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующая политика в отношении участника.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) MediaPolicy(ctx context.Context, conferenceID, participantID string) (media.ParticipantPolicy, error) {
 	var participant conferences.Participant
 	err := r.db.WithContext(ctx).Where("id = ? AND conference_id = ?", participantID, conferenceID).Take(&participant).Error
@@ -242,18 +242,18 @@ func (r *ConferenceRepository) MediaPolicy(ctx context.Context, conferenceID, pa
 	return policy, nil
 }
 
-// ReconcileParticipants returns participants whose persisted media restrictions need
-// reconciliation.
+// ReconcileParticipants возвращает участников, чьи сохранённые медиа-ограничения требуют
+// согласования.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - after: Boundary after which results or state are selected.
-//   - limit: Maximum number of results or operations in this batch.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - after: Граница, после которой выбираются результаты или состояние.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
 //
-// Returns:
-//   - result 1: The collected participant values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные данные об участниках.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) ReconcileParticipants(ctx context.Context, after string, limit int) ([]conferences.Participant, error) {
 	items := []conferences.Participant{}
 	query := r.db.WithContext(ctx).Model(&conferences.Participant{}).Joins("JOIN conferences c ON c.id = conference_participants.conference_id").Where("c.status IN ('created','active') AND conference_participants.id > ?", after).Order("conference_participants.id").Limit(limit)
@@ -261,20 +261,20 @@ func (r *ConferenceRepository) ReconcileParticipants(ctx context.Context, after 
 	return items, err
 }
 
-// ClearDisconnectedMedia clears declared media state when the participant no longer has an
-// active authorized session.
+// ClearDisconnectedMedia очищает объявленное медиа-состояние, если у участника больше нет
+// активного авторизованного сеанса.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - participantID: Conference participant identifier.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - participantID: Идентификатор участника конференции.
 //
-// Returns:
-//   - result 1: The resulting participant.
-//   - result 2: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 3: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) ClearDisconnectedMedia(ctx context.Context, conferenceID, participantID string) (conferences.Participant, bool, error) {
 	var p conferences.Participant
 	changed := false
@@ -294,18 +294,18 @@ func (r *ConferenceRepository) ClearDisconnectedMedia(ctx context.Context, confe
 	return p, changed, err
 }
 
-// aggregateParticipantMedia combines active physical sessions into the participant's effective
-// media state.
+// aggregateParticipantMedia объединяет активные физические сеансы в действующее медиа-состояние
+// участника.
 //
-// Parameters:
-//   - tx: Current database transaction.
-//   - p: The participant state processed by this operation.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - p: Состояние участника, обработанное в ходе этой операции.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func aggregateParticipantMedia(tx *gorm.DB, p *conferences.Participant) (bool, error) {
 	var aggregate struct {
 		MicrophoneEnabled bool

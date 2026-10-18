@@ -19,7 +19,7 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/media"
 )
 
-// Source describes one durable media source used by composite assembly.
+// Source описывает один надежный источник медиаданных, используемый при компоновке.
 type Source struct {
 	Track  media.Track `json:"track"`
 	File   string      `json:"file"`
@@ -27,7 +27,8 @@ type Source struct {
 	End    float64     `json:"end"`
 }
 
-// Chunk becomes durable only after every stream closes and its manifest is atomically published.
+// Chunk — блок становится надежным только после закрытия всех потоков и атомарной публикации его
+// манифеста.
 type Chunk struct {
 	Mode        string   `json:"mode,omitempty"`
 	StartedAtNS int64    `json:"startedAtNs,omitempty"`
@@ -37,8 +38,8 @@ type Chunk struct {
 	Layout      Layout   `json:"layout"`
 }
 
-// Composer builds the combined recording from independent sources through FFmpeg outside the SFU
-// forwarding loop.
+// Composer создает комбинированную запись из независимых источников через FFmpeg вне цикла
+// переадресации SFU.
 type Composer struct {
 	FFmpegPath string
 	Width      int
@@ -48,18 +49,18 @@ type Composer struct {
 	slots      chan struct{}
 }
 
-// NewComposer constructs the composer with the dependencies and limits required for composite
-// recording assembly.
+// NewComposer создает компоновщик с зависимостями и ограничениями, необходимыми для сборки
+// составной записи.
 //
-// Parameters:
-//   - path: Validated local filesystem or object path.
-//   - width: Output width in pixels.
-//   - height: Output height in pixels.
-//   - fps: Output video frame rate.
-//   - concurrency: Maximum number of simultaneous processing operations.
+// @Parameters:
+//   - path: Проверенный путь к локальной файловой системе или объекту.
+//   - width: Ширина вывода в пикселях.
+//   - height: Высота вывода в пикселях.
+//   - fps: Частота кадров видео на выходе.
+//   - concurrency: Максимальное количество одновременных операций обработки.
 //
-// Returns:
-//   - result 1: The constructed or loaded composer.
+// @returns:
+//   - result1: Созданный или загруженный компоновщик.
 func NewComposer(path string, width, height, fps, concurrency int) *Composer {
 	if path == "" {
 		path = "ffmpeg"
@@ -79,16 +80,16 @@ func NewComposer(path string, width, height, fps, concurrency int) *Composer {
 	return &Composer{FFmpegPath: path, Width: width, Height: height, FPS: fps, Timeout: 2 * time.Minute, slots: make(chan struct{}, concurrency)}
 }
 
-// Compose assembles the archived tracks into a synchronized composite recording.
+// Compose — компоновщик объединяет архивные треки в синхронизированную составную запись.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - dir: Validated local directory.
-//   - chunk: Bounded input chunk and its timeline metadata.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - dir: Проверенный локальный каталог.
+//   - chunk: Ограниченный входной фрагмент и его метаданные для временной шкалы.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Composer) Compose(ctx context.Context, dir string, chunk Chunk) error {
 	select {
 	case c.slots <- struct{}{}:
@@ -137,17 +138,18 @@ func (c *Composer) Compose(ctx context.Context, dir string, chunk Chunk) error {
 	return nil
 }
 
-// Arguments builds the validated FFmpeg argument list for the planned composite output.
+// Arguments формирует валидированный список аргументов FFmpeg для запланированного составного
+// вывода.
 //
-// Parameters:
-//   - dir: Validated local directory.
-//   - chunk: Bounded input chunk and its timeline metadata.
-//   - output: Destination or generated result required by this operation.
+// @Parameters:
+//   - dir: Проверенный локальный каталог.
+//   - chunk: Ограниченный входной фрагмент и его метаданные для временной шкалы.
+//   - output: Целевой или сгенерированный результат, необходимый для выполнения этой операции.
 //
-// Returns:
-//   - result 1: The collected string values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные строковые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Composer) Arguments(dir string, chunk Chunk, output string) ([]string, error) {
 	if chunk.Duration <= 0 || chunk.Duration > 31 {
 		return nil, fmt.Errorf("invalid composite chunk duration")
@@ -162,9 +164,11 @@ func (c *Composer) Arguments(dir string, chunk Chunk, output string) ([]string, 
 		if filepath.Base(source.File) != source.File || source.File == "." {
 			return nil, fmt.Errorf("invalid source file")
 		}
-		// Browsers can change VP8 dimensions mid-stream. Reinitializing the entire filter graph resets
-		// timestamps and overlay state, especially in FFmpeg 6, and can hide a healthy camera. The scale
-		// filter accepts changed inputs while preserving fixed composite output dimensions.
+		// Браузеры могут изменять размеры VP8 в процессе работы.  При повторной инициализации
+		// всего графа фильтров сбрасываются временные метки и состояние наложения, особенно в
+		// FFmpeg 6, что может привести к скрытию исправной камеры.  Фильтр масштабирования
+		// принимает измененные входные данные, сохраняя фиксированные размеры составного
+		// вывода.
 		args = append(args, "-threads", "1", "-reinit_filter", "0", "-i", filepath.Join(dir, "sources", source.File))
 		tracks = append(tracks, source.Track)
 		index[source.Track.ID] = i
@@ -180,9 +184,9 @@ func (c *Composer) Arguments(dir string, chunk Chunk, output string) ([]string, 
 		i := index[tile.TrackID]
 		source := chunk.Sources[i]
 		graph = append(graph, fmt.Sprintf("[%d:v]setpts=PTS-STARTPTS+%.6f/TB,scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=0x101827,setsar=1[v%d]", i, source.Offset, tile.Width, tile.Height, tile.Width, tile.Height, n))
-		// Variable-frame-rate and static browser sources keep their last frame visible while active.
-		// Source.End comes only from an explicit track.end event, so frame repetition cannot revive an
-		// ended camera or screen.
+		// Источники с переменной частотой кадров и статические браузеры сохраняют последний
+		// кадр, пока активны.  Source.End поступает только из явного события track.end, поэтому
+		// повторная передача кадров не может оживить отключенную камеру или экран.
 		graph = append(graph, fmt.Sprintf("[%s][v%d]overlay=%d:%d:eof_action=repeat:repeatlast=1:enable='between(t,%.6f,%.6f)'[mix%d]", previous, n, tile.X, tile.Y, source.Offset, source.End, n))
 		previous = fmt.Sprintf("mix%d", n)
 	}
@@ -204,15 +208,16 @@ func (c *Composer) Arguments(dir string, chunk Chunk, output string) ([]string, 
 	return args, nil
 }
 
-// Recover recovers usable recording artifacts from the locally archived source tracks.
+// Функция Recover восстанавливает пригодные для использования артефакты записи из локально
+// заархивированных исходных треков.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - dir: Validated local directory.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - dir: Проверенный локальный каталог.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Composer) Recover(ctx context.Context, dir string) error {
 	paths, err := filepath.Glob(filepath.Join(dir, "chunk_*.json"))
 	if err != nil {
@@ -235,22 +240,23 @@ func (c *Composer) Recover(ctx context.Context, dir string) error {
 	return nil
 }
 
-// boundedLog retains bounded process diagnostics without unbounded memory growth.
+// boundedLog сохраняет ограниченную диагностику процесса без неограниченного роста потребления
+// памяти.
 type boundedLog struct {
 	mu   sync.Mutex
 	data []byte
 }
 
-// Write accepts output bytes through the io.Writer contract while enforcing the component's
-// buffering rules.
+// Функция Write принимает выходные байты через контракт io.Writer, соблюдая правила буферизации
+// компонента.
 //
-// Parameters:
-//   - p: Input bytes consumed by this operation.
+// @Parameters:
+//   - p: Входные байты, потребляемые этой операцией.
 //
-// Returns:
-//   - result 1: The resulting count, size or numeric value.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (b *boundedLog) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -261,8 +267,8 @@ func (b *boundedLog) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// String returns the buffered diagnostic text in its bounded string representation.
+// String возвращает буферизованный диагностический текст в виде ограниченной строки.
 //
-// Returns:
-//   - result 1: Bounded buffered diagnostic output.
+// @returns:
+//   - result1: Ограниченный буферизованный диагностический вывод.
 func (b *boundedLog) String() string { b.mu.Lock(); defer b.mu.Unlock(); return string(b.data) }

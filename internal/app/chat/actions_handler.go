@@ -16,12 +16,12 @@ type ActionHandler struct{ Service *chatusecase.ActionService }
 
 // actionPage анализирует и проверяет размер страницы, используемый в конечных точках действий чата.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //
-// Возвращаемые значения:
-//   - result 1: итоговое количество, размер или числовое значение.
-//   - result 2: выполняется ли задокументированное условие операции или ее условное состояние
+// @returns:
+//   - result1: итоговое количество, размер или числовое значение.
+//   - result2: выполняется ли задокументированное условие операции или ее условное состояние
 //     изменено успешно.
 func actionPage(c *gin.Context) (int, bool) {
 	limit := 20
@@ -38,7 +38,7 @@ func actionPage(c *gin.Context) (int, bool) {
 
 // Info возвращает информацию о чате конкретного участника, доступную для текущего аккаунта.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) Info(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -53,10 +53,9 @@ func (h *ActionHandler) Info(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Members возвращает текущие идентификаторы участников или их представления для авторизованного
-// диалога.
+// Members возвращает текущие идентификаторы участников или их представления для авторизованного диалога.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) Members(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -82,7 +81,7 @@ func (h *ActionHandler) Members(c *gin.Context) {
 
 // UpdateInfo обновляет валидированный заголовок или описание чата после проверки разрешения на управление
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) UpdateInfo(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -103,7 +102,7 @@ func (h *ActionHandler) UpdateInfo(c *gin.Context) {
 
 // Preferences считывает сохраненные настройки доставки или переписки действующего аккаунта.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) Preferences(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -120,7 +119,7 @@ func (h *ActionHandler) Preferences(c *gin.Context) {
 
 // SetPreferences сохраняет подтвержденные настройки диалога действующей учетной записи.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) SetPreferences(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -145,9 +144,10 @@ func (h *ActionHandler) SetPreferences(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// При выходе из системы удаляется активное членство или подключение к медиафайлам с сохранением сохраненной истории // диалога или конференции.
+// При выходе из системы удаляется активное членство или подключение к медиафайлам с сохранением сохраненной истории
+// диалога или конференции.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) Leave(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -163,7 +163,7 @@ func (h *ActionHandler) Leave(c *gin.Context) {
 
 // Поиск постоянных сообщений чата и личных вложений с использованием ограниченного ввода и фильтров видимости вызывающей стороны.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) Search(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -182,10 +182,9 @@ func (h *ActionHandler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": page.Items, "nextCursor": page.NextCursor})
 }
 
-// Context возвращает видимые сообщения, окружающие выбранное сообщение, чтобы клиенты могли перейти к
-// результату поиска.
+// Context возвращает видимые сообщения, окружающие выбранное сообщение, чтобы клиенты могли перейти к результату поиска.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) Context(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -206,7 +205,7 @@ func (h *ActionHandler) Context(c *gin.Context) {
 
 // Materials возвращают ограниченную страницу с видимыми вложениями из диалогов и общими ссылками.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) Materials(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -227,7 +226,7 @@ func (h *ActionHandler) Materials(c *gin.Context) {
 
 // Pins возвращает ограниченную страницу закрепленных сообщений в беседе.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *ActionHandler) Pins(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -248,11 +247,11 @@ func (h *ActionHandler) Pins(c *gin.Context) {
 
 // SetPin обновляет закрепленные сообщения в чате и личные вложения.
 //
-// Параметры:
+// @Parameters:
 //   - important: нужно ли закрепить сообщение или пометить его как важное.
 //
-// Возвращаемые значения:
-//   - result 1: HTTP-обработчик для регистрации этой операции.
+// @returns:
+//   - result1: HTTP-обработчик для регистрации этой операции.
 func (h *ActionHandler) SetPin(important bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parameter(c, "id")

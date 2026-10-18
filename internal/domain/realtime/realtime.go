@@ -9,7 +9,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/conferences"
 )
 
-// Session stores one physical WebSocket connection. Participant membership survives its closure.
+// Session — сессия хранит данные об одном физическом соединении WebSocket.  Членство участника
+// сохраняется после закрытия сессии.
 type Session struct {
 	ID             string     `json:"id" gorm:"type:uuid;primaryKey"`
 	ConferenceID   string     `json:"conferenceId" gorm:"type:uuid"`
@@ -23,14 +24,15 @@ type Session struct {
 	LastSeenAt     time.Time  `json:"lastSeenAt"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Session) TableName() string { return "participant_sessions" }
 
-// Identity carries verified user identity, token expiry and an optional durable auth session.
+// Identity — идентификационные данные содержат подтверждённые данные о пользователе, сроке действия токена
+// и, при необходимости, данные о продолжительном сеансе аутентификации.
 type Identity struct {
 	UserID        string    `json:"userId"`
 	ExpiresAt     time.Time `json:"expiresAt"`
@@ -38,7 +40,7 @@ type Identity struct {
 	ClientID      string    `json:"clientId,omitempty"`
 }
 
-// Envelope is the versioned WebSocket event. ReplyTo correlates a response with its request.
+// Envelope — это событие WebSocket с указанием версии.  ReplyTo сопоставляет ответ с запросом.
 type Envelope struct {
 	Version      int             `json:"version"`
 	ID           string          `json:"id"`
@@ -49,21 +51,22 @@ type Envelope struct {
 	ReplyTo      string          `json:"replyTo,omitempty"`
 }
 
-// Event creates a server envelope with a fresh ID and UTC timestamp.
+// Event создает серверную оболочку с новыми временными метками ID и UTC.
 //
-// Parameters:
-//   - kind: Validated event, job, media or resource category.
-//   - conferenceID: Conference identifier limiting the operation scope.
-//   - data: Input bytes or structured event payload.
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - data: Входные байты или структурированная полезная информация о событии.
 //
-// Returns:
-//   - result 1: The resulting envelope.
+// @returns:
+//   - result1: Результирующий конверт.
 func Event(kind, conferenceID string, data any) Envelope {
 	raw, _ := json.Marshal(data)
 	return Envelope{Version: 1, ID: uuid.NewString(), Type: kind, ConferenceID: conferenceID, Timestamp: time.Now().UTC(), Data: raw}
 }
 
-// Presence contains aggregate participant liveness and the count of active physical connections.
+// Presence содержит общую информацию о доступности участников и количестве активных физических
+// подключений.
 type Presence struct {
 	conferences.ParticipantView
 	Online        bool     `json:"online"`
@@ -71,7 +74,7 @@ type Presence struct {
 	ConnectionIDs []string `json:"connectionIds"`
 }
 
-// State contains the initial conference and visible-participant snapshot for a room.
+// State содержит начальные данные конференции и список видимых участников для комнаты.
 type State struct {
 	ConnectionID  string             `json:"connectionId"`
 	ParticipantID string             `json:"participantId"`
@@ -79,7 +82,8 @@ type State struct {
 	Participants  []Presence         `json:"participants"`
 }
 
-// Signal contains a bounded signaling payload whose trusted identity is assigned by the server.
+// Signal содержит ограниченную полезную информацию о сигнале, доверенная идентификация которого
+// присвоена сервером.
 type Signal struct {
 	TargetConnectionID  string          `json:"targetConnectionId"`
 	SDP                 string          `json:"sdp,omitempty"`
@@ -88,21 +92,21 @@ type Signal struct {
 	SenderParticipantID string          `json:"senderParticipantId,omitempty"`
 }
 
-// ICEConfig contains the ICE servers needed to establish a WebRTC connection.
+// ICEConfig содержит серверы ICE, необходимые для установления соединения WebRTC.
 type ICEConfig struct {
 	ICEServers         []ICEServer `json:"iceServers"`
 	ICETransportPolicy string      `json:"iceTransportPolicy,omitempty"`
 	ExpiresAt          int64       `json:"expiresAt,omitempty"`
 }
 
-// ICEServer contains one ICE service's endpoints and optional credentials.
+// ICEServer содержит конечные точки одного из сервисов ICE и необязательные учетные данные.
 type ICEServer struct {
 	URLs       []string `json:"urls"`
 	Username   string   `json:"username,omitempty"`
 	Credential string   `json:"credential,omitempty"`
 }
 
-// Bus carries a trusted event and its recipient routing between API instances.
+// Bus — шина передает доверенное событие и его получателя между экземплярами API.
 type Bus struct {
 	Kind          string    `json:"kind"`
 	Session       *Session  `json:"session,omitempty"`
@@ -112,22 +116,24 @@ type Bus struct {
 	Event         *Envelope `json:"event,omitempty"`
 }
 
-// Subscription receives inter-instance events until cancellation or Close.
+// Subscription — подписка получает события между экземплярами до тех пор, пока не будет отменена или не будет
+// вызвана функция Close.
 type Subscription interface {
-	// Receive waits for the next event using the caller's context.
+	// Receive ожидает следующего события, используя контекст вызывающей стороны.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
 	//
-	// Returns:
-	//   - result 1: The resulting bus.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Результирующая шина.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Receive(context.Context) (Bus, error)
-	// Close releases the subscription and unblocks Receive.
+	// Close освобождает подписку и разблокирует Receive.
 	//
-	// Returns:
-	//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Close() error
 }

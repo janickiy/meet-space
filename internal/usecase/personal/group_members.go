@@ -7,37 +7,40 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/personal"
 )
 
-// GroupMemberReader authorizes the actor before returning current group members.
+// GroupMemberReader авторизует актора перед возвратом текущих участников группы.
 type GroupMemberReader interface {
-	// GroupMembers returns the group members visible to the acting account.
+	// GroupMembers возвращает список участников группы, доступных для действующей учетной
+	// записи.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Identifier of the account performing the operation.
-	//   - argument 3: Identifier of the resource addressed by this operation.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
 	//
-	// Returns:
-	//   - result 1: The collected member values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения участников.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	GroupMembers(context.Context, string, string) ([]domain.Member, error)
 }
 
-// ReadGroupMembers enriches an authorized membership projection with optional
-// presence. Unlike a direct peer-presence request, the member list remains useful
-// when presence is unavailable: unknown statuses retain their existing nil value.
+// ReadGroupMembers дополняет список авторизованных участников опциональным отображением
+// присутствия. В отличие от прямого запроса на одноранговое присутствие, список участников
+// остается полезным, когда присутствие недоступно: статусы "неизвестно" сохраняют свое
+// существующее значение nil.
 //
-// Parameters:
-//   - ctx: Context controlling cancellation, deadlines and operation lifetime.
-//   - groups: Authorized group-member reader.
-//   - presence: Distributed account-presence reader or writer.
-//   - actor: Identifier of the account performing the operation.
-//   - id: Identifier of the resource addressed by this operation.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - groups: Авторизованный пользователь для чтения членов группы.
+//   - presence: Распределенный модуль чтения или записи данных о присутствии учетной записи.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// Returns:
-//   - result 1: The collected member values.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Собранные значения участников.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ReadGroupMembers(ctx context.Context, groups GroupMemberReader, presence PresenceReader, actor, id string) ([]domain.Member, error) {
 	items, err := groups.GroupMembers(ctx, actor, id)
 	if err != nil {

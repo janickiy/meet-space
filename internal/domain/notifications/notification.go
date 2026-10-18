@@ -9,8 +9,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 )
 
-// Payload contains resource references and state only. A notification neither reveals chat or
-// file content nor grants resource access.
+// Payload содержит только ссылки на ресурсы и состояние. Уведомление не раскрывает содержимое
+// чата или файлов и не предоставляет доступ к ресурсам.
 type Payload struct {
 	ConferenceID     string     `json:"conferenceId"`
 	ConversationID   string     `json:"conversationId,omitempty"`
@@ -26,8 +26,8 @@ type Payload struct {
 	Generation       int64      `json:"generation,omitempty"`
 }
 
-// Notification persists a personal event, referenced resources, deduplication, read state and
-// delivery state.
+// Notification сохраняет личное событие, ссылки на ресурсы, данные дедупликации, состояние
+// чтения и состояние доставки.
 type Notification struct {
 	ID          string     `json:"id" gorm:"type:uuid;primaryKey"`
 	UserID      string     `json:"userId" gorm:"type:uuid"`
@@ -40,37 +40,37 @@ type Notification struct {
 	PublishedAt *time.Time `json:"-"`
 }
 
-// TableName returns the explicit database table name so GORM does not infer a different plural
-// form.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// Returns:
-//   - result 1: Exact database table name used by GORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Notification) TableName() string { return "notifications" }
 
-// Page contains one bounded notification page and continuation metadata.
+// Page содержит одну страницу с ограниченным количеством уведомлений и метаданные продолжения.
 type Page struct {
 	Items       []Notification `json:"items"`
 	NextCursor  *string        `json:"nextCursor"`
 	UnreadCount int64          `json:"unreadCount"`
 }
 
-// Cursor contains the CreatedAt and ID boundary of the next account notification page.
+// Cursor содержит границы CreatedAt и ID следующей страницы с уведомлениями об аккаунте.
 type Cursor struct {
 	UserID string    `json:"userId"`
 	At     time.Time `json:"at"`
 	ID     string    `json:"id"`
 }
 
-// DecodeCursor decodes and validates an opaque pagination cursor.
+// DecodeCursor декодирует и проверяет непрозрачный курсор для разбивки на страницы.
 //
-// Parameters:
-//   - value: Value to validate, normalize or convert.
-//   - userID: Acting account identifier used to scope access.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// Returns:
-//   - result 1: The constructed or loaded cursor.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Сконструированный или загруженный курсор.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func DecodeCursor(value, userID string) (*Cursor, error) {
 	if value == "" {
 		return nil, nil
@@ -91,13 +91,13 @@ func DecodeCursor(value, userID string) (*Cursor, error) {
 	return &c, nil
 }
 
-// EncodeCursor encodes a stable boundary for the next page of results.
+// EncodeCursor кодирует стабильную границу для следующей страницы с результатами.
 //
-// Parameters:
-//   - n: Number of items or operations requested.
+// @Parameters:
+//   - n: Количество запрошенных элементов или операций.
 //
-// Returns:
-//   - result 1: Opaque notification continuation cursor.
+// @returns:
+//   - result1: Непрозрачный курсор для продолжения уведомлений.
 func EncodeCursor(n Notification) string {
 	b, _ := json.Marshal(Cursor{UserID: n.UserID, At: n.CreatedAt, ID: n.ID})
 	return base64.RawURLEncoding.EncodeToString(b)

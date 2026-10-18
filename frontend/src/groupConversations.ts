@@ -6,7 +6,7 @@ import type {
   PersonalPage,
 } from "./types";
 
-/** Applies a confirmed personal preference without replacing newer messages or membership. */
+/** Применяет подтвержденные персональные настройки, не заменяя более новые сообщения или данные о членстве в группах. */
 export function observeGroupConversationNotifications(
   client: QueryClient,
   id: string,
@@ -14,7 +14,8 @@ export function observeGroupConversationNotifications(
   enabled: boolean,
   cancelPendingReads = true,
 ) {
-  // Confirmed preference changes cancel older reads; routine message delivery keeps them running.
+  // Подтвержденные изменения настроек отменяют более ранние чтения; обычная доставка сообщений
+  // позволяет их продолжать.
   if (cancelPendingReads) {
     for (const key of [
       "personal-list",

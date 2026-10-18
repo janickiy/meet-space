@@ -657,7 +657,7 @@ body[data-theme="dark"] .device-name {
     scroll-behavior: auto !important;
   }
 }
-/* Keep the gallery itself readable when reviewing dark product screens. */
+/* Сохраняйте читабельность самой галереи при просмотре тёмных экранов с информацией о продуктах. */
 body{color:var(--text)}
 body[data-theme="dark"]{--blue:#aaaaff;--chip:#343452;color:var(--text)}
 body[data-theme="dark"] .screen-tab.active{background:var(--chip);color:var(--blue)}

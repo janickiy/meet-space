@@ -26,7 +26,7 @@ type Folder struct {
 	Contains          *bool     `json:"contains,omitempty" gorm:"-"`
 }
 
-// Invite fields are always empty here; a folder never grants invitation access.
+// Поля приглашения всегда пусты, так как папка никогда не предоставляет доступ по приглашению.
 type ConferenceView struct {
 	conferences.View
 	ParticipantCount *int64 `json:"participantCount,omitempty"`
@@ -45,15 +45,17 @@ type Filter struct {
 	Search string
 }
 
-// NormalizeName normalizes a folder name and its comparison key to enforce naming constraints.
+// NormalizeName нормализует имя папки и ключ сравнения для обеспечения соблюдения ограничений
+// на использование имен.
 //
-// Parameters:
-//   - raw: Untrusted serialized value to decode or validate.
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
 //
-// Returns:
-//   - name: Validated normalized display name of the folder.
-//   - key: Canonical comparison key used to enforce name uniqueness.
-//   - err: nil on success; otherwise the validation, access, transport or persistence failure.
+// @returns:
+//   - name: Проверенное нормализованное отображаемое имя папки.
+//   - key: Канонический ключ сравнения, используемый для обеспечения уникальности имени.
+//   - err: nil — в случае успеха; в противном случае — ошибка валидации, доступа, передачи
+//     данных или сохранения.
 func NormalizeName(raw string) (name, key string, err error) {
 	name, err = normalizeText(raw, 50, true)
 	if err != nil {
@@ -62,15 +64,16 @@ func NormalizeName(raw string) (name, key string, err error) {
 	return name, norm.NFC.String(cases.Fold().String(name)), nil
 }
 
-// NormalizeFilter normalizes and validates the filters used to list folder items.
+// NormalizeFilter нормализует и проверяет фильтры, используемые для вывода списка элементов
+// папки.
 //
-// Parameters:
-//   - filter: Validated filters restricting the result set.
+// @Parameters:
+//   - filter: Проверенные фильтры, ограничивающие набор результатов.
 //
-// Returns:
-//   - result 1: The resulting filter.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Результирующий фильтр.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeFilter(filter Filter) (Filter, error) {
 	if filter.Type == "" {
 		filter.Type = "all"
@@ -83,28 +86,28 @@ func NormalizeFilter(filter Filter) (Filter, error) {
 	return filter, err
 }
 
-// ValidKind reports whether an item kind is supported by folders.
+// ValidKind сообщает, поддерживаются ли папки для того или иного типа элементов.
 //
-// Parameters:
-//   - kind: Validated event, job, media or resource category.
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func ValidKind(kind string) bool { return kind == "conversation" || kind == "conference" }
 
-// normalizeText normalizes UTF-8 text and enforces the requested length and presence
-// constraints.
+// normalizeText нормализует текст UTF-8 и обеспечивает соблюдение заданных ограничений по длине
+// и наличию.
 //
-// Parameters:
-//   - raw: Untrusted serialized value to decode or validate.
-//   - maximum: Maximum permitted size or number of characters.
-//   - required: Whether an empty value must be rejected.
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - required: Нужно ли отклонять пустое значение.
 //
-// Returns:
-//   - result 1: Validated normalized UTF-8 text.
-//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: Валидированный нормализованный текст UTF-8.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func normalizeText(raw string, maximum int, required bool) (string, error) {
 	if !utf8.ValidString(raw) {
 		return "", apperrors.ErrInvalidInput

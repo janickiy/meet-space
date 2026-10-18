@@ -6,14 +6,15 @@ import (
 	"path/filepath"
 )
 
-// RemoveEmptyTrees removes empty directories below the validated local recording root.
+// RemoveEmptyTrees удаляет пустые каталоги под проверенным корневым каталогом локальных
+// записей.
 //
-// Parameters:
-//   - paths: Validated local paths included in this operation.
+// @Parameters:
+//   - paths: Проверенные локальные пути, задействованные в этой операции.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func RemoveEmptyTrees(paths ...string) error {
 	for _, path := range paths {
 		if err := removeEmptyTree(path); err != nil {
@@ -24,15 +25,15 @@ func RemoveEmptyTrees(paths ...string) error {
 	return nil
 }
 
-// removeEmptyTree walks a local subtree and removes directories only after their contents are
-// empty.
+// removeEmptyTree просматривает локальное поддерево и удаляет каталоги только после того, как
+// их содержимое становится пустым.
 //
-// Parameters:
-//   - path: Validated local filesystem or object path.
+// @Parameters:
+//   - path: Проверенный путь к локальной файловой системе или объекту.
 //
-// Returns:
-//   - result 1: nil on success; otherwise the validation, access, transport or persistence
-//     failure.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func removeEmptyTree(path string) error {
 	entries, err := os.ReadDir(path)
 	if os.IsNotExist(err) {

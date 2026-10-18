@@ -8,14 +8,15 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// RegisterInvitationRoutes registers the invitation endpoints with the supplied authentication
-// and request middleware.
+// RegisterInvitationRoutes регистрирует конечные точки приглашения с помощью предоставленного
+// промежуточного программного обеспечения для аутентификации и обработки запросов.
 //
-// Parameters:
-//   - router: HTTP router on which the component endpoints are registered.
-//   - handler: Callback responsible for processing the scoped operation.
-//   - auth: Authentication middleware or account handler dependency.
-//   - limiter: Shared request-rate limiter.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterInvitationRoutes(router gin.IRouter, handler *app.InvitationHandler, auth gin.HandlerFunc, limiter middleware.Limiter) {
 	private := func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")

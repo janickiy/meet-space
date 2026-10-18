@@ -28,7 +28,8 @@ export function AccountManagement() {
   const [error, setError] = useState<unknown>();
   const [validation, setValidation] = useState("");
   const items = accounts.data?.items || [];
-  // Include the current identity even while a pre-existing cookie is being upgraded.
+  // Учитывайте текущую учетную запись, даже если происходит обновление уже существующего
+  // cookie-файла.
   const visible =
     auth.user && !items.some((item) => item.id === auth.user!.id)
       ? [auth.user, ...items]

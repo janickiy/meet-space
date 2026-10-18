@@ -22,24 +22,24 @@ type Handler struct {
 
 // NewHandler создает обработчик с зависимостями и ограничениями, необходимыми для постоянных сообщений в чате и приватных вложений.
 //
-// Параметры:
+// @Parameters:
 //   - service: служба приложения, вызываемая этим адаптером.
 //
-// Возвращает:
-//   - result 1: созданный или загруженный обработчик.
+// @returns:
+//   - result1: созданный или загруженный обработчик.
 func NewHandler(service *chatusecase.Service) *Handler {
 	return &Handler{service: service, namespace: "conferences"}
 }
 
 // Параметр проверяет наличие обязательного параметра маршрута перед вызовом операции приложения.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 //   - key: хранилище, кэш или криптографический ключ, используемый операцией.
 //
-// Возвращаемые значения:
-//   - result 1: проверенный обязательный параметр маршрута.
-//   - result 2: выполняется ли задокументированное условие операции или ее условное состояние
+// @returns:
+//   - result1: проверенный обязательный параметр маршрута.
+//   - result2: выполняется ли задокументированное условие операции или ее условное состояние
 //     изменено успешно.
 func parameter(c *gin.Context, key string) (string, bool) {
 	id, err := chat.UUID(c.Param(key))
@@ -52,7 +52,7 @@ func parameter(c *gin.Context, key string) (string, bool) {
 
 // List возвращает ограниченную страницу записей о сообщениях в чате с использованием заданных параметров разбивки на страницы и фильтров.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) List(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -79,7 +79,7 @@ func (h *Handler) List(c *gin.Context) {
 // Send проверяет ссылки на доступ, ответ и вложение и сохраняет сообщение в чате с
 // защитой от идемпотентности при повторных попытках.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Send(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -104,7 +104,7 @@ func (h *Handler) Send(c *gin.Context) {
 
 // При редактировании существующий текст сообщения автора изменяется после проверки видимости и возможности редактирования.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Edit(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -127,10 +127,10 @@ func (h *Handler) Edit(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Delete удаляет запрошенное сообщение в чате, используя область видимости вызывающей стороны и жизненный цикл ресурса
-// rules.
+// Delete удаляет запрошенное сообщение в чате с учётом прав вызывающей стороны
+// и правил жизненного цикла ресурса.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Delete(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -151,7 +151,7 @@ func (h *Handler) Delete(c *gin.Context) {
 
 // ReadState возвращает сохраненную границу прочитанных сообщений участника и количество видимых непрочитанных сообщений.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) ReadState(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -169,7 +169,7 @@ func (h *Handler) ReadState(c *gin.Context) {
 // MarkRead расширяет сохраненную границу чтения, не допуская перемещения запоздалых или повторяющихся запросов
 // все задом наперед.
 //
-// Параметры:
+// @Parameters:
 // - c: Контекст запроса Gin и ответа, включая аутентифицированный идентификатор.
 func (h *Handler) MarkRead(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -191,7 +191,7 @@ func (h *Handler) MarkRead(c *gin.Context) {
 // InitAttachment создает или повторно использует ожидающие обработки метаданные вложения, чтобы можно было повторить попытку загрузки
 // безопасно.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) InitAttachment(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -214,11 +214,10 @@ func (h *Handler) InitAttachment(c *gin.Context) {
 	c.JSON(status, gin.H{"status": "success", "item": item, "uploadUrl": "/api/v1/" + h.namespace + "/" + id + "/attachments/" + item.ID + "/content"})
 }
 
-// Upload checks the limited data flow and saves it for the current upload
-// attempt.
+// Upload проверяет ограниченный поток данных и сохраняет его для текущей попытки загрузки.
 //
-// Parameters:
-//   - c: the Gin request and response context, including authenticated data.
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Upload(c *gin.Context) {
 	id, ok := parameter(c, "id")
 	if !ok {
@@ -244,7 +243,7 @@ func (h *Handler) Upload(c *gin.Context) {
 
 // FinalizeAttachment помечает успешно загруженное вложение как готовое к использованию в сообщении.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) FinalizeAttachment(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -268,7 +267,7 @@ func (h *Handler) FinalizeAttachment(c *gin.Context) {
 
 // Download проверяет видимость вложения и возвращает временный приватный URL для скачивания.
 //
-// Параметры:
+// @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Download(c *gin.Context) {
 	id, ok := parameter(c, "id")
@@ -291,8 +290,9 @@ func (h *Handler) Download(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "url": url, "expiresAt": expires})
 }
 
-// ForConversations preserves the shared HTTP/file flow with a distinct public scope.
+// ForConversations сохраняет общий поток HTTP/файлов с отдельной общедоступной областью
+// видимости.
 //
-// Returns:
-//   - result 1: The constructed or loaded handler.
+// @returns:
+//   - result1: Сконструированный или загруженный обработчик.
 func (h *Handler) ForConversations() *Handler { h.namespace = "conversations"; return h }

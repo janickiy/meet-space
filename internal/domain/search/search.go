@@ -1,9 +1,10 @@
-// Package search defines vector representations independently of a particular model or SDK.
+// Поиск пакетов определяет векторные представления независимо от конкретной модели или SDK.
 package search
 
 import "context"
 
-// EmbeddingRequest binds bounded text inputs to one embedding-model space.
+// EmbeddingRequest привязывает ограниченные текстовые входные данные к одному пространству
+// модели внедрения.
 type EmbeddingRequest struct {
 	Model          string   `json:"model"`
 	Version        string   `json:"version"`
@@ -12,22 +13,24 @@ type EmbeddingRequest struct {
 	IdempotencyKey string   `json:"-"`
 }
 
-// EmbeddingProvider isolates the external service from storage, authorization and ranking.
+// EmbeddingProvider изолирует внешний сервис от хранения данных, авторизации и ранжирования.
 type EmbeddingProvider interface {
-	// Embed computes a bounded batch of text vectors using the configured embedding model.
+	// Embed вычисляет ограниченный пакет текстовых векторов с помощью настроенной модели
+	// встраивания.
 	//
-	// Parameters:
-	//   - argument 1: Context controlling cancellation, deadlines and operation lifetime.
-	//   - argument 2: Validated application request or incoming operation parameters.
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Валидированный запрос приложения или входящие параметры операции.
 	//
-	// Returns:
-	//   - result 1: The collected []float32 values.
-	//   - result 2: nil on success; otherwise the validation, access, transport or persistence
-	//     failure.
+	// @returns:
+	//   - result1: Собранные значения []float32.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Embed(context.Context, EmbeddingRequest) ([][]float32, error)
 }
 
-// Chunk binds bounded text to a transcript generation, source segment and navigation position.
+// Chunk привязывает ограниченный текст к транскрипции, исходному сегменту и позиции навигации.
 type Chunk struct {
 	ID, ConferenceID, RecordingID, TranscriptID, SegmentID string
 	Generation                                             int64

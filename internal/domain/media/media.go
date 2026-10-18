@@ -8,15 +8,18 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// Media-signaling limits are independent of configurable realtime relay limits. Forty receive or
-// publish slots can exceed 48 KiB in a valid Firefox offer.
+// Ограничения на передачу медиаданных не зависят от настраиваемых ограничений на ретрансляцию в
+// реальном времени. Сорок слотов для приема или публикации могут превышать 48 KiB в рамках
+// допустимого предложения Firefox.
 const MaxSDPBytes = 128 << 10
 
-// JSON escaping can expand SDP; internal commands and responses remain bounded.
+// Экранирование JSON может увеличить количество SDP; внутренние команды и ответы остаются
+// ограниченными.
 const MaxCommandBytes = 1 << 20
 const MaxICEBytes = 4096
 
-// Binding links a media peer to a verified WebSocket session. Browser payloads cannot supply this identity.
+// Binding — привязка связывает одноранговый медиасервер с проверенным сеансом WebSocket. Данные,
+// передаваемые браузером, не могут содержать эту информацию.
 type Binding struct {
 	ConferenceID           string    `json:"conferenceId"`
 	ParticipantID          string    `json:"participantId"`
@@ -26,22 +29,22 @@ type Binding struct {
 	AuthorizationExpiresAt time.Time `json:"authorizationExpiresAt"`
 }
 
-// Route contains the media-room owner's address and fencing version for authenticated internal
-// calls.
+// Route содержит адрес владельца медиакомнаты и версию ограждения для аутентифицированных
+// внутренних вызовов.
 type Route struct {
 	WorkerID string `json:"workerId"`
 	Endpoint string `json:"endpoint"`
 	LeaseID  string `json:"leaseId"`
 }
 
-// Worker describes bounded media-worker presence in the distributed registry.
+// Worker описывает присутствие медиаворкера в распределенном реестре.
 type Worker struct {
 	Draining bool   `json:"draining,omitempty"`
 	ID       string `json:"id"`
 	Endpoint string `json:"endpoint"`
 }
 
-// PeerView is the public representation of a physical media connection.
+// PeerView представляет собой публичное описание физического медиасоединения.
 type PeerView struct {
 	MediaPeerID   string `json:"mediaPeerId"`
 	ConferenceID  string `json:"conferenceId"`
@@ -62,7 +65,7 @@ const (
 	SourceAudioScreen Source = "audio/screen"
 )
 
-// Track describes a published media track and its source.
+// Track описывает опубликованный медиатрек и его источник.
 type Track struct {
 	ID            string `json:"id"`
 	StreamID      string `json:"streamId"`
@@ -72,15 +75,16 @@ type Track struct {
 	Source        Source `json:"source"`
 }
 
-// Publication maps SDP MID to a source. TrackID identifies a browser capture generation, not a server track.
+// Publication сопоставляет SDP MID с источником. TrackID идентифицирует генерацию захвата в
+// браузере, а не серверный трек.
 type Publication struct {
 	MID     string `json:"mid"`
 	Source  Source `json:"source"`
 	TrackID string `json:"trackId,omitempty"`
 }
 
-// ParticipantPolicy contains persisted media-source permissions and a monotonic moderation
-// version.
+// ParticipantPolicy содержит сохраненные разрешения для источника медиаданных и монотонную
+// версию модерации.
 type ParticipantPolicy struct {
 	Version           int64 `json:"version"`
 	MicrophoneBlocked bool  `json:"microphoneBlocked"`
@@ -89,14 +93,15 @@ type ParticipantPolicy struct {
 	Kicked            bool  `json:"kicked"`
 }
 
-// Allows reports whether the current policy permits the requested operation or source.
+// Allows сообщает, разрешает ли текущая политика выполнение запрошенной операции или
+// использование источника.
 //
-// Parameters:
-//   - source: Media or content source belonging to the current operation.
+// @Parameters:
+//   - source: Медиа или источник контента, связанный с текущей операцией.
 //
-// Returns:
-//   - result 1: Whether the operation's documented condition holds or its conditional state
-//     change succeeded.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (p ParticipantPolicy) Allows(source Source) bool {
 	if p.Kicked {
 		return false
@@ -115,13 +120,14 @@ func (p ParticipantPolicy) Allows(source Source) bool {
 	}
 }
 
-// SourceKind normalizes a media source label to the supported microphone, camera or screen kind.
+// SourceKind нормализует метку источника медиа на поддерживаемый тип микрофона, камеры или
+// экрана.
 //
-// Parameters:
-//   - source: Media or content source belonging to the current operation.
+// @Parameters:
+//   - source: Медиа или источник контента, связанный с текущей операцией.
 //
-// Returns:
-//   - result 1: The resulting kind.
+// @returns:
+//   - result1: Результирующий тип.
 func SourceKind(source Source) Kind {
 	switch source {
 	case SourceMicrophone, SourceAudioScreen:
@@ -133,7 +139,7 @@ func SourceKind(source Source) Kind {
 	}
 }
 
-// Command holds the command data used by authenticated media-room control.
+// Command содержит данные команд, используемые для управления медиакомнатой с аутентификацией.
 type Command struct {
 	RequestID     string             `json:"requestId"`
 	Binding       Binding            `json:"binding"`
@@ -150,14 +156,14 @@ type Command struct {
 	ParticipantID string             `json:"participantId,omitempty"`
 }
 
-// VideoCaptureTarget contains the capture constraints for the selected video quality profile.
+// VideoCaptureTarget содержит ограничения захвата для выбранного профиля качества видео.
 type VideoCaptureTarget struct {
 	MaxWidth     int `json:"maxWidth"`
 	MaxHeight    int `json:"maxHeight"`
 	MaxFrameRate int `json:"maxFrameRate"`
 }
 
-// Result contains the media operation outcome and its bounded component metadata.
+// Result содержит результат операции с медиафайлами и метаданные связанных с ней компонентов.
 type Result struct {
 	MediaPeerID        string               `json:"mediaPeerId"`
 	WorkerID           string               `json:"workerId,omitempty"`
@@ -172,7 +178,8 @@ type Result struct {
 	Policy             *ParticipantPolicy   `json:"policy,omitempty"`
 }
 
-// Signal contains a bounded signaling payload; the server assigns its trusted identity.
+// Signal содержит ограниченную полезную информацию для передачи сигналов; сервер присваивает ей
+// свой доверенный идентификатор.
 type Signal struct {
 	MediaPeerID   string          `json:"mediaPeerId,omitempty"`
 	NegotiationID string          `json:"negotiationId,omitempty"`
@@ -182,14 +189,14 @@ type Signal struct {
 	Publications  []Publication   `json:"publications,omitempty"`
 }
 
-// PolicyForParticipant projects authoritative membership into versioned media
-// permissions. Conference availability is enforced separately by its owner.
+// PolicyForParticipant проецирует авторизованное членство в систему на разрешения для
+// версионных медиафайлов. Доступность конференции контролируется отдельно ее владельцем.
 //
-// Parameters:
-//   - p: The participant state processed by this operation.
+// @Parameters:
+//   - p: Состояние участника, обработанное в ходе этой операции.
 //
-// Returns:
-//   - result 1: The resulting participant policy.
+// @returns:
+//   - result1: Результирующая политика в отношении участника.
 func PolicyForParticipant(p conferences.Participant) ParticipantPolicy {
 	return ParticipantPolicy{Version: p.MediaPolicyVersion, MicrophoneBlocked: p.MicrophoneBlocked, CameraBlocked: p.CameraBlocked, ScreenBlocked: p.ScreenBlocked, Kicked: !p.CanParticipate()}
 }
