@@ -1,7 +1,14 @@
 import { MessageCircle } from "lucide-react";
 import { usePersonalRealtime } from "../personalRealtime";
 import "../pages/personal.css";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import {
+  startTransition,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { MouseEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import {
@@ -134,15 +141,13 @@ export function Layout() {
     };
   }, [open]);
 
-  /** Завершает локальную сессию и возвращает к форме входа даже при сетевом отказе logout. */
+  /** Показывает публичную главную после локального выхода, не ожидая ответа сервера. */
   const leaveAccount = () => {
     setLeaving(true);
-    void logout()
-      .catch(() => {})
-      .finally(() => {
-        setLeaving(false);
-        navigate("/login", { replace: true });
-      });
+    startTransition(() => {
+      void logout().catch(() => {});
+      navigate("/", { replace: true });
+    });
   };
   if (user?.guestConferenceId)
     return (

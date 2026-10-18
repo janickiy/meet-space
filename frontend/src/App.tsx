@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, startTransition, Suspense } from "react";
 import {
   Navigate,
   Outlet,
@@ -102,6 +102,7 @@ function SettingsRoute() {
 function Protected() {
   const auth = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   if (auth.loading)
     return (
       <div className="page-center">
@@ -119,23 +120,12 @@ function Protected() {
           <Button onClick={auth.retry}>Попробовать снова</Button>
           <Button
             variant="secondary"
-            onClick={
-              /**
-               * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-               *
-               *
-               * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
-               */ () => {
-                void auth.logout().catch(
-                  /**
-                   * Обработчик catch выполняет переданный шаг вызова catch в интерфейсе Meet.
-                   *
-                   *
-                   * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
-                   */ () => {},
-                );
-              }
-            }
+            onClick={() => {
+              startTransition(() => {
+                void auth.logout().catch(() => {});
+                navigate("/", { replace: true });
+              });
+            }}
           >
             Выйти
           </Button>
