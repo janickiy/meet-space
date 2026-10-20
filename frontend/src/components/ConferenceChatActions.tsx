@@ -27,7 +27,7 @@ import {
 } from "./ConferenceChatInfo";
 import "./conference-chat-info.css";
 
-/** Действия во время собрания отображаются только после открытия меню этой строки. */
+/** Show row actions on demand; completed meetings expose only their chat information. */
 export function ConferenceChatActions({
   conference,
 }: {
@@ -151,11 +151,13 @@ function ConferenceChatMenu({
 }) {
   const { user } = useAuth();
   const client = useQueryClient();
+  const past = ["finished", "cancelled"].includes(conference.status);
   const key = ["conference-chat-info", conference.id, user?.id];
   const info = useQuery({
     queryKey: key,
     queryFn: ({ signal }) => api.conferenceChatInfo(conference.id, signal),
     retry: false,
+    enabled: !past,
   });
   const notifications = useMutation({
     mutationFn: (enabled: boolean) =>
@@ -234,49 +236,58 @@ function ConferenceChatMenu({
         <Info size={19} aria-hidden="true" />
         Информация о чате
       </button>
-      <button role="menuitem" tabIndex={-1} type="button" onClick={onFolder}>
-        <FolderPlus size={19} aria-hidden="true" />
-        Добавить в папку
-      </button>
-      <button
-        role="menuitem"
-        tabIndex={-1}
-        type="button"
-        disabled={enabled === undefined || notifications.isPending}
-        onClick={() => notifications.mutate(!enabled)}
-      >
-        {enabled ? (
-          <BellOff size={19} aria-hidden="true" />
-        ) : (
-          <Bell size={19} aria-hidden="true" />
-        )}
-        {enabled ? "Выключить уведомления" : "Включить уведомления"}
-      </button>
-      <button
-        role="menuitem"
-        tabIndex={-1}
-        type="button"
-        onClick={() => onSelect("invite")}
-      >
-        <UserPlus size={19} aria-hidden="true" />
-        Добавить участников
-      </button>
-      <button
-        role="menuitem"
-        tabIndex={-1}
-        type="button"
-        className="conference-chat-danger"
-        onClick={() => onSelect("leave")}
-      >
-        <LogOut size={19} aria-hidden="true" />
-        Покинуть чат
-      </button>
-      {info.isFetching && !info.data && (
-        <p className="field-hint" role="status">
-          Загружаем настройки…
-        </p>
+      {!past && (
+        <>
+          <button
+            role="menuitem"
+            tabIndex={-1}
+            type="button"
+            onClick={onFolder}
+          >
+            <FolderPlus size={19} aria-hidden="true" />
+            Добавить в папку
+          </button>
+          <button
+            role="menuitem"
+            tabIndex={-1}
+            type="button"
+            disabled={enabled === undefined || notifications.isPending}
+            onClick={() => notifications.mutate(!enabled)}
+          >
+            {enabled ? (
+              <BellOff size={19} aria-hidden="true" />
+            ) : (
+              <Bell size={19} aria-hidden="true" />
+            )}
+            {enabled ? "Выключить уведомления" : "Включить уведомления"}
+          </button>
+          <button
+            role="menuitem"
+            tabIndex={-1}
+            type="button"
+            onClick={() => onSelect("invite")}
+          >
+            <UserPlus size={19} aria-hidden="true" />
+            Добавить участников
+          </button>
+          <button
+            role="menuitem"
+            tabIndex={-1}
+            type="button"
+            className="conference-chat-danger"
+            onClick={() => onSelect("leave")}
+          >
+            <LogOut size={19} aria-hidden="true" />
+            Покинуть чат
+          </button>
+          {info.isFetching && !info.data && (
+            <p className="field-hint" role="status">
+              Загружаем настройки…
+            </p>
+          )}
+          <ErrorNotice error={notifications.error || info.error} />
+        </>
       )}
-      <ErrorNotice error={notifications.error || info.error} />
     </div>
   );
 }
