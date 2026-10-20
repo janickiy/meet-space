@@ -12,7 +12,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
     -o /bin/product-worker ./cmd/product-worker
 
 FROM alpine:3.22 AS runtime
-RUN apk add --no-cache ca-certificates ffmpeg && addgroup -S app && adduser -S app -G app
+# Refresh runtime libraries before installing FFmpeg to include current security fixes.
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates ffmpeg && addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /bin/product-worker /app/product-worker
 COPY database/migrations /app/database/migrations

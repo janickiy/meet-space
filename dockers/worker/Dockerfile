@@ -16,7 +16,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
 
 FROM alpine:3.22 AS runtime
 
-RUN apk add --no-cache ca-certificates ffmpeg su-exec \
+# Refresh runtime libraries before adding FFmpeg; cached base packages may have security fixes.
+RUN apk upgrade --no-cache \
+	&& apk add --no-cache ca-certificates ffmpeg su-exec \
 	&& addgroup -S app \
 	&& adduser -S app -G app
 

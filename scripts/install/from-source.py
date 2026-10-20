@@ -1,0 +1,481 @@
+#!/usr/bin/env python3
+"""Build a clean public GitHub checkout on the target host, then run the installer."""
+
+import contextlib
+import fcntl
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import secrets
+import shlex
+import shutil
+import stat
+import subprocess
+import sys
+import tarfile
+import tempfile
+
+
+REPOSITORY = 'https://github.com/janickiy/meet-space.git'
+SCANNER = 'aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa'
+SERVICES = frozenset(('api', 'media-worker', 'worker', 'product-worker', 'live-worker',
+                      'frontend', 'minio', 'postgres', 'redis', 'rabbitmq', 'coturn', 'proxy', 'prometheus'))
+DEPLOYMENT_FILES = (
+    'docker-compose.production.yml', 'docker-compose.hardened.yml', 'docker-compose.grafana.yml',
+    '.env.production.example', 'scripts/release/common.sh', 'dockers/production/routes.conf',
+    'scripts/install/wizard.py', 'scripts/install/verify-release.sh',
+    'dockers/turn/entrypoint.sh', 'dockers/turn/turnserver.conf',
+    'dockers/observability/prometheus.yml', 'dockers/observability/alerts.yml',
+    'dockers/observability/dashboard.json',
+    'dockers/observability/provisioning/dashboards/recorder.yml',
+    'dockers/observability/provisioning/datasources/recorder.yml',
+)
+DIGEST = re.compile(r'sha256:[a-f0-9]{64}\Z')
+
+
+def require(condition, message):
+    """Raise a safe diagnostic when the supplied invariant does not hold."""
+    if not condition:
+        raise RuntimeError(message)
+
+
+def digest(path):
+    """Return the SHA-256 of a regular file at path using bounded memory."""
+    result = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            result.update(block)
+    return result.hexdigest()
+
+
+def environment(work=None):
+    """Return a scrubbed command environment; work optionally selects private build scratch."""
+    result = {key: os.environ[key] for key in ('PATH', 'HOME', 'TERM', 'LANG', 'LC_ALL') if key in os.environ}
+    result.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
+                  GIT_TERMINAL_PROMPT='0', PYTHONDONTWRITEBYTECODE='1')
+    if work is not None:
+        result.update(TMPDIR=str(work / 'scratch'), TRIVY_IMAGE=SCANNER)
+    return result
+
+
+def command(*args, capture=False, work=None):
+    """Execute explicit arguments with sanitized environment; optionally return standard output."""
+    result = subprocess.run(args, check=True, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE if capture else None, text=True,
+                            env=environment(work))
+    return result.stdout.strip() if capture else None
+
+
+def git(source, *args):
+    """Run read-only or explicitly requested Git arguments with hooks and external filters disabled."""
+    return command('git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
+                   '-C', str(source), *args, capture=True)
+
+
+def regular_file(root, relative):
+    """Resolve a tracked relative file while rejecting symlinks and traversal at every level."""
+    parts = Path(relative).parts
+    require(parts and not Path(relative).is_absolute() and all(part not in ('.', '..') for part in parts)
+            and '\n' not in relative and '\r' not in relative, 'Недопустимый путь в исходниках.')
+    current = root
+    for part in parts:
+        current = current / part
+        require(not current.is_symlink(), 'Символьные ссылки в исходниках не поддерживаются.')
+    require(current.is_file(), 'Не найден обычный файл исходников: ' + relative)
+    return current
+
+
+def tracked_files(source):
+    """Return tracked regular files from source; submodules and symbolic links are unsupported."""
+    records = git(source, 'ls-files', '--stage', '-z').split('\0')
+    files = []
+    for record in filter(None, records):
+        header, relative = record.split('\t', 1)
+        mode, _, stage = header.split()
+        require(mode in ('100644', '100755') and stage == '0', 'Нужны обычные файлы без конфликтов и submodules.')
+        regular_file(source, relative)
+        files.append(relative)
+    require(files and len(files) == len(set(files)), 'Пустой или неоднозначный набор исходников.')
+    return sorted(files)
+
+
+def verify_checkout(source, commit=None):
+    """Require an absolute clean checkout of the exact public repository and optional commit."""
+    require(source.is_absolute() and source.resolve() == source and source.is_dir()
+            and not source.is_symlink(), 'Укажите абсолютный обычный каталог исходников.')
+    require((source / '.git').is_dir() and not (source / '.git').is_symlink(), 'Нужен самостоятельный Git checkout.')
+    require(git(source, 'rev-parse', '--show-toplevel') == str(source), 'Каталог не является корнем Git checkout.')
+    require(git(source, 'remote', 'get-url', 'origin') == REPOSITORY, 'Origin должен указывать на публичный репозиторий MeetSpace.')
+    head = git(source, 'rev-parse', 'HEAD')
+    require(re.fullmatch(r'[a-f0-9]{40}', head) and (commit is None or head == commit), 'Коммит исходников не совпадает.')
+    require(not git(source, 'status', '--porcelain', '--untracked-files=all', '--ignored'),
+            'Исходники изменены или содержат посторонние файлы. Нужен чистый checkout GitHub.')
+    tracked_files(source)
+    for relative in (*DEPLOYMENT_FILES, 'scripts/release/build.sh', 'scripts/release/package.sh',
+                     'scripts/install/from-source.py'):
+        regular_file(source, relative)
+    return head
+
+
+def load_wizard(source):
+    """Load installation APIs from the verified checkout without generating bytecode inside it."""
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location('meetspace_source_wizard', source / 'scripts/install/wizard.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@contextlib.contextmanager
+def installation_lock():
+    """Serialize build/setup with other installers; release the lock before starting the wizard."""
+    descriptor = os.open('/run/meetspace-installer.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    attributes = os.fstat(descriptor)
+    if not stat.S_ISREG(attributes.st_mode) or attributes.st_uid != 0 or attributes.st_mode & 0o077:
+        os.close(descriptor)
+        raise RuntimeError('Файл блокировки установки должен принадлежать root с правами 0600.')
+    with os.fdopen(descriptor, 'r+') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('Другой мастер установки уже запущен.') from None
+        yield
+
+
+def prerequisites(wizard):
+    """Offer missing build tools through apt and initialize a local rootful Docker engine."""
+    packages = {'git': 'git', 'bash': 'bash', 'curl': 'curl', 'jq': 'jq', 'openssl': 'openssl',
+                'rg': 'ripgrep', 'tar': 'tar'}
+    missing = [package for executable, package in packages.items() if not shutil.which(executable)]
+    if missing:
+        if not wizard.yes('Установить недостающие инструменты сборки: ' + ', '.join(missing) + '?'):
+            raise RuntimeError('Инструменты сборки обязательны.')
+        wizard.apt(*missing)
+    wizard.docker_setup()
+    command('docker', 'buildx', 'version', capture=True)
+
+
+def resource_check(wizard, work, building=True):
+    """Check native Docker and CPU/RAM; require 35 GiB when building, 15 GiB when resuming."""
+    architecture = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine())
+    require(architecture, 'Сборка поддерживается только на Linux amd64 или arm64.')
+    info = json.loads(command('docker', 'info', '--format', '{{json .}}', capture=True))
+    docker_arch = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(info.get('Architecture'))
+    require(docker_arch == architecture, 'Нужен локальный Docker той же архитектуры, что и сервер.')
+    if info.get('NCPU', 0) < 4 or info.get('MemTotal', 0) < 8 * 1024**3:
+        print('Для сборки рекомендуются не менее 4 CPU и 8 ГБ RAM.')
+        require(wizard.yes('Продолжить сборку на этом сервере?'), 'Сборка отменена.')
+    free_gib = 35 if building else 15
+    for location in (work, Path(info['DockerRootDir'])):
+        require(shutil.disk_usage(location).free >= free_gib * 1024**3,
+                f'Необходимо не менее {free_gib} ГБ свободного места в /var/tmp и хранилище Docker.')
+    return 'linux/' + architecture
+
+
+def save_state(work, state):
+    """Atomically persist non-secret build progress in the private work directory."""
+    pending = work / ('state-' + secrets.token_hex(6) + '.tmp')
+    with pending.open('x') as stream:
+        json.dump(state, stream, indent=2)
+        stream.write('\n')
+    pending.chmod(0o600)
+    pending.replace(work / 'source-build.json')
+
+
+def clone_for_build(source, work, commit):
+    """Create an independent local clone so temporary bootstrap files may be removed safely."""
+    destination = work / 'source'
+    command('git', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.file.allow=always',
+            'clone', '--no-hardlinks', '--no-checkout', '--single-branch', str(source), str(destination))
+    git(destination, 'remote', 'set-url', 'origin', REPOSITORY)
+    git(destination, '-c', 'advice.detachedHead=false', 'checkout', '--detach', commit)
+    verify_checkout(destination, commit)
+
+
+def json_member(archive, members, name, limit=4 * 1024**2):
+    """Read one regular JSON member with the supplied byte limit, without extracting it."""
+    member = members.get(name)
+    require(member is not None and member.isfile() and member.size <= limit,
+            'Отсутствует допустимый JSON в архиве Docker.')
+    with archive.extractfile(member) as stream:
+        return stream.read()
+
+
+def verify_attestation(archive, members, descriptor, image_manifest, config):
+    """Verify non-runtime OCI provenance/SBOM bytes and return their bound runtime subject."""
+    annotations = descriptor.get('annotations') or {}
+    subject = annotations.get('io.containerd.manifest.subject')
+    if not subject and annotations.get('vnd.docker.reference.type') == 'attestation-manifest':
+        subject = annotations.get('vnd.docker.reference.digest')
+    require(isinstance(subject, str) and DIGEST.fullmatch(subject)
+            and config.get('architecture') == 'unknown' and config.get('os') == 'unknown',
+            'В архиве обнаружен посторонний OCI-объект.')
+    layers = image_manifest.get('layers')
+    require(isinstance(layers, list) and layers, 'Пустой OCI attestation.')
+    for layer in layers:
+        checksum = layer.get('digest', '')
+        require(layer.get('mediaType') == 'application/vnd.in-toto+json'
+                and isinstance(checksum, str) and DIGEST.fullmatch(checksum),
+                'Недопустимый слой OCI attestation.')
+        raw = json_member(archive, members, 'blobs/sha256/' + checksum[7:], limit=32 * 1024**2)
+        require('sha256:' + hashlib.sha256(raw).hexdigest() == checksum, 'Контрольная сумма attestation не совпадает.')
+        statement = json.loads(raw)
+        subjects = statement.get('subject')
+        require(str(statement.get('_type', '')).startswith('https://in-toto.io/Statement/')
+                and isinstance(subjects, list) and subjects
+                and all(item.get('digest', {}).get('sha256') == subject[7:] for item in subjects),
+                'Attestation не связан с образом выпуска.')
+    return subject
+
+
+def archive_inventory(archive_path, expected_architecture):
+    """Bind runtime image digests while allowing only checksum-bound in-toto attestations."""
+    with tarfile.open(archive_path, 'r:') as archive:
+        members = {}
+        for member in archive:
+            name = member.name
+            require(not name.startswith('/') and '..' not in Path(name).parts
+                    and (member.isfile() or member.isdir()) and name not in members,
+                    'Недопустимый или повторный элемент архива Docker.')
+            members[name] = member
+        saved, attestations, seen = [], [], set()
+        is_oci = 'index.json' in members
+        inventory = json.loads(json_member(archive, members, 'index.json' if is_oci else 'manifest.json'))
+        descriptors = inventory['manifests'] if is_oci else inventory
+        require(isinstance(descriptors, list) and descriptors, 'Пустой архив Docker.')
+        for descriptor in descriptors:
+            if is_oci:
+                image_id = descriptor['digest']
+                require(DIGEST.fullmatch(image_id), 'Недопустимый OCI digest.')
+                raw = json_member(archive, members, 'blobs/sha256/' + image_id[7:])
+                require('sha256:' + hashlib.sha256(raw).hexdigest() == image_id, 'Контрольная сумма OCI manifest не совпадает.')
+                image_manifest = json.loads(raw)
+                config_id = image_manifest['config']['digest']
+                require(DIGEST.fullmatch(config_id), 'Недопустимый OCI config digest.')
+                config_name = 'blobs/sha256/' + config_id[7:]
+            else:
+                config_name = descriptor['Config']
+                require(re.fullmatch(r'(?:[a-f0-9]{64}\.json|blobs/sha256/[a-f0-9]{64})', config_name),
+                        'Недопустимый путь конфигурации Docker.')
+                config_file = Path(config_name).name
+                config_id = 'sha256:' + (config_file[:-5] if config_file.endswith('.json') else config_file)
+                image_id = config_id
+            raw = json_member(archive, members, config_name)
+            require('sha256:' + hashlib.sha256(raw).hexdigest() == config_id, 'Контрольная сумма Docker config не совпадает.')
+            config = json.loads(raw)
+            require(image_id not in seen, 'Повторный образ в архиве Docker.')
+            seen.add(image_id)
+            if is_oci and config.get('architecture') == 'unknown' and config.get('os') == 'unknown':
+                attestations.append(verify_attestation(archive, members, descriptor, image_manifest, config))
+                continue
+            require(config.get('architecture') == expected_architecture and config.get('os') == 'linux',
+                    'Архитектура образа не соответствует серверу.')
+            saved.append((image_id, config_id))
+        require(len(saved) == len(set(saved)), 'Повторный образ в архиве Docker.')
+        require(set(attestations) <= {image for image, _ in saved}, 'Attestation ссылается на посторонний образ.')
+        return is_oci, saved
+
+
+def normalize_release(package, output, commit, version, target_platform):
+    """Create a fully checked delivery manifest from a fresh, scanned package without Node.js."""
+    require(not output.exists(), 'Каталог проверенного выпуска уже существует.')
+    manifest = json.loads((package / 'release.json').read_text())
+    require(manifest.get('schemaVersion') == 1 and manifest.get('artifactMode') == 'archive'
+            and manifest.get('sourceDirty') is False and manifest.get('sourceFingerprintVerified') is True
+            and manifest.get('securityScanned') is True and not manifest.get('infrastructureReused')
+            and manifest.get('commit') == commit and manifest.get('version') == version
+            and manifest.get('platform') == target_platform
+            and manifest.get('deploymentLayout') == 'hardened-shared-host'
+            and re.fullmatch(r'[a-f0-9]{64}', manifest.get('sourceSHA256', ''))
+            and set(manifest.get('images', {})) == SERVICES, 'Нужен полный проверенный выпуск из чистых исходников.')
+    require(digest(package / 'images.tar') == manifest.get('archiveSHA256'), 'Контрольная сумма архива образов не совпадает.')
+    architecture = target_platform.split('/')[1]
+    is_oci, saved = archive_inventory(package / 'images.tar', architecture)
+    original = dict(manifest['images'])
+    configs = {}
+    for service in sorted(SERVICES):
+        evidence = manifest['securityEvidence'][service]
+        scan_path, sbom_path = package / (service + '.scan.json'), package / (service + '.sbom.json')
+        require(digest(scan_path) == evidence['scanSHA256'] and digest(sbom_path) == evidence['sbomSHA256'],
+                'Изменены результаты проверки безопасности: ' + service)
+        scan, sbom = json.loads(scan_path.read_text()), json.loads(sbom_path.read_text())
+        require('SchemaVersion' in scan and isinstance(scan.get('Results'), list)
+                and sbom.get('bomFormat') == 'CycloneDX', 'Отсутствует полный отчёт безопасности: ' + service)
+        require(not any(item.get('Severity') in ('HIGH', 'CRITICAL') for result in scan['Results']
+                        for item in (result.get('Vulnerabilities') or [])),
+                'Найдены HIGH/CRITICAL уязвимости; установка остановлена: ' + service)
+        require(scan['Metadata']['ImageConfig']['architecture'] == architecture, 'Архитектура отчёта не совпадает.')
+        config_id = scan['Metadata']['ImageID']
+        require(isinstance(config_id, str) and DIGEST.fullmatch(config_id), 'Недопустимый ImageID отчёта.')
+        matches = [image_id for image_id, saved_config in saved if saved_config == config_id]
+        require(len(matches) == 1, 'Образ отчёта отсутствует или неоднозначен: ' + service)
+        # Docker's containerd store can report an image-index ID rather than either
+        # exported platform manifest or config digest. Trivy binds the saved bytes.
+        require(isinstance(original[service], str) and DIGEST.fullmatch(original[service]),
+                'Недопустимый исходный ImageID выпуска: ' + service)
+        manifest['images'][service], configs[service] = matches[0], config_id
+    require({image for image, _ in saved} == set(manifest['images'].values()), 'Архив содержит посторонние образы.')
+    manifest['originalBuildImageIDs'] = original
+    manifest['archiveBinding'] = 'OCI manifest -> config digest -> Trivy report' if is_oci else 'Docker config digest -> Trivy report'
+    if is_oci:
+        manifest['imageConfigIDs'] = configs
+    else:
+        manifest.pop('imageConfigIDs', None)
+    output.mkdir(mode=0o700)
+    # A same-filesystem hard link avoids duplicating the multi-gigabyte immutable archive.
+    os.link(package / 'images.tar', output / 'images.tar')
+    for service in sorted(SERVICES):
+        for suffix in ('scan.json', 'sbom.json'):
+            shutil.copyfile(package / (service + '.' + suffix), output / (service + '.' + suffix))
+    (output / 'release.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    return manifest
+
+
+def make_bundle(source, package, destination, state):
+    """Assemble allowlisted deployment files and tracked public sources with individual checksums."""
+    destination.mkdir(mode=0o700)
+    manifest = normalize_release(package, destination / 'release', state['commit'], state['version'], state['platform'])
+    deployment_hashes, source_hashes = {}, {}
+    for relative in DEPLOYMENT_FILES:
+        path = destination / 'deployment' / relative
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        shutil.copyfile(regular_file(source, relative), path)
+        deployment_hashes[relative] = digest(path)
+    for relative in tracked_files(source):
+        path = destination / 'source' / relative
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        shutil.copyfile(regular_file(source, relative), path)
+        source_hashes[relative] = digest(path)
+    metadata = dict(schemaVersion=1, version=manifest['version'], platform=manifest['platform'],
+                    manifestSHA256=digest(destination / 'release/release.json'), deploymentSHA256=deployment_hashes,
+                    source=dict(repository=REPOSITORY, commit=state['commit'], filesSHA256=source_hashes))
+    (destination / 'bundle.json').write_text(json.dumps(metadata, indent=2) + '\n')
+    command('bash', str(destination / 'deployment/scripts/install/verify-release.sh'), str(destination))
+
+
+def validate_work(path):
+    """Accept only an existing private root-owned workspace created by this installer."""
+    require(path.is_absolute() and path.resolve() == path and path.parent == Path('/var/tmp')
+            and re.fullmatch(r'meetspace-source-build\.[a-zA-Z0-9_-]+', path.name)
+            and path.is_dir() and not path.is_symlink(), 'Неверный каталог продолжения сборки.')
+    attributes = path.stat()
+    require(attributes.st_uid == 0 and not attributes.st_mode & 0o077, 'Каталог сборки должен принадлежать root с правами 0700.')
+    state = json.loads(regular_file(path, 'source-build.json').read_text())
+    require(state.get('schemaVersion') == 1 and state.get('repository') == REPOSITORY
+            and state.get('work') == str(path) and re.fullmatch(r'[a-f0-9]{40}', state.get('commit', '')),
+            'Неверные параметры продолжения сборки.')
+    verify_checkout(path / 'source', state['commit'])
+    return state
+
+
+def build_and_bundle(work, state, wizard):
+    """Build once, scan all images and resume only completed stages recorded in private state."""
+    source = work / 'source'
+    verify_checkout(source, state['commit'])
+    prerequisites(wizard)
+    target = resource_check(wizard, work, building=not state.get('built'))
+    require(state.get('platform', target) == target, 'Архитектура сохранённой сборки отличается от сервера.')
+    state['platform'] = target
+    print(f'\nИсходники: {REPOSITORY}\nКоммит: {state["commit"]}\nПлатформа: {target}\n'
+          'Backend, frontend и служебные образы будут собраны на этом сервере.\n'
+          'Зависимости загружаются из публичных реестров. Все образы проходят проверку HIGH/CRITICAL.\n'
+          'Сборка может занять продолжительное время; рекомендуется запускать мастер в tmux/screen.')
+    require(wizard.yes('Начать или продолжить сборку из этих исходников?'), 'Сборка отменена.')
+    if not state.get('built'):
+        run_id = secrets.token_hex(6)
+        state.update(version=f'v0.0.0-source.{state["commit"][:12]}.{run_id}',
+                     registry='meetspace-source-' + run_id, build='build-' + run_id, built=False)
+        save_state(work, state)
+        print('\n[1/3] Сборка контейнеров из исходников GitHub')
+        command('bash', str(source / 'scripts/release/build.sh'), '--version', state['version'],
+                '--registry', state['registry'], '--commit', state['commit'],
+                '--output', str(work / state['build']), '--layout', 'hardened-shared-host',
+                '--platform', target, work=work)
+        verify_checkout(source, state['commit'])
+        state['built'] = True
+        save_state(work, state)
+    require(re.fullmatch(r'build-[a-f0-9]{12}', state.get('build', ''))
+            and re.fullmatch(r'v0\.0\.0-source\.[a-f0-9]{12}\.[a-f0-9]{12}', state.get('version', '')),
+            'Неверные параметры завершённой сборки.')
+    build = json.loads(regular_file(work, state['build'] + '/build.json').read_text())
+    require(build.get('commit') == state['commit'] and build.get('version') == state['version']
+            and build.get('platform') == target and build.get('sourceDirty') is False,
+            'Метаданные сохранённой сборки не совпадают.')
+    if not state.get('packaged'):
+        state['package'] = 'package-' + secrets.token_hex(6)
+        save_state(work, state)
+        print('\n[2/3] Проверка безопасности и сохранение собранных образов')
+        command('bash', str(source / 'scripts/release/package.sh'), '--build', str(work / state['build'] / 'build.json'),
+                '--output', str(work / state['package']), '--mode', 'archive', work=work)
+        state['packaged'] = True
+        save_state(work, state)
+    require(re.fullmatch(r'package-[a-f0-9]{12}', state.get('package', '')), 'Неверный каталог пакета.')
+    if not state.get('bundled'):
+        state['bundle'] = 'bundle-' + secrets.token_hex(6)
+        save_state(work, state)
+        print('\n[3/3] Проверка контрольных сумм и подготовка мастера установки')
+        verify_checkout(source, state['commit'])
+        make_bundle(source, work / state['package'], work / state['bundle'], state)
+        state['bundled'] = True
+        save_state(work, state)
+    require(re.fullmatch(r'bundle-[a-f0-9]{12}', state.get('bundle', '')), 'Неверный каталог установки.')
+    bundle = work / state['bundle']
+    wizard.metadata(bundle)
+    command('bash', str(bundle / 'deployment/scripts/install/verify-release.sh'), str(bundle))
+    return bundle
+
+
+def main():
+    """Dispatch a clean source checkout or retained work directory to the source-build workflow."""
+    os.umask(0o077)
+    require(os.geteuid() == 0 and sys.platform == 'linux', 'Нужен запуск от root на Linux.')
+    require(not os.environ.get('DOCKER_HOST') and not os.environ.get('DOCKER_CONTEXT'),
+            'Уберите DOCKER_HOST/DOCKER_CONTEXT: нужен локальный Docker.')
+    require((len(sys.argv) == 2 and sys.argv[1] != '--resume') or (len(sys.argv) == 3 and sys.argv[1] == '--resume'),
+            'Использование: python3 -I from-source.py /абсолютный/checkout или --resume /var/tmp/meetspace-source-build.…')
+    work = None
+    try:
+        with installation_lock():
+            if sys.argv[1] == '--resume':
+                work = Path(sys.argv[2])
+                state = validate_work(work)
+            else:
+                source = Path(sys.argv[1])
+                commit = verify_checkout(source)
+                work = Path(tempfile.mkdtemp(prefix='meetspace-source-build.', dir='/var/tmp'))
+                (work / 'scratch').mkdir(mode=0o700)
+                state = dict(schemaVersion=1, work=str(work), repository=REPOSITORY, commit=commit)
+                clone_for_build(source, work, commit)
+                save_state(work, state)
+            wizard = load_wizard(work / 'source')
+            bundle = build_and_bundle(work, state, wizard)
+        # The child acquires the same host lock itself; do not hold it across this call.
+        print('\nСборка и проверки завершены. Переходим к настройке сервера MeetSpace.')
+        command(sys.executable, '-I', str(bundle / 'deployment/scripts/install/wizard.py'), str(bundle))
+        print(f'\nИсходники и отчёты сборки сохранены в {work}.\n'
+              'Они не удаляются автоматически; действующая установка хранит собственную проверенную копию.')
+    except BaseException:
+        if work is not None and (work / 'source-build.json').is_file():
+            entry = work / 'source/scripts/install/from-source.py'
+            print(f'\nСборка и результаты проверок сохранены в {work}.\n'
+                  'После устранения причины продолжить сборку:\n'
+                  f'sudo python3 -I {shlex.quote(str(entry))} --resume {shlex.quote(str(work))}\n'
+                  'Если мастер уже создал каталог установки, используйте команду продолжения установки, указанную им выше.',
+                  file=sys.stderr)
+        raise
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (KeyboardInterrupt, EOFError):
+        print('\nУстановка прервана пользователем.', file=sys.stderr)
+        sys.exit(130)
+    except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError, tarfile.TarError) as error:
+        print('\nУстановка из исходников остановлена: ' + (str(error) if not isinstance(error, subprocess.CalledProcessError)
+              else 'служебная команда завершилась с ошибкой; см. сообщение выше.'), file=sys.stderr)
+        sys.exit(1)

@@ -40,7 +40,7 @@ if [[ "$layout" == hardened-shared-host ]]; then
   metadata="$(jq '.objectStorageProvider="seaweedfs" | .omittedComponents=[{name:"grafana",reason:"upstream bundled plugins have unresolved HIGH findings; Prometheus remains enabled"}]' <<<"$metadata")"
 fi
 build_services=(api media-worker worker product-worker live-worker frontend minio)
-if [[ "$layout" == hardened-shared-host ]]; then build_services+=(coturn proxy postgres redis); fi
+if [[ "$layout" == hardened-shared-host ]]; then build_services+=(coturn proxy postgres redis prometheus); fi
 platform_options=()
 if [[ -n "$platform" ]]; then platform_options=(--platform "$platform"); fi
 for service in "${build_services[@]}"; do
@@ -51,13 +51,18 @@ for service in "${build_services[@]}"; do
       minio) dockerfile="$RELEASE_ROOT/dockers/object-storage/Dockerfile";;
       coturn) dockerfile="$RELEASE_ROOT/dockers/turn/Dockerfile";;
       proxy) dockerfile="$RELEASE_ROOT/dockers/production/Dockerfile";;
+      prometheus) dockerfile="$RELEASE_ROOT/dockers/observability/Dockerfile.release";;
       postgres|redis) dockerfile="$RELEASE_ROOT/dockers/$service/Dockerfile.release";;
     esac
   fi
   ref="$registry/$service:$version"
   docker image inspect "$ref" >/dev/null 2>&1 && fail "Refusing to replace existing release tag: $ref"
+  # Upstream Prometheus is identical across application releases; keep its binary
+  # reproducible and cacheable while recording this release time in OCI labels.
+  image_build_time="$time"
+  if [[ "$service" == prometheus ]]; then image_build_time=unknown; fi
   docker build "${platform_options[@]}" --target runtime --file "$dockerfile" --tag "$ref" \
-    --build-arg "BUILD_VERSION=$version" --build-arg "BUILD_COMMIT=$commit" --build-arg "BUILD_TIME=$time" \
+    --build-arg "BUILD_VERSION=$version" --build-arg "BUILD_COMMIT=$commit" --build-arg "BUILD_TIME=$image_build_time" \
     --build-arg "CLIENT_TELEMETRY_ENABLED=${CLIENT_TELEMETRY_ENABLED:-false}" \
     --label "org.opencontainers.image.version=$version" --label "org.opencontainers.image.revision=$commit" \
     --label "org.opencontainers.image.created=$time" --label "io.go-recorder.source-sha256=$source_digest" "$context"

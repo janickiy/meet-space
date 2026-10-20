@@ -11,7 +11,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
     -ldflags "-s -w -X github.com/janickiy/meet-space/internal/buildinfo.Version=$BUILD_VERSION -X github.com/janickiy/meet-space/internal/buildinfo.Commit=$BUILD_COMMIT -X github.com/janickiy/meet-space/internal/buildinfo.BuildTime=$BUILD_TIME" \
     -o /bin/live-worker ./cmd/live-worker
 FROM alpine:3.22 AS runtime
-RUN apk add --no-cache ca-certificates ffmpeg && addgroup -S app && adduser -S app -G app
+# Refresh runtime libraries before installing FFmpeg to include current security fixes.
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates ffmpeg && addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /bin/live-worker /app/live-worker
 COPY database/migrations /app/database/migrations

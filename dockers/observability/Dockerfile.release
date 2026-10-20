@@ -1,0 +1,56 @@
+# Rebuild the same Prometheus release with patched Go networking dependencies.
+# The official, checksum-pinned UI assets retain both upstream web interfaces.
+FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine3.23@sha256:9e45f0eb4a63ed37ad6e604950407558b7c738e34e015ae77a5d4ad369cde079 AS build
+
+ENV GOTOOLCHAIN=local
+RUN apk add --no-cache bash gzip
+WORKDIR /src
+ADD --checksum=sha256:d6383dea2f9b26c1673a52859c453653f2c6c046f7fb6d01db59603a65a732eb \
+    https://codeload.github.com/prometheus/prometheus/tar.gz/refs/tags/v3.15.0 /tmp/prometheus-source.tar.gz
+RUN tar -xzf /tmp/prometheus-source.tar.gz --strip-components=1 -C /src \
+    && rm /tmp/prometheus-source.tar.gz
+ADD --checksum=sha256:fa8c918ed05e3f89e232e9b69eccd6ed074602cd9e8a2cab7a92bec9651974ae \
+    https://github.com/prometheus/prometheus/releases/download/v3.15.0/prometheus-web-ui-3.15.0.tar.gz /tmp/prometheus-ui.tar.gz
+RUN tar -xzf /tmp/prometheus-ui.tar.gz -C web/ui \
+    && rm /tmp/prometheus-ui.tar.gz \
+    && bash scripts/compress_assets.sh \
+    && test -s web/ui/static/mantine-ui/index.html.gz \
+    && test -s web/ui/static/react-app/index.html.gz
+RUN go get golang.org/x/net@v0.60.0 \
+    && go mod download \
+    && go mod verify
+
+ARG TARGETARCH
+ARG BUILD_TIME=unknown
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GOMAXPROCS=2 go build -p 2 -trimpath \
+      -tags netgo,builtinassets \
+      -ldflags "-s -w -X github.com/prometheus/common/version.Version=3.15.0 -X github.com/prometheus/common/version.Revision=5241a27fe3c6983549fccc32f6e65917408c63cd -X github.com/prometheus/common/version.Branch=release-3.15 -X github.com/prometheus/common/version.BuildUser=meetspace-security-rebuild -X github.com/prometheus/common/version.BuildDate=$BUILD_TIME" \
+      -o /out/prometheus ./cmd/prometheus \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GOMAXPROCS=2 go build -p 2 -trimpath \
+      -tags netgo,builtinassets \
+      -ldflags "-s -w -X github.com/prometheus/common/version.Version=3.15.0 -X github.com/prometheus/common/version.Revision=5241a27fe3c6983549fccc32f6e65917408c63cd -X github.com/prometheus/common/version.Branch=release-3.15 -X github.com/prometheus/common/version.BuildUser=meetspace-security-rebuild -X github.com/prometheus/common/version.BuildDate=$BUILD_TIME" \
+      -o /out/promtool ./cmd/promtool
+
+# Keep the upstream runtime, certificates, users, default config and licenses.
+# Flatten this stage without its original binaries so vulnerable binary layers
+# are not included anywhere in the final distributable image.
+FROM prom/prometheus:v3.15.0@sha256:86b17a25c2db1d16a61b16b3c8f336679eb19e26333d03e808da387206e40faa AS upstream-runtime
+USER root
+RUN rm /bin/prometheus /bin/promtool
+
+FROM scratch AS runtime
+COPY --from=upstream-runtime / /
+COPY --from=build /out/prometheus /bin/prometheus
+COPY --from=build /out/promtool /bin/promtool
+LABEL org.opencontainers.image.title="Prometheus" \
+      org.opencontainers.image.source="https://github.com/prometheus/prometheus" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      io.meetspace.upstream.version="3.15.0" \
+      io.meetspace.security.patch="Go 1.27.2; golang.org/x/net v0.60.0"
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+WORKDIR /prometheus
+USER nobody
+EXPOSE 9090
+VOLUME ["/prometheus"]
+ENTRYPOINT ["/bin/prometheus"]
+CMD ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
