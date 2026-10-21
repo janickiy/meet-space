@@ -4,13 +4,18 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Mail, Search, X } from "lucide-react";
 import { api } from "../api";
 import type { Conference, InvitationUser } from "../types";
-import { inviteLink } from "../utils";
-import { Button, CopyLink, ErrorNotice } from "./ui";
+import { Button, ErrorNotice } from "./ui";
+import { MeetingInvitationLink } from "./MeetingInvitationLink";
 import "./conference-invitations.css";
 
 const maxRecipients = 20;
 
-/** Общая форма приглашения используется при создании встречи и внутри комнаты. */
+/**
+ * Show the invitation link, QR code and optional recipient form for a meeting.
+ * @param conference The meeting to share with participants.
+ * @param canInvite Whether the current user may send invitations through the server.
+ * @param onBusyChange Notify the parent while an invitation request is in progress.
+ */
 export function ConferenceInviteContent({
   conference,
   canInvite,
@@ -22,9 +27,8 @@ export function ConferenceInviteContent({
 }) {
   return (
     <div className="conference-invitations">
-      <p className="modal-description">{conference.title}</p>
-      <CopyLink value={inviteLink(conference.inviteCode)} />
-      <p className="field-hint">По приглашению можно войти без аккаунта.</p>
+      <p className="conference-invitation-title">{conference.title}</p>
+      <MeetingInvitationLink inviteCode={conference.inviteCode} />
       {canInvite && (
         <>
           <div className="invitation-form-divider">
@@ -41,7 +45,11 @@ export function ConferenceInviteContent({
   );
 }
 
-/** Сохраняет введённых получателей, пока сервер не подтвердит постановку приглашений в очередь. */
+/**
+ * Collect email addresses and selected users, keeping input until invitations are accepted.
+ * @param conferenceId The meeting that receives the selected participants.
+ * @param onBusyChange Notify the parent while the invitation submission is pending.
+ */
 export function ConferenceInvitationForm({
   conferenceId,
   onBusyChange,
@@ -149,119 +157,126 @@ export function ConferenceInvitationForm({
   const hasSearch = Array.from(queryText.trim()).length >= 2;
   return (
     <form className="conference-invitation-form" onSubmit={submit} noValidate>
-      <label className="field" htmlFor={`${id}-emails`}>
-        Email участников
-        <textarea
-          id={`${id}-emails`}
-          data-autofocus
-          placeholder="colleague@example.com"
-          autoComplete="off"
-          rows={2}
-          maxLength={6000}
-          value={emailsText}
-          disabled={invitation.isPending}
-          aria-describedby={`${id}-email-hint`}
-          onChange={(event) => {
-            edit();
-            setEmailsText(event.target.value);
-          }}
-        />
-      </label>
-      <p className="field-hint" id={`${id}-email-hint`}>
-        Несколько адресов разделяйте запятой или новой строкой. До{" "}
-        {maxRecipients} получателей за один раз.
-      </p>
-      <label className="field" htmlFor={`${id}-search`}>
-        Добавить пользователей системы
-        <span className="invitation-search-field">
-          <Search size={17} aria-hidden="true" />
-          <input
-            id={`${id}-search`}
-            type="search"
-            placeholder="Имя или email"
-            autoComplete="off"
-            maxLength={100}
-            value={queryText}
-            disabled={invitation.isPending}
-            aria-describedby={`${id}-search-hint`}
-            onChange={(event) => setQueryText(event.target.value)}
-          />
-        </span>
-      </label>
-      <p className="field-hint" id={`${id}-search-hint`}>
-        Введите минимум 2 символа имени или email.
-      </p>
-      {selected.length > 0 && (
-        <ul className="invitation-selected" aria-label="Выбранные пользователи">
-          {selected.map((user) => (
-            <li key={user.id}>
-              <span>{user.displayName || user.email}</span>
-              <button
-                type="button"
-                aria-label={`Убрать ${user.email}`}
-                disabled={invitation.isPending}
-                onClick={() => toggle(user)}
-              >
-                <X size={15} aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {hasSearch && (!currentSearch || query.isFetching) && (
-        <p className="field-hint" role="status">
-          Ищем пользователей…
-        </p>
-      )}
-      {hasSearch && currentSearch && query.isError && (
-        <div className="invitation-search-error">
-          <ErrorNotice error={query.error} />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void query.refetch()}
-          >
-            Повторить поиск
-          </Button>
-        </div>
-      )}
-      {hasSearch &&
-        currentSearch &&
-        query.isSuccess &&
-        !query.isFetching &&
-        (query.data.items.length ? (
-          <ul
-            className="invitation-user-results"
-            aria-label="Пользователи системы"
-          >
-            {query.data.items.map((user) => (
-              <li key={user.id}>
-                <label>
-                  <input
-                    type="checkbox"
-                    aria-label={
-                      user.displayName
-                        ? `${user.displayName}, ${user.email}`
-                        : user.email
-                    }
-                    checked={selected.some((item) => item.id === user.id)}
-                    disabled={invitation.isPending}
-                    onChange={() => toggle(user)}
-                  />
-                  <span>
-                    <strong>{user.displayName || user.email}</strong>
-                    {user.displayName && <small>{user.email}</small>}
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="field-hint" role="status">
-            Пользователи не найдены. Можно указать email выше.
+      <div className="conference-invitation-fields">
+        <div className="invitation-email-section">
+          <label className="field" htmlFor={`${id}-emails`}>
+            Email участников
+            <textarea
+              id={`${id}-emails`}
+              placeholder="colleague@example.com"
+              autoComplete="off"
+              rows={2}
+              maxLength={6000}
+              value={emailsText}
+              disabled={invitation.isPending}
+              aria-describedby={`${id}-email-hint`}
+              onChange={(event) => {
+                edit();
+                setEmailsText(event.target.value);
+              }}
+            />
+          </label>
+          <p className="field-hint" id={`${id}-email-hint`}>
+            Несколько адресов разделяйте запятой или новой строкой.
           </p>
-        ))}
-      <p className="field-hint">
+        </div>
+        <div className="invitation-people-section">
+          <label className="field" htmlFor={`${id}-search`}>
+            Добавить пользователей системы
+            <span className="invitation-search-field">
+              <Search size={17} aria-hidden="true" />
+              <input
+                id={`${id}-search`}
+                type="search"
+                placeholder="Имя или email"
+                autoComplete="off"
+                maxLength={100}
+                value={queryText}
+                disabled={invitation.isPending}
+                aria-describedby={`${id}-search-hint`}
+                onChange={(event) => setQueryText(event.target.value)}
+              />
+            </span>
+          </label>
+          <p className="field-hint" id={`${id}-search-hint`}>
+            Введите минимум 2 символа имени или email.
+          </p>
+          {selected.length > 0 && (
+            <ul
+              className="invitation-selected"
+              aria-label="Выбранные пользователи"
+            >
+              {selected.map((user) => (
+                <li key={user.id}>
+                  <span>{user.displayName || user.email}</span>
+                  <button
+                    type="button"
+                    aria-label={`Убрать ${user.email}`}
+                    disabled={invitation.isPending}
+                    onClick={() => toggle(user)}
+                  >
+                    <X size={15} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {hasSearch && (!currentSearch || query.isFetching) && (
+            <p className="field-hint" role="status">
+              Ищем пользователей…
+            </p>
+          )}
+          {hasSearch && currentSearch && query.isError && (
+            <div className="invitation-search-error">
+              <ErrorNotice error={query.error} />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void query.refetch()}
+              >
+                Повторить поиск
+              </Button>
+            </div>
+          )}
+          {hasSearch &&
+            currentSearch &&
+            query.isSuccess &&
+            !query.isFetching &&
+            (query.data.items.length ? (
+              <ul
+                className="invitation-user-results"
+                aria-label="Пользователи системы"
+              >
+                {query.data.items.map((user) => (
+                  <li key={user.id}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        aria-label={
+                          user.displayName
+                            ? `${user.displayName}, ${user.email}`
+                            : user.email
+                        }
+                        checked={selected.some((item) => item.id === user.id)}
+                        disabled={invitation.isPending}
+                        onChange={() => toggle(user)}
+                      />
+                      <span>
+                        <strong>{user.displayName || user.email}</strong>
+                        {user.displayName && <small>{user.email}</small>}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="field-hint" role="status">
+                Пользователи не найдены. Можно указать email выше.
+              </p>
+            ))}
+        </div>
+      </div>
+      <p className="field-hint invitation-delivery-note">
         Получатели получат письмо со ссылкой на встречу. У зарегистрированных
         пользователей приглашение появится и в личном кабинете.
       </p>
@@ -284,10 +299,13 @@ export function ConferenceInvitationForm({
           </ul>
         </div>
       )}
-      <Button type="submit" busy={invitation.isPending} className="full-width">
-        <Mail size={18} aria-hidden="true" />
-        Пригласить участников
-      </Button>
+      <footer className="invitation-form-footer">
+        <p>До {maxRecipients} участников за раз</p>
+        <Button type="submit" busy={invitation.isPending}>
+          <Mail size={18} aria-hidden="true" />
+          Пригласить участников
+        </Button>
+      </footer>
     </form>
   );
 }

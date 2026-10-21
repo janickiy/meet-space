@@ -12,43 +12,36 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import type { Conference } from "../types";
-import { inviteCode, inviteLink } from "../utils";
-import { Button, CopyLink, ErrorNotice, Modal, SuccessMark } from "./ui";
+import { inviteCode } from "../utils";
+import { Button, ErrorNotice, Modal, SuccessMark } from "./ui";
 import { ScheduleFields } from "./ScheduleFields";
 import { localSchedule, toLocalInput } from "../collaboration";
 import { PRODUCT_NAME } from "../brand";
 import { ConferenceInviteContent } from "./ConferenceInvitations";
+import { MeetingInvitationLink } from "./MeetingInvitationLink";
 import "./meeting-modals.css";
 
 /**
- * ShareConference показывает результат создания встречи и действия копирования ссылки и перехода в комнату.
+ * Show the created meeting, its invitation link and a locally generated QR code.
  *
- * @args
- *   - объект параметров: conference — свойство текущего компонента; onClose — обработчик закрытия формы или диалога.
- *
- * @returns JSX-представление компонента для текущих свойств и состояния.
+ * @param conference The created meeting whose invitation is shared.
+ * @param onClose Close the dialog and return to the originating page.
  */
 export function ShareConference({
   conference,
   onClose,
 }: {
   conference: Conference;
-  onClose: /**
-   * Вложенный обработчик выполняет шаг «Вложенный обработчик» в конференциях, расписании и истории.
-   *
-   *
-   * @returns void — значение не возвращается; функция выполняет описанные действия.
-   */ () => void;
+  onClose: () => void;
 }) {
   const [inviting, setInviting] = useState(false);
   const [invitationBusy, setInvitationBusy] = useState(false);
-  const link = inviteLink(conference.inviteCode);
   if (inviting)
     return (
       <Modal
         key="invite"
         title="Пригласить участников"
-        className="meeting-design-modal"
+        className="conference-invite-modal"
         onClose={() => {
           if (!invitationBusy) onClose();
         }}
@@ -61,7 +54,7 @@ export function ShareConference({
         <Button
           variant="secondary"
           disabled={invitationBusy}
-          className="full-width"
+          className="conference-invite-back"
           onClick={() => setInviting(false)}
         >
           Назад
@@ -76,29 +69,29 @@ export function ShareConference({
       className="meeting-design-modal meeting-share-modal"
     >
       <div className="share-content">
-        <SuccessMark />
-        <h3>{conference.title}</h3>
-        <p className="share-subtitle">Пригласите коллег и начните разговор.</p>
-        <label className="field">Ссылка-приглашение</label>
-        <CopyLink value={link} />
-        <p className="field-hint">
-          По ссылке можно присоединиться без аккаунта.
-        </p>
-        <Link
-          className="button button-primary full-width"
-          to={`/conferences/${conference.id}`}
-        >
-          <Video size={19} />
-          Открыть встречу
-        </Link>
-        <Button
-          variant="secondary"
-          className="full-width"
-          onClick={() => setInviting(true)}
-        >
-          <Mail size={19} />
-          Пригласить участников
-        </Button>
+        <div className="meeting-share-summary">
+          <SuccessMark />
+          <div>
+            <h3>{conference.title}</h3>
+            <p className="share-subtitle">
+              Всё готово. Пригласите коллег и начните разговор.
+            </p>
+          </div>
+        </div>
+        <MeetingInvitationLink inviteCode={conference.inviteCode} />
+        <div className="meeting-share-actions">
+          <Link
+            className="button button-primary"
+            to={`/conferences/${conference.id}`}
+          >
+            <Video size={19} />
+            Открыть встречу
+          </Link>
+          <Button variant="secondary" onClick={() => setInviting(true)}>
+            <Mail size={19} />
+            Пригласить участников
+          </Button>
+        </div>
       </div>
     </Modal>
   );

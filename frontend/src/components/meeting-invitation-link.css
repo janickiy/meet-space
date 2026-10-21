@@ -1,0 +1,117 @@
+.meeting-share-invitation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 176px;
+  align-items: center;
+  gap: 24px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-soft);
+}
+.meeting-share-link-section {
+  min-width: 0;
+}
+.meeting-share-link-section h4 {
+  margin: 0 0 8px;
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 600;
+  line-height: 1.5;
+}
+.meeting-share-description {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.6;
+}
+.meeting-share-invitation .meeting-share-link-section .copy-link {
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.meeting-share-invitation .meeting-share-link-section .copy-link > input {
+  flex: 1 1 130px;
+  width: 0;
+  min-width: 0;
+  min-height: 42px;
+  padding: 10px 8px;
+  border: 0;
+  background: transparent;
+  font-size: calc(13px * var(--text-scale));
+}
+.meeting-share-invitation .meeting-share-link-section .copy-link > .button {
+  flex: 1 0 auto;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: calc(12px * var(--text-scale));
+}
+.meeting-share-invitation .copy-feedback {
+  min-height: 20px;
+  padding-top: 6px;
+  font-size: calc(11px * var(--text-scale));
+  line-height: 1.5;
+}
+.meeting-share-link-section > .field-hint {
+  margin: 6px 0 0;
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.meeting-share-qr {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+}
+.meeting-share-qr-code {
+  display: grid;
+  place-items: center;
+  width: 176px;
+  height: 176px;
+  padding: 7px;
+  border: 1px solid #e7e5e9;
+  border-radius: 12px;
+  background: #fff;
+}
+.meeting-share-qr-code > svg {
+  display: block;
+  width: 160px;
+  height: 160px;
+  flex: none;
+}
+.meeting-share-qr figcaption {
+  display: grid;
+  gap: 4px;
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 550;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.meeting-share-qr figcaption > span {
+  color: var(--muted);
+  font-size: calc(11px * var(--text-scale));
+  font-weight: 400;
+}
+@media (max-width: 600px) {
+  .meeting-share-invitation {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    padding: 16px;
+  }
+  .meeting-share-invitation .meeting-share-link-section .copy-link > input {
+    font-size: calc(16px * var(--text-scale));
+  }
+  .meeting-share-qr {
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+}

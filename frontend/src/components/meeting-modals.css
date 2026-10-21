@@ -167,35 +167,78 @@
 .meeting-dialog-footer > .button-primary {
   flex: 1;
 }
+/* Keep the confirmation, invitation and actions in normal document flow. */
+.modal.meeting-share-modal {
+  width: min(680px, 100%);
+  max-width: 680px;
+  padding: 28px 32px 32px;
+  border-radius: 20px;
+}
+.meeting-share-modal > h2 {
+  margin: 0 40px 24px 0;
+  font-size: calc(22px * var(--text-scale));
+  line-height: 1.4;
+  letter-spacing: -0.03em;
+}
 .meeting-share-modal .share-content {
-  padding: 0 0 28px;
+  min-width: 0;
+  text-align: left;
 }
-.meeting-share-modal .share-content > .success-mark {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 16px;
+.meeting-share-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+  margin-bottom: 24px;
 }
-.meeting-share-modal .share-content > h3 {
-  margin: 0 0 8px;
+.meeting-share-summary > .success-mark {
+  position: static;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  margin: 0;
+  border: 0;
+  background: var(--success-soft);
+  color: var(--success);
+  box-shadow: none;
+}
+.meeting-share-summary > .success-mark > svg {
+  width: 26px;
+  height: 26px;
+}
+.meeting-share-summary > div {
+  min-width: 0;
+}
+.meeting-share-summary h3 {
+  margin: 0 0 6px;
   font-size: calc(20px * var(--text-scale));
-  letter-spacing: -0.02em;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
 }
 .meeting-share-modal .share-subtitle {
-  margin: 0 0 24px;
+  margin: 0;
   font-size: calc(14px * var(--text-scale));
   line-height: 1.6;
 }
-.meeting-share-modal .share-content > .field {
-  text-align: left;
-  margin-bottom: 8px;
+.meeting-share-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
 }
-.meeting-share-modal .share-content > .field-hint {
-  text-align: left;
-  margin: 0 0 20px;
-}
-.meeting-share-modal .share-content > .button {
-  margin: 12px 0 0;
+.meeting-share-actions > .button {
+  min-width: 0;
   min-height: 48px;
+  padding: 12px 14px;
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.meeting-share-actions > .button > svg {
+  flex: none;
 }
 .meeting-design-modal .copy-link {
   padding: 0;
@@ -242,5 +285,48 @@
     margin-inline: -16px;
     padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
     gap: 10px;
+  }
+}
+@media (max-width: 767px) {
+  .modal-backdrop:has(.meeting-share-modal) {
+    padding: 12px;
+  }
+  .modal.meeting-share-modal {
+    width: min(680px, 100%);
+    max-width: 680px;
+    min-height: 0;
+    max-height: calc(100dvh - 24px);
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+  }
+  .meeting-share-modal .modal-close {
+    top: 18px;
+    right: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .modal.meeting-share-modal {
+    padding: 24px 20px;
+  }
+  .meeting-share-modal > h2 {
+    margin-bottom: 22px;
+    font-size: calc(21px * var(--text-scale));
+  }
+  .meeting-share-summary {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .meeting-share-summary > .success-mark {
+    width: 42px;
+    height: 42px;
+  }
+  .meeting-share-summary h3 {
+    font-size: calc(18px * var(--text-scale));
+  }
+  .meeting-share-actions {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    margin-top: 20px;
   }
 }
