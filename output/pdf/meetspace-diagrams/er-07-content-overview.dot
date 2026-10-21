@@ -1,0 +1,24 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Расшифровки, сводки и поиск</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#f2f2f2", color="#a4a9ad"];
+"content_embeddings" [label="content_embeddings\n(pgvector)", tooltip="content_embeddings", fillcolor="#e9f1f7", color="#527087"];
+"content_search_indexes" [label="content_search_\nindexes", tooltip="content_search_indexes", fillcolor="#e9f1f7", color="#527087"];
+"embedding_cache" [label="embedding_cache\n(pgvector)", tooltip="embedding_cache", fillcolor="#e9f1f7", color="#527087"];
+"meeting_summaries" [label="meeting_summaries", tooltip="meeting_summaries", fillcolor="#e9f1f7", color="#527087"];
+"record" [label="record", tooltip="record", fillcolor="#f2f2f2", color="#a4a9ad"];
+"transcript_segments" [label="transcript_segments", tooltip="transcript_segments", fillcolor="#e9f1f7", color="#527087"];
+"transcripts" [label="transcripts", tooltip="transcripts", fillcolor="#e9f1f7", color="#527087"];
+"content_embeddings" -> "conferences" [tooltip="content_embeddings_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"content_embeddings" -> "record" [tooltip="content_embeddings_recording_id_fkey: FOREIGN KEY (recording_id) REFERENCES record(uuid) ON DELETE RESTRICT"];
+"content_embeddings" -> "transcripts" [tooltip="content_embeddings_transcript_id_fkey: FOREIGN KEY (transcript_id) REFERENCES transcripts(id) ON DELETE RESTRICT"];
+"content_search_indexes" -> "transcripts" [tooltip="content_search_indexes_transcript_id_fkey: FOREIGN KEY (transcript_id) REFERENCES transcripts(id) ON DELETE RESTRICT"];
+"meeting_summaries" -> "conferences" [tooltip="meeting_summaries_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"meeting_summaries" -> "transcripts" [tooltip="meeting_summaries_transcript_id_fkey: FOREIGN KEY (transcript_id) REFERENCES transcripts(id) ON DELETE RESTRICT"];
+"transcript_segments" -> "transcripts" [tooltip="transcript_segments_transcript_id_fkey: FOREIGN KEY (transcript_id) REFERENCES transcripts(id) ON DELETE RESTRICT"];
+"transcripts" -> "conferences" [tooltip="transcripts_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"transcripts" -> "record" [tooltip="transcripts_recording_id_fkey: FOREIGN KEY (recording_id) REFERENCES record(uuid) ON DELETE RESTRICT"];
+"content_embeddings" -> "transcript_segments" [style=dashed, color="#94661d", penwidth=1.45, tooltip="segment_id -> id; Ссылка исходного фрагмента в коде; FK отсутствует.", constraint=false];
+"content_embeddings" -> "embedding_cache" [style=dashed, color="#94661d", penwidth=1.45, tooltip="model_key,content_hash -> model_key,content_hash; Общее содержимое/пространство модели; FK отсутствует.", constraint=false];
+}

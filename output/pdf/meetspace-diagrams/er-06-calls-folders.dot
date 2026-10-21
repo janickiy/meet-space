@@ -1,0 +1,27 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Личные звонки и пользовательские папки", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "conversation_members" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conversation_members</B></TD></TR><TR><TD ALIGN="LEFT">PK: conversation_id, user_id</TD></TR></TABLE>>];
+  "conversations" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conversations</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "direct_call_slots" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>direct_call_slots</B></TD></TR><TR><TD ALIGN="LEFT">PK: user_id</TD></TR><TR><TD ALIGN="LEFT">FK: call_id</TD></TR><TR><TD ALIGN="LEFT">2 полей</TD></TR></TABLE>>];
+  "direct_calls" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>direct_calls</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: callee_user_id</TD></TR><TR><TD ALIGN="LEFT">FK: caller_user_id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: conversation_id</TD></TR><TR><TD ALIGN="LEFT">16 полей</TD></TR></TABLE>>];
+  "folder_conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>folder_conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: folder_id, conference_id</TD></TR><TR><TD ALIGN="LEFT">3 полей</TD></TR></TABLE>>];
+  "folder_conversations" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>folder_conversations</B></TD></TR><TR><TD ALIGN="LEFT">PK: folder_id, conversation_id</TD></TR><TR><TD ALIGN="LEFT">3 полей</TD></TR></TABLE>>];
+  "folders" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>folders</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">7 полей</TD></TR></TABLE>>];
+  "users" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>users</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "direct_call_slots" -> "direct_calls" [label="call_id → id\nDELETE RESTRICT"];
+  "direct_call_slots" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "direct_calls" -> "users" [label="callee_user_id → id\nDELETE RESTRICT"];
+  "direct_calls" -> "users" [label="caller_user_id → id\nDELETE RESTRICT"];
+  "direct_calls" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "direct_calls" -> "conversation_members" [label="conversation_id, callee_user_id → conversation_id, user_id\nDELETE NO ACTION"];
+  "direct_calls" -> "conversation_members" [label="conversation_id, caller_user_id → conversation_id, user_id\nDELETE NO ACTION"];
+  "direct_calls" -> "conversations" [label="conversation_id → id\nDELETE RESTRICT"];
+  "folder_conferences" -> "conferences" [label="conference_id → id\nDELETE CASCADE"];
+  "folder_conferences" -> "folders" [label="folder_id → id\nDELETE CASCADE"];
+  "folder_conversations" -> "conversations" [label="conversation_id → id\nDELETE CASCADE"];
+  "folder_conversations" -> "folders" [label="folder_id → id\nDELETE CASCADE"];
+  "folders" -> "users" [label="user_id → id\nDELETE CASCADE"];
+}

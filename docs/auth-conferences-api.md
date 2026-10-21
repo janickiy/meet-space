@@ -1,295 +1,184 @@
-# Stage 1: Users, Auth, Conference Domain
+# Аккаунты, авторизация и конференции
 
-Первый этап реализует backend. Отдельным последующим запросом добавлен
-[интерфейс React + TypeScript + Vite](frontend.md) в `frontend/`, использующий эти контракты.
-Документ описывает базовые контракты первого этапа и последующие изменения авторизации.
-WebSocket, SFU, гостевой вход, чат и запись реализованы в следующих этапах;
-актуальный обзор контрактов и ссылки на их документацию — в [API.md](API.md).
+Все пути в таблицах имеют префикс `/api/v1`.
+Полный каталог — [API_REFERENCE.md](API_REFERENCE.md).
 
-## Конфигурация и запуск
+## Настройка и общий контракт
 
-```env
-JWT_SECRET=<результат openssl rand -hex 32>
-HTTP_TRUSTED_PROXIES=
-RATE_LIMIT_ENABLED=true
-RATE_LIMIT_WINDOW=1m
-RATE_LIMIT_AUTH_LOGIN_IP_RPM=10
-RATE_LIMIT_AUTH_REGISTER_IP_RPM=5
-```
+`JWT_SECRET` обязателен для API: минимум 32 байта. Его смена делает старые JWT
+невалидными. Не помещайте секрет в Git или `VITE_*`. Для локального старта,
+внешней Docker-сети и согласования HTTP/HTTPS используйте [README](../README.md).
+API применяет миграции при `AUTO_MIGRATE=true` (локальное значение по умолчанию);
+production использует отдельную миграцию до запуска обновлённого API.
 
-`JWT_SECRET` обязателен только для API: минимум 32 байта, без встроенного значения.
-Хранить в локальном `.env` или secret store, не в Git. Смена секрета делает ранее
-выданные токены невалидными. Использовать HTTPS вне локального окружения.
+`HTTP_TRUSTED_PROXIES` содержит только реальные IP/CIDR доверенных прокси.
+По умолчанию forwarded IP не доверяется. Login/register ограничены Redis:
+10/5 запросов в минуту на IP по умолчанию; `429` — превышение,
+`500 rate limit unavailable` — недоступный limiter.
 
-По умолчанию forwarded IP headers не считаются доверенными. Если API расположен за
-reverse proxy, `HTTP_TRUSTED_PROXIES` — список реальных IP/CIDR через запятую;
-не задавать `0.0.0.0/0`. Иначе несколько клиентов за proxy будут иметь общий IP-лимит.
-Login и register используют существующий Redis sliding-window limiter до обработки
-паролей; при превышении возвращается `429`, при ошибке limiter — `500`
-с безопасным сообщением `rate limit unavailable` (существующий контракт limiter).
+JSON использует camelCase. Идентификатор действующего пользователя берётся из
+Bearer JWT. Неизвестные поля и несколько JSON-документов отвергаются;
+обычный JSON decoder ограничивает тело 32 КиБ. У отдельных upload/telemetry
+маршрутов собственные лимиты. Браузерные auth-операции проверяют точное совпадение
+Origin с `PUBLIC_FRONTEND_URL` (включая схему и порт), отклоняют `Sec-Fetch-Site:
+cross-site` и требуют `application/json` для непустого тела. CLI без Origin и
+Fetch Metadata разрешён. Cookie не заменяет Bearer на остальных REST-маршрутах.
 
-```bash
-docker compose up -d --build api
-```
+## Пользователь и сессия
 
-API применяет новые idempotent up-миграции при старте, как и существующие миграции.
-Shared config не требует JWT от worker и команды `migrate`.
+Email обрезается по краям, приводится к нижнему регистру, допускает один адрес
+без display name и не более 254 байт. Пароль — 8–128 Unicode-символов, без trim;
+обязательных цифр или спецсимволов нет. `displayName` при регистрации необязателен,
+после trim ограничен 100 символами. Пустое имя хранится как NULL; имя участника
+по умолчанию — `Participant`. Изменение профиля требует непустое имя 1–100 символов.
 
-## Пользователи и JWT
+Пароль хранится как Argon2id PHC hash: соль 16 байт, память 64 МиБ, 3 прохода,
+4 потока, результат 32 байта. Unknown email и wrong password дают одинаковый
+`401 invalid email or password`. DTO пользователя содержит `id`, `email`,
+`displayName`, `isAdmin`, `createdAt`, `updatedAt`, необязательный
+`guestConferenceId`; пароль, hash и refresh secret не возвращаются.
 
-Email обрезается по краям и переводится в нижний регистр, валидируется как один
-адрес без display name, максимум 254 байта. Уникальность обеспечена PostgreSQL,
-включая конкурентные регистрации. Пароль: 8–128 Unicode-символов, без trim.
-Цифры, заглавные буквы и спецсимволы не обязательны. Лимит считается по символам,
-а не по UTF-8 байтам; существующие пароли сохраняют совместимость при входе.
-`displayName` опционален: trim, максимум 100 символов; пустая строка становится NULL.
-Имя участника без displayName — `Participant`, а не его email.
+JWT HS256 имеет TTL 3600 секунд, `sub`, `iat`, `exp`, issuer `go-recorder`,
+audience `go-recorder-api`; у постоянной сессии есть `sid`. API дополнительно
+проверяет существование и отзыв SID в PostgreSQL. HttpOnly cookie позволяет
+автоматически обновлять JWT без часового выхода; серверная сессия не имеет
+тайм-аута простоя. Подробности cookie, reconnect и нескольких аккаунтов —
+[PERSISTENT_AUTH.md](PERSISTENT_AUTH.md), [account-management.md](account-management.md).
+Регистрация возвращает профиль; для начала сессии требуется login.
 
-В базе хранится только Argon2id PHC hash: отдельная случайная 16-байтовая соль,
-64 MiB памяти, 3 прохода, 4 потока, 32-байтовый результат. Сравнение constant-time.
-SQL logger для UserRepository отключён, поэтому ошибка INSERT не выводит hash.
-API использует отдельные DTO и никогда не отдаёт password/password_hash.
-Основание параметров: [официальная реализация Go Argon2](https://github.com/golang/crypto/blob/master/argon2/argon2.go).
+## API аккаунтов
 
-JWT: HS256, `sub` = UUID пользователя, обязательные `iat`/`exp`, TTL 3600 секунд,
-`iss=go-recorder`, `aud=go-recorder-api`. Middleware проверяет метод подписи,
-подпись, срок, время выдачи, issuer/audience и UUID. Реализация использует
-[golang-jwt v5](https://pkg.go.dev/github.com/golang-jwt/jwt/v5@v5.3.1).
-Заголовок: `Authorization: Bearer <accessToken>`.
-
-Авторизация аккаунта использует серверную сессию PostgreSQL без срока простоя
-или абсолютного истечения. Короткий JWT содержит `sid`; middleware проверяет,
-что сессия не отозвана. Login устанавливает HttpOnly cookie, refresh выдаёт
-новый JWT, logout отзывает сессию вместе с её JWT. Действующий JWT предыдущего
-выпуска мигрирует через `/auth/session`. Подробности: [PERSISTENT_AUTH.md](PERSISTENT_AUTH.md).
-Unknown email и wrong password возвращают одинаковый
-`401` с `invalid email or password`; неизвестный email тоже выполняет hash-проверку.
-
-## HTTP-контракты
-
-Все пути ниже имеют префикс `/api/v1`. Register/login, cookie refresh/logout и
-lookup/гостевой вход по приглашению публичные; остальные маршруты требуют JWT.
-JSON имеет camelCase. Идентификатор текущего
-пользователя берётся только из auth context, а не из JSON. Неизвестные JSON-поля,
-включая `ownerId`, `userId`, `role`, запрещены. Максимальный body — 32 KiB.
-
-| Метод и путь | Тело / результат | Доступ |
+| Метод и путь | Доступ и запрос | Ответ и значимые ошибки |
 | --- | --- | --- |
-| `POST /auth/register` | `{email,password,displayName?}` → `201 {status,user}` | public |
-| `POST /auth/login` | `{email,password}` → `200 {status,accessToken,tokenType,expiresIn,user}` | public |
-| `GET /auth/me` | `200 {status,user}` | authenticated |
-| `PATCH /auth/me` | `{displayName}` → `200 {status,user}`; имя после trim: 1–100 Unicode code points, без управляющих символов; другие поля запрещены | authenticated, только свой профиль |
-| `POST /auth/refresh` | `{}` → `200 {status,accessToken,tokenType,expiresIn,user}` | HttpOnly cookie, проверка Origin |
-| `POST /auth/session` | `{}` → LoginResponse и cookie; миграция действующего старого JWT | authenticated, только постоянный аккаунт |
-| `POST /auth/logout` | пустое тело или `{}` → `200 {status,message}`; отзыв cookie/SID или старого JWT | public, идемпотентный, проверка Origin |
-| `POST /conferences` | `{title}` → `201 {status,item: Conference}` | authenticated |
-| `GET /conferences` | `200 {status,items: Conference[]}` | свои membership |
-| `GET /conferences/{id}` | `200 {status,item: Conference}` | membership |
-| `POST /conferences/{id}/start` | пустое тело или `{}` → Conference | только owner |
-| `POST /conferences/{id}/finish` | пустое тело или `{}` → Conference | только owner |
-| `POST /conferences/{id}/cancel` | пустое тело или `{}` → Conference | только owner |
-| `POST /conferences/{id}/join` | `{inviteCode?}` или пустое тело → Participant | authenticated + membership/код |
-| `POST /conferences/{id}/leave` | пустое тело или `{}` → Participant | membership |
-| `GET /conferences/{id}/participants` | `200 {status,items: Participant[]}` | membership |
-| `GET /conference-invites/{code}` | `200 {status,item:{id,title,status,waitingRoomEnabled,scheduledAt?}}` | public, no-store |
-| `POST /conference-invites/{code}/guest` | `{displayName}` → guest session + Participant (`item`) | public + код, 10/min/IP |
-| `POST /conference-invites/{code}/join` | пустое тело или `{}` → Participant | authenticated + код |
+| `POST /auth/register` | Публичный; same-origin.<br>JSON: email*; password* 8–128 символов; displayName ≤100, необязателен | 201: status, user.<br>409 email занят; 422 поля; 403 origin; 415 Content-Type |
+| `POST /auth/login` | Публичный; same-origin.<br>JSON: email*, password* | 200: status, accessToken, tokenType, expiresIn, user; Set-Cookie.<br>401 неверные данные; 409 лимит 5 аккаунтов в браузере; 403 origin; 415 Content-Type |
+| `POST /auth/refresh` | Cookie; same-origin.<br>Пусто или JSON {userId}; meetrix_session либо meetrix_account_<userId> | 200: LoginResponse; обновленные cookie.<br>401 отсутствует/отозвана сессия; 403 другой аккаунт/origin; 503 сессии выключены |
+| `POST /auth/accounts/list` | Cookie; same-origin.<br>Пусто или {}; cookies meetrix_account_<id> | 200: status, items: User[]; недействительные cookies удаляются.<br>409 лимит аккаунтов; 503 сессии выключены; 403 origin |
+| `POST /auth/accounts/switch` | Cookie; same-origin.<br>JSON: userId* канонический UUID; его meetrix_account_<id> | 200: LoginResponse; Set-Cookie meetrix_session.<br>401 cookie недействителен; 403 несовпадение владельца; 422 UUID; 503 функция выключена |
+| `POST /auth/logout` | Cookie; same-origin; Bearer необязателен.<br>Пусто или JSON {userId}; cookie сеанса; опциональный Bearer для привязки доступа | 200: status=success; удаление соответствующих cookies.<br>403 origin; 400 JSON; 503 нет session service |
+| `GET /auth/me` | Bearer; гость допустим в своей области.<br>Без тела и query | 200: status, user; у гостя email пустой, guestConferenceId.<br>401 отсутствует аккаунт/сессия |
+| `PATCH /auth/me` | Bearer аккаунта.<br>JSON: displayName* 1–100 символов без управляющих символов | 200: status, user.<br>422 имя; 403 гостевой scope |
+| `DELETE /auth/me` | Bearer аккаунта; same-origin.<br>JSON: password* | 200: status=success; удаление cookies аккаунта.<br>422 неверный/пустой пароль; 403 origin/гость; 503 нет account service |
+| `POST /auth/session` | Bearer аккаунта; same-origin.<br>Пусто или {userId}; используется аккаунт Bearer, его cookie либо meetrix_session | 200: LoginResponse; cookies.<br>401 недействительный доступ; 403 гость/origin; 503 сессии выключены |
 
-Lifecycle/join/leave возвращают `200 {status:"success",item:...}`.
-Списки принимают `limit` (1–100, default 20) и `offset` (>=0, default 0).
-Список конференций включает сохранённые membership, в том числе `left`;
-это не список активных подключений.
+`LoginResponse` — `{status,accessToken,tokenType:"Bearer",expiresIn,user}`.
+Выход возвращает `{status:"success"}`, без обязательного поля `message`.
+Удаление аккаунта также может вернуть `409`, если остаются собственные группы,
+незавершённые встречи или активное участие в звонке/конференции. Оно требует
+пароль текущего аккаунта и отзывает все его сессии; общая история сохраняется
+по правилам [удаления аккаунтов](account-management.md).
 
-```json
-{
-  "status": "success",
-  "user": {
-    "id": "<uuid>",
-    "email": "owner@example.com",
-    "displayName": "Owner",
-    "createdAt": "<RFC3339>",
-    "updatedAt": "<RFC3339>"
-  }
-}
-```
+## API конференций и приглашений
 
-Conference DTO: `id`, `ownerId`, `title`, `inviteCode`, `inviteUrl`, `status`,
-`createdAt`, `updatedAt`, nullable `startedAt`/`finishedAt`. Title: trim, 1–200 символов.
-`inviteUrl` — относительный backend lookup URL `/api/v1/conference-invites/{code}`,
-не страница звонка. Frontend может построить собственную ссылку по этому коду.
-Invite code — 24 криптографически случайных байта, base64url без padding (32 символа,
-192 бита); отдельный от UUID, UNIQUE в БД, до 5 попыток при коллизии.
-Lookup возвращает только id/title/status и не раскрывает owner, email или участников.
+| Метод и путь | Доступ и запрос | Ответ и значимые ошибки |
+| --- | --- | --- |
+| `POST /conferences` | Bearer аккаунта.<br>JSON: title* 1–200; waitingRoomEnabled; scheduledAt RFC3339 в будущем; plannedDurationMin 1–1440 только с scheduledAt | 201: status, item: Conference.<br>422 название/расписание; 403 гость |
+| `GET /conferences` | Bearer аккаунта.<br>Query: limit 1–100 (20), offset ≥0 (0) | 200: status, items: Conference[].<br>422 pagination; 403 гость |
+| `GET /conferences/:id` | Bearer; доступ к истории конференции.<br>id UUID | 200: status, item: Conference.<br>403 нет допуска; 404 конференция |
+| `POST /conferences/:id/start` | Bearer; owner конференции.<br>id; пусто или {} | 200: status, item с status=active.<br>403 чужой owner; 409 недопустимый переход; 404 |
+| `POST /conferences/:id/finish` | Bearer; owner конференции.<br>id; пусто или {} | 200: status, item с status=finished.<br>403; 409 если не active; 404 |
+| `POST /conferences/:id/cancel` | Bearer; owner конференции.<br>id; пусто или {} | 200: status, item с status=cancelled.<br>403; 409 недопустимый переход; 404 |
+| `POST /conferences/:id/join` | Bearer в разрешенной области.<br>id; пусто либо JSON {inviteCode}; для нового членства нужен действующий inviteCode | 200: status, item: Participant, включая admissionState.<br>403 неверное приглашение/rejected/kicked; 409 состояние конференции; 422 code |
+| `POST /conferences/:id/leave` | Bearer; собственное членство.<br>id; пусто или {} | 200: status, item: Participant.<br>403 нет членства; 404 |
+| `GET /conferences/:id/participants` | Bearer; доступ к истории.<br>id; limit 1–100 (20), offset ≥0 | 200: status, items: Participant[].<br>403 нет допуска; 404; 422 pagination |
+| `GET /conferences/:id/participants/me` | Bearer; собственное членство.<br>id | 200: status, item: Participant.<br>403/404 нет доступного членства |
+| `POST /conferences/:id/participants/:participantId/admission` | Bearer; вошедший owner/co_host.<br>id, participantId UUID; JSON decision*=admit/reject | 200: status, item: Participant.<br>403 роль; 409 состояние допуска/конференции; 422 decision; 404 |
+| `PUT /conferences/:id/schedule` | Bearer; owner.<br>id; JSON scheduledAt* RFC3339 в будущем; plannedDurationMin 1–1440 | 200: status, item: Conference.<br>403 не owner; 409 конференция не scheduled; 422 время/длительность; 404 |
+| `GET /conferences/:id/history` | Bearer; доступ к истории.<br>id | 200: status, item: conference, owner, durationSec, participantCount, participants, participantsTruncated, recordings, chatAvailable, chatReadOnly.<br>403; 409 еще не завершена; 404 |
+| `GET /me/conferences` | Bearer аккаунта.<br>Query view=upcoming/active/past (upcoming), scope=all/owned/participating (all), status, from/to RFC3339, cursor, limit 1–100 (20) | 200: status, items: Conference[], nextCursor.<br>422 фильтры/курсор; 403 гость |
+| `GET /conference-invites/:code` | Публичный.<br>code приглашения | 200: status, item: id,title,status,waitingRoomEnabled,scheduledAt.<br>404 неизвестный/недоступный code |
+| `POST /conference-invites/:code/join` | Bearer аккаунта.<br>code; пусто или {} | 200: status, item: Participant.<br>403 запрет повторного входа; 404 code; 409 состояние |
+| `PUT /conferences/:id/participants/me/media` | Bearer; собственное вошедшее членство.<br>id; JSON connectionId* UUID подключенной сессии, sequence* целое 1–9007199254740991; microphoneEnabled,cameraEnabled,screenSharing bool | 200: status,item: Participant; старый/повторный sequence игнорируется.<br>403 нет допуска/подключения/источник заблокирован; 409 комната не active/created; 422 поля |
+| `POST /conferences/:id/participants/:participantId/moderation` | Bearer; owner; co_host ограниченно.<br>id,participantId; JSON action*=mute/camera/screen/kick/role; blocked* для медиа; role*=co_host/participant для role | 200: status, item: Participant.<br>403 запрещенная цель/роль; 422 несовместимые поля; 404 |
 
-Participant DTO: `id`, `conferenceId`, nullable `userId`, `displayName`, `role`,
-`status`, nullable `joinedAt`/`leftAt`, `createdAt`, `updatedAt`.
+| Метод и путь | Доступ и запрос | Ответ и значимые ошибки |
+| --- | --- | --- |
+| `POST /conference-invites/:code/guest` | Публичный; при возобновлении гостевой Bearer.<br>code; JSON displayName*; Authorization необязателен и должен содержать гостевой токен | 200: status,accessToken,tokenType=Bearer,expiresIn=3600,user,item: Participant.<br>401 ошибочный токен; 403 обычный аккаунт/другая конференция/отклонен; 404 code; 409 завершена; 422 имя; 429 |
+| `GET /conferences/:id/invitation-users` | Аккаунт; owner либо вошедший co_host в active конференции.<br>id; query* 2–100 символов | 200: status,items: id,email,displayName.<br>422 query; 403 роль; 409 конференция завершена; 404 |
+| `POST /conferences/:id/invitations` | Аккаунт; owner либо вошедший co_host в active конференции.<br>id; JSON emails[] и/или userIds[] UUID; всего 1–20 адресатов | 202: status,items: InvitationResult[] (id,email,userId,status).<br>422 список/email; 403 роль; 409 конференция закрыта; 404 |
 
-## Права и состояние
+`GET /conferences` — список сохранённых членств с offset pagination, а не список
+живых подключений. Для вкладок интерфейса используется `GET /me/conferences`
+с `view=upcoming|active|past` и cursor pagination. История доступна по
+`GET /conferences/:id/history`, а не `/history/:id`. Сводка истории возвращается
+только после завершения/отмены. `invitation-users` — поиск адресатов организатором;
+его email-проекция отличается от безопасного поиска собеседников `GET /users`.
 
-Lifecycle: `created → active → finished` или `created → cancelled`.
-Start устанавливает `startedAt`; finish/cancel — `finishedAt`.
-Только `ownerId` конференции может менять lifecycle, даже если owner ещё не joined
-или уже left. Для чужого пользователя всегда `403`; некорректный переход — `409`.
-Co-host management API в этом этапе отсутствует.
+### DTO
 
-При создании конференции в одной транзакции создаётся owner membership:
-`role=owner`, `status=left`, `joinedAt=null`, `leftAt=null`.
-Здесь `left` означает отсутствие выполненного join, а не историю выхода.
-Membership не свидетельствует о WebRTC-подключении или фактическом присутствии.
+Conference: `id`, `ownerId`, `title`, `inviteCode`, `inviteUrl`, `status`,
+`createdAt`, `updatedAt`, nullable `startedAt`/`finishedAt`, `waitingRoomEnabled`,
+`scheduledAt`, `plannedDurationMin`. Название после trim — 1–200 символов.
+`inviteUrl` — относительный backend lookup `/api/v1/conference-invites/:code`;
+страница браузера — `/i/:code`. Секрет приглашения: 24 случайных байта,
+base64url без padding (32 символа); публичный lookup раскрывает только
+`id,title,status,waitingRoomEnabled,scheduledAt`.
 
-Первый join другого пользователя требует invite code. Join по UUID без кода
-разрешён только для уже существующей membership, включая владельца. Клиент не
-может выбрать user или назначить owner/co_host: новая роль всегда `participant`.
+Participant: `id`, `conferenceId`, `userId`, `displayName`, `role`, `status`,
+`joinedAt`, `leftAt`, `createdAt`, `updatedAt`, `admissionState`,
+`admissionDecidedAt`, `admissionVersion`, флаги `microphoneEnabled`,
+`cameraEnabled`, `screenSharing`, `microphoneBlocked`, `cameraBlocked`,
+`screenBlocked` и `mediaPolicyVersion`. Членство не равно WebRTC-присутствию;
+физические подключения отслеживаются отдельно.
 
-Join разрешён только в `created`/`active`. Он устанавливает `status=joined`,
-`joinedAt=now`, `leftAt=null`. Уже joined → идемпотентный ответ без изменения времени.
-Leave устанавливает `status=left`, `leftAt=now`; повторный leave не меняет время,
-а leave до первого join сохраняет обе даты NULL. Rejoin после leave обновляет даты
-на той же строке с тем же participant ID. Отдельная история подключений не ведётся.
-Membership сохраняет доступ к карточке и списку участников после leave.
+### Жизненный цикл и права
 
-Finish/cancel атомарно закрывает все joined membership (`left`, `leftAt=now`),
-не удаляя их. Join после терминального статуса возвращает `409`; повторный leave
-безопасен. Это доменное закрытие membership, не управление медиасоединением.
+- `created|scheduled → active → finished`; отмена разрешена из `created|scheduled`.
+  Lifecycle меняет только owner, даже если он ещё не joined или уже left.
+  Owner membership создаётся как `left/admitted` с пустыми датами подключения.
+- `scheduledAt` — будущий RFC3339 timestamp с часовым поясом; длительность
+  1–1440 минут возможна только вместе с расписанием. Изменить время можно
+  только в `scheduled`. Автоматического начала/окончания по времени нет.
+- Новый зарегистрированный участник входит только с действующим кодом.
+  Приглашение сразу даёт `admitted`, в том числе прежнему `waiting`, независимо
+  от `waitingRoomEnabled`. В `scheduled` аккаунт получает/сохраняет членство
+  без подключения (`left`); после старта входит во встречу.
+- Join без кода разрешён существующему членству и сохраняет прежний допуск.
+  `rejected`/`kicked` не обходятся повторным приглашением. Администратор приложения
+  не получает автоматически полномочия организатора конкретной встречи.
+- Повтор joined/leave идемпотентен. Обычный выход сохраняет разрешённую историю;
+  завершение закрывает joined-членства и запускает остановку активной записи.
+- Чтение истории требует `admitted` и `joined|left`. Для живого участия требуется
+  `joined`. Ожидающие не получают медиакомнату и приватную историю; состояние
+  своего членства читают через `/participants/me`.
+- Admission управляют вошедшие owner/co_host. Для модерации co_host ограничен
+  действиями mute/screen/kick против обычных участников; назначение ролей и
+  camera control принадлежат owner. Ни одна команда не включает физическое
+  устройство удалённо: снятие запрета разрешает участнику включить его самому.
 
-Типы ролей: `owner`, `co_host`, `participant`, `guest`. Текущие статусы: `joined`,
-`left`; модель/constraints предусматривают `waiting`, `rejected`, `kicked` для
-будущего этапа, без соответствующих API. Будущая гостевая строка может иметь
-`user_id=NULL, role=guest`; гостевой вход сейчас запрещён JWT middleware.
+### Гостевой вход
 
-Все join/leave/lifecycle изменения блокируют строку конференции `FOR UPDATE` внутри
-PostgreSQL-транзакции. Это работает между соединениями и экземплярами API;
-Go mutex не используется. UNIQUE membership дополнительно запрещает дубликаты.
+`/i/:code` открывает prejoin без создания участника. На публичном экране приглашения браузер запрашивает камеру и микрофон
+согласно сохранённым настройкам; пользователь может отказать или выключить их. Guest API
+вызывается после «Подключиться». Гость получает обычный user UUID с
+`guestConferenceId`, JWT на один час и роль `guest`, но не постоянную cookie-сессию.
+Повтор `/guest` с гостевым Bearer той же встречи сохраняет participant ID и допуск;
+новое посещение без прежней сессии создаёт новую гостевую идентичность.
 
-## Ошибки
+Гость не входит в ещё запланированную или закрытую встречу. Разрешены только API
+его встречи и `/auth/me`, `/auth/logout`, `/capabilities`, `/webrtc/config`.
+Создание встреч, личные/групповые чаты, папки, звонки и admin закрыты.
+Начать/остановить/удалить запись гость не может. Приглашение не отменяет
+исключение/отказ текущей гостевой идентичности.
 
-Формат: `{ "status": "failed", "message": "<safe message>" }`.
+## Ошибки и совместимость
 
-| Код | Значение |
-| --- | --- |
-| 400 | повреждённый JSON, неизвестные поля, несколько JSON-документов, слишком большой body |
-| 401 | нет/неверный/просроченный JWT, неверные login credentials |
-| 403 | нет membership/приглашения, чужой owner action |
-| 404 | конференция или invite code не найдены |
-| 409 | duplicate email, запрещённый lifecycle transition, join закрытой конференции |
-| 422 | неверный UUID/email/password/title/пагинация/inviteCode в join body |
-| 429 | превышен Redis rate limit |
-| 500 | `internal server error` либо `rate limit unavailable`, без SQL/hash/password и деталей инфраструктуры |
+Обычная ошибка: `{status:"failed",message:"безопасное описание"}`.
+`400` — некорректный JSON; `401` — токен/сессия/логин; `403` — права или Origin;
+`404` — недоступный ресурс; `409` — конфликт состояния/повтора; `415` — MIME;
+`422` — поля/UUID/пагинация; `429` — лимит; `500/503` — отказ обработки/зависимости.
+Конкретные права проверяются заново сервером; UUID ресурса их не предоставляет.
 
-## Пример приёмочного сценария
+Публичные `/api/v1/records*`, `/api/records*` и debug recorder API удалены.
+Используйте `/api/v1/conferences/:id/recordings*`. Старые записи не получают
+фиктивных владельцев; ранее выданные signed URLs действуют до исходного срока.
+Таблицы сессий добавлены миграцией 26, guest scope — 23; текущая схема также
+содержит изменения чатов, звонков, групп и папок. Откат отдельных ранних миграций
+не является безопасным способом отката текущего приложения.
 
-Нужен `jq`. Email/пароль ниже предназначены только для локального примера;
-повторная регистрация того же email вернёт `409`.
+## Исходный код
 
-```bash
-STAGE1_BASE=http://localhost:8085/api/v1
-curl -sS "$STAGE1_BASE/auth/register" -H 'Content-Type: application/json' \
-  -d '{"email":"owner@example.com","password":"StrongPassword123","displayName":"Owner"}'
-STAGE1_TOKEN=$(curl -sS "$STAGE1_BASE/auth/login" -H 'Content-Type: application/json' \
-  -d '{"email":"owner@example.com","password":"StrongPassword123"}' | jq -r '.accessToken')
-curl -sS "$STAGE1_BASE/auth/me" -H "Authorization: Bearer $STAGE1_TOKEN"
-STAGE1_CONFERENCE=$(curl -sS "$STAGE1_BASE/conferences" \
-  -H "Authorization: Bearer $STAGE1_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"title":"First conference"}')
-STAGE1_ID=$(echo "$STAGE1_CONFERENCE" | jq -r '.item.id')
-STAGE1_INVITE=$(echo "$STAGE1_CONFERENCE" | jq -r '.item.inviteCode')
-curl -sS "$STAGE1_BASE/conferences/$STAGE1_ID/participants" -H "Authorization: Bearer $STAGE1_TOKEN"
-curl -sS -X POST "$STAGE1_BASE/conferences/$STAGE1_ID/join" -H "Authorization: Bearer $STAGE1_TOKEN"
-curl -sS -X POST "$STAGE1_BASE/conferences/$STAGE1_ID/start" -H "Authorization: Bearer $STAGE1_TOKEN"
-curl -sS -X POST "$STAGE1_BASE/conferences/$STAGE1_ID/leave" -H "Authorization: Bearer $STAGE1_TOKEN"
-curl -sS -X POST "$STAGE1_BASE/conferences/$STAGE1_ID/join" -H "Authorization: Bearer $STAGE1_TOKEN"
-curl -sS -X POST "$STAGE1_BASE/conferences/$STAGE1_ID/finish" -H "Authorization: Bearer $STAGE1_TOKEN"
-```
-
-Для второго пользователя получить отдельный JWT. До finish:
-
-```bash
-curl -sS "$STAGE1_BASE/conference-invites/$STAGE1_INVITE" -H "Authorization: Bearer $STAGE1_MEMBER_TOKEN"
-curl -sS -X POST "$STAGE1_BASE/conference-invites/$STAGE1_INVITE/join" -H "Authorization: Bearer $STAGE1_MEMBER_TOKEN"
-# Любой start/finish/cancel с токеном второго пользователя возвращает 403.
-```
-
-## Миграции и совместимость
-
-Добавлены `000006_create_users_table`, `000007_create_conferences_table`,
-`000008_create_conference_participants_table` (up/down). PK — UUID; timestamps и
-updated_at triggers; UNIQUE email/invite/(conference_id,user_id); один owner-role
-на конференцию; lifecycle/identity/status checks; индексы owner и участников.
-Удаление user ограничено FK `RESTRICT`; удаление conference каскадно удаляет только
-её membership. DELETE API не добавлен. Обычная PostgreSQL UNIQUE-семантика разрешает
-несколько будущих guest с NULL user_id. Create conference+owner атомарен.
-
-Миграции не изменяют существующие record/record_files/record_segments/record_events,
-не удаляют данные и повторно применяются безопасно. Down только новых таблиц
-выполняется в обратном порядке 008→007→006 и удаляет данные Stage 1; его не запускать
-без backup и явного решения об откате. Down не применялся при реализации.
-
-`record.conference_id` уже UUID, но исторически принимал произвольные внешние UUID.
-Обязательный FK на новую conferences сломал бы старые записи/record.start.
-Поэтому FK/backfill не добавлен. RabbitMQ-команды и внутренний worker pipeline
-сохранены, но публичные recorder endpoints `/api/v1/records*` и `/api/records*`
-удалены из маршрутизатора и возвращают `404`. У прежних записей нет надёжной
-модели владельца; добавление одной JWT-проверки не решало бы проблему доступа к
-чужим данным. Debug-список артефактов также удалён. Действующий API записи встречи
-и ограничения совместимости описаны в [API.md](API.md).
-
-Для действующих встреч используйте `/api/v1/conferences/{id}/recordings*` с
-проверкой текущих прав участника. Автоматического присвоения владельцев прежним
-записям и публичного маршрута миграции нет. Возможный будущий план переноса:
-инвентаризация внешних UUID, явная таблица соответствий,
-nullable canonical FK для legacy/unmatched записей, backfill только подтверждённых
-соответствий, затем validation/permissions и постепенная смена recorder contract.
-Не создавать фиктивных пользователей/конференций и не переписывать UUID автоматически.
-
-## Проверки
-
-```bash
-go build ./...
-go vet ./...
-```
-
-Постоянные Go, frontend и integration-тесты удалены по решению владельца проекта.
-Успешные build/vet подтверждают сборку и статический анализ, но не корректность
-авторизации, SQL-транзакций или жизненного цикла встречи.
-
-После установки пакета вручную сверить `/version` с манифестом и через закрытый
-адрес проверить `/health/live` и `/health/ready`. С согласованными существующими
-аккаунтами проверить вход, `/auth/me`, права организатора/участника и отказ
-постороннему пользователю; изменяющие действия выполнять только на разрешённых
-ресурсах. Не создавать тестовые аккаунты/БД автоматически. Сохранять фактический
-результат и ограничения проверки, не токены и пароли. Полный процесс выпуска:
-[RELEASE_PROCESS.md](RELEASE_PROCESS.md).
-
-Следующий этап — отдельно согласованные WebSocket/signaling и ParticipantSession.
-Перед его реализацией определить права co_host, присутствие/мультивкладки,
-security recorder API и версионирование миграций. В Stage 1 эти задачи не реализованы.
-
-## Гостевой вход по приглашению (2026-10-05)
-
-`/i/{code}` открывает публичный экран проверки устройств. Для пользователя с аккаунтом
-отображается имя профиля, для посетителя — редактируемое «Гость». Просмотр ссылки
-не создаёт участника. Кнопка «Подключиться» создаёт гостевую сессию или использует
-обычный `/join` для аккаунта. Камера и микрофон включаются явными кнопками; выбранные
-устройства подключаются к медиа после допуска во встречу.
-
-Гостевой JWT действует один час и ограничен `guestConferenceId`. Разрешены API этой
-встречи, `/auth/me`, `/auth/logout`, `/capabilities`, `/webrtc/config`; общие списки,
-создание встреч, поиск и административные API закрыты. WebSocket и ICE проверяют
-ту же область доступа. Права участника и зал ожидания действуют без изменений.
-Гость не получает роль организатора и не может войти через email/password.
-
-Повторный `/guest` с гостевым Bearer той же встречи сохраняет participant ID и
-статус допуска, обновляя имя. Отклонение/исключение не сбрасывается. Новое посещение
-без прежней сессии создаёт новую гостевую идентичность по публичному приглашению.
-Закрытые и запланированные встречи не принимают новых гостей до открытия.
-Миграция `000023_guest_sessions.up.sql` добавляет nullable scope и запрещает
-назначать гостю `is_admin`; прежние аккаунты и образы совместимы с этой схемой.
-
-### Уточнение входа по ссылке — 2026-10-05
-
-Камера и микрофон запрашиваются автоматически на публичном экране входа;
-браузер сохраняет контроль над разрешениями. Участник может выключить устройства
-до подключения или войти без них при отказе в доступе. По действующему приглашению
-новые и ранее ожидавшие гости/аккаунты сразу получают `joined/admitted`, независимо
-от прежнего флага зала ожидания. Явные отклонения/исключения и жизненный цикл встречи
-сохраняются. Миграция 24 допускает ранее ожидавших участников открытых встреч.
+Основные файлы: [platform_routes.go](../internal/transport/http/platform_routes.go),
+[auth handlers](../internal/app/auth), [conference handlers](../internal/app/conferences),
+[модели](../internal/domain/conferences),
+[транзакции членства](../internal/infrastructure/postgres/conference_repository.go).

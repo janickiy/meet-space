@@ -1,0 +1,20 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Внешние интеграции</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"background_jobs" [label="background_jobs", tooltip="background_jobs", fillcolor="#f2f2f2", color="#a4a9ad"];
+"calendar_connections" [label="calendar_\nconnections", tooltip="calendar_connections", fillcolor="#e9f1f7", color="#527087"];
+"calendar_event_mappings" [label="calendar_event_\nmappings", tooltip="calendar_event_mappings", fillcolor="#e9f1f7", color="#527087"];
+"calendar_oauth_states" [label="calendar_oauth_\nstates", tooltip="calendar_oauth_states", fillcolor="#e9f1f7", color="#527087"];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#f2f2f2", color="#a4a9ad"];
+"integration_deliveries" [label="integration_\ndeliveries", tooltip="integration_deliveries", fillcolor="#e9f1f7", color="#527087"];
+"push_devices" [label="push_devices", tooltip="push_devices", fillcolor="#e9f1f7", color="#527087"];
+"users" [label="users", tooltip="users", fillcolor="#f2f2f2", color="#a4a9ad"];
+"calendar_connections" -> "users" [tooltip="calendar_connections_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"calendar_event_mappings" -> "conferences" [tooltip="calendar_event_mappings_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"calendar_event_mappings" -> "calendar_connections" [tooltip="calendar_event_mappings_connection_id_fkey: FOREIGN KEY (connection_id) REFERENCES calendar_connections(id) ON DELETE RESTRICT"];
+"calendar_oauth_states" -> "users" [tooltip="calendar_oauth_states_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"integration_deliveries" -> "background_jobs" [tooltip="integration_deliveries_job_id_fkey: FOREIGN KEY (job_id) REFERENCES background_jobs(id) ON DELETE RESTRICT"];
+"integration_deliveries" -> "users" [tooltip="integration_deliveries_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"push_devices" -> "users" [tooltip="push_devices_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+}

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 // Пакет субтитров координирует изолированное распознавание речи в реальном времени и
 // восстановление сохраненных окончательных речевых фрагментов.
 package captions

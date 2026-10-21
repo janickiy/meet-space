@@ -1,7 +1,0 @@
-{
-  "mode": "built-in image_gen",
-  "target": "frontend/public/media/auth-business-conference-v5.webp",
-  "insert": "/Users/aleksandranickij/Downloads/Изображение ChatGPT 16 окт. 2026 г., 19.png",
-  "output": "frontend/public/media/auth-business-conference-v7.webp",
-  "prompt": "Use case: compositing. Asset type: photorealistic authentication-page illustration. Image 1 is the edit target: the original 1536x1024 office meeting-room photo. Image 2 is the exact insert to place onto the wall-mounted display. Replace ONLY the illuminated inner display area of the black wall-mounted television in image 1 with the ENTIRE image 2: its six people in a 3-column by 2-row grid AND the dark bottom call-control toolbar with microphone, camera and red hang-up icons. Fit this content to the display's slight perspective, inside its existing black bezel. Keep the exact people from image 2 and their layout. Preserve the original photo's room, two foreground seated people viewed from behind, furniture, laptop, glasses, plants, sunlight, camera position, framing, black television bezel, and all pixels outside the display as faithfully as possible. Do not replace the overall photo with the call grid. Do not add people in the room. No website chrome, text overlays or new decoration. Return the full original 3:2 room composition at 1536x1024; only the TV screen content changes."
-}

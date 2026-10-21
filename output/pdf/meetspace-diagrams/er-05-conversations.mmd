@@ -1,0 +1,28 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  conversation_attachments["conversation_attachments<br/>PK: id"]
+  conversation_avatar_objects["conversation_avatar_objects<br/>PK: id"]
+  conversation_members["conversation_members<br/>PK: conversation_id, user_id"]
+  conversation_message_pins["conversation_message_pins<br/>PK: conversation_id, message_id"]
+  conversation_messages["conversation_messages<br/>PK: id"]
+  conversations["conversations<br/>PK: id"]
+  direct_calls["direct_calls<br/>PK: id"]
+  users["users<br/>PK: id"]
+  conversation_attachments -->|"conversation_id; DELETE RESTRICT"| conversations
+  conversation_attachments -->|"conversation_id, message_id; DELETE RESTRICT"| conversation_messages
+  conversation_attachments -->|"conversation_id, owner_user_id; DELETE RESTRICT"| conversation_members
+  conversation_avatar_objects -->|"conversation_id; DELETE RESTRICT"| conversations
+  conversation_members -->|"conversation_id; DELETE RESTRICT"| conversations
+  conversation_members -->|"conversation_id, last_read_message_id, last_read_sequence; DELETE RESTRICT"| conversation_messages
+  conversation_members -->|"user_id; DELETE RESTRICT"| users
+  conversation_message_pins -->|"conversation_id, message_id; DELETE CASCADE"| conversation_messages
+  conversation_message_pins -->|"conversation_id, pinned_by_user_id; DELETE RESTRICT"| conversation_members
+  conversation_messages -->|"call_id; DELETE RESTRICT"| direct_calls
+  conversation_messages -->|"conversation_id; DELETE RESTRICT"| conversations
+  conversation_messages -->|"conversation_id, reply_to_id; DELETE RESTRICT"| conversation_messages
+  conversation_messages -->|"conversation_id, sender_user_id; DELETE RESTRICT"| conversation_members
+  conversations -->|"id, last_message_id; DELETE RESTRICT"| conversation_messages
+  conversations -->|"created_by; DELETE RESTRICT"| users
+  conversations -->|"user_high_id; DELETE RESTRICT"| users
+  conversations -->|"user_low_id; DELETE RESTRICT"| users
+  conversations -.->|"avatar_version; без FK"| conversation_avatar_objects

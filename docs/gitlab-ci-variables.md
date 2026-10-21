@@ -1,117 +1,95 @@
-# GitLab CI/CD variables
+# Переменные GitLab CI/CD
 
-Deploy запускается job-ом `deploy-dev` из `.gitlab-ci.yml` для ветки
-`feature/1-start-project`.
+Источники: [`.gitlab-ci.yml`](../.gitlab-ci.yml),
+[`scripts/ci-deploy.sh`](../scripts/ci-deploy.sh).
 
-## Что добавить в GitLab
+Pipeline запускается для веток и тегов. `deploy-dev` автоматически выполняется
+после успешных предыдущих стадий в ветке **`main`**. Это прежний development
+workflow: rsync исходников, сборка на удалённом хосте и базовый
+`docker-compose.yml`. Он не выполняет immutable production promotion и не
+подходит для обновления standalone-установки `install.sh`.
 
-Открой Project -> Settings -> CI/CD -> Variables -> Add variable.
+## Загрузка исходников для всех jobs
 
-Обязательные variables:
+`GIT_STRATEGY=none`: job получает архив конкретного `CI_COMMIT_SHA` через GitLab
+API во временный каталог. Поэтому следующая переменная нужна не только deploy:
 
-| Key | Type | Visibility | Value откуда взять |
-| --- | --- | --- | --- |
-| `DEPLOY_HOST` | Variable | Visible | IP или DNS сервера. Сейчас: `192.168.90.201`. |
-| `DEPLOY_USER` | Variable | Visible | Linux-пользователь для SSH. Сейчас: `janickiy`. |
-| `DEPLOY_PATH` | Variable | Visible | Каталог на сервере для проекта. Например: `/var/www/go-recorder`. |
-| `DEPLOY_SSH_PRIVATE_KEY_B64` | Variable | Masked and hidden | Приватный SSH-ключ deploy-пользователя, закодированный в base64. Рекомендуемый способ. |
-| `CI_SOURCE_ARCHIVE_TOKEN_B64` | Variable | Masked and hidden | Project access token со scope `read_api`, закодированный в base64. Нужен, если runner зависает на `git fetch`. |
+| Переменная | Тип / хранение | Назначение |
+| --- | --- | --- |
+| `CI_SOURCE_ARCHIVE_TOKEN_B64` | Variable, masked/hidden | Base64 токена с доступом `read_api` к архиву этого проекта |
 
-Вместо `DEPLOY_SSH_PRIVATE_KEY_B64` можно добавить:
+Base64 — кодирование, не шифрование. Отключите подстановку ссылок на другие
+переменные для секретов. Ограничьте scopes, срок токенов и доступ к runner.
+`Protected` переменные доступны только подходящим защищённым веткам/тегам:
+согласуйте это с правилами job. Не выводите секреты и не включайте `set -x`.
 
-- `DEPLOY_SSH_PRIVATE_KEY` с типом `File`, если хочешь хранить ключ как файл.
-- `DEPLOY_PASSWORD` с типом `Variable` и visibility `Masked and hidden`, если
-  deploy будет идти по паролю.
+## Проверки и инструменты
 
-Лучше использовать отдельный SSH-ключ.
+| Job | Текущее поведение |
+| --- | --- |
+| `validate` | Go 1.26.9: gofmt, vet, staticcheck v0.7.0; `bash -n` для deploy/release scripts |
+| `frontend-check` | Node 24: `npm ci`, lint, typecheck, build |
+| `security-go` | govulncheck v1.8.0 |
+| `security-frontend` | `npm audit --audit-level=high` |
+| `go-build` | Бинарники api, worker, media-worker, product-worker, live-worker, main с version/commit/time |
+| `release-package` | Теги `vX.Y.Z` / prerelease: сборка, scan, SBOM и registry package |
+| `deploy-dev` | Только `main`: legacy rsync/build/up |
 
-Опциональные variables:
+Ручные продуктовые проверки дополняют CI и описаны в
+[чеклисте](operations/RELEASE_CHECKLIST.md).
 
-| Key | Type | Visibility | Default | Когда нужен |
-| --- | --- | --- | --- | --- |
-| `DEPLOY_PORT` | Variable | Visible | `22` | Если SSH слушает нестандартный порт. |
-| `DEPLOY_ENV_FILE_B64` | Variable | Masked and hidden | нет | Если нужно управлять серверным `.env` из GitLab. |
-| `DEPLOY_ENV_FILE` | File | Visible | нет | Альтернатива для `.env`, если не нужен hidden-режим. |
+## Пакет выпуска по тегу
 
-Base64 нужен потому, что `Masked and hidden` variables в GitLab должны быть в
-одну строку. Для secret variables отключи `Expand variable reference`. В GitLab
-API это поле называется `raw=false`. `Protected` включай только если ветка
-`feature/1-start-project` защищена в GitLab. Иначе job не увидит эти variables.
+| Переменная | Назначение |
+| --- | --- |
+| `TRIVY_IMAGE` | Проверенный scanner, закреплённый `@sha256:…`; обязателен |
+| `CI_REGISTRY`, `CI_REGISTRY_IMAGE`, `CI_REGISTRY_USER`, `CI_REGISTRY_PASSWORD` | Доступные job registry параметры; пароль передаётся `docker login --password-stdin` |
+| `RELEASE_INFRASTRUCTURE_MANIFEST` | Защищённая File variable с предыдущим проверенным `release.json` для обычного обновления |
+| `RELEASE_BOOTSTRAP` | `true` только для первой установки без предыдущей инфраструктуры |
+| `CLIENT_TELEMETRY_ENABLED` | Необязательный build-флаг frontend; по умолчанию выключен |
 
-## Как получить SSH-ключ
+`RELEASE_INFRASTRUCTURE_MANIFEST` и `RELEASE_BOOTSTRAP=true` взаимоисключающие.
+Без выбора режима package job останавливается. Нужен runner с Docker-in-Docker,
+TLS к daemon и разрешениями для сборки. Текущий CI вызывает `build.sh` без
+`--layout`, то есть classic. Source installer отдельно строит hardened archive;
+эти процессы нельзя считать одинаковыми. Подробности формата, scan и promotion —
+[RELEASE_PROCESS.md](RELEASE_PROCESS.md).
 
-На своей машине создай отдельный ключ для GitLab deploy:
+## Legacy development deploy
 
-```bash
-ssh-keygen -t ed25519 -C "gitlab-go-recorder-deploy" -f ~/.ssh/go_recorder_gitlab_deploy -N ''
-```
+Настраивайте только для выделенного development-хоста с подготовленными `.env`,
+сертификатами и внешней сетью gateway. Не направляйте его на каталог `/opt/meetspace`
+установки мастером или на действующий production project.
 
-Добавь публичный ключ на сервер:
+| Переменная | Тип / хранение | Назначение |
+| --- | --- | --- |
+| `DEPLOY_HOST` | Variable | Проверенный IP/DNS development-хоста |
+| `DEPLOY_USER` | Variable | Выделенный SSH-пользователь с доступом к Docker |
+| `DEPLOY_PATH` | Variable | Абсолютный каталог development checkout на сервере |
+| `DEPLOY_PORT` | Variable | SSH-порт, по умолчанию `22` |
+| `DEPLOY_SSH_PRIVATE_KEY_B64` | Variable, masked/hidden | Предпочтительный отдельный SSH-ключ в base64 |
+| `DEPLOY_SSH_PRIVATE_KEY` | File variable | Альтернатива base64 ключу; скрипт также принимает текст значения |
+| `DEPLOY_PASSWORD` | Variable, masked/hidden | Парольная альтернатива, если ключ не настроен |
+| `DEPLOY_ENV_FILE_B64` | Variable, masked/hidden | Необязательная полная development-конфигурация `.env` в base64 |
+| `DEPLOY_ENV_FILE` | File variable | Альтернатива env в base64 |
+| `BUILD_VERSION` | Variable | Безопасный ID сборки; при отсутствии берётся первые 12 символов `CI_COMMIT_SHA` |
 
-```bash
-ssh-copy-id -i ~/.ssh/go_recorder_gitlab_deploy.pub janickiy@192.168.90.201
-```
+Приоритет авторизации: ключ base64, затем ключ File/text, затем пароль. Приоритет
+конфигурации: env base64, затем env File/text; иначе используется серверный `.env`.
+При его отсутствии скрипт копирует `.env.example`, однако пустые обязательные
+пароли/ключи не создают готовую рабочую конфигурацию. Подготовьте их заранее по
+[README](../README.md). Основной медиатракт использует `MEDIA_NAT_IPS` и порт
+50010; `WEBRTC_NAT_IPS` относится к legacy recorder ingest. Публичный origin и
+`MINIO_PUBLIC_ENDPOINT` должны соответствовать реальному HTTPS входу.
 
-Проверь вход:
+Скрипт выполняет `rsync --delete`, сохраняя перечисленные в нём data/cert/env
+каталоги. Новые нестандартные каталоги автоматически не защищаются. Затем он
+собирает api/worker/media/product/live/frontend/minio и запускает базовый Compose
+с `--remove-orphans`. Автоматического drain, backup, миграционного окна и rollback
+здесь нет. `StrictHostKeyChecking=accept-new` принимает первый неизвестный ключ;
+предварительно проверьте host key и подготовьте доверенный `known_hosts` runner.
 
-```bash
-ssh -i ~/.ssh/go_recorder_gitlab_deploy janickiy@192.168.90.201 'whoami && docker --version && docker compose version'
-```
-
-В GitLab variable `DEPLOY_SSH_PRIVATE_KEY_B64` вставь приватный ключ в base64:
-
-```bash
-base64 < ~/.ssh/go_recorder_gitlab_deploy | tr -d '\n'; echo
-```
-
-## Серверный `.env`
-
-Если `DEPLOY_ENV_FILE_B64` и `DEPLOY_ENV_FILE` не заданы, deploy script создаст
-`.env` на сервере из `.env.example` только при первом деплое. Для реального
-сервера лучше добавить `DEPLOY_ENV_FILE_B64`, собранный из `.env.example`.
-
-Минимально проверь эти значения:
-
-```env
-APP_ENV=production
-GIN_MODE=release
-WEBRTC_NAT_IPS=192.168.90.201
-MINIO_PUBLIC_ENDPOINT=192.168.90.201:9000
-POSTGRES_PASSWORD=<strong-password>
-MINIO_ROOT_PASSWORD=<strong-password>
-RABBIT_MQ_HOST=rabbitmq
-RABBIT_MQ_PORT=5672
-RABBIT_MQ_USER=go_recorder
-RABBIT_MQ_PASSWORD=<strong-rabbit-password>
-RABBIT_MQ_VHOST=/
-RABBIT_MQ_HOST_PORT=5672
-RABBIT_MQ_MANAGEMENT_HOST_PORT=15672
-```
-
-Подготовь локальный файл, например `.env.production`, и вставь в GitLab
-`DEPLOY_ENV_FILE_B64` результат:
-
-```bash
-base64 < .env.production | tr -d '\n'
-```
-
-RabbitMQ запускается локально в Docker Compose этого проекта, внешняя сеть
-`infra_network` больше не нужна. Пользователь, пароль и vhost передаются и
-брокеру, и API/worker из одних переменных. Compose принудительно использует
-`rabbitmq:5672` и очищает `RABBIT_MQ_DSN` у клиентов, даже если серверный `.env`
-сохранил старое подключение. Удали из серверного `.env` устаревшие
-`RABBIT_MQ_NETWORK` и `RABBIT_MQ_DSN`.
-
-Host-порты RabbitMQ доступны только через `127.0.0.1`; при конфликте с общим
-брокером измени `RABBIT_MQ_HOST_PORT` и `RABBIT_MQ_MANAGEMENT_HOST_PORT`.
-Внешняя сеть gateway по-прежнему должна существовать.
-
-При первом переходе заверши активные записи и дождись опустошения старой
-очереди, включая неподтвержденные сообщения, до запуска deploy. Сообщения из
-общего брокера не переносятся автоматически. Данные нового брокера лежат в
-`dockers/rabbitmq/data/` и исключены из `rsync --delete`. После первой
-инициализации изменение пароля/vhost в `.env` требует отдельного обновления
-пользователя и прав в RabbitMQ; не удаляй каталог данных для смены пароля.
-
-На сервере deploy-пользователь должен иметь право писать в `DEPLOY_PATH` и
-запускать `docker compose`.
+Изменение пароля зависимости в `.env` не обновляет учётную запись существующего
+PostgreSQL/RabbitMQ/S3 автоматически. Не удаляйте данные для смены пароля.
+Production процедуры находятся в [DEPLOYMENT.md](DEPLOYMENT.md), а не в этой
+legacy job.

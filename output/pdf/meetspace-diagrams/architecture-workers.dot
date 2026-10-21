@@ -1,0 +1,27 @@
+digraph architecture_workers {
+graph [rankdir=TB, bgcolor="white", pad=0.12, margin=0, nodesep=0.22, ranksep=0.42, splines=polyline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=14, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3"><TR><TD COLSPAN="4"><FONT POINT-SIZE="19"><B>MeetSpace · запись и фоновые процессы</B></FONT></TD></TR><TR><TD><FONT COLOR="#2c5d8a">━━ Управление</FONT></TD><TD><FONT COLOR="#067566">━━ Медиа</FONT></TD><TD><FONT COLOR="#7b439a">━━ Файлы</FONT></TD><TD><FONT COLOR="#94630d">━━ SQL / RESP</FONT></TD></TR><TR><TD COLSPAN="4">FFmpeg запускается дочерним процессом workers; AMQP несёт команды</TD></TR></TABLE>>, labelloc=t];
+node [shape=box, style="rounded,filled", fillcolor="#eef4fa", color="#55738f", fontname="DejaVu Sans", fontsize=15, margin="0.12,0.08", penwidth=1.15];
+edge [fontname="DejaVu Sans", fontsize=14, arrowsize=0.75, penwidth=1.5];
+api [label="api\noutbox dispatcher", fillcolor="#eef4fa", shape=box];
+sfu [label="media-worker / SFU\nrecording + audio egress", fillcolor="#def1eb", shape=box];
+mq [label="RabbitMQ\nrecord.start / record.stop", fillcolor="#fff2d4", shape=cylinder];
+worker [label="worker · Go recorder\ncapture, FFmpeg, publish", fillcolor="#def1eb", shape=box];
+product [label="product-worker\njobs, STT, AI, интеграции", fillcolor="#eef4fa", shape=box];
+live [label="live-worker\nlive captions", fillcolor="#eef4fa", shape=box];
+pg [label="PostgreSQL\nleases, records, jobs", fillcolor="#fff2d4", shape=cylinder];
+redis [label="Redis\nregistry, locks, events", fillcolor="#fff2d4", shape=cylinder];
+spool [label="Локальный /storage\nисходники и артефакты", fillcolor="#f3e8f8", shape=cylinder];
+objects [label="S3 · minio:9000\nSeaweedFS / MinIO", fillcolor="#f3e8f8", shape=cylinder];
+api -> mq [label="AMQP publish", color="#2c5d8a", fontcolor="#2c5d8a", dir=forward, penwidth=1.4];
+mq -> worker [label="AMQP consume", color="#2c5d8a", fontcolor="#2c5d8a", dir=forward, penwidth=1.4];
+sfu -> worker [label="HTTP NDJSON\nRTP base64", color="#067566", fontcolor="#067566", dir=forward, penwidth=2];
+sfu -> live [label="HTTP audio tap", color="#067566", fontcolor="#067566", dir=forward, penwidth=2];
+worker -> spool [label="file I/O\nFFmpeg", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+worker -> objects [label="S3 PUT / HEAD", color="#7b439a", fontcolor="#7b439a", dir=forward, penwidth=1.4];
+worker -> pg [label="SQL\nlease / ready", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+worker -> redis [label="RESP\nlocks / events", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+product -> pg [label="SQL\njobs / content", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+product -> objects [label="S3 GET\n↔ bytes", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+live -> pg [label="SQL\ncaptions", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+live -> redis [label="RESP\nregistry / events", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+}

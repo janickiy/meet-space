@@ -1,0 +1,23 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Уведомления и служебные очереди</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"background_jobs" [label="background_jobs", tooltip="background_jobs", fillcolor="#e9f1f7", color="#527087"];
+"conference_participants" [label="conference_\nparticipants", tooltip="conference_participants", fillcolor="#f2f2f2", color="#a4a9ad"];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#f2f2f2", color="#a4a9ad"];
+"notification_jobs" [label="notification_jobs", tooltip="notification_jobs", fillcolor="#e9f1f7", color="#527087"];
+"notification_preferences" [label="notification_\npreferences", tooltip="notification_preferences", fillcolor="#e9f1f7", color="#527087"];
+"notifications" [label="notifications", tooltip="notifications", fillcolor="#e9f1f7", color="#527087"];
+"record" [label="record", tooltip="record", fillcolor="#f2f2f2", color="#a4a9ad"];
+"release_schema_migrations" [label="release_schema_\nmigrations", tooltip="release_schema_migrations", fillcolor="#e9f1f7", color="#527087"];
+"users" [label="users", tooltip="users", fillcolor="#f2f2f2", color="#a4a9ad"];
+"notification_jobs" -> "conference_participants" [tooltip="notification_jobs_participant_id_fkey: FOREIGN KEY (participant_id) REFERENCES conference_participants(id) ON DELETE RESTRICT"];
+"notification_jobs" -> "record" [tooltip="notification_jobs_recording_id_fkey: FOREIGN KEY (recording_id) REFERENCES record(uuid) ON DELETE RESTRICT"];
+"notification_jobs" -> "users" [tooltip="notification_jobs_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"notification_preferences" -> "users" [tooltip="notification_preferences_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"notifications" -> "users" [tooltip="notifications_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"background_jobs" -> "conferences" [style=dashed, color="#94661d", penwidth=1.45, tooltip="conference_id -> id; FK намеренно отсутствует для сохранения порядка блокировок.", constraint=false];
+"background_jobs" -> "users" [style=dashed, color="#94661d", penwidth=1.45, tooltip="user_id -> id; Получатель по виду задания; FK отсутствует.", constraint=false];
+"notification_jobs" -> "conferences" [style=dashed, color="#94661d", penwidth=1.45, tooltip="conference_id -> id; Прямой FK удалён/не создаётся; другие FK защищают связанные события.", constraint=false];
+"notification_jobs" -> "conference_participants" [style=dashed, color="#94661d", penwidth=1.45, tooltip="cursor_participant_id -> id; Курсор рассылки; FK отсутствует.", constraint=false];
+}

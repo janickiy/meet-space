@@ -1,0 +1,31 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Личные и групповые диалоги</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"conversation_attachments" [label="conversation_\nattachments", tooltip="conversation_attachments", fillcolor="#e9f1f7", color="#527087"];
+"conversation_avatar_objects" [label="conversation_\navatar_objects", tooltip="conversation_avatar_objects", fillcolor="#e9f1f7", color="#527087"];
+"conversation_members" [label="conversation_\nmembers", tooltip="conversation_members", fillcolor="#e9f1f7", color="#527087"];
+"conversation_message_pins" [label="conversation_\nmessage_pins", tooltip="conversation_message_pins", fillcolor="#e9f1f7", color="#527087"];
+"conversation_messages" [label="conversation_\nmessages", tooltip="conversation_messages", fillcolor="#e9f1f7", color="#527087"];
+"conversations" [label="conversations", tooltip="conversations", fillcolor="#e9f1f7", color="#527087"];
+"direct_calls" [label="direct_calls", tooltip="direct_calls", fillcolor="#f2f2f2", color="#a4a9ad"];
+"users" [label="users", tooltip="users", fillcolor="#f2f2f2", color="#a4a9ad"];
+"conversation_attachments" -> "conversations" [tooltip="conversation_attachments_conversation_id_fkey: FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE RESTRICT"];
+"conversation_attachments" -> "conversation_messages" [tooltip="conversation_attachments_conversation_id_message_id_fkey: FOREIGN KEY (conversation_id, message_id) REFERENCES conversation_messages(conversation_id, id) ON DELETE RESTRICT"];
+"conversation_attachments" -> "conversation_members" [tooltip="conversation_attachments_conversation_id_owner_user_id_fkey: FOREIGN KEY (conversation_id, owner_user_id) REFERENCES conversation_members(conversation_id, user_id) ON DELETE RESTRICT"];
+"conversation_avatar_objects" -> "conversations" [tooltip="conversation_avatar_objects_conversation_id_fkey: FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE RESTRICT"];
+"conversation_members" -> "conversations" [tooltip="conversation_members_conversation_id_fkey: FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE RESTRICT"];
+"conversation_members" -> "conversation_messages" [tooltip="conversation_members_read_fkey: FOREIGN KEY (conversation_id, last_read_message_id, last_read_sequence) REFERENCES conversation_messages(conversation_id, id, sequence) ON DELETE RESTRICT"];
+"conversation_members" -> "users" [tooltip="conversation_members_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"conversation_message_pins" -> "conversation_messages" [tooltip="conversation_message_pins_conversation_id_message_id_fkey: FOREIGN KEY (conversation_id, message_id) REFERENCES conversation_messages(conversation_id, id) ON DELETE CASCADE"];
+"conversation_message_pins" -> "conversation_members" [tooltip="conversation_message_pins_conversation_id_pinned_by_user_i_fkey: FOREIGN KEY (conversation_id, pinned_by_user_id) REFERENCES conversation_members(conversation_id, user_id) ON DELETE RESTRICT"];
+"conversation_messages" -> "direct_calls" [tooltip="conversation_messages_call_id_fkey: FOREIGN KEY (call_id) REFERENCES direct_calls(id) ON DELETE RESTRICT"];
+"conversation_messages" -> "conversations" [tooltip="conversation_messages_conversation_id_fkey: FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE RESTRICT"];
+"conversation_messages" -> "conversation_messages" [tooltip="conversation_messages_conversation_id_reply_to_id_fkey: FOREIGN KEY (conversation_id, reply_to_id) REFERENCES conversation_messages(conversation_id, id) ON DELETE RESTRICT"];
+"conversation_messages" -> "conversation_members" [tooltip="conversation_messages_conversation_id_sender_user_id_fkey: FOREIGN KEY (conversation_id, sender_user_id) REFERENCES conversation_members(conversation_id, user_id) ON DELETE RESTRICT"];
+"conversations" -> "conversation_messages" [tooltip="conversation_last_message_fkey: FOREIGN KEY (id, last_message_id) REFERENCES conversation_messages(conversation_id, id) ON DELETE RESTRICT"];
+"conversations" -> "users" [tooltip="conversations_created_by_fkey: FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT"];
+"conversations" -> "users" [tooltip="conversations_user_high_id_fkey: FOREIGN KEY (user_high_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"conversations" -> "users" [tooltip="conversations_user_low_id_fkey: FOREIGN KEY (user_low_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"conversations" -> "conversation_avatar_objects" [style=dashed, color="#94661d", penwidth=1.45, tooltip="avatar_version -> id; Текущий объект аватара; FK отсутствует, защищается транзакционной логикой.", constraint=false];
+}

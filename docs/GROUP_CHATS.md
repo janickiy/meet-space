@@ -1,6 +1,6 @@
 # Групповые чаты
 
-Группы — самостоятельные `conversations.type='group'`, доступные в разделе «Личные». Фильтры **Все / Личные / Группы / Новые** не создают разные хранилища сообщений. Conference chat остаётся в конференции. Папки в этом этапе не реализованы.
+Группы — самостоятельные `conversations.type='group'`, доступные в разделе «Личные». Фильтры **Все / Личные / Группы / Новые** не создают разные хранилища сообщений. Conference chat остаётся в конференции. Группы можно добавлять в личные [папки](PERSONAL_FOLDERS.md).
 
 ## Схема и правила
 
@@ -31,14 +31,15 @@
 
 | Метод и путь | Назначение / body |
 |---|---|
-| `GET /conversations` | Общий список; `type=direct|group`, `unreadOnly=true`, `search`, `before`, `limit` |
+| `GET /conversations` | Общий список; `type=direct\|group`, `unreadOnly=true`, `search`, `before`, `limit` |
 | `GET /conversations/:id` | Detail текущего участника |
+| `PATCH /conversations/:id/preferences` | `{notificationsEnabled}` — настройка уведомлений только текущего участника |
 | `POST /conversations/group` | `{clientRequestId,name,description,memberIds}`; создатель добавляется owner |
 | `PATCH /conversations/:id` | `{name?,description?}` |
 | `GET /conversations/:id/members` | `{status,items:[{id,displayName,role,online}]}`; до 100, owner/admin/member порядок |
 | `POST /conversations/:id/members` | `{userIds}`; повтор не создаёт второе membership |
 | `DELETE /conversations/:id/members/:userId` | Исключение с сохранением исторической строки |
-| `PATCH /conversations/:id/members/:userId` | `{role:"admin"|"member"}` |
+| `PATCH /conversations/:id/members/:userId` | `{role:"admin"\|"member"}` |
 | `POST /conversations/:id/ownership` | `{userId}` текущего участника |
 | `POST /conversations/:id/leave` | `{}` |
 | `DELETE /conversations/:id` | Закрытие группы владельцем |
@@ -70,7 +71,7 @@ Presence относится к аккаунтам, включая их неск�
 
 ## Приватные файлы и ресурсы
 
-Message attachments используют прежние ограничения размера/содержимого, lease/finalize и приватный bucket. Для group download выдаётся URL API с `authenticated:true`; это не MinIO bearer capability. Каждый запрос байтов проверяет текущее membership. Direct/conference подписанные ссылки сохраняют прежний контракт.
+Вложения используют ограничения размера/содержимого, lease/finalize и приватный bucket. Для group download выдаётся URL API с `authenticated:true`; это не MinIO bearer capability. Каждый запрос байтов проверяет текущее membership. Direct/conference используют подписанные ссылки.
 
 Браузер использует Bearer fetch → Blob/ObjectURL для файлов и аватаров; JWT не помещается в query. Запросы отменяются при размонтировании/потере доступа, Object URL освобождаются. Загрузка аватаров ограничена общей очередью на 6 запросов; HTTP429 повторяется максимум дважды, ожидание отменяется при unmount. Уже скачанные пользователем байты отозвать невозможно. Начатая авторизованная передача завершается или отменяется до commit удаления участника; stream ограничен 30 секундами и пулом 8 операций на API. Долгий stream может задержать изменения этого conversation до освобождения shared lock.
 
@@ -78,10 +79,32 @@ Message attachments используют прежние ограничения �
 
 Миграция **31** создаёт durable ledger `conversation_avatar_objects`: pending → active → retired/cleaning → cleaned. Объект регистрируется до отправки MinIO; прерванные загрузки, замены и удалённые группы очищаются ограниченными порциями. Cleanup не удаляет текущий аватар и не может активировать уже захваченный для удаления объект. Очищенные записи старше семи дней удаляются ограниченными порциями; неочищенные и текущие ссылки сохраняются.
 
-## Rollback и будущие папки
+## Совместимость и связанные возможности
 
-Не откатывать API на старый direct-only binary после появления group data: его проверка существования membership может разрешить исключённому участнику доступ по tombstone. Нужен rollback binary с active/type guards либо совместимый forward fix.
+При откате API должен сохранять проверки активного членства и типа переписки.
+Версия без этих проверок может открыть историю исключённым участникам;
+используйте [процедуру отката](ROLLBACK.md).
 
-Down 30 запрещён, если существуют группы; down 31 запрещён при неочищенных объектах/текущих avatar ссылках. Безопасная rehearsal на пустых таблицах использует 31 → 30 → 28 и согласованные migration ledger entries. Существующая conference история не переносится и не меняется.
+Down 30 запрещён, если существуют группы; down 31 запрещён при неочищенных объектах/текущих avatar ссылках. Откат отдельных ранних миграций в текущей схеме с папками, звонками и закреплениями
+не является готовой командой rollback; требуется согласованный план всего выпуска. История конференций хранится отдельно.
 
-Будущие папки смогут ссылаться на UUID direct/group conversation через отдельную per-user many-to-many связь. Архивация, закрепление, «пометить непрочитанным», звонки из группы и папки не представлены фиктивными действиями этого этапа.
+Папки уже ссылаются на direct/group UUID через `folder_conversations`.
+Общие закрепления сообщений реализованы: до 20 на переписку, управлять ими может
+любой действующий участник. Поиск сообщений и переход к контексту работают в
+группах: [personal-chat-search.md](personal-chat-search.md).
+Личные звонки доступны между двумя аккаунтами; групповых звонков из чата нет.
+Настройка `PATCH /conversations/:id/preferences {notificationsEnabled}` доступна
+каждому участнику группы и меняет только его уведомления, сохраняя unread.
+Персональные `/clear-history` и `/hide` относятся только к direct.
+Архивация и «пометить непрочитанным» не реализованы.
+
+## Ошибки
+
+`401` — токен/сессия, `403` — роль или утрата членства, `404` — недоступная группа,
+`409` — конфликт создания/владения/лимитов, `422` — поля/UUID/курсор,
+`429` — rate limit. Upload дополнительно проверяет MIME/размер/содержимое;
+не нужно повторять невалидные файлы без исправления.
+
+Источники: [personal_routes.go](../internal/transport/http/personal_routes.go),
+[personal_asset_routes.go](../internal/transport/http/personal_asset_routes.go),
+[personal handlers](../internal/app/personal).

@@ -1,0 +1,30 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Чат конференции", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "chat_attachments" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>chat_attachments</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: message_id</TD></TR><TR><TD ALIGN="LEFT">FK: owner_user_id</TD></TR><TR><TD ALIGN="LEFT">18 полей</TD></TR></TABLE>>];
+  "chat_messages" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>chat_messages</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: reply_to_id</TD></TR><TR><TD ALIGN="LEFT">FK: sender_user_id</TD></TR><TR><TD ALIGN="LEFT">12 полей</TD></TR></TABLE>>];
+  "chat_notification_jobs" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>chat_notification_jobs</B></TD></TR><TR><TD ALIGN="LEFT">PK: message_id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">5 полей</TD></TR></TABLE>>];
+  "chat_read_states" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>chat_read_states</B></TD></TR><TR><TD ALIGN="LEFT">PK: conference_id, user_id</TD></TR><TR><TD ALIGN="LEFT">FK: last_read_message_id</TD></TR><TR><TD ALIGN="LEFT">5 полей</TD></TR></TABLE>>];
+  "conference_chat_pins" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>conference_chat_pins</B></TD></TR><TR><TD ALIGN="LEFT">PK: conference_id, user_id, message_id</TD></TR><TR><TD ALIGN="LEFT">4 полей</TD></TR></TABLE>>];
+  "conference_chat_preferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>conference_chat_preferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: conference_id, user_id</TD></TR><TR><TD ALIGN="LEFT">5 полей</TD></TR></TABLE>>];
+  "conference_participants" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conference_participants</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "users" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>users</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "chat_attachments" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "chat_attachments" -> "chat_messages" [label="message_id → id\nDELETE RESTRICT"];
+  "chat_attachments" -> "users" [label="owner_user_id → id\nDELETE RESTRICT"];
+  "chat_messages" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "chat_messages" -> "chat_messages" [label="reply_to_id → id\nDELETE RESTRICT"];
+  "chat_messages" -> "users" [label="sender_user_id → id\nDELETE RESTRICT"];
+  "chat_notification_jobs" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "chat_notification_jobs" -> "chat_messages" [label="message_id → id\nDELETE RESTRICT"];
+  "chat_read_states" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "chat_read_states" -> "chat_messages" [label="last_read_message_id → id\nDELETE RESTRICT"];
+  "chat_read_states" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "conference_chat_pins" -> "chat_messages" [label="conference_id, message_id → conference_id, id\nDELETE RESTRICT"];
+  "conference_chat_pins" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "conference_chat_preferences" -> "conferences" [label="conference_id → id\nDELETE CASCADE"];
+  "conference_chat_preferences" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "chat_notification_jobs" -> "conference_participants" [style=dashed, color="#a06b20", label="cursor_participant_id → id\nбез FK"];
+}

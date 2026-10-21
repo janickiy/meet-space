@@ -1,0 +1,20 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Запись и артефакты</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#f2f2f2", color="#a4a9ad"];
+"record" [label="record", tooltip="record", fillcolor="#e9f1f7", color="#527087"];
+"record_event" [label="record_event", tooltip="record_event", fillcolor="#e9f1f7", color="#527087"];
+"record_file" [label="record_file", tooltip="record_file", fillcolor="#e9f1f7", color="#527087"];
+"record_segment" [label="record_segment", tooltip="record_segment", fillcolor="#e9f1f7", color="#527087"];
+"recording_outbox" [label="recording_outbox", tooltip="recording_outbox", fillcolor="#e9f1f7", color="#527087"];
+"users" [label="users", tooltip="users", fillcolor="#f2f2f2", color="#a4a9ad"];
+"record" -> "conferences" [tooltip="record_platform_conference_id_fkey: FOREIGN KEY (platform_conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"record_event" -> "record" [tooltip="record_event_record_id_fkey: FOREIGN KEY (record_id) REFERENCES record(id) ON DELETE CASCADE"];
+"record_event" -> "record_segment" [tooltip="record_event_segment_id_fkey: FOREIGN KEY (segment_id) REFERENCES record_segment(id) ON DELETE SET NULL"];
+"record_file" -> "record" [tooltip="record_file_record_id_fkey: FOREIGN KEY (record_id) REFERENCES record(id) ON DELETE CASCADE"];
+"record_segment" -> "record" [tooltip="record_segment_record_id_fkey: FOREIGN KEY (record_id) REFERENCES record(id) ON DELETE CASCADE"];
+"recording_outbox" -> "record" [tooltip="recording_outbox_record_id_fkey: FOREIGN KEY (record_id) REFERENCES record(uuid) ON DELETE CASCADE"];
+"record" -> "conferences" [style=dashed, color="#94661d", penwidth=1.45, tooltip="conference_id -> id; Только для платформенных режимов равно platform_conference_id; legacy UUID может быть внешним.", constraint=false];
+"record" -> "users" [style=dashed, color="#94661d", penwidth=1.45, tooltip="requested_by -> id; Инициатор по коду; FK отсутствует.", constraint=false];
+}

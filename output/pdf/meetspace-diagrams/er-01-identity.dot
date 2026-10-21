@@ -1,0 +1,15 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Учётные записи и сессии", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "auth_legacy_tokens" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>auth_legacy_tokens</B></TD></TR><TR><TD ALIGN="LEFT">PK: token_hash</TD></TR><TR><TD ALIGN="LEFT">FK: session_id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">4 полей</TD></TR></TABLE>>];
+  "auth_session_tokens" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>auth_session_tokens</B></TD></TR><TR><TD ALIGN="LEFT">PK: token_hash</TD></TR><TR><TD ALIGN="LEFT">FK: session_id</TD></TR><TR><TD ALIGN="LEFT">2 полей</TD></TR></TABLE>>];
+  "auth_sessions" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>auth_sessions</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">4 полей</TD></TR></TABLE>>];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "users" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>users</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">8 полей</TD></TR></TABLE>>];
+  "auth_legacy_tokens" -> "auth_sessions" [label="session_id → id\nDELETE CASCADE"];
+  "auth_legacy_tokens" -> "users" [label="user_id → id\nDELETE CASCADE"];
+  "auth_session_tokens" -> "auth_sessions" [label="session_id → id\nDELETE CASCADE"];
+  "auth_sessions" -> "users" [label="user_id → id\nDELETE CASCADE"];
+  "users" -> "conferences" [style=dashed, color="#a06b20", label="guest_conference_id → id\nбез FK"];
+}

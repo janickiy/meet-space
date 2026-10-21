@@ -1,0 +1,50 @@
+flowchart TB
+  %% Синий = управление; зелёный = медиа; фиолетовый = файлы; охра = SQL/RESP.
+  %% Двусторонние стрелки: запрос/ответ либо отправка своих и приём удалённых дорожек.
+  browser["Браузер<br/>React + WebRTC"]
+  proxy["Nginx proxy / https<br/>TLS, маршрутизация"]
+  frontend["frontend<br/>React assets"]
+  api["api · Go / Gin<br/>REST, WS, авторизация"]
+  sfu["media-worker<br/>Pion SFU · :8091"]
+  turn["coturn<br/>TURN relay"]
+  pg["PostgreSQL<br/>состояние, outbox, jobs"]
+  redis["Redis<br/>registry, Pub/Sub"]
+  objects["S3 · minio:9000<br/>SeaweedFS / MinIO"]
+  browser <-->|"HTTPS / WSS<br/>API, signaling"| proxy
+  linkStyle 0 stroke:#2c5d8a,color:#2c5d8a,stroke-width:1.5px
+  browser <-->|"HTTPS<br/>assets / signed GET"| proxy
+  linkStyle 1 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  proxy <-->|"HTTP<br/>assets"| frontend
+  linkStyle 2 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  proxy <-->|"HTTP / WS"| api
+  linkStyle 3 stroke:#2c5d8a,color:#2c5d8a,stroke-width:1.5px
+  proxy <-->|"S3 GET<br/>↔ байты файла"| objects
+  linkStyle 4 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  api <-->|"SQL"| pg
+  linkStyle 5 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  api <-->|"RESP<br/>Pub/Sub"| redis
+  linkStyle 6 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  api <-->|"HTTP :8091<br/>SDP / ICE"| sfu
+  linkStyle 7 stroke:#2c5d8a,color:#2c5d8a,stroke-width:1.5px
+  browser <-->|"SRTP<br/>свои / удалённые треки"| sfu
+  linkStyle 8 stroke:#067566,color:#067566,stroke-width:2.2px
+  browser <-->|"SRTP<br/>если нужен relay"| turn
+  linkStyle 9 stroke:#067566,color:#067566,stroke-width:2.2px,stroke-dasharray:5 4
+  turn <-->|"SRTP relay"| sfu
+  linkStyle 10 stroke:#067566,color:#067566,stroke-width:2.2px,stroke-dasharray:5 4
+  sfu <-->|"RESP<br/>registry / events"| redis
+  linkStyle 11 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  api <-->|"S3 API<br/>вложения / cleanup"| objects
+  linkStyle 12 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+
+  subgraph legend["Легенда каналов"]
+    direction LR
+    legend_control["Управление: HTTP / WSS / AMQP"]
+    legend_media["Медиа: SRTP / RTP"]
+    legend_files["Файлы: S3 / file I/O"]
+    legend_db["Данные: SQL / RESP"]
+  end
+  style legend_control fill:#eef4fa,stroke:#2c5d8a,color:#2c5d8a
+  style legend_media fill:#def1eb,stroke:#067566,color:#067566
+  style legend_files fill:#f3e8f8,stroke:#7b439a,color:#7b439a
+  style legend_db fill:#fff2d4,stroke:#94630d,color:#94630d

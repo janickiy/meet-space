@@ -1,56 +1,55 @@
-# Отказные проверки, 1–2 октября 2026
+# Матрица отказных проверок
 
-Проект `recorder-stage6`, отдельные containers/volumes/ports. Основной
-`go-recorder` не останавливался. Инъекция выполнялась без живых пользовательских
-комнат; это проверка dependency readiness/recovery, не доказательство zero-loss.
+Проводите проверки на отдельном стенде с собственными project, портами, БД,
+S3 bucket и данными. Перед началом зафиксируйте версии приложения и зависимостей,
+тип S3-хранилища, сценарий нагрузки и критерии восстановления. Команды управления
+выбирайте по [Compose-топологии](../DEPLOYMENT.md#выбор-процедуры-по-типу-установки).
 
-| Инъекция | Снятие ready, сек | Ready после start, сек | Что подтверждено |
-|---|---:|---:|---|
-| Redis stop/start | 2.512 | 0.923 | API 503→200 |
-| RabbitMQ stop/start | 2.994 | 2.948 | API 503→200, publisher восстановлен |
-| PostgreSQL stop/start | 2.256 | 1.766 | API 503→200, pool переподключается |
-| MinIO stop/start | 3.081 | 0.916 | API 503→200, bucket проверка восстановлена |
-| media-worker stop/start | 0.282 | 0.332 | Процесс/control ready восстановлен |
-| recorder stop/start | 0.196 | 2.143 | Процесс/consumer ready восстановлен |
+## Порядок проверки
 
-Время включает выполнение Docker stop/start и polling с шагом 200ms; не является
-SLA. Зависимости выполнялись последовательно. Дополнительные сценарии:
+1. Убедитесь, что штатные HTTP, WS, аудио/видео и запись работают.
+2. Введите один контролируемый отказ из таблицы. Сохраните время, readiness,
+   состояние клиентского соединения, очередей и текущей записи.
+3. Восстановите зависимость и проверьте перечисленные результаты.
+4. Перед следующим сценарием дождитесь готовности служб и завершения фоновых
+   работ. Сохраните результаты отдельно для каждого сценария.
 
-- Own AMQP connection close: publisher reconnect, consumer reconnect, последующая
-  команда дошла; request UUID сохранился. Poison JSON подтверждён в durable failed
-  queue, исходная доставка ack только после publisher confirm.
-- FFmpeg helper пишет 2 МиБ: сохраняется не более 64 КиБ; игнорирующий TERM
-  дочерний процесс принудительно завершается приблизительно через 3s после cancel.
-  Shell metacharacters передаются буквально, не выполняются.
-- SFU join/shutdown race, transport failure/admission timeout cleanup,
-  auth/session expiry и Redis bus failure проверяются existing unit/integration
-  тестами. Клиентские browser Stage 3/4 проверяют recreate PC после disconnect.
-- Recorder lease fencing, потеря egress, recovery closed chunk и conference finish
-  auto-stop проверены настоящим Stage 4 recorder E2E. Failed не превращается в ready.
-- Forced TURN UDP/TCP + reconnect: выбран local relay candidate и двусторонний
-  audio/video RTP. Остановка Coturn во время активной relay-only конференции:
-  оба транспорта учитываются как failed, peers/rooms освобождаются (PASS, весь
-  сценарий 24.94s, не время восстановления). После start Coturn повторный UDP/TCP
-  RTP+reconnect PASS (8.27s). Обнаружен и исправлен пропуск failure counter при
-  закрытии disconnected watchdog-ом раньше callback-а failed.
-- External packet loss, disk-full, process kill -9 в середине chunk и outage
-  storage во время большого upload пока не проверены этим прогоном. Это отдельные
-  эксплуатационные риски.
+| Отказ | Что наблюдать во время сбоя | Что проверить после восстановления |
+| --- | --- | --- |
+| Redis недоступен | Readiness, WS/presence, ownership/leases | Новые leases, reconnect клиентов и HTTP snapshot/history; старое PubSub-событие не воспроизводится автоматически |
+| RabbitMQ недоступен / соединение consumer закрыто | Start/stop записи, publisher confirms, backlog и число consumers | Восстановление publisher/consumer, выполнение команд, отсутствие двойного старта; очередь `.failed` разобрана до replay |
+| PostgreSQL недоступен | Readiness, ошибки auth/chat/conference/recording, pool | Переподключение, состояние транзакций и записей; неуспешная mutation не отображается как сохранённая |
+| S3 недоступен во время upload | Состояние записи, spool, ошибки финализации | PG status и objects согласованы; bytes/размер/доступ проверены; запись не получает ready без артефактов |
+| Остановка media-worker | Разрыв RTP, освобождение комнат/peers/leases | Новый ticket и PeerConnection, повторное подключение участников; потерянный RTP не восстанавливается |
+| Остановка recorder во время записи или финализации | Lease/token, FFmpeg, состояние chunks и record | Recovery доступных закрытых chunks, конечный status и воспроизведение; незакрытый хвост учитывается как возможная потеря |
+| Остановка Coturn при relay-only соединении | Выбранная ICE pair и разрыв media | Новое relay-подключение по UDP/TCP/TLS в целевой сети; проверить двусторонний RTP, а не только HTTP health |
+| Ошибка FFmpeg / недостаток диска | Worker readiness, stderr, failed status, размер spool | Отсутствие оставшихся процессов, сохранность пригодных chunks, корректный статус; перед очисткой сверить record и S3 |
+| Потеря пакетов / смена сети | ICE/connection state, качество звука/видео, reconnect | Возврат обмена media, корректное состояние UI и завершение записи |
 
-## Эффект для пользователей и действия оператора
+S3 в development/classic обслуживает MinIO, в hardened/standalone — SeaweedFS
+под именем `minio`. Для каждого backend проверяются его policy, conditional
+writes, signed URL и запрет анонимного доступа.
 
-| Сбой | Пользовательский эффект | Потеря данных / восстановление |
-|---|---|---|
-| Redis | WS/presence/ownership перестают быть надёжными; clients disconnect | PubSub события не durable; после reconnect HTTP snapshot и история из PG. Старые leases не восстанавливать |
-| Rabbit | Start/stop может откладываться или возвращать ошибку | Подтверждённые persistent сообщения остаются в брокере; возможны дубли. Проверить consumers/backlog/failed queue перед replay |
-| PG | Auth/conference/chat/recording state операции не проходят | Не подтверждать mutation как success. Вернуть PG/лимиты, проверить locks и транзакции, при повреждении restore |
-| MinIO | Upload/download/finalization недоступны, ready не ставится | Retained chunks и PG состояния сохраняются; token-prefix cleanup best effort, orphan сверяются после возврата storage |
-| media-worker | RTP прерывается | Live room migration нет; новый ticket/PC/reconnect, незаписанный RTP потерян |
-| recorder | Запись/финализация прерывается | Закрытые chunks пригодны для recovery; незавершённый хвост может быть утрачен. Проверить ownership, disk и leases |
-| TURN | Relay клиент не собирает/не поддерживает маршрут | Новое подключение или reconnect после восстановления; media continuity не гарантируется |
-| FFmpeg/disk-full | Recording failed, не success | Снять admission, сохранить валидные chunks, освободить/расширить диск после сверки данных; причина и status должны быть видны |
+## Проверка записи при отказах
 
-Production restart сначала drain/LB removal, затем SIGTERM с достаточным grace
-period. Отдельный рестарт readiness-проверки не доказывает успешную финализацию
-всех существующих записей. Для этого нужна живая recording failure matrix на
-целевом сервере и согласованные критерии допустимого tail loss.
+Для включённых режимов записи отдельно проверяйте сбой во время захвата,
+финализации и upload. Сопоставьте record/record_file, локальные chunks и S3 keys;
+проверьте файл через ffprobe и воспроизведение. Зафиксируйте длительность,
+звук/изображение, потерю хвоста, дубликаты и состояние после повторной команды.
+
+Закрытые chunks могут использоваться для recovery, однако потерянный RTP и
+незакрытый хвост не гарантируют восстановление. Не подменяйте failed на ready
+вручную. Незакоммиченные object prefixes удаляются best effort; после outage
+сверяйте orphan objects с PostgreSQL перед очисткой.
+
+## Завершение и приёмка
+
+Сохраните для каждого отказа время обнаружения и восстановления, версии,
+клиентские симптомы, итоговое состояние данных и оставшиеся ошибки. Readiness
+проверяется отдельно от реального playback и media connectivity.
+
+Штатное обслуживание использует другой порядок: ограничить новую нагрузку,
+завершить активные записи через API, дождаться финализации и очередей, затем
+включить drain и останавливать процессы. Порядок и команды — в
+[runbook](README.md#health-и-завершение), резервное копирование — в
+[backup-restore.md](backup-restore.md).

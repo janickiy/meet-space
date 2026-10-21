@@ -1,7 +1,8 @@
-# Текущая архитектура Go Recorder / Meet
+# Архитектура MeetSpace
 
-Документ описывает реализацию этапов 1–10 и текущую модель одного хоста Docker
-Compose. Источник конфигурации выпуска —
+Актуализировано 2026-10-21 по коду `6e577b6cced4e34d1c031353fbb9055909055185`.
+
+Документ описывает текущую модель одного хоста Docker Compose. Базовая конфигурация выпуска —
 [`docker-compose.production.yml`](../docker-compose.production.yml);
 локальный [`docker-compose.yml`](../docker-compose.yml) имеет дополнительные
 публикации портов и не является staging. Процедуры выпуска и восстановления:
@@ -12,22 +13,25 @@ flowchart LR
   Browser[Браузер] -->|HTTPS / WSS| Proxy[Публичный Nginx]
   Proxy --> Frontend[Frontend: статика Nginx]
   Proxy --> API[API: REST / WS / SSE]
-  Proxy -->|Подписанное скачивание| MinIO[(MinIO)]
+  Proxy -->|Подписанное скачивание| Objects[(S3: MinIO или SeaweedFS)]
   Browser <-->|WebRTC| SFU[media-worker: SFU]
   Browser <-->|TURN / TURNS| TURN[Coturn]
   TURN <--> SFU
   API --> PG[(PostgreSQL)]
   API <--> Redis[(Redis)]
-  API --> Rabbit[(RabbitMQ)]
-  API --> SFU
+  API -->|record.start / record.stop через outbox| Rabbit[(RabbitMQ)]
+  API -->|Внутренние команды сигнализации| SFU
+  SFU <--> Redis
   Rabbit --> Recorder[worker: запись + compositor + FFmpeg]
-  SFU -->|Внутренний RTP egress| Recorder
+  SFU -->|HTTP NDJSON: metadata + base64 RTP| Recorder
+  Recorder --> Spool[(Локальный spool /storage)]
   Recorder --> PG
-  Recorder --> MinIO
+  Recorder <--> Redis
+  Recorder --> Objects
   Product[product-worker: задания и scheduler] <--> PG
-  Product --> MinIO
+  Product --> Objects
   Product --> Providers[Настроенные внешние провайдеры]
-  SFU -->|Аудиопоток| Live[live-worker]
+  SFU -->|HTTP NDJSON audio tap| Live[live-worker + FFmpeg]
   Live --> PG
   Live <--> Redis
   Live --> Providers
@@ -36,7 +40,7 @@ flowchart LR
   Prometheus --> SFU
   Prometheus --> Product
   Prometheus --> Live
-  Grafana[Grafana] --> Prometheus
+  Grafana[Grafana: отдельный вариант поставки] --> Prometheus
 ```
 
 ## Процессы приложения
@@ -47,11 +51,11 @@ Readiness проверяет готовность зависимостей, а �
 | Сервис | Ответственность | Порты / зависимости | Постоянные данные | Health | Масштабирование |
 | --- | --- | --- | --- | --- | --- |
 | `frontend` | React/TypeScript/Vite, статические файлы и same-origin API proxy | 8080/TCP; API | В образе, записываемых бизнес-данных нет | `/healthz`, `/version.json` | Несколько экземпляров возможны за балансировщиком с согласованной версией; текущий Compose содержит один |
-| `api` | Авторизация, встречи, REST, WS/SSE, права, постановка команд и заданий | 8085/TCP; PostgreSQL, Redis, RabbitMQ, MinIO, media-worker | Устойчивые данные в PostgreSQL/MinIO; активные сокеты в памяти | `/health/live`, `/health/ready`, `/version` | Общие хранилища позволяют несколько процессов; текущий proxy и Compose не реализуют бесшовный rolling pool |
+| `api` | Авторизация, встречи, REST, WS/SSE, права, постановка команд и заданий | 8085/TCP; PostgreSQL, Redis, RabbitMQ, S3, media-worker | Устойчивые данные в PostgreSQL/S3; активные сокеты в памяти | `/health/live`, `/health/ready`, `/version` | Общие хранилища позволяют несколько процессов; текущий proxy и Compose не реализуют бесшовный rolling pool |
 | `media-worker` | SFU: маршрутизация RTP, политики устройств, egress для записи и аудио | 8091/TCP только внутри сети; публичные 50010/UDP и TCP по Compose; Redis | Активные комнаты и PeerConnection в памяти; аренды в Redis | `/health/live`, `/health/ready`, `/version` | Уникальные worker ID, адреса и сетевые порты для каждого экземпляра; живая миграция комнат отсутствует |
-| `worker` | Захват записи, compositor, FFmpeg, проверка и публикация результатов | 8090/TCP внутри; PostgreSQL, Redis, RabbitMQ, MinIO, media-worker | Spool `/storage` на выделенном томе; результаты в MinIO, метаданные в PostgreSQL | `/health/live`, `/health/ready`, `/version`, проверка диска и consumer | Ограниченные параллельные задачи, аренды с поколениями; каждому экземпляру нужны собственная идентичность и корректное владение spool |
-| `product-worker` | Постоянная очередь заданий, напоминания, интеграции, STT, ИИ, embeddings | 8092/TCP внутри; PostgreSQL, MinIO, настроенные провайдеры | `background_jobs` и результаты в PostgreSQL; временные медиа в `/tmp` | `/health/live`, `/health/ready`, `/version` | Конкурентный захват `SKIP LOCKED`, аренды и идемпотентность; масштаб ограничен бюджетом БД, памяти и провайдеров |
-| `live-worker` | Потоковые субтитры и наблюдения для аналитики | 8093/TCP внутри; PostgreSQL, Redis, media-worker, live STT | Финальные реплики и агрегаты в PostgreSQL; текущие очереди в памяти | `/health/live`, `/health/ready`, `/version` | Ограниченные сессии/комнаты и аренды; отказ вспомогательной обработки не должен останавливать SFU |
+| `worker` (Go recorder-worker) | Захват записи, compositor, FFmpeg, проверка и публикация результатов | 8090/TCP внутри; PostgreSQL, Redis, RabbitMQ, S3, media-worker | Spool `/storage` на выделенном томе; результаты в S3, метаданные в PostgreSQL | `/health/live`, `/health/ready`, `/version`, проверка диска и consumer | Ограниченные параллельные задачи, аренды с поколениями; каждому экземпляру нужны собственная идентичность и корректное владение spool |
+| `product-worker` | Постоянная очередь заданий, напоминания, интеграции, STT, ИИ, embeddings, агрегирование аналитики | 8092/TCP внутри; PostgreSQL, S3, настроенные провайдеры | `background_jobs` и результаты в PostgreSQL; временные медиа в `/tmp` | `/health/live`, `/health/ready`, `/version` | Конкурентный захват `SKIP LOCKED`, аренды и идемпотентность; масштаб ограничен бюджетом БД, памяти и провайдеров |
+| `live-worker` | Потоковые субтитры и наблюдения для аналитики | 8093/TCP внутри; PostgreSQL, Redis, media-worker, live STT | Финальные реплики и наблюдения в PostgreSQL; текущие очереди в памяти | `/health/live`, `/health/ready`, `/version` | Ограниченные сессии/комнаты и аренды; отказ вспомогательной обработки не должен останавливать SFU |
 
 Compositor встроен в `worker`; scheduler выполняется внутри существующих
 процессов обработки. Отдельных сервисов compositor, scheduler, service mesh
@@ -67,21 +71,56 @@ Compositor встроен в `worker`; scheduler выполняется внут
 | `postgres` | Пользователи, права, история, jobs, тексты, аналитика; pgvector при включённом поиске | 5432/TCP, только private network | Том `postgres` | `pg_isready` плюс прикладные запросы; одиночный экземпляр, автоматического failover нет |
 | `redis` | Presence, Pub/Sub, leases, билеты, rate limits, временная доставка реакций | 6379/TCP, только private network | В production Compose persistence выключен | `PING`; потеря Redis требует восстановления сессий и аренды, не является потерей PostgreSQL-истории |
 | `rabbitmq` | Доставка команд записи с подтверждениями | 5672/TCP; management 15672 не опубликован | Том `rabbitmq` | `rabbitmq-diagnostics ping` и consumer readiness; одиночный брокер |
-| `minio` | Приватные записи, превью, архивы дорожек, вложения | 9000/TCP; console 9001 не опубликована | Том `minio` | MinIO live endpoint и прикладные probes; одиночное хранилище, копия БД не заменяет копию объектов |
+| `minio` | S3-совместимое приватное хранилище записей, превью, архивов и вложений | 9000/TCP; у классического MinIO console 9001 закрыта | Классический том `minio`; hardened — `objects:/data` | Healthcheck зависит от overlay; S3-проверки нужны в обоих вариантах |
 | `prometheus` | Метрики служб и правила alert | 9090/TCP, хост `127.0.0.1:19090` | Том `prometheus`, retention 7 дней в примере | `/-/ready`, состояние targets; профиль `observability`, без настроенной доставки alert сам по себе не уведомляет дежурного |
-| `grafana` | Предоставленные dashboards | 3000/TCP, хост `127.0.0.1:13001` | Том `grafana`, provisioning, внешний пароль | `/api/health`; профиль `observability`, доступ через контролируемый канал |
+| `grafana` | Предоставленные dashboards | 3000/TCP, хост `127.0.0.1:13001` | Том `grafana`, provisioning, внешний пароль | `/api/health`; профиль `observability`, доступ через контролируемый канал; не включена в текущий hardened-комплект |
 
 Однохостовая схема имеет общие точки отказа: сам хост/диск, proxy, БД, Redis,
 брокер, object storage и единственный media-worker. Имена томов не означают
 резервирование или репликацию. Горизонтальное увеличение API само по себе не
 устраняет эти зависимости и не увеличивает сетевую ёмкость SFU.
 
+## Варианты поставки и локальные файлы
+
+`install.sh` → [`scripts/install/from-source.py`](../scripts/install/from-source.py)
+собирает комплект `hardened-shared-host`. Его S3-сервис по-прежнему называется
+`minio`, но образ [`dockers/object-storage/Dockerfile`](../dockers/object-storage/Dockerfile)
+содержит **SeaweedFS**. Имена `MINIO_*` и S3 SDK сохранены ради совместимости.
+Установщик объединяет production Compose, `docker-compose.hardened.yml` и
+сгенерированные `config/compose.json`, `config/turn.yml`; последний включает
+host network для Coturn. Название layout не означает автоматического подключения
+`docker-compose.shared-host.yml`. Классический Compose с MinIO также остаётся в
+репозитории; содержимое его тома не переносится автоматически в `objects`.
+В текущем hardened-комплекте есть Prometheus; Grafana исключена из этого комплекта.
+
+В production `worker` работает как UID/GID 1000 и получает bind mount
+`${RECORDER_STORAGE_DIR}:/storage`. `/storage/records/{recordId}` — локальный spool
+сырьевых IVF/Ogg, manifests, сегментов и готовящихся файлов. Это отдельное
+хранилище от S3. После успеха оно очищается при `RECORDING_KEEP_LOCAL=false`;
+после ошибки сохраняется для разбора/восстановления финализации. Автоматический
+семидневный retention S3 не чистит failed spools. Legacy RTP-порты worker в
+production отключены (`WEBRTC_UDP_PORT=0`, `WEBRTC_TCP_PORT=0`); браузер работает с SFU.
+
 ## Границы ответственности и завершение
 
 API управляет правами и сигнализацией; RTP между участниками передаёт SFU.
 FFmpeg не работает в обработчике API и не декодирует медиа внутри SFU.
 Отдельные ограниченные очереди отделяют запись/распознавание от живого звонка.
-Недоступность ИИ не является основанием считать видеосвязь успешной или неуспешной.
+Go recorder-worker получает `application/x-ndjson` от SFU: `hello`, `track`,
+`rtp` (байты RTP как base64 в JSON), `track.end`, `ping`, `error`. RabbitMQ доставляет
+только команды записи. API фиксирует запись и `recording_outbox` атомарно; dispatcher
+публикует команды с подтверждением. События состояния идут через Redis и conference WS.
+`product-worker` использует другую постоянную очередь — `background_jobs` в PostgreSQL.
+`live-worker` открывает отдельный audio tap, декодирует Opus через FFmpeg в PCM
+и при явном включении отправляет его настроенному live STT. Подробнее:
+[запись](conference-recording.md), [SFU](media-sfu.md), [интеграции](content-integrations.md).
+
+Секреты имеют разные назначения: `MEDIA_TICKET_SECRET` подписывает внутренние
+билеты, `MEDIA_INTERNAL_SECRET` защищает media control/egress, `WORKER_INTERNAL_SECRET`
+защищает legacy worker API, `METRICS_SECRET` — metrics/drain. В production они
+задаются отдельно; `TURN_SHARED_SECRET` остаётся серверным секретом, браузер получает
+только временные TURN credentials. JWT/билеты/SDP/полные provider payload не должны
+попадать в журналы.
 
 Внутренний `POST /operations/drain` с `METRICS_SECRET` снимает readiness и
 останавливает приём новых работ там, где подключён обработчик сервиса.
@@ -104,29 +143,36 @@ Compose grace period — 45 секунд. Длинная встреча или �
 Разрешения пользователя и admin проверяются сервером; интерфейс не является
 границей безопасности. Состав передаваемых данных — [DATA_FLOWS.md](DATA_FLOWS.md).
 
-## Контракты, пределы и исторические измерения
+## Контракты и пределы
 
 Точки входа и текущие ограничения собраны в [API.md](API.md). Фактические значения
 задают [`internal/config/`](../internal/config), проверенный env-файл выпуска
 и router/usecase ограничения; увеличение лимита не подтверждает ёмкость оборудования.
 
-[Stage 6 capacity baseline](CAPACITY_BASELINE.md),
-[отчёт production hardening](operations/production-hardening-report.md) и
-[Stage 9 UX report](operations/PRODUCT_UX_RELEASE_REPORT.md) — исторические
-результаты конкретных локальных прогонов. Они не подтверждают текущий staging,
-внешний TURN, production SLO или готовность этого выпуска. Исторические описания
-«не реализовано» в документах ранних этапов читаются в контексте того этапа;
-текущая инвентаризация и исполняемые маршруты имеют приоритет.
+Сводные лимиты и правила подбора ресурсов — [CAPACITY_BASELINE.md](CAPACITY_BASELINE.md).
+Число участников, параллельных записей и размер очередей ограничивают работу
+процессов, но сами по себе не определяют пропускную способность хоста.
 
 ## Личные сообщения
 
-Используется совместимый адаптер: таблицы conference chat и его события
-сохранены, личные беседы имеют отдельный storage scope. `domain/chat`,
+Conference chat и личные беседы используют общий прикладной адаптер
+с раздельными таблицами и проверками доступа. `domain/chat`,
 `usecase/chat`, SQL-операции ChatRepository, HTTP handler и React MessageThread
 общие. Различаются таблицы, проверка членства и publisher/transport.
-Миграция 28 добавляет четыре таблицы с уникальной парой пользователей и
-отложенной проверкой ровно двух участников. Account WS доставляет committed
+Для личной беседы заданы уникальная пара пользователей и отложенная проверка
+ровно двух участников. Account WS доставляет committed
 изменения через персональные каналы Redis и имеет отдельное присутствие
 аккаунта; Pion/recorder в этом пути отсутствуют. PostgreSQL — источник истории,
 Pub/Sub не гарантирует доставку. Модель, lifecycle, API и ограничения описаны
 в [PERSONAL_MESSAGES.md](PERSONAL_MESSAGES.md).
+
+## Точки входа и пакеты
+
+`cmd/api`, `cmd/media-worker`, `cmd/worker`, `cmd/product-worker`, `cmd/live-worker`
+запускают соответствующие функции в `internal/app`. Сигнализация находится в
+`internal/usecase/media` и `internal/transport/mediaworker`; SFU —
+`internal/infrastructure/sfu`; запись — `internal/usecase/recordings`,
+`internal/usecase/recorder`, `internal/infrastructure/composite` и
+`internal/infrastructure/ffmpeg`.
+Live обработка — `internal/usecase/captions`, `internal/infrastructure/liveproviders`;
+продуктовые очереди и интеграции подключает `internal/app/product.go`.

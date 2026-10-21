@@ -1,0 +1,23 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Уведомления и служебные очереди", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "background_jobs" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>background_jobs</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">18 полей</TD></TR></TABLE>>];
+  "conference_participants" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conference_participants</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "notification_jobs" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>notification_jobs</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: participant_id</TD></TR><TR><TD ALIGN="LEFT">FK: recording_id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">13 полей</TD></TR></TABLE>>];
+  "notification_preferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>notification_preferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: user_id</TD></TR><TR><TD ALIGN="LEFT">8 полей</TD></TR></TABLE>>];
+  "notifications" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>notifications</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">9 полей</TD></TR></TABLE>>];
+  "record" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>record</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "release_schema_migrations" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>release_schema_migrations</B></TD></TR><TR><TD ALIGN="LEFT">PK: name</TD></TR><TR><TD ALIGN="LEFT">4 полей</TD></TR></TABLE>>];
+  "users" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>users</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "notification_jobs" -> "conference_participants" [label="participant_id → id\nDELETE RESTRICT"];
+  "notification_jobs" -> "record" [label="recording_id → uuid\nDELETE RESTRICT"];
+  "notification_jobs" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "notification_preferences" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "notifications" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "background_jobs" -> "conferences" [style=dashed, color="#a06b20", label="conference_id → id\nбез FK"];
+  "background_jobs" -> "users" [style=dashed, color="#a06b20", label="user_id → id\nбез FK"];
+  "notification_jobs" -> "conferences" [style=dashed, color="#a06b20", label="conference_id → id\nбез FK"];
+  "notification_jobs" -> "conference_participants" [style=dashed, color="#a06b20", label="cursor_participant_id → id\nбез FK"];
+}

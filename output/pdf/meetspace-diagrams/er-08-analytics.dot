@@ -1,0 +1,20 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Потоковые субтитры и аналитика", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "conference_analytics" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>conference_analytics</B></TD></TR><TR><TD ALIGN="LEFT">PK: conference_id</TD></TR><TR><TD ALIGN="LEFT">8 полей</TD></TR></TABLE>>];
+  "conference_participants" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conference_participants</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "live_caption_segments" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>live_caption_segments</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: participant_id</TD></TR><TR><TD ALIGN="LEFT">FK: session_id</TD></TR><TR><TD ALIGN="LEFT">15 полей</TD></TR></TABLE>>];
+  "live_transcription_sessions" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>live_transcription_sessions</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: canonical_recording_id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">15 полей</TD></TR></TABLE>>];
+  "participant_analytics" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>participant_analytics</B></TD></TR><TR><TD ALIGN="LEFT">PK: participant_id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">9 полей</TD></TR></TABLE>>];
+  "record" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>record</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "conference_analytics" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "live_caption_segments" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "live_caption_segments" -> "conference_participants" [label="participant_id → id\nDELETE RESTRICT"];
+  "live_caption_segments" -> "live_transcription_sessions" [label="session_id → id\nDELETE RESTRICT"];
+  "live_transcription_sessions" -> "record" [label="canonical_recording_id → uuid\nDELETE RESTRICT"];
+  "live_transcription_sessions" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "participant_analytics" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "participant_analytics" -> "conference_participants" [label="participant_id → id\nDELETE RESTRICT"];
+}

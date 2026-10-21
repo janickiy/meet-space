@@ -1,0 +1,17 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  background_jobs["background_jobs<br/>PK: id"]
+  calendar_connections["calendar_connections<br/>PK: id"]
+  calendar_event_mappings["calendar_event_mappings<br/>PK: id"]
+  calendar_oauth_states["calendar_oauth_states<br/>PK: id"]
+  conferences["conferences<br/>PK: id"]
+  integration_deliveries["integration_deliveries<br/>PK: job_id"]
+  push_devices["push_devices<br/>PK: id"]
+  users["users<br/>PK: id"]
+  calendar_connections -->|"user_id; DELETE RESTRICT"| users
+  calendar_event_mappings -->|"conference_id; DELETE RESTRICT"| conferences
+  calendar_event_mappings -->|"connection_id; DELETE RESTRICT"| calendar_connections
+  calendar_oauth_states -->|"user_id; DELETE RESTRICT"| users
+  integration_deliveries -->|"job_id; DELETE RESTRICT"| background_jobs
+  integration_deliveries -->|"user_id; DELETE RESTRICT"| users
+  push_devices -->|"user_id; DELETE RESTRICT"| users

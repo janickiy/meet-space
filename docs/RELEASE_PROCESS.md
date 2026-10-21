@@ -2,8 +2,14 @@
 
 Цепочка выпуска: исходники → validate/security → сборка →
 scan/SBOM/package → staging → ручная проверка/наблюдение → решение оператора → production →
-проверка либо откат. Реальный staging пока отсутствует; соответствующие evidence
-остаются неподтверждёнными. Локальные результаты не переводят их в `true`.
+проверка либо откат. Evidence заполняется для конкретного выпуска и окружения.
+
+**Область применения команд:** общий release workflow из
+`scripts/release/common.sh`. Для установки через `install.sh` сначала прочитайте
+[различия Compose-топологий](DEPLOYMENT.md#выбор-процедуры-по-типу-установки).
+`manage.sh` не содержит updater; `release.sh` не использует автоматически
+сгенерированные мастером overlays. Архив выпуска и runtime-топология — отдельные
+характеристики, обе должны сохраняться при обновлении.
 
 ## Версия, артефакты и CI
 
@@ -28,15 +34,13 @@ fingerprint с OCI labels, а staging/production требуют
 | Build | Бинарники приложения |
 | Package тега | Docker build, SBOM и scan всех release-образов; high/critical блокируют пакет; публикация по digest |
 
-Автоматизированные тесты Go, frontend и e2e удалены по решению владельца проекта.
-CI больше не запускает unit/race, integration, a11y, browser или load/soak-сценарии.
-Это не отменяет ручную проверку изменённого функционала, служебные проверки
-состояния и версии при выпуске, сканирование безопасности и готовность отката.
+CI проверяет код, сборку и безопасность. Пользовательские сценарии, браузеры,
+доступность и нагрузку проверяют отдельно по [чеклисту](operations/RELEASE_CHECKLIST.md).
 
 `release-package` требует отдельного Docker runner, registry credentials и
-проверенного `TRIVY_IMAGE=…@sha256:…`. Подключение этой инфраструктуры ещё должно
-быть подтверждено. Текущий `deploy-dev` вызывает старую синхронизацию/пересборку
-и не является production promotion. CI сам не принимает бизнес-решение о запуске.
+проверенного `TRIVY_IMAGE=…@sha256:…`. `deploy-dev` синхронизирует исходники
+и пересобирает development-окружение; для production используется описанная
+ниже процедура с неизменяемыми артефактами.
 
 ## Сборка и упаковка один раз
 
@@ -54,10 +58,12 @@ bash scripts/release/package.sh --build "$ARTIFACT_DIRECTORY/build/build.json" -
 Это bootstrap-пакет для первого развёртывания. При обычном обновлении приложения
 добавьте к команде упаковки `--infrastructure-manifest
 /absolute/artifacts/previous/release.json`. Пакет сохранит **точно те же** образы
-MinIO, PostgreSQL, Redis, RabbitMQ, Coturn, proxy, Prometheus и Grafana; новыми
-будут только шесть служб приложения. Отдельно собранный новый MinIO в этом
+S3-хранилища, PostgreSQL, Redis, RabbitMQ, Coturn, proxy, Prometheus
+и Grafana (только classic); новыми
+будут только шесть служб приложения. Отдельно собранный новый образ S3 в этом
 случае не используется. Предыдущий манифест должен быть проверен оператором и
-иметь тот же режим (`local` или `registry`). Его SHA-256 записывается в новый
+иметь тот же режим (`local`, `registry` или `archive`) и совместимую топологию
+classic/hardened; смена формата S3-тома этим флагом не выполняется. Его SHA-256 записывается в новый
 манифест, а security scan повторяется и для сохранённой инфраструктуры.
 
 В CI передайте предыдущий манифест через защищённую File variable
@@ -87,10 +93,19 @@ MinIO, PostgreSQL, Redis, RabbitMQ, Coturn, proxy, Prometheus и Grafana; нов
 Операторские бинарники тоже готовятся заранее в CI/на build-host и проверяются
 для архитектуры машины запуска, а не собираются при аварийном rollback.
 Образы включают служебные migration/backup
-бинарники. При переносе local archive сначала сверяют `SHA256SUMS`, затем
+бинарники. Режим `--mode archive` создаёт проверенный переносимый архив и
+принимается staging/production при чистом source и пройденном security gate;
+`local` предназначен только для репетиции. `build.sh --layout hardened-shared-host`
+выбирает hardened-образы с SeaweedFS; по умолчанию build/CI используют classic.
+Текущий `install.sh` собирает hardened archive, проверяет его и применяет
+standalone-конфигурацию через `wizard.py`. При переносе local archive сначала сверяют `SHA256SUMS`, затем
 загружают архив Docker; во время инцидента старый commit не пересобирают.
 
 ## Миграции
+
+Текущий набор — 35 `.up.sql`. В установке мастером тот же мигратор вызывается
+сервисом `migrate` с её полным Compose-контекстом; приведённые ниже команды
+`release.sh migrate` относятся к общему workflow.
 
 Один назначенный оператор/CI job выполняет `release.sh migrate` **до** запуска
 нового приложения. В production Compose `AUTO_MIGRATE=false`: старт проверяет
@@ -123,21 +138,19 @@ Ledger допускает более новые миграции, но не до
 ## Проверка и продвижение
 
 На staging выполнить подготовку baseline, write freeze/backup, migration,
-deploy нового пакета, служебные и ручные проверки, forced relay/TURNS и запись с ffprobe/preview/
-MinIO, проверку dashboards, откат на прежний пакет и повторный deploy текущего.
+deploy нового пакета, служебные и ручные проверки, forced relay/TURNS, запись
+с ffprobe/playback и проверкой S3, затем откат и повторный deploy того же пакета.
 Сохранять результаты, времена, версии, ограничения и отказы. Процедура backup:
 [backup-restore.md](operations/backup-restore.md); команды deploy —
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
-Автоматический synthetic smoke удалён; его учётные данные больше не требуются.
-После установки пакета оператор выполняет проверки без создания служебных
-пользователей и встреч:
+После установки пакета оператор выполняет проверки существующими аккаунтами:
 
 1. Сверить публичные `/version` и `/version.json` с точными version/commit выбранного
    манифеста. Проверить HTTP-ответ главной страницы и загрузку её ресурсов.
 2. Через закрытый доступ проверить `/health/live` и `/health/ready` каждого
    изменённого сервиса; готовность должна быть подтверждена, drain — выключен.
-   Проверить очереди, БД/Redis/MinIO и отсутствие роста ошибок в метриках/логах.
+   Проверить очереди, БД/Redis/S3 и отсутствие роста ошибок в метриках/логах.
    Внутренние health, metrics и operations не открывать в публичном proxy.
 3. С согласованным существующим non-admin аккаунтом вручную проверить вход,
    `auth/me`, capabilities, ICE config, запрет admin и изменённые экраны.
@@ -183,9 +196,8 @@ curl --fail --silent --show-error --output /dev/null https://meet-staging.exampl
 Этот пример намеренно не проходит gate. Для deploy/migrate/drain/resume нужны
 первые шесть подтверждений совместимости/backup/rollback/staging/media/security;
 для rollback вместо трёх последних проверяется `applicationRollbackCompatible`.
-Имена `stagingSmokePassed` и `mediaSmokePassed` сохранены в формате evidence;
-они означают документированные ручные проверки staging и медиа, а не запуск
-удалённого тестового инструмента. Непроведённые проверки остаются `false`.
+`stagingSmokePassed` и `mediaSmokePassed` означают документированные проверки
+staging и медиа. Непроведённые проверки остаются `false`.
 `approvedBy` и `evidenceReferences` обязательны. Commit и hash манифеста должны
 совпасть побайтно. Скрипт проверяет структуру утверждений, не истинность подписанта
 и не подлинность стороннего отчёта; проверка evidence — ответственность оператора.
@@ -206,7 +218,7 @@ unset RELEASE_PRODUCTION_APPROVAL
 флаги или provider contracts. Выключение флага не удаляет ранее созданные данные.
 
 После deploy проверить HTTP/auth/WS, media join/ICE/TURN, завершение записей,
-backlog Rabbit/PG jobs, БД/Redis/MinIO, provider errors и клиентские ошибки.
+backlog Rabbit/PG jobs, БД/Redis/S3, provider errors и клиентские ошибки.
 Предлагаемый порядок наблюдения и SLI — [runbook](operations/README.md).
 Системные ошибки auth, media/WS, повреждение/недоступность записи, несовместимость
 схемы или неконтролируемый рост ресурсов блокируют продвижение и требуют

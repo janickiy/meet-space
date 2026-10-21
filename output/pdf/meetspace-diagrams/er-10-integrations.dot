@@ -1,0 +1,20 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Внешние интеграции", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "background_jobs" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>background_jobs</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "calendar_connections" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>calendar_connections</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">11 полей</TD></TR></TABLE>>];
+  "calendar_event_mappings" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>calendar_event_mappings</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: connection_id</TD></TR><TR><TD ALIGN="LEFT">9 полей</TD></TR></TABLE>>];
+  "calendar_oauth_states" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>calendar_oauth_states</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">7 полей</TD></TR></TABLE>>];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "integration_deliveries" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>integration_deliveries</B></TD></TR><TR><TD ALIGN="LEFT">PK: job_id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">6 полей</TD></TR></TABLE>>];
+  "push_devices" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>push_devices</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">10 полей</TD></TR></TABLE>>];
+  "users" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>users</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "calendar_connections" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "calendar_event_mappings" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "calendar_event_mappings" -> "calendar_connections" [label="connection_id → id\nDELETE RESTRICT"];
+  "calendar_oauth_states" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "integration_deliveries" -> "background_jobs" [label="job_id → id\nDELETE RESTRICT"];
+  "integration_deliveries" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "push_devices" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+}

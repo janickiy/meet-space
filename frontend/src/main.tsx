@@ -1,3 +1,7 @@
+// Copyright 2026 Alexander Yanitskiy
+// Контакты автора: см. NOTICE в корне проекта.
+// SPDX-License-Identifier: Apache-2.0
+
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";

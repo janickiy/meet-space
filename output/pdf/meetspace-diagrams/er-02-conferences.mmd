@@ -1,0 +1,18 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  conference_invitations["conference_invitations<br/>PK: id"]
+  conference_moderation_audit["conference_moderation_audit<br/>PK: id"]
+  conference_participants["conference_participants<br/>PK: id"]
+  conferences["conferences<br/>PK: id"]
+  participant_sessions["participant_sessions<br/>PK: id"]
+  users["users<br/>PK: id"]
+  conference_invitations -->|"conference_id; DELETE RESTRICT"| conferences
+  conference_invitations -->|"requested_by; DELETE RESTRICT"| users
+  conference_invitations -->|"user_id; DELETE RESTRICT"| users
+  conference_moderation_audit -->|"actor_id; DELETE NO ACTION"| conference_participants
+  conference_moderation_audit -->|"conference_id; DELETE CASCADE"| conferences
+  conference_moderation_audit -->|"participant_id; DELETE NO ACTION"| conference_participants
+  conference_participants -->|"conference_id; DELETE RESTRICT"| conferences
+  conference_participants -->|"user_id; DELETE RESTRICT"| users
+  conferences -->|"owner_id; DELETE RESTRICT"| users
+  participant_sessions -->|"participant_id, conference_id, user_id; DELETE CASCADE"| conference_participants

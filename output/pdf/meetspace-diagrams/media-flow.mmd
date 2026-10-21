@@ -1,0 +1,44 @@
+flowchart TB
+  %% Синий = управление; зелёный = медиа; фиолетовый = файлы; охра = SQL/RESP.
+  %% Двусторонние стрелки: запрос/ответ либо отправка своих и приём удалённых дорожек.
+  source["Браузер участника<br/>getUserMedia / screen"]
+  sfu["media-worker / SFU<br/>Pion · VP8 + Opus"]
+  worker["Go recorder-worker<br/>capture → FFmpeg → publish<br/>VP8/Opus → H.264/AAC"]
+  spool["/storage/records/UUID<br/>sources: IVF / Ogg<br/>segments → final.mp4"]
+  objects["S3 bucket recordings<br/>MP4 / preview / tracks.zip"]
+  pg["PostgreSQL<br/>record_file + record_segment<br/>record.status = ready"]
+  api["API: авторизация<br/>чтение метаданных<br/>генерация files[].url"]
+  proxy["Nginx HTTPS proxy<br/>API + /recordings/"]
+  viewer["Браузер просмотра<br/>карточка / playback"]
+  source <-->|"SRTP<br/>свои / удалённые треки"| sfu
+  linkStyle 0 stroke:#067566,color:#067566,stroke-width:2.2px
+  sfu -->|"HTTP NDJSON<br/>RTP base64"| worker
+  linkStyle 1 stroke:#067566,color:#067566,stroke-width:2.2px
+  worker <-->|"file I/O<br/>FFmpeg"| spool
+  linkStyle 2 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  worker -->|"1. S3 PUT<br/>+ StatObject"| objects
+  linkStyle 3 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  worker -->|"2. SQL ready<br/>после upload"| pg
+  linkStyle 4 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  api <-->|"SQL read<br/>метаданные"| pg
+  linkStyle 5 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  proxy <-->|"HTTP JSON<br/>↔ files[].url"| api
+  linkStyle 6 stroke:#2c5d8a,color:#2c5d8a,stroke-width:1.5px
+  viewer <-->|"3. HTTPS<br/>карточка ↔ JSON"| proxy
+  linkStyle 7 stroke:#2c5d8a,color:#2c5d8a,stroke-width:1.5px
+  viewer <-->|"4. signed GET<br/>↔ байты файла"| proxy
+  linkStyle 8 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  proxy <-->|"S3 GET<br/>↔ байты файла"| objects
+  linkStyle 9 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+
+  subgraph legend["Легенда каналов"]
+    direction LR
+    legend_control["Управление: HTTP / WSS / AMQP"]
+    legend_media["Медиа: SRTP / RTP"]
+    legend_files["Файлы: S3 / file I/O"]
+    legend_db["Данные: SQL / RESP"]
+  end
+  style legend_control fill:#eef4fa,stroke:#2c5d8a,color:#2c5d8a
+  style legend_media fill:#def1eb,stroke:#067566,color:#067566
+  style legend_files fill:#f3e8f8,stroke:#7b439a,color:#7b439a
+  style legend_db fill:#fff2d4,stroke:#94630d,color:#94630d

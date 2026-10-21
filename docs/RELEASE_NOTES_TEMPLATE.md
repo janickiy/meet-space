@@ -12,7 +12,8 @@
 | Полный commit SHA | Не заполнено |
 | Build UTC / source SHA-256 | Не заполнено |
 | Release manifest / SHA-256 | Не заполнено |
-| Registry digests / SBOM / scan | Ссылки на артефакты |
+| Registry digests либо archive image IDs / SBOM / scan | Ссылки на артефакты |
+| Топология / Compose overlays / S3-реализация | Standalone мастер, classic или shared-host; MinIO либо SeaweedFS |
 | Source dirty | Должно быть `false` для registry/staging/production |
 | Предыдущий manifest | Не заполнено |
 | Ответственные / окно | Не заполнено |
@@ -37,8 +38,8 @@
 
 | Проверка | Статус | Evidence / среда / дата |
 | --- | --- | --- |
-| Validate / unit / race / integration | Не проверено | |
-| Frontend lint / typecheck / unit / a11y / build / CSP | Не проверено | |
+| Go gofmt / vet / staticcheck / build | Не проверено | |
+| Frontend lint / typecheck / build; ручная CSP | Не проверено | |
 | Chromium / Firefox / ручная доступность | Не проверено | |
 | Dependency/image scan / SBOM | Не проверено | |
 | Local immutable rehearsal | Не проверено | Не считается staging |
@@ -47,6 +48,8 @@
 | Backup / isolated restore-check / бизнес-проверка данных | Не проверено | |
 | Application rollback на текущей схеме | Не проверено | |
 | Production smoke / окно наблюдения | Не проверено | |
+
+Для дополнительных средств проверки укажите версии, сценарии и результаты.
 
 ## План запуска и отката
 

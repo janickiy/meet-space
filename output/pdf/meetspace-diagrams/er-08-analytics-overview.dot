@@ -1,0 +1,20 @@
+digraph ER {
+graph [rankdir=TB, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Потоковые субтитры и аналитика</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"conference_analytics" [label="conference_\nanalytics", tooltip="conference_analytics", fillcolor="#e9f1f7", color="#527087"];
+"conference_participants" [label="conference_\nparticipants", tooltip="conference_participants", fillcolor="#f2f2f2", color="#a4a9ad"];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#f2f2f2", color="#a4a9ad"];
+"live_caption_segments" [label="live_caption_\nsegments", tooltip="live_caption_segments", fillcolor="#e9f1f7", color="#527087"];
+"live_transcription_sessions" [label="live_transcription_\nsessions", tooltip="live_transcription_sessions", fillcolor="#e9f1f7", color="#527087"];
+"participant_analytics" [label="participant_\nanalytics", tooltip="participant_analytics", fillcolor="#e9f1f7", color="#527087"];
+"record" [label="record", tooltip="record", fillcolor="#f2f2f2", color="#a4a9ad"];
+"conference_analytics" -> "conferences" [tooltip="conference_analytics_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"live_caption_segments" -> "conferences" [tooltip="live_caption_segments_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"live_caption_segments" -> "conference_participants" [tooltip="live_caption_segments_participant_id_fkey: FOREIGN KEY (participant_id) REFERENCES conference_participants(id) ON DELETE RESTRICT"];
+"live_caption_segments" -> "live_transcription_sessions" [tooltip="live_caption_segments_session_id_fkey: FOREIGN KEY (session_id) REFERENCES live_transcription_sessions(id) ON DELETE RESTRICT"];
+"live_transcription_sessions" -> "record" [tooltip="live_transcription_sessions_canonical_recording_id_fkey: FOREIGN KEY (canonical_recording_id) REFERENCES record(uuid) ON DELETE RESTRICT"];
+"live_transcription_sessions" -> "conferences" [tooltip="live_transcription_sessions_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"participant_analytics" -> "conferences" [tooltip="participant_analytics_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"participant_analytics" -> "conference_participants" [tooltip="participant_analytics_participant_id_fkey: FOREIGN KEY (participant_id) REFERENCES conference_participants(id) ON DELETE RESTRICT"];
+}

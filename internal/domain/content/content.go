@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 // Содержимое пакета включает расшифровки, подтверждённые результаты AI и поиск по конференции.
 // Оно не зависит от провайдера SDKs и не участвует в передаче медиаданных.
 package content

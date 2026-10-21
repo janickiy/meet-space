@@ -1,24 +1,69 @@
-# Развёртывание Meet
+# Развёртывание MeetSpace
 
 Для первой установки на новый сервер: [скачивание и запуск `install.sh`](INSTALLATION.md).
-Ниже описаны операторское развёртывание и сопровождение выпусков.
+Ниже разделены сопровождение установки мастером и общий release workflow.
 
-Текущая платформа — один Docker Compose-хост. Реального staging на момент
-подготовки этапа 10 нет; локальная репетиция проверяет автоматизацию, но не
-заменяет внешние DNS/TLS/TURN, firewall, реальные устройства и production capacity.
+MeetSpace разворачивается на одном Docker Compose-хосте. Перед приёмкой
+проверьте DNS/TLS/TURN, firewall, связь с реальных устройств и нагрузку.
 Состав сервисов и ограничения: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Окружения
+## Выбор процедуры по типу установки
+
+| Тип | Фактическая конфигурация | Как сопровождать |
+| --- | --- | --- |
+| Новый standalone через `install.sh` | Production + hardened + сгенерированные `config/compose.json` и `config/turn.yml`; свой proxy на 443, TURN host network, SeaweedFS | `manage.sh` и Compose-функция ниже; автоматического обновления пока нет |
+| Общий release, `deploymentLayout=classic` | Production + Grafana overlay; MinIO | `scripts/release/release.sh`, отдельные project/env/manifest |
+| Общий release, `deploymentLayout=hardened-shared-host` | Production + hardened + shared-host overlay; существующий внешний TLS proxy, SeaweedFS | Release helper только после сверки внешнего proxy, подсети, портов и томов |
+| Development | `docker-compose.yml`, `.env`, локальные bind mounts | [README](../README.md); не шаблон для production |
+
+Мастер выпускает архив с `deploymentLayout=hardened-shared-host`, но при установке
+**заменяет host-specific overlay** своей конфигурацией. Поэтому одного manifest
+недостаточно для выбора Compose-файлов. `release.sh`, `backup.sh` и
+`restore-check.sh` используют `scripts/release/common.sh`: для hardened они
+подключают `docker-compose.shared-host.yml`, не `config/compose.json` и `turn.yml`.
+Не запускайте эти helpers над установкой мастера, подставив только её env/manifest:
+это может выбрать другие сеть, proxy и пути томов. Продолжение через
+`scripts/install/wizard.py --resume` также не обновляет завершённую установку;
+`install.sh` принимает только `--ref` и `--help`.
+
+### Compose-контекст установки мастером
+
+Для стандартных каталога `/opt/meetspace` и проекта `meetspace` в root-shell
+(`sudo -i`) задайте функцию. При других значениях сверяйте `installation.json`:
+
+```bash
+cd /opt/meetspace
+compose() {
+  docker compose --project-name meetspace \
+    --env-file /opt/meetspace/config/meetspace.env \
+    -f /opt/meetspace/bundle/deployment/docker-compose.production.yml \
+    -f /opt/meetspace/bundle/deployment/docker-compose.hardened.yml \
+    -f /opt/meetspace/config/compose.json \
+    -f /opt/meetspace/config/turn.yml "$@"
+}
+compose --profile observability --profile migration config --quiet
+compose --profile observability ps -a
+compose exec -T api wget -qO- http://127.0.0.1:8085/health/ready
+```
+
+Эта функция далее используется в runbook и инструкции резервного копирования.
+`manage.sh status`, `logs [service]`, `create-account`, `certificates`, `reload-tls`
+используют тот же установленный контекст. Изменения env требуют пересоздания
+потребителя; `docker restart` не перечитывает env-file. Перед заменой образов нужны
+backup, совместимость миграций, готовый старый пакет и план с **теми же** volumes,
+сетью, TLS, proxy и image IDs. Переключение MinIO ↔ SeaweedFS — перенос данных,
+а не обычное обновление образа.
+
+## Окружения общего release workflow
 
 | Среда | Конфигурация / проект | Назначение и границы |
 | --- | --- | --- |
 | Development | `docker-compose.yml`, локальный `.env` | Разработка, локальная сборка и отладка; тестовые пароли/публикации портов не переносятся в production |
-| Integration test | `docker-compose.integration.yml`, `recorder-stage6` и явные test env | Изолированные проверки с тестовыми данными; не обновлять уже работающий проект без отдельного указания |
 | Local release rehearsal | Production Compose + `docker-compose.release-local.yml`; `recorder-release-rehearsal` или такой префикс с суффиксом | Отдельные тома/порты, `APP_ENV=test`, loopback, временный сертификат; допускаются локальные image ID и помеченный dirty source |
-| Staging | Production Compose; `recorder-staging` или суффикс | Реальные HTTPS/WSS/TURNS origins, отдельные секреты/данные, immutable registry digests, `APP_ENV=production`; сейчас требует предоставления инфраструктуры |
+| Staging | Production Compose; `recorder-staging` или суффикс | Реальные HTTPS/WSS/TURNS origins, отдельные секреты/данные, immutable registry/archive images, `APP_ENV=production`; состояние стенда проверяется для каждого выпуска |
 | Production | Production Compose; `recorder-production` или суффикс | Собственные DNS/TLS/хранилища, проверенный манифест, evidence и явное решение оператора |
 
-У каждой среды свои PostgreSQL, Redis namespaces, RabbitMQ, MinIO bucket/данные,
+У каждой среды свои PostgreSQL, Redis namespaces, RabbitMQ, S3 bucket/данные,
 provider credentials и worker identities. Нельзя направлять локальные тесты в
 production-зависимости. Внешние email/push/calendar/STT/AI/embeddings по умолчанию
 выключены; mock запрещён для staging/production. Матрица флагов и лимитов —
@@ -31,7 +76,7 @@ PostgreSQL 16 image, поэтому одного переключения `EMBED
 
 ## Подготовка хоста
 
-Нужны Docker Engine/Desktop и Compose с поддержкой `!override`, Bash, `jq`,
+Для общего workflow нужны Docker Engine и Compose 2.24.4+ с поддержкой `!override`, Bash, `jq`,
 `openssl`, `ripgrep`, утилита SHA-256; для сборки операторских бинарников —
 поддерживаемая версия Go из `go.mod`. Скрипты вызываются через `bash`, права
 исполнения у файла не предполагаются. Команды ниже выполняются из корня репозитория.
@@ -46,23 +91,23 @@ PostgreSQL 16 image, поэтому одного переключения `EMBED
   Ключ Coturn должен читаться его пользователем, но не быть общедоступным.
 - `RECORDER_STORAGE_DIR` с владельцем `1000:1000` и правами `0750`, запасом места;
   директории объектов и БД на диске с проверенным резервированием.
-- `METRICS_TOKEN_FILE` и `GRAFANA_PASSWORD_FILE` вне Git с правами чтения для
-  соответствующих контейнеров; значение metrics token совпадает с `METRICS_SECRET`.
+- `METRICS_TOKEN_FILE` вне Git с правами чтения контейнера; значение совпадает
+  с `METRICS_SECRET`. Для classic также нужен `GRAFANA_PASSWORD_FILE`.
 - Доступ к registry, чистый проверенный release manifest и предыдущий manifest.
   Все операторы одного Docker-хоста используют общий абсолютный `RELEASE_LOCK_DIR`.
   Локальный lock-каталог одного ноутбука не защищает от другого оператора.
-- Выделенный обычный smoke-аккаунт и внешние `SMOKE_EMAIL`/`SMOKE_PASSWORD`;
-  скрипт не создаёт аккаунт автоматически и отклоняет admin-аккаунт.
+- Обычные аккаунты для ручной проверки входа, прав и пользовательских сценариев.
 
-Production Compose не публикует БД, Redis, RabbitMQ и MinIO console. Prometheus и
-Grafana доступны на loopback; организуйте защищённый доступ оператора. Внутренние
-HTTP/AMQP/Redis предполагают доверенную сеть одного хоста; перенос на разные
+Production Compose не публикует БД, Redis, RabbitMQ и S3. Prometheus доступен
+на loopback 19090. Grafana доступна на loopback 13001 только в classic-варианте;
+hardened и текущая установка мастером её не запускают. Организуйте закрытый
+доступ оператора. Внутренние HTTP/AMQP/Redis предполагают доверенную сеть одного хоста; перенос на разные
 хосты требует отдельного решения TLS/mTLS/VPN.
 
 ## Локальная репетиция без изменения существующих проектов
 
-Выберите новые абсолютные каталоги, которых ещё нет. Init не изменяет проекты
-`go-recorder` и `recorder-stage8` и не содержит команды удаления их данных.
+Выберите новый абсолютный каталог; init создаёт отдельные конфигурацию,
+секреты, сертификат и storage для репетиции.
 
 ```bash
 LOCAL_RELEASE_DIR=/absolute/private/meet-rehearsal
@@ -76,11 +121,11 @@ SFU — `50220`, TURN — `23478` и relay `50300–50340`. Это локаль�
 Init использует доступную контейнеру папку spool; для production обязательны
 ограниченные права, указанные выше.
 
-Для локального smoke доверяйте только созданному сертификату в рамках процесса:
-`export SMOKE_CA_FILE="$LOCAL_RELEASE_DIR/certs/fullchain.pem"`. Этот PEM добавляется
-к корням доверия HTTP/WS smoke-клиента, имя хоста и цепочка продолжают проверяться;
-системное доверие не меняется. После проверки — `unset SMOKE_CA_FILE`. Для настоящего
-staging/production нужны действительные доверенные сертификаты, не отключение TLS.
+Для GET-проверки локального HTTPS явно укажите созданный CA, например
+`curl --cacert "$LOCAL_RELEASE_DIR/certs/fullchain.pem" https://localhost:25482/version`.
+Для ручной работы браузера настройте доверие сертификату только в выделенном
+профиле стенда. На staging/production проверяйте действительную цепочку
+и имя сертификата.
 
 После [сборки и упаковки](RELEASE_PROCESS.md) укажите существующий манифест:
 
@@ -94,9 +139,9 @@ bash scripts/release/release.sh deploy --environment local --project recorder-re
 Скрипты принимают только разрешённый проект для выбранной среды. `migrate`
 поднимает зависимости и запускает явную migration-задачу. `deploy` не выполняет
 DDL и не собирает образы. Если зависимости уже существуют, смена их image
-запрещается: обновление PostgreSQL/Redis/RabbitMQ/MinIO/Coturn — отдельное окно.
+запрещается: обновление PostgreSQL/Redis/RabbitMQ/S3/Coturn — отдельное окно.
 
-## Staging и production
+## Staging и production общего release workflow
 
 Перед выполнением команд замените все пути и адреса на проверенные реальные
 значения. `validate` проверяет формат/Compose, но не доказывает доступность

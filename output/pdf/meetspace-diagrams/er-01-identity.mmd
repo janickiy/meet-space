@@ -1,0 +1,12 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  auth_legacy_tokens["auth_legacy_tokens<br/>PK: token_hash"]
+  auth_session_tokens["auth_session_tokens<br/>PK: token_hash"]
+  auth_sessions["auth_sessions<br/>PK: id"]
+  conferences["conferences<br/>PK: id"]
+  users["users<br/>PK: id"]
+  auth_legacy_tokens -->|"session_id; DELETE CASCADE"| auth_sessions
+  auth_legacy_tokens -->|"user_id; DELETE CASCADE"| users
+  auth_session_tokens -->|"session_id; DELETE CASCADE"| auth_sessions
+  auth_sessions -->|"user_id; DELETE CASCADE"| users
+  users -.->|"guest_conference_id; без FK"| conferences

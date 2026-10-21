@@ -1,0 +1,21 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  conferences["conferences<br/>PK: id"]
+  content_embeddings["content_embeddings [pgvector]<br/>PK: id"]
+  content_search_indexes["content_search_indexes<br/>PK: transcript_id, model_key"]
+  embedding_cache["embedding_cache [pgvector]<br/>PK: model_key, content_hash"]
+  meeting_summaries["meeting_summaries<br/>PK: id"]
+  record["record<br/>PK: id"]
+  transcript_segments["transcript_segments<br/>PK: id"]
+  transcripts["transcripts<br/>PK: id"]
+  content_embeddings -->|"conference_id; DELETE RESTRICT"| conferences
+  content_embeddings -->|"recording_id; DELETE RESTRICT"| record
+  content_embeddings -->|"transcript_id; DELETE RESTRICT"| transcripts
+  content_search_indexes -->|"transcript_id; DELETE RESTRICT"| transcripts
+  meeting_summaries -->|"conference_id; DELETE RESTRICT"| conferences
+  meeting_summaries -->|"transcript_id; DELETE RESTRICT"| transcripts
+  transcript_segments -->|"transcript_id; DELETE RESTRICT"| transcripts
+  transcripts -->|"conference_id; DELETE RESTRICT"| conferences
+  transcripts -->|"recording_id; DELETE RESTRICT"| record
+  content_embeddings -.->|"segment_id; без FK"| transcript_segments
+  content_embeddings -.->|"model_key, content_hash; без FK"| embedding_cache

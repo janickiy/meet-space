@@ -1,0 +1,30 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Чат конференции</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"chat_attachments" [label="chat_attachments", tooltip="chat_attachments", fillcolor="#e9f1f7", color="#527087"];
+"chat_messages" [label="chat_messages", tooltip="chat_messages", fillcolor="#e9f1f7", color="#527087"];
+"chat_notification_jobs" [label="chat_notification_\njobs", tooltip="chat_notification_jobs", fillcolor="#e9f1f7", color="#527087"];
+"chat_read_states" [label="chat_read_states", tooltip="chat_read_states", fillcolor="#e9f1f7", color="#527087"];
+"conference_chat_pins" [label="conference_chat_\npins", tooltip="conference_chat_pins", fillcolor="#e9f1f7", color="#527087"];
+"conference_chat_preferences" [label="conference_chat_\npreferences", tooltip="conference_chat_preferences", fillcolor="#e9f1f7", color="#527087"];
+"conference_participants" [label="conference_\nparticipants", tooltip="conference_participants", fillcolor="#f2f2f2", color="#a4a9ad"];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#f2f2f2", color="#a4a9ad"];
+"users" [label="users", tooltip="users", fillcolor="#f2f2f2", color="#a4a9ad"];
+"chat_attachments" -> "conferences" [tooltip="chat_attachments_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"chat_attachments" -> "chat_messages" [tooltip="chat_attachments_message_id_fkey: FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE RESTRICT"];
+"chat_attachments" -> "users" [tooltip="chat_attachments_owner_user_id_fkey: FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"chat_messages" -> "conferences" [tooltip="chat_messages_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"chat_messages" -> "chat_messages" [tooltip="chat_messages_reply_to_id_fkey: FOREIGN KEY (reply_to_id) REFERENCES chat_messages(id) ON DELETE RESTRICT"];
+"chat_messages" -> "users" [tooltip="chat_messages_sender_user_id_fkey: FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"chat_notification_jobs" -> "conferences" [tooltip="chat_notification_jobs_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"chat_notification_jobs" -> "chat_messages" [tooltip="chat_notification_jobs_message_id_fkey: FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE RESTRICT"];
+"chat_read_states" -> "conferences" [tooltip="chat_read_states_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"chat_read_states" -> "chat_messages" [tooltip="chat_read_states_last_read_message_id_fkey: FOREIGN KEY (last_read_message_id) REFERENCES chat_messages(id) ON DELETE RESTRICT"];
+"chat_read_states" -> "users" [tooltip="chat_read_states_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"conference_chat_pins" -> "chat_messages" [tooltip="conference_chat_pins_conference_id_message_id_fkey: FOREIGN KEY (conference_id, message_id) REFERENCES chat_messages(conference_id, id) ON DELETE RESTRICT"];
+"conference_chat_pins" -> "users" [tooltip="conference_chat_pins_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"conference_chat_preferences" -> "conferences" [tooltip="conference_chat_preferences_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE CASCADE"];
+"conference_chat_preferences" -> "users" [tooltip="conference_chat_preferences_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"chat_notification_jobs" -> "conference_participants" [style=dashed, color="#94661d", penwidth=1.45, tooltip="cursor_participant_id -> id; Курсор рассылки; FK отсутствует.", constraint=false];
+}

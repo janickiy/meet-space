@@ -1,12 +1,12 @@
 # Личные сообщения
 
-Реализовано 6 октября 2026. Отдельный раздел **«Личные»**, без общего раздела
+Отдельный раздел **«Личные»**, без общего раздела
 «Чаты» и вкладок «Личные / Встречи». Чаты встреч открываются только в конференциях,
 в том числе для чтения завершённой встречи.
 
 ## Модель и совместимость
 
-Выбран compatibility adapter. Существующие `chat_messages`, `chat_attachments`,
+Оба вида чата обслуживаются общим адаптером. Существующие `chat_messages`, `chat_attachments`,
 `chat_read_states`, REST конференций и события `chat.*` сохраняются.
 Общие `domain/chat`, `usecase/chat`, SQL-операции `ChatRepository`, HTTP handler,
 React `MessageThread` и `AttachmentUploader` обслуживают оба scope.
@@ -16,8 +16,8 @@ React `MessageThread` и `AttachmentUploader` обслуживают оба scop
 
 | Таблица | Назначение |
 | --- | --- |
-| `conversations` | `type=direct`, каноническая пара зарегистрированных пользователей, указатель последнего сообщения |
-| `conversation_members` | Ровно два участника, курсор прочтения и sequence |
+| `conversations` | `type=direct\|group`; у direct — каноническая пара, у group — метаданные группы; указатель последнего сообщения |
+| `conversation_members` | У direct ровно два участника; у group роли и `left_at`; курсор прочтения, настройки и граница очистки |
 | `conversation_messages` | Общая модель сообщения, ключ повтора, версия, reply, мягкое удаление |
 | `conversation_attachments` | Общая модель приватного вложения, upload lease, статус и cleanup |
 
@@ -29,8 +29,9 @@ GetOrCreate использует INSERT ON CONFLICT внутри транзак�
 
 Миграции применяет существующий runner под advisory lock. Up не переносит и
 не удаляет данные конференций. Down удаляет **данные личных сообщений** вместе
-с новыми таблицами; перед таким откатом нужна копия этих данных. Проверка up/down/up
-на изолированной БД подтверждает сохранение старых сообщений, вложений и read state.
+с новыми таблицами; перед таким откатом нужна копия этих данных. Текущие миграции групп, звонков,
+папок и закреплений зависят от этих таблиц; изолированный down миграции 28
+не является готовой процедурой rollback текущего выпуска.
 
 ## REST
 
@@ -45,7 +46,7 @@ Backend проверяет членство в каждой операции, н
 | `POST /conversations/direct` | `{userId}` → `{status,item}`; 201 при создании, 200 для существующей пары |
 | `GET /conversations/{id}` | `{status,item}`; safe peer summary, preview, время, unread |
 | `GET /conversations/{id}/peer-presence` | `{status,item:{conversationId,peerId,online}}`; присутствие только собеседника доступного direct-чата |
-| `PATCH /conversations/{id}/preferences` | `{notificationsEnabled:boolean}` → `{status,item}`; уведомления только текущего аккаунта, только direct |
+| `PATCH /conversations/{id}/preferences` | `{notificationsEnabled:boolean}` → `{status,item}`; уведомления только текущего аккаунта; direct и group |
 | `POST /conversations/{id}/clear-history` | `{status,item}`; персональная очистка истории, только direct |
 | `POST /conversations/{id}/hide` | `{status,hidden:true,historyClearedThrough:number}`; скрытие чата и прежней истории только текущего аккаунта |
 | `GET /conversations/{id}/messages?limit=50&before=…` | Общая cursor pagination истории: `{status,items,nextCursor,unreadCount,lastReadMessageId}` |
@@ -61,7 +62,9 @@ Backend проверяет членство в каждой операции, н
 | `POST /conversations/{id}/attachments/init` | Общая инициализация файла и серверный upload URL |
 | `PUT /conversations/{id}/attachments/{attachmentId}/content` | Двоичные данные, bounded upload |
 | `POST /conversations/{id}/attachments/{attachmentId}/finalize` | Проверка фактически загруженного файла; повтор безопасен |
-| `GET /conversations/{id}/attachments/{attachmentId}/download` | Временный подписанный URL после проверки прав |
+| `GET /conversations/{id}/attachments/{attachmentId}/download` | Для direct — подписанный URL на 5 минут; для group — API URL с `authenticated:true` |
+| `GET /conversations/{id}/messages/search?q=…&limit=20&before=…` | Поиск по доступному тексту; q 2–200, limit 1–50 |
+| `GET /conversations/{id}/messages/{messageId}/context` | Ограниченный контекст выбранного сообщения; права и граница очистки сохраняются |
 
 Email, password hash, роли и сессии не входят в peer DTO и не участвуют в поиске.
 Символы `%`, `_`, `\` экранируются в ILIKE. Поиск нового собеседника ограничен 30 запросами/минуту
@@ -82,18 +85,20 @@ Email, password hash, роли и сессии не входят в peer DTO и 
 
 ## Персональные действия в личном чате
 
-Дополнено 9 октября 2026. «Информация» и нажатие на имя/аватар показывают
+ «Информация» и нажатие на имя/аватар показывают
 стандартное модальное окно с публичным `peer`: идентификатором и отображаемым
 именем. Email, роли и данные сессии собеседника не раскрываются.
 
 Миграция `000033_direct_conversation_preferences` добавляет в членство
 `notifications_enabled=true`, `history_cleared_through=0` и `hidden_at=NULL`.
 Проекция переписки возвращает `notificationsEnabled` и `historyClearedThrough`.
-Управлять чужими настройками, применять эти direct-действия к группе или вызывать
-их гостевым аккаунтом нельзя. Существующий `DELETE /conversations/{id}` остаётся
+Управлять чужими настройками или вызывать эти действия гостевым аккаунтом нельзя.
+Настройка уведомлений доступна direct и group; очистка истории и скрытие —
+только direct. Существующий `DELETE /conversations/{id}` остаётся
 удалением группы её владельцем; для личного чата используется `POST .../hide`.
 
-«Без уведомлений» отключает всплывающее уведомление о входящем личном сообщении,
+«Без уведомлений» отключает всплывающее уведомление о входящем сообщении
+личной или групповой переписки,
 но сохраняет доставку, историю и счётчик непрочитанных. Настройка хранится на
 сервере, действует на всех устройствах текущего аккаунта и не меняется у второго
 собеседника. Отдельные email/push-уведомления для личных сообщений не добавлены.
@@ -182,20 +187,21 @@ Account WebSocket публикует `conversation.pins.updated` с `{conversati
 
 ## Приватные файлы
 
-Переиспользованы существующие init → upload → finalize → attach, проверка
+Загрузка проходит init → upload → finalize → attach с проверкой
 содержимого/MIME, upload lease, idempotency и cleanup. До пяти файлов по 10 МиБ.
 Object key формирует сервер:
 `attachments/direct/{conversationId}/{attachmentId}/{uploadToken}`.
 Префикс конференций `attachments/{conferenceId}/{attachmentId}/` сохранён.
 
-Метаданные и download доступны только собеседникам; upload/finalize требуют
+Метаданные и download direct доступны только собеседникам; upload/finalize требуют
 владельца файла. Cross-scope reply/attachment ID запрещены и приложением, и FK.
-Бакет приватный; download URL действует пять минут. Подписанный URL — временная
+Бакет приватный; подписанный direct URL действует пять минут.
+Для group сервер выдаёт API URL с `authenticated:true`; байты читаются через
+Bearer fetch, проверяющий текущее членство. См. [GROUP_CHATS.md](GROUP_CHATS.md). Подписанный URL — временная
 bearer capability: обладатель ссылки сможет использовать её до истечения срока.
 В JSON не выдаются object key, upload lease/token и request fingerprint.
 Незавершённые/лишние объекты убирает общий bounded cleanup, отдельный цикл
-личных вложений завершается по context API. Прикреплённые сообщения не имеют
-нового срока автоматического удаления в рамках этой задачи.
+личных вложений завершается по context API. Автоматический срок удаления прикреплённых сообщений не задан.
 
 ## Account WebSocket
 
@@ -204,7 +210,8 @@ bearer capability: обладатель ссылки сможет использ
 
 Билет случайный, одноразовый, TTL из `WS_TICKET_TTL` (по умолчанию 45 секунд),
 отдельный Redis namespace `WS_REDIS_NAMESPACE:user-ws`. До 30 выдач/минуту.
-JWT, Authorization query и дополнительные query параметры не принимаются.
+Параметр `ticket` должен быть единственным. JWT в URL, заголовок Authorization
+на upgrade и дополнительные query параметры не принимаются.
 Nginx пишет `$uri` без ticket query и ограничивает upload обоих namespace.
 
 Серверный поток не принимает application commands: mutations идут через REST.
@@ -216,12 +223,19 @@ Conference envelope/event contracts не меняются.
 | `message.created`, `message.updated`, `message.deleted` | `{conversationId,type:"direct",message,notificationsEnabled,historyClearedThrough}`; персональные поля обновляются перед записью в сокет |
 | `conversation.updated` | `{conversationId,type:"direct"}` при создании пары |
 | `conversation.read.updated` | `{conversationId,type:"direct",state}` для читающего аккаунта |
-| `conversation.preferences.updated`, `conversation.history.cleared` | `{conversationId,type:"direct",userId,item,historyClearedThrough}` только владельцу действия |
+| `conversation.preferences.updated`, `conversation.history.cleared` | `{conversationId,type,userId,item,historyClearedThrough}` только владельцу действия; preferences также поддерживает group |
 | `conversation.hidden` | `{conversationId,type:"direct",userId,hidden:true,historyClearedThrough}` только владельцу действия |
 | `user.presence` | `{userId,online,connections}` для собственных вкладок |
-| Существующие notification events | Существующий персональный контракт без изменений |
+| `conversation.member.added`, `conversation.member.updated`, `conversation.member.removed` | Жизненный цикл членства группы; минимальная проекция для исключённого |
+| `conversation.pins.updated` | `{conversationId,type}`; перечитать общие закрепления |
+| `call.updated` | `{call}`; состояние личного звонка, проверяется версия |
+| `folder.created`, `folder.updated`, `folder.deleted`, `folder.items.updated`, `folder.reordered` | Инвалидация только папок текущего владельца |
+| `notification.created`, `notification.read` | Персональный конверт уведомлений; frontend обрабатывает через SSE |
 
-Последовательность: REST → usecase → PostgreSQL COMMIT → lookup двух участников
+В таблице `type:"direct"` относится к direct; общие message/read/updated события
+также обслуживают group с `type:"group"` и текущим составом участников.
+
+Последовательность: REST → usecase → PostgreSQL COMMIT → lookup участников
 → Redis персональные каналы → WS на каждом API. Используется общий
 `RedisNotificationBus`; глобального broadcast всех DM всем аккаунтам нет.
 Каждая вкладка имеет acknowledged Pub/Sub subscription. Redis не хранит историю
@@ -281,11 +295,22 @@ Push и email на каждое DM не добавлены.
 Входящее сообщение прокручивает вниз только рядом с концом; иначе доступна
 кнопка «Новые сообщения». Общего раздела встречных чатов или вкладки чата в истории нет.
 
-## Проверка
+## Личные звонки
 
-Проверки и измерения: [аудит до реализации](code-review/DIRECT_MESSAGES_AUDIT.md)
-и [отчёт реализации](code-review/DIRECT_MESSAGES_REPORT.md).
-Real PostgreSQL/Redis/MinIO integration opt-in: `RECORDER_DIRECT_E2E=true`.
-Чат конференций с файлами: `RECORDER_STAGE5_CHAT_E2E=true`.
-Используйте изолированные тестовые сервисы и переменные окружения, принятые
-integration harness; не запускайте разрушительные DB fixtures в production БД.
+Зарегистрированный пользователь может позвонить собеседнику. Вызов создаёт или
+использует direct conversation; принятие открывает закрытую медиаконференцию
+`kind=direct_call`, доступную только двум участникам. Account WS передаёт
+`call.updated`, REST `/calls/active` восстанавливает состояние; аудио, видео и
+экран идут через SFU. Гостевые и групповые звонки не поддерживаются.
+
+Результат и длительность сохраняются системным сообщением в переписке.
+Его нельзя редактировать, удалять или закреплять как обычный текст;
+персональная очистка истории учитывает и такие сообщения. Полный жизненный цикл,
+команды, heartbeat и многовкладочность описаны в [direct-calls.md](direct-calls.md).
+
+## Исходный код
+
+Основные маршруты: [personal_routes.go](../internal/transport/http/personal_routes.go),
+[chat_routes.go](../internal/transport/http/chat_routes.go),
+[call_routes.go](../internal/transport/http/call_routes.go),
+[call_repository.go](../internal/infrastructure/postgres/call_repository.go).
