@@ -364,7 +364,7 @@ def configure(bundle, manifest):
     if tls == '1':
         email = ask('Email для Let’s Encrypt', validate=lambda s: bool(re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', s)))
         print('Будет принят договор Let’s Encrypt: https://letsencrypt.org/repository/.')
-        if not yes('Согласны получить сертификат и настроить его автоматическое продление?'):
+        if not yes('Согласны получить сертификат и настроить его автоматическое продление?', default=True):
             raise RuntimeError('Получение сертификата отменено.')
         if not shutil.which('certbot'):
             apt('certbot')
@@ -386,7 +386,7 @@ def configure(bundle, manifest):
     print(f'\nВерсия: {manifest["version"]}\nСайт: https://{domain}\nIP: {address}\nКаталог: {root}\nПроект: {project}')
     print('Откройте во внешнем firewall: TCP 80,443,3478,5349,50010; UDP 3478,50010,49160–49259.\n'
           'Мастер не меняет firewall и не открывает наружу базы данных.')
-    ask('Чтобы начать установку, введите УСТАНОВИТЬ', validate=lambda s: s == 'УСТАНОВИТЬ')
+    ask('Нажмите Enter, чтобы начать установку (Ctrl+C — отмена)', validate=lambda s: s == '')
     root.mkdir(mode=0o700, parents=True)
     shutil.copytree(bundle, root / 'bundle')
     # Configuration mounts must be readable by unprivileged container users.

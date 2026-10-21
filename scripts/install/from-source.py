@@ -124,6 +124,44 @@ def verify_checkout(source, commit=None):
     return head
 
 
+def normalize_source_permissions(source, commit):
+    """Make verified build inputs readable without exposing the private workspace.
+
+    Args:
+        source: The installer-owned source directory inside a private workspace.
+        commit: The exact Git commit that must remain clean and unchanged.
+
+    Only tracked regular files and their ancestor directories are normalized.
+    Git executable bits are preserved; the workspace, Git metadata and sibling
+    secrets retain their private modes. Validate every target before any chmod.
+    """
+    work = source.parent
+    attributes = work.stat()
+    require(source.name == 'source' and work.is_dir() and not work.is_symlink()
+            and attributes.st_uid == os.geteuid() and stat.S_IMODE(attributes.st_mode) == 0o700,
+            'Исходники должны находиться в приватном каталоге сборки с правами 0700.')
+    verify_checkout(source, commit)
+    files, directories = {}, {source}
+    for record in filter(None, git(source, 'ls-files', '--stage', '-z').split('\0')):
+        header, relative = record.split('\t', 1)
+        mode, _, stage = header.split()
+        require(mode in ('100644', '100755') and stage == '0' and '.git' not in Path(relative).parts,
+                'Нужны обычные отслеживаемые файлы без конфликтов и служебных каталогов.')
+        path = regular_file(source, relative)
+        require(path not in files, 'Неоднозначный набор исходников.')
+        files[path] = 0o755 if mode == '100755' else 0o644
+        parent = path.parent
+        while parent != source:
+            directories.add(parent)
+            parent = parent.parent
+    require(files, 'Пустой набор исходников.')
+    for directory in sorted(directories, key=lambda path: len(path.parts)):
+        directory.chmod(0o755)
+    for path, mode in files.items():
+        path.chmod(mode)
+    verify_checkout(source, commit)
+
+
 def load_wizard(source):
     """Load installation APIs from the verified checkout without generating bytecode inside it."""
     sys.dont_write_bytecode = True
@@ -490,6 +528,7 @@ def build_and_bundle(work, state, wizard, requested_mode='auto'):
           'Сборка может занять продолжительное время; рекомендуется запускать мастер в tmux/screen.')
     require(wizard.yes('Начать или продолжить сборку из этих исходников?'), 'Сборка отменена.')
     if not state.get('built'):
+        normalize_source_permissions(source, state['commit'])
         run_id = secrets.token_hex(6)
         state.update(version=f'v0.0.0-source.{state["commit"][:12]}.{run_id}',
                      registry='meetspace-source-' + run_id, build='build-' + run_id, built=False)
