@@ -207,9 +207,63 @@ def public_ip(value):
     """Accept an assigned, globally routable IPv4 address."""
     try:
         address = ipaddress.ip_address(value)
-        return address.version == 4 and address.is_global
+        return address.version == 4 and address.is_global and not address.is_multicast
     except ValueError:
         return False
+
+
+def detect_server_ipv4(domain):
+    """Return the unique public IPv4 shared by domain DNS and a local interface.
+
+    Args:
+        domain: The validated MeetSpace hostname whose single A record must
+            point directly to this server, without NAT or a CDN proxy.
+
+    Multiple local addresses are allowed: DNS selects the intended interface.
+    No external IP service or interactive address prompt is used. Invalid or
+    ambiguous network data raises RuntimeError before installation is changed.
+    """
+    try:
+        interfaces = json.loads(run('ip', '-j', '-4', 'addr', capture=True))
+    except (json.JSONDecodeError, subprocess.CalledProcessError):
+        raise RuntimeError('Не удалось определить IPv4 сетевых интерфейсов сервера.') from None
+    if not isinstance(interfaces, list):
+        raise RuntimeError('Не удалось прочитать список сетевых интерфейсов сервера.')
+    local_ips = set()
+    for interface in interfaces:
+        if not isinstance(interface, dict) or not isinstance(interface.get('addr_info', []), list):
+            raise RuntimeError('Не удалось прочитать адреса сетевых интерфейсов сервера.')
+        for entry in interface.get('addr_info', []):
+            if not isinstance(entry, dict) or not isinstance(entry.get('local'), str):
+                raise RuntimeError('Не удалось прочитать IPv4 сетевого интерфейса сервера.')
+            if public_ip(entry['local']):
+                local_ips.add(entry['local'])
+    if not local_ips:
+        raise RuntimeError('На интерфейсах сервера не найден публичный IPv4. '
+                           'Схема за NAT требует отдельной настройки TURN.')
+    try:
+        resolved = {record[4][0] for record in socket.getaddrinfo(domain, 443, socket.AF_INET)}
+    except socket.gaierror:
+        raise RuntimeError('Не удалось определить A-запись домена. '
+                           'Проверьте DNS и повторите запуск.') from None
+    if len(resolved) != 1 or not all(public_ip(address) for address in resolved):
+        raise RuntimeError('У домена должна быть ровно одна A-запись с публичным IPv4 этого сервера.')
+    address = next(iter(resolved))
+    if address not in local_ips:
+        raise RuntimeError('A-запись домена не совпадает с публичным IPv4 на интерфейсе сервера. '
+                           'Направьте домен на этот сервер без CDN-прокси; '
+                           'схема за NAT требует отдельной настройки TURN.')
+    try:
+        ipv6 = socket.getaddrinfo(domain, 443, socket.AF_INET6)
+    except socket.gaierror as error:
+        missing = {socket.EAI_NONAME, getattr(socket, 'EAI_NODATA', socket.EAI_NONAME)}
+        if error.errno not in missing:
+            raise RuntimeError('Не удалось проверить AAAA-запись домена. '
+                               'Проверьте DNS и повторите запуск.') from None
+        ipv6 = []
+    if ipv6:
+        raise RuntimeError('Этот мастер настраивает IPv4. Уберите AAAA-запись домена перед установкой.')
+    return address
 
 
 def safe_root(value):
@@ -286,24 +340,9 @@ def configure(bundle, manifest):
             apt('iproute2')
         else:
             raise RuntimeError('Для проверки IP нужен iproute2.')
-    local_ips = [a['local'] for item in json.loads(run('ip', '-j', '-4', 'addr', capture=True))
-                 for a in item.get('addr_info', []) if public_ip(a.get('local', ''))]
     domain = ask('Домен MeetSpace (например meet.company.ru)', validate=domain_valid)
-    address = ask('Публичный IPv4 этого сервера', local_ips[0] if len(local_ips) == 1 else '', public_ip)
-    if address not in local_ips:
-        raise RuntimeError('IPv4 должен быть назначен интерфейсу сервера. Схема за NAT требует отдельной настройки TURN.')
-    try:
-        resolved = {r[4][0] for r in socket.getaddrinfo(domain, 443, socket.AF_INET)}
-    except socket.gaierror:
-        raise RuntimeError('Домен не найден в DNS. Создайте A-запись и повторите запуск.') from None
-    if resolved != {address}:
-        raise RuntimeError('A-запись домена должна указывать только на этот сервер, без CDN-прокси.')
-    try:
-        ipv6 = socket.getaddrinfo(domain, 443, socket.AF_INET6)
-    except socket.gaierror:
-        ipv6 = []
-    if ipv6:
-        raise RuntimeError('Этот мастер настраивает IPv4. Уберите AAAA-запись домена перед установкой.')
+    address = detect_server_ipv4(domain)
+    print(f'Публичный IPv4 определён автоматически: {address}')
     root = Path(ask('Новый каталог установки', '/opt/meetspace', safe_root))
     project = ask('Имя Docker Compose проекта', 'meetspace', lambda s: bool(re.fullmatch(r'meetspace(?:-[a-z0-9-]+)?', s)))
     check_project(project)
