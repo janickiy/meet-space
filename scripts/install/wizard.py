@@ -70,6 +70,16 @@ def digest(path):
     return result.hexdigest()
 
 
+def warn_disk_space(location, recommended_bytes):
+    """Warn, without aborting, when location has less than recommended_bytes available."""
+    available = shutil.disk_usage(location).free
+    if available < recommended_bytes:
+        print(f'Предупреждение: в {location} свободно {available / 1024**3:.1f} ГиБ; '
+              f'рекомендуется не менее {recommended_bytes / 1024**3:.1f} ГиБ.')
+        print('Продолжение разрешено. Если место закончится, сборка или установка '
+              'может завершиться ошибкой и повлиять на другие службы этого диска.')
+
+
 def verify_inventory(root, expected):
     """Validate an exact relative-path/SHA-256 inventory of ordinary files under root."""
     assert root.is_dir() and not root.is_symlink() and isinstance(expected, dict) and expected
@@ -331,8 +341,8 @@ def configure(bundle, manifest):
     ancestor = root.parent
     while not ancestor.exists():
         ancestor = ancestor.parent
-    if shutil.disk_usage(ancestor).free < required or shutil.disk_usage(info['DockerRootDir']).free < 15 * 1024**3:
-        raise RuntimeError('Нужно место для пакета и не менее 15 ГБ свободно для Docker и данных.')
+    warn_disk_space(ancestor, required)
+    warn_disk_space(Path(info['DockerRootDir']), 15 * 1024**3)
     print(f'\nВерсия: {manifest["version"]}\nСайт: https://{domain}\nIP: {address}\nКаталог: {root}\nПроект: {project}')
     print('Откройте во внешнем firewall: TCP 80,443,3478,5349,50010; UDP 3478,50010,49160–49259.\n'
           'Мастер не меняет firewall и не открывает наружу базы данных.')

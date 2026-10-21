@@ -160,7 +160,7 @@ def prerequisites(wizard):
 
 
 def resource_check(wizard, work, building=True):
-    """Check native Docker and CPU/RAM; require 35 GiB when building, 15 GiB when resuming."""
+    """Check native Docker and CPU/RAM; only warn about disk space for work and Docker."""
     architecture = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine())
     require(architecture, 'Сборка поддерживается только на Linux amd64 или arm64.')
     info = json.loads(command('docker', 'info', '--format', '{{json .}}', capture=True))
@@ -169,10 +169,9 @@ def resource_check(wizard, work, building=True):
     if info.get('NCPU', 0) < 4 or info.get('MemTotal', 0) < 8 * 1024**3:
         print('Для сборки рекомендуются не менее 4 CPU и 8 ГБ RAM.')
         require(wizard.yes('Продолжить сборку на этом сервере?'), 'Сборка отменена.')
-    free_gib = 35 if building else 15
+    recommended_gib = 35 if building else 15
     for location in (work, Path(info['DockerRootDir'])):
-        require(shutil.disk_usage(location).free >= free_gib * 1024**3,
-                f'Необходимо не менее {free_gib} ГБ свободного места в /var/tmp и хранилище Docker.')
+        wizard.warn_disk_space(location, recommended_gib * 1024**3)
     return 'linux/' + architecture
 
 
