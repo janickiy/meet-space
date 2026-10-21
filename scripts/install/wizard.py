@@ -30,12 +30,15 @@ def run(*args, capture=False, data=None):
 
 
 def ask(label, default="", validate=None):
-    """Read and validate one value from the controlling terminal."""
+    """Read and validate a terminal value using a label, optional default and validator."""
     while True:
-        with open('/dev/tty', 'r+') as terminal:
-            terminal.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
-            terminal.flush()
-            line = terminal.readline()
+        # A TTY is not seekable; buffered update mode ('r+') cannot open it.
+        # Separate streams also keep prompts interactive when stdin is /dev/null.
+        with open('/dev/tty', 'r', encoding='utf-8') as terminal_input, \
+                open('/dev/tty', 'w', encoding='utf-8') as terminal_output:
+            terminal_output.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
+            terminal_output.flush()
+            line = terminal_input.readline()
         if not line:
             raise RuntimeError('Ввод прерван.')
         value = line.strip() or default
