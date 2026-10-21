@@ -1,6 +1,6 @@
 # Rebuild the same Prometheus release with patched Go networking dependencies.
 # The official, checksum-pinned UI assets retain both upstream web interfaces.
-FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine3.23@sha256:9e45f0eb4a63ed37ad6e604950407558b7c738e34e015ae77a5d4ad369cde079 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201 AS build
 
 ENV GOTOOLCHAIN=local
 RUN apk add --no-cache bash gzip
@@ -46,7 +46,7 @@ LABEL org.opencontainers.image.title="Prometheus" \
       org.opencontainers.image.source="https://github.com/prometheus/prometheus" \
       org.opencontainers.image.licenses="Apache-2.0" \
       io.meetspace.upstream.version="3.15.0" \
-      io.meetspace.security.patch="Go 1.27.2; golang.org/x/net v0.60.0"
+      io.meetspace.security.patch="Go 1.27.3; golang.org/x/net v0.60.0"
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 WORKDIR /prometheus
 USER nobody
