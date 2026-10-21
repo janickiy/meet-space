@@ -3,6 +3,10 @@
 FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201 AS build
 
 ENV GOTOOLCHAIN=local
+ARG GOMAXPROCS=2
+ARG GOFLAGS=-p=2
+ARG GOGC
+ARG GOMEMLIMIT
 RUN apk add --no-cache bash gzip
 WORKDIR /src
 ADD --checksum=sha256:d6383dea2f9b26c1673a52859c453653f2c6c046f7fb6d01db59603a65a732eb \
@@ -22,11 +26,11 @@ RUN go get golang.org/x/net@v0.60.0 \
 
 ARG TARGETARCH
 ARG BUILD_TIME=unknown
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GOMAXPROCS=2 go build -p 2 -trimpath \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
       -tags netgo,builtinassets \
       -ldflags "-s -w -X github.com/prometheus/common/version.Version=3.15.0 -X github.com/prometheus/common/version.Revision=5241a27fe3c6983549fccc32f6e65917408c63cd -X github.com/prometheus/common/version.Branch=release-3.15 -X github.com/prometheus/common/version.BuildUser=meetspace-security-rebuild -X github.com/prometheus/common/version.BuildDate=$BUILD_TIME" \
       -o /out/prometheus ./cmd/prometheus \
-    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GOMAXPROCS=2 go build -p 2 -trimpath \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
       -tags netgo,builtinassets \
       -ldflags "-s -w -X github.com/prometheus/common/version.Version=3.15.0 -X github.com/prometheus/common/version.Revision=5241a27fe3c6983549fccc32f6e65917408c63cd -X github.com/prometheus/common/version.Branch=release-3.15 -X github.com/prometheus/common/version.BuildUser=meetspace-security-rebuild -X github.com/prometheus/common/version.BuildDate=$BUILD_TIME" \
       -o /out/promtool ./cmd/promtool

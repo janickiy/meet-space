@@ -22,27 +22,33 @@ source_git() {
 }
 
 # main validates the requested ref, fetches public sources and delegates server setup.
-# Arguments: optional --ref branch/tag/full commit; --help has no side effects.
+# Arguments: optional --ref and --build-mode; --help has no side effects.
 main() (
-  local ref="$DEFAULT_REF" scratch= architecture= commit= dependency missing=false
+  local ref="$DEFAULT_REF" build_mode=auto scratch= architecture= commit= dependency missing=false
   while (($#)); do
     case "$1" in
       --help|-h)
         printf '%s\n' 'MeetSpace — интерактивная установка из GitHub на новый Linux-сервер' \
-          'Запуск: sudo bash install.sh [--ref BRANCH_OR_TAG_OR_COMMIT]' \
+          'Запуск: sudo bash install.sh [--ref BRANCH_OR_TAG_OR_COMMIT] [--build-mode auto|low-memory|standard]' \
           'Исходники: https://github.com/janickiy/meet-space' \
           'Опубликованный установщик закреплён за проверенным коммитом; --ref меняет его.' \
           'Docker-образы собираются на вашем сервере. Go и Node на хосте не нужны.' \
           'Рекомендуется 4 CPU, 8 ГиБ RAM и 35 ГиБ свободного места; нехватка места — предупреждение, не запрет.' \
+          'На небольшом сервере мастер предложит экономный режим (low-memory): один CPU и до 2 ГиБ RAM на сборку.' \
           'Мастер запросит домен, IP, сертификат и новый каталог установки.' \
           'Существующая установка не обновляется и не удаляется.'
         return;;
       --ref)
         (($# >= 2)) || fail 'Не задано значение --ref.'
         ref="$2"; shift 2;;
+      --build-mode)
+        (($# >= 2)) || fail 'Не задано значение --build-mode.'
+        build_mode="$2"; shift 2;;
       *) fail "Неизвестный параметр: $1";;
     esac
   done
+  [[ "$build_mode" == auto || "$build_mode" == low-memory || "$build_mode" == standard ]] \
+    || fail 'Режим сборки: auto, low-memory или standard.'
   [[ "$ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ && "$ref" != *..* && "$ref" != */ && "$ref" != *//* ]] \
     || fail 'Укажите имя ветки, тега или полный SHA коммита без специальных символов.'
   [[ $(uname -s) == Linux ]] || fail 'Установщик предназначен для Linux-сервера.'
@@ -85,7 +91,12 @@ main() (
   [[ -f "$scratch/source/scripts/install/from-source.py" && ! -L "$scratch/source/scripts/install/from-source.py" ]] \
     || fail 'В выбранной версии нет установщика из исходников. Выберите более новый коммит.'
   printf '\nПолучен коммит: %s\n' "$commit"
-  python3 -I "$scratch/source/scripts/install/from-source.py" "$scratch/source"
+  if [[ "$build_mode" == auto ]]; then
+    # Older explicitly selected source versions do not understand --build-mode.
+    python3 -I "$scratch/source/scripts/install/from-source.py" "$scratch/source"
+  else
+    python3 -I "$scratch/source/scripts/install/from-source.py" "$scratch/source" --build-mode "$build_mode"
+  fi
 )
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi

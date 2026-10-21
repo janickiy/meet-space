@@ -1,4 +1,8 @@
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS build
+ARG GOMAXPROCS
+ARG GOFLAGS
+ARG GOGC
+ARG GOMEMLIMIT
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

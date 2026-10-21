@@ -2,12 +2,13 @@
 # Закрепляет образы digest/ID и архивирует локальную репетицию либо публикует registry-релиз.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
-build= output= mode= security=true infrastructure_manifest=
+build= output= mode= security=true infrastructure_manifest= low_memory=false
 while (($#)); do
   case "$1" in
     --build) build="$2"; shift 2;; --output) output="$2"; shift 2;;
     --mode) mode="$2"; shift 2;; --skip-security-local) security=false; shift;;
     --infrastructure-manifest) infrastructure_manifest="$2"; shift 2;;
+    --low-memory) low_memory=true; shift;;
     *) fail "Unknown package argument: $1";;
   esac
 done
@@ -84,7 +85,9 @@ for service in "${RELEASE_SERVICES[@]}"; do
   if [[ "$security" == true ]]; then
     [[ "${TRIVY_IMAGE:-}" =~ @sha256:[a-f0-9]{64}$ ]] || fail "TRIVY_IMAGE must pin the approved scanner by digest"
     # Критические и высокие находки блокируют пакет; полный SBOM сохраняется вместе с ним.
-    bash "$RELEASE_ROOT/scripts/release/scan-image.sh" "$ref" "$service" "$output"
+    scan_command=(bash "$RELEASE_ROOT/scripts/release/scan-image.sh" "$ref" "$service" "$output")
+    if [[ "$low_memory" == true ]]; then scan_command+=(--low-memory); fi
+    "${scan_command[@]}"
     manifest="$(jq --arg service "$service" --arg scan "$(file_sha256 "$output/$service.scan.json")" --arg sbom "$(file_sha256 "$output/$service.sbom.json")" '.securityEvidence[$service]={scanSHA256:$scan,sbomSHA256:$sbom}' <<<"$manifest")"
   fi
   if [[ "$reuse_infrastructure" == true ]]; then

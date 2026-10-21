@@ -4,6 +4,10 @@ ADD --checksum=sha256:93199495e93a981451d1fefecb5aa71e12aa1692093eed2338bbfe7f08
 # Rebuild the same upstream release with patched Go and HTTP/2 dependencies.
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23@sha256:a07f231c19b03e6106cf442f02a5bcf262147e744d15b7b5e4b6d81d420c70a0 AS build
 ENV GOTOOLCHAIN=local
+ARG GOMAXPROCS
+ARG GOFLAGS
+ARG GOGC
+ARG GOMEMLIMIT
 COPY --from=seaweedfs-source /seaweedfs.tar.gz /tmp/seaweedfs.tar.gz
 RUN echo "93199495e93a981451d1fefecb5aa71e12aa1692093eed2338bbfe7f08960bfb  /tmp/seaweedfs.tar.gz" | sha256sum -c - \
     && mkdir /src && tar -xzf /tmp/seaweedfs.tar.gz -C /src --strip-components=1 \

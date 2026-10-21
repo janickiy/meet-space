@@ -6,6 +6,7 @@ import getpass
 import hashlib
 import ipaddress
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -384,6 +385,9 @@ def valid_subnet(value):
 
 def make_configuration(root, manifest, state):
     """Generate independent secrets and a standalone override for the release Compose."""
+    cpu_count = json.loads(run('docker', 'info', '--format', '{{json .}}', capture=True)).get('NCPU')
+    if not isinstance(cpu_count, int) or isinstance(cpu_count, bool) or cpu_count < 1:
+        raise RuntimeError('Docker не сообщил допустимое количество CPU сервера.')
     domain, address = state['domain'], state['ip']
     values = {key: secrets.token_hex(32) for key in (
         'JWT_SECRET', 'MEDIA_TICKET_SECRET', 'MEDIA_INTERNAL_SECRET', 'WORKER_INTERNAL_SECRET',
@@ -417,6 +421,12 @@ def make_configuration(root, manifest, state):
     services = {name: {'labels': labels} for name in manifest['images']}
     services['migrate'] = {'labels': labels}
     services['proxy'].update(volumes=[f'{root}/config/nginx.conf:/etc/nginx/conf.d/default.conf:ro'])
+    # Render the verified release with this installation's private environment.
+    # Only CPU quotas above the host capacity are lowered; existing smaller limits remain.
+    release = json.loads(run(*compose_base_args(root, manifest, state), '--profile', '*',
+                             'config', '--format', 'json', capture=True))
+    for name, quota in bounded_cpu_limits(release['services'], cpu_count).items():
+        services.setdefault(name, {'labels': labels})['cpus'] = quota
     # Use host-network TURN to avoid hairpin NAT while retaining private-peer denial.
     override = json.dumps({'services': services, 'volumes': {name: {'labels': labels} for name in
                           ('postgres', 'rabbitmq', 'minio', 'objects', 'prometheus', 'grafana')},
@@ -459,14 +469,34 @@ exec python3 -I '{root}/bundle/deployment/scripts/install/wizard.py' --manage '{
 ''', 0o700)
 
 
-def compose_args(root, manifest, state):
-    """Select the standalone layout without the existing host-specific overlay."""
+def bounded_cpu_limits(services, cpu_count):
+    """Return reduced CPU quotas for rendered services exceeding cpu_count available CPUs."""
+    limits = {}
+    for name, configuration in services.items():
+        if 'cpus' not in configuration:
+            continue
+        quota = float(configuration['cpus'])
+        if not math.isfinite(quota) or quota < 0:
+            raise RuntimeError('Некорректное ограничение CPU в конфигурации службы: ' + name)
+        if quota > cpu_count:
+            limits[name] = cpu_count
+    return limits
+
+
+def compose_base_args(root, manifest, state):
+    """Select the verified release layout for root using manifest and installation state."""
     deploy = root / 'bundle/deployment'
     args = ['docker', 'compose', '--project-name', state['project'], '--env-file', str(root / 'config/meetspace.env'),
             '-f', str(deploy / 'docker-compose.production.yml')]
     layout = 'docker-compose.hardened.yml' if manifest.get('deploymentLayout') == 'hardened-shared-host' else 'docker-compose.grafana.yml'
-    args.extend(['-f', str(deploy / layout), '-f', str(root / 'config/compose.json'), '-f', str(root / 'config/turn.yml')])
+    args.extend(['-f', str(deploy / layout)])
     return args
+
+
+def compose_args(root, manifest, state):
+    """Add root's generated installation overlays to the verified release Compose arguments."""
+    return [*compose_base_args(root, manifest, state), '-f', str(root / 'config/compose.json'),
+            '-f', str(root / 'config/turn.yml')]
 
 
 def certificates(root, state):

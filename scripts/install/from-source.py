@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build a clean public GitHub checkout on the target host, then run the installer."""
 
+import argparse
 import contextlib
 import fcntl
 import hashlib
@@ -22,6 +23,8 @@ import tempfile
 
 REPOSITORY = 'https://github.com/janickiy/meet-space.git'
 SCANNER = 'aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa'
+BUILDKIT = 'moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea'
+BUILDKIT_CONFIG = '[worker.oci]\n  max-parallelism = 1\n'
 SERVICES = frozenset(('api', 'media-worker', 'worker', 'product-worker', 'live-worker',
                       'frontend', 'minio', 'postgres', 'redis', 'rabbitmq', 'coturn', 'proxy', 'prometheus'))
 DEPLOYMENT_FILES = (
@@ -160,7 +163,7 @@ def prerequisites(wizard):
 
 
 def resource_check(wizard, work, building=True):
-    """Check native Docker and CPU/RAM; only warn about disk space for work and Docker."""
+    """Check native Docker and return its platform/info; disk capacity remains advisory."""
     architecture = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine())
     require(architecture, 'Сборка поддерживается только на Linux amd64 или arm64.')
     info = json.loads(command('docker', 'info', '--format', '{{json .}}', capture=True))
@@ -168,11 +171,112 @@ def resource_check(wizard, work, building=True):
     require(docker_arch == architecture, 'Нужен локальный Docker той же архитектуры, что и сервер.')
     if info.get('NCPU', 0) < 4 or info.get('MemTotal', 0) < 8 * 1024**3:
         print('Для сборки рекомендуются не менее 4 CPU и 8 ГБ RAM.')
-        require(wizard.yes('Продолжить сборку на этом сервере?'), 'Сборка отменена.')
     recommended_gib = 35 if building else 15
     for location in (work, Path(info['DockerRootDir'])):
         wizard.warn_disk_space(location, recommended_gib * 1024**3)
-    return 'linux/' + architecture
+    return 'linux/' + architecture, info
+
+
+def available_memory_mib():
+    """Read currently available Linux RAM in MiB without counting swap as free memory."""
+    for line in Path('/proc/meminfo').read_text().splitlines():
+        if line.startswith('MemAvailable:'):
+            return int(line.split()[1]) // 1024
+    raise RuntimeError('Не удалось определить доступную оперативную память.')
+
+
+def select_build_mode(wizard, state, requested, info):
+    """Choose and persist a mode using the requested value, saved state and Docker resources."""
+    mode = state.get('buildMode', 'auto') if requested == 'auto' else requested
+    require(mode in ('auto', 'standard', 'low-memory'), 'Неизвестный режим сборки.')
+    if mode == 'auto':
+        small = (info.get('NCPU', 0) < 4 or info.get('MemTotal', 0) < 8 * 1024**3
+                 or available_memory_mib() < 4096)
+        print('\nРежим сборки:\n  1 — экономный: меньше памяти, сборка медленнее.\n'
+              '  2 — обычный: быстрее, без отдельного ограничения памяти сборки.')
+        choice = wizard.ask('Выберите режим', '1' if small else '2', lambda value: value in ('1', '2'))
+        mode = 'low-memory' if choice == '1' else 'standard'
+    state['buildMode'] = mode
+    if mode == 'low-memory':
+        require(info.get('MemoryLimit') and info.get('SwapLimit'),
+                'Экономному режиму нужна поддержка ограничений памяти и swap в Docker.')
+        print('Экономный режим: один CPU, последовательная сборка, не более 2 ГиБ RAM; '
+              'swap сервера не изменяется. Проверка образов — не более 1 ГиБ RAM.')
+    return mode
+
+
+def builder_container(name):
+    """Inspect the single Docker container belonging to the supplied installer builder name."""
+    return json.loads(command('docker', 'inspect', 'buildx_buildkit_' + name + '0', capture=True))[0]
+
+
+def verify_builder(name, memory_mib, expected_id=None):
+    """Verify the named builder's identity and applied hard RAM/swap/CPU limits before use."""
+    container = builder_container(name)
+    settings = container['HostConfig']
+    require(expected_id is None or container['Id'] == expected_id, 'Контейнер сборщика был заменён.')
+    require(container['Config']['Image'] == BUILDKIT
+            and settings['Memory'] == memory_mib * 1024**2
+            and settings['MemorySwap'] == settings['Memory']
+            and settings['CpuPeriod'] == 100000 and settings['CpuQuota'] == 100000
+            and settings['RestartPolicy']['Name'] == 'no',
+            'Docker не применил ожидаемые ограничения сборки. Неограниченная сборка не запускается.')
+    return container['Id']
+
+
+@contextlib.contextmanager
+def low_memory_builder(work, state, info):
+    """Run an owned, bounded BuildKit for work/state; stop it and retain cache on every exit."""
+    # Keep headroom for existing services and the Docker daemon. This is a snapshot,
+    # not a reservation: concurrent host workloads can still exhaust their own RAM.
+    available = available_memory_mib()
+    budget = max(128, min(2048, int(info['MemTotal']) // 1024**2 - 1536, available - 768))
+    budget = max(128, budget // 128 * 128)
+    saved = state.get('builder')
+    if saved is None:
+        name = 'meetspace-' + secrets.token_hex(12)
+        saved = dict(name=name, memoryMiB=budget)
+        state['builder'] = saved
+        save_state(work, state)
+    name, memory_mib = saved['name'], saved['memoryMiB']
+    require(re.fullmatch(r'meetspace-[a-f0-9]{24}', name) and type(memory_mib) is int
+            and 128 <= memory_mib <= 2048, 'Неверные параметры сохранённого сборщика.')
+    if memory_mib > budget:
+        print('Предупреждение: сейчас свободно меньше памяти, чем при предыдущем запуске сборки.')
+        require(available >= memory_mib + 256,
+                'Для продолжения освободите оперативную память или повторите позже; службы не остановлены.')
+    config = work / 'buildkit-low-memory.toml'
+    if config.exists():
+        require(not config.is_symlink() and config.read_text() == BUILDKIT_CONFIG, 'Настройки сборщика изменены.')
+    else:
+        config.write_text(BUILDKIT_CONFIG)
+    stop = False
+    try:
+        if saved.get('created'):
+            if saved.get('containerID'):
+                verify_builder(name, memory_mib, saved['containerID'])
+            stop = True
+            command('docker', 'buildx', 'inspect', '--bootstrap', name, capture=True)
+        else:
+            command('docker', 'buildx', 'create', '--name', name, '--driver', 'docker-container',
+                    '--buildkitd-config', str(config), '--driver-opt', f'image={BUILDKIT}',
+                    '--driver-opt', f'memory={memory_mib}m,memory-swap={memory_mib}m',
+                    '--driver-opt', 'cpu-period=100000,cpu-quota=100000,restart-policy=no',
+                    '--driver-opt', 'env.GOMAXPROCS=1,env.GOMEMLIMIT=256MiB,env.GOGC=20', capture=True)
+            saved['created'] = True
+            save_state(work, state)
+            stop = True
+            command('docker', 'buildx', 'inspect', '--bootstrap', name, capture=True)
+        saved['containerID'] = verify_builder(name, memory_mib, saved.get('containerID'))
+        save_state(work, state)
+        print(f'Сборщик ограничен {memory_mib} МиБ RAM и одним CPU. Кеш сохраняется для продолжения.')
+        yield name
+    finally:
+        if stop:
+            # Never prune shared caches, alter swap, or stop application containers.
+            result = subprocess.run(['docker', 'buildx', 'stop', name], env=environment(), check=False)
+            if result.returncode:
+                print('Не удалось остановить сборщик: docker buildx stop ' + name, file=sys.stderr)
 
 
 def save_state(work, state):
@@ -371,12 +475,13 @@ def validate_work(path):
     return state
 
 
-def build_and_bundle(work, state, wizard):
+def build_and_bundle(work, state, wizard, requested_mode='auto'):
     """Build once, scan all images and resume only completed stages recorded in private state."""
     source = work / 'source'
     verify_checkout(source, state['commit'])
     prerequisites(wizard)
-    target = resource_check(wizard, work, building=not state.get('built'))
+    target, info = resource_check(wizard, work, building=not state.get('built'))
+    mode = select_build_mode(wizard, state, requested_mode, info)
     require(state.get('platform', target) == target, 'Архитектура сохранённой сборки отличается от сервера.')
     state['platform'] = target
     print(f'\nИсходники: {REPOSITORY}\nКоммит: {state["commit"]}\nПлатформа: {target}\n'
@@ -390,10 +495,15 @@ def build_and_bundle(work, state, wizard):
                      registry='meetspace-source-' + run_id, build='build-' + run_id, built=False)
         save_state(work, state)
         print('\n[1/3] Сборка контейнеров из исходников GitHub')
-        command('bash', str(source / 'scripts/release/build.sh'), '--version', state['version'],
-                '--registry', state['registry'], '--commit', state['commit'],
-                '--output', str(work / state['build']), '--layout', 'hardened-shared-host',
-                '--platform', target, work=work)
+        arguments = ['bash', str(source / 'scripts/release/build.sh'), '--version', state['version'],
+                     '--registry', state['registry'], '--commit', state['commit'],
+                     '--output', str(work / state['build']), '--layout', 'hardened-shared-host',
+                     '--platform', target]
+        if mode == 'low-memory':
+            with low_memory_builder(work, state, info) as builder:
+                command(*arguments, '--builder', builder, '--low-memory', work=work)
+        else:
+            command(*arguments, work=work)
         verify_checkout(source, state['commit'])
         state['built'] = True
         save_state(work, state)
@@ -409,7 +519,8 @@ def build_and_bundle(work, state, wizard):
         save_state(work, state)
         print('\n[2/3] Проверка безопасности и сохранение собранных образов')
         command('bash', str(source / 'scripts/release/package.sh'), '--build', str(work / state['build'] / 'build.json'),
-                '--output', str(work / state['package']), '--mode', 'archive', work=work)
+                '--output', str(work / state['package']), '--mode', 'archive',
+                *(['--low-memory'] if mode == 'low-memory' else []), work=work)
         state['packaged'] = True
         save_state(work, state)
     require(re.fullmatch(r'package-[a-f0-9]{12}', state.get('package', '')), 'Неверный каталог пакета.')
@@ -430,20 +541,25 @@ def build_and_bundle(work, state, wizard):
 
 def main():
     """Dispatch a clean source checkout or retained work directory to the source-build workflow."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('source', nargs='?')
+    parser.add_argument('--resume', metavar='WORK_DIRECTORY')
+    parser.add_argument('--build-mode', choices=('auto', 'low-memory', 'standard'), default='auto')
+    arguments = parser.parse_args()
     os.umask(0o077)
     require(os.geteuid() == 0 and sys.platform == 'linux', 'Нужен запуск от root на Linux.')
     require(not os.environ.get('DOCKER_HOST') and not os.environ.get('DOCKER_CONTEXT'),
             'Уберите DOCKER_HOST/DOCKER_CONTEXT: нужен локальный Docker.')
-    require((len(sys.argv) == 2 and sys.argv[1] != '--resume') or (len(sys.argv) == 3 and sys.argv[1] == '--resume'),
-            'Использование: python3 -I from-source.py /абсолютный/checkout или --resume /var/tmp/meetspace-source-build.…')
+    require(bool(arguments.source) != bool(arguments.resume),
+            'Укажите каталог исходников или --resume с каталогом сохранённой сборки.')
     work = None
     try:
         with installation_lock():
-            if sys.argv[1] == '--resume':
-                work = Path(sys.argv[2])
+            if arguments.resume:
+                work = Path(arguments.resume)
                 state = validate_work(work)
             else:
-                source = Path(sys.argv[1])
+                source = Path(arguments.source)
                 commit = verify_checkout(source)
                 work = Path(tempfile.mkdtemp(prefix='meetspace-source-build.', dir='/var/tmp'))
                 (work / 'scratch').mkdir(mode=0o700)
@@ -451,7 +567,7 @@ def main():
                 clone_for_build(source, work, commit)
                 save_state(work, state)
             wizard = load_wizard(work / 'source')
-            bundle = build_and_bundle(work, state, wizard)
+            bundle = build_and_bundle(work, state, wizard, arguments.build_mode)
         # The child acquires the same host lock itself; do not hold it across this call.
         print('\nСборка и проверки завершены. Переходим к настройке сервера MeetSpace.')
         command(sys.executable, '-I', str(bundle / 'deployment/scripts/install/wizard.py'), str(bundle))

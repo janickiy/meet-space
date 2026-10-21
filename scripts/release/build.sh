@@ -2,13 +2,15 @@
 # Собирает приложение один раз; публикация и развёртывание используют эти же образы.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
-version= registry= commit= output= allow_dirty=false layout=classic platform= provenance=
+version= registry= commit= output= allow_dirty=false layout=classic platform= provenance= builder= low_memory=false
 while (($#)); do
   case "$1" in
     --version) version="$2"; shift 2;; --registry) registry="$2"; shift 2;;
     --commit) commit="$2"; shift 2;; --output) output="$2"; shift 2;;
     --layout) layout="$2"; shift 2;; --platform) platform="$2"; shift 2;;
     --snapshot-provenance) provenance="$2"; shift 2;;
+    --builder) builder="$2"; shift 2;;
+    --low-memory) low_memory=true; shift;;
     --allow-dirty-local) allow_dirty=true; shift;; *) fail "Unknown build argument: $1";;
   esac
 done
@@ -18,6 +20,8 @@ done
 [[ "$output" == /* ]] || fail "--output must be an absolute artifact directory"
 [[ "$layout" == classic || "$layout" == hardened-shared-host ]] || fail "Unsupported release layout"
 [[ -z "$platform" || "$platform" == linux/amd64 || "$platform" == linux/arm64 ]] || fail "Unsupported target platform"
+[[ -z "$builder" || "$builder" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]] || fail "Invalid builder name"
+[[ "$low_memory" == false || -n "$builder" ]] || fail "Low-memory builds require an explicitly constrained builder"
 dirty=false
 if git -C "$RELEASE_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
   [[ "$(git -C "$RELEASE_ROOT" rev-parse HEAD)" == "$commit" ]] || fail "Commit does not match checked out source"
@@ -41,8 +45,15 @@ if [[ "$layout" == hardened-shared-host ]]; then
 fi
 build_services=(api media-worker worker product-worker live-worker frontend minio)
 if [[ "$layout" == hardened-shared-host ]]; then build_services+=(coturn proxy postgres redis prometheus); fi
-platform_options=()
-if [[ -n "$platform" ]]; then platform_options=(--platform "$platform"); fi
+build_command=(docker build)
+if [[ -n "$builder" ]]; then build_command=(docker buildx build --builder "$builder" --load); fi
+if [[ -n "$platform" ]]; then build_command+=(--platform "$platform"); fi
+if [[ "$low_memory" == true ]]; then
+  build_command+=(--build-arg GOMAXPROCS=1 --build-arg GOFLAGS=-p=1
+    --build-arg GOGC=20 --build-arg GOMEMLIMIT=768MiB
+    --build-arg NODE_OPTIONS=--max-old-space-size=768)
+fi
+metadata="$(jq --argjson lowMemory "$low_memory" '.lowMemoryBuild=$lowMemory' <<<"$metadata")"
 for service in "${build_services[@]}"; do
   context="$RELEASE_ROOT"; dockerfile="$RELEASE_ROOT/dockers/$service/Dockerfile"
   if [[ "$service" == frontend ]]; then context="$RELEASE_ROOT/frontend"; dockerfile="$context/Dockerfile"; fi
@@ -61,7 +72,7 @@ for service in "${build_services[@]}"; do
   # reproducible and cacheable while recording this release time in OCI labels.
   image_build_time="$time"
   if [[ "$service" == prometheus ]]; then image_build_time=unknown; fi
-  docker build "${platform_options[@]}" --target runtime --file "$dockerfile" --tag "$ref" \
+  "${build_command[@]}" --target runtime --file "$dockerfile" --tag "$ref" \
     --build-arg "BUILD_VERSION=$version" --build-arg "BUILD_COMMIT=$commit" --build-arg "BUILD_TIME=$image_build_time" \
     --build-arg "CLIENT_TELEMETRY_ENABLED=${CLIENT_TELEMETRY_ENABLED:-false}" \
     --label "org.opencontainers.image.version=$version" --label "org.opencontainers.image.revision=$commit" \
