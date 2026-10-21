@@ -2,9 +2,11 @@
 
 **Чаты, видеозвонки и совместная работа в одном пространстве.**
 
-MeetSpace — веб-приложение на Go и React с видеоконференциями через собственный
-WebRTC SFU, личными и групповыми чатами, звонками один на один и серверной записью
-встреч. Основное развёртывание — Docker Compose на одном хосте.
+MeetSpace — платформа для корпоративного общения и совместной работы на Go и
+React: видеовстречи через собственный WebRTC SFU, личные и групповые чаты,
+звонки один на один, календарь, файлы и уведомления. Серверная запись и обработка
+встреч дополняют общение, но не ограничивают назначение сервиса.
+Основное развёртывание — Docker Compose на одном хосте.
 
 ## Возможности
 
@@ -29,7 +31,7 @@ WebRTC SFU, личными и групповыми чатами, звонкам�
 | Запустить локально | [Локальный запуск](#локальный-запуск) |
 | Пользоваться приложением | [Руководство пользователя](docs/USER_GUIDE.md) |
 | Разобраться в устройстве проекта | [Архитектура](docs/ARCHITECTURE.md), [потоки данных](docs/DATA_FLOWS.md) |
-| Работать с API | [Индекс API](docs/API.md), [коллекция Postman](docs/postman/meetspace/MeetSpace.postman_collection.json) |
+| Работать с API | [Каталог в README](#api-meetspace), [примеры](docs/API.md#быстрый-старт-rest), [полный справочник](docs/API_REFERENCE.md), [Postman](docs/postman/meetspace/MeetSpace.postman_collection.json) |
 | Обновить работающую установку | [Процесс выпуска](docs/RELEASE_PROCESS.md), [откат](docs/ROLLBACK.md) |
 | Настроить резервное копирование | [Backup и restore](docs/operations/backup-restore.md) |
 
@@ -76,6 +78,358 @@ flowchart LR
 и сигнализация. RabbitMQ передаёт команды записи; события интерфейса доставляются
 через Redis и WebSocket. Подробнее: [SFU](docs/media-sfu.md),
 [realtime](docs/realtime.md), [личные звонки](docs/direct-calls.md).
+
+## API MeetSpace
+
+API охватывает весь продукт: аккаунты и сессии, встречи, личные и групповые
+переписки, звонки, файлы, календарь, уведомления, папки и обработку контента.
+Запись конференций — только один из разделов.
+
+| Где искать | Содержание |
+| --- | --- |
+| [Обзор и примеры](docs/API.md#быстрый-старт-rest) | Авторизация, создание встречи, диалога, отправка и закрепление сообщения |
+| Каталог ниже | Все **148 маршрутов `/api/v1`**, включая HTTP-входы WebSocket |
+| [Полный справочник](docs/API_REFERENCE.md) | Поля запросов, ответы, доступ, ошибки и исходники всех 177 серверных контрактов |
+| [Postman-коллекция](docs/postman/meetspace/MeetSpace.postman_collection.json) | Готовые описания запросов и иллюстративные ответы |
+| [Realtime](docs/realtime.md), [SFU](docs/media-sfu.md), [личные звонки](docs/direct-calls.md) | События, сигнализация и передача аудио/видео |
+
+### Адреса, доступ и формат
+
+Локальный base URL через frontend: `http://localhost:5173/api/v1`; при прямом
+доступе к локальному API — `http://localhost:8085/api/v1`. На публичном сервере
+используйте `https://<ваш-домен>/api/v1` того же origin, что и веб-интерфейс.
+
+JSON использует camelCase и `Content-Type: application/json`. В путях ниже
+`:id`, `:messageId`, `:recordingId` и другие параметры заменяются реальными
+идентификаторами. Ограничения полей, курсоры и query-параметры перечислены в
+[полном справочнике](docs/API_REFERENCE.md).
+
+Большинство операций требуют `Authorization: Bearer <accessToken>`.
+Регистрация, вход, просмотр публичного приглашения и гостевой вход имеют
+отдельные правила. Cookie-операции `refresh`, `accounts/list`, `accounts/switch`
+и постоянный `logout` работают с серверной сессией; cookie не заменяет Bearer
+для остальных REST-запросов. Браузерные auth-запросы проверяют точный Origin,
+включая схему и порт. Подробнее: [авторизация](docs/auth-conferences-api.md),
+[постоянные сессии](docs/PERSISTENT_AUTH.md).
+
+Гостевой токен ограничен одной встречей: он не открывает личные и групповые
+диалоги, папки или личные звонки. Членство, допуск и роли проверяются для каждой
+операции; знание UUID не даёт доступа к чужому ресурсу.
+
+### Первый запрос
+
+Пример для локального стенда с уже созданным аккаунтом. Замените email и пароль;
+не сохраняйте реальные пароли и токены в репозитории.
+
+```bash
+API=http://localhost:5173/api/v1
+
+curl --fail-with-body -X POST "$API/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"<your-password>"}'
+
+# Скопируйте accessToken из ответа входа, не из ответа регистрации.
+ACCESS_TOKEN='<accessToken>'
+curl --fail-with-body "$API/auth/me" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Вход возвращает `accessToken`, `tokenType`, `expiresIn` и `user`.
+Форма успешного ответа зависит от endpoint: часто используются `status`,
+`item` или `items`, но, например, списки диалогов и уведомлений возвращают
+собственную структуру без `status`. Типичная ошибка:
+`{"status":"failed","message":"…"}`. Основные коды: `400` — JSON,
+`401` — аутентификация, `403` — права/Origin, `404` — ресурс недоступен,
+`409` — конфликт состояния, `413/415` — размер/формат тела,
+`422` — параметры, `429` — лимит запросов. Учитывайте `Retry-After`.
+Ошибки зависимостей могут давать `500/503/504`; повторять изменяющие запросы
+безопасно только с предусмотренной контрактом идемпотентностью.
+
+### Каталог маршрутов
+
+<details>
+<summary>Развернуть все 148 маршрутов API по разделам</summary>
+
+#### Аккаунты, сессии и управление встречами
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `POST` | `/api/v1/auth/register` | Регистрация учетной записи. |
+| `POST` | `/api/v1/auth/login` | Вход и сохранение браузерного сеанса. |
+| `POST` | `/api/v1/auth/refresh` | Новый access token из постоянной сессии. |
+| `POST` | `/api/v1/auth/accounts/list` | Список сохраненных аккаунтов браузера. |
+| `POST` | `/api/v1/auth/accounts/switch` | Выбрать активный аккаунт. |
+| `POST` | `/api/v1/auth/logout` | Отозвать выбранный постоянный сеанс. |
+| `GET` | `/api/v1/auth/me` | Профиль текущего пользователя. |
+| `PATCH` | `/api/v1/auth/me` | Изменить отображаемое имя. |
+| `DELETE` | `/api/v1/auth/me` | Удалить аккаунт с проверкой пароля. |
+| `POST` | `/api/v1/auth/session` | Перенести существующий доступ в постоянную сессию. |
+| `POST` | `/api/v1/conferences` | Создать конференцию. |
+| `GET` | `/api/v1/conferences` | Доступные конференции. |
+| `GET` | `/api/v1/conferences/:id` | Карточка конференции. |
+| `POST` | `/api/v1/conferences/:id/start` | Начать created/scheduled конференцию. |
+| `POST` | `/api/v1/conferences/:id/finish` | Завершить active конференцию. |
+| `POST` | `/api/v1/conferences/:id/cancel` | Отменить created/scheduled конференцию. |
+| `POST` | `/api/v1/conferences/:id/join` | Создать/возобновить членство. |
+| `POST` | `/api/v1/conferences/:id/leave` | Выйти из конференции. |
+| `GET` | `/api/v1/conferences/:id/participants` | Список участников; waiting/rejected видны owner/co_host. |
+| `GET` | `/api/v1/conferences/:id/participants/me` | Состояние допуска текущего участника. |
+| `POST` | `/api/v1/conferences/:id/participants/:participantId/admission` | Принять/отклонить ожидающего участника. |
+| `PUT` | `/api/v1/conferences/:id/schedule` | Изменить расписание scheduled конференции. |
+| `GET` | `/api/v1/conferences/:id/history` | История finished/cancelled конференции. |
+| `GET` | `/api/v1/me/conferences` | Лента конференций пользователя. |
+| `GET` | `/api/v1/conference-invites/:code` | Ограниченная карточка по приглашению. |
+| `POST` | `/api/v1/conference-invites/:code/join` | Войти по коду приглашения. |
+| `PUT` | `/api/v1/conferences/:id/participants/me/media` | Обновить заявленное состояние устройств. |
+| `POST` | `/api/v1/conferences/:id/participants/:participantId/moderation` | Управлять участником. |
+
+#### Гостевой доступ
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `POST` | `/api/v1/conference-invites/:code/guest` | Войти гостем по приглашению. |
+
+#### Приглашения
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/conferences/:id/invitation-users` | Найти адресатов приглашения. |
+| `POST` | `/api/v1/conferences/:id/invitations` | Поставить доставку приглашений. |
+
+#### Личные и групповые диалоги
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/users` | Найти пользователей для диалога. |
+| `GET` | `/api/v1/conversations` | Список личных/групповых диалогов. |
+| `POST` | `/api/v1/conversations/direct` | Открыть или создать личный диалог. |
+| `POST` | `/api/v1/conversations/group` | Создать группу с идемпотентностью. |
+| `GET` | `/api/v1/conversations/:id` | Карточка диалога. |
+| `GET` | `/api/v1/conversations/:id/peer-presence` | Онлайн-статус собеседника. |
+| `PATCH` | `/api/v1/conversations/:id/preferences` | Личная настройка уведомлений. |
+| `POST` | `/api/v1/conversations/:id/clear-history` | Скрыть прежнюю историю только для себя. |
+| `POST` | `/api/v1/conversations/:id/hide` | Скрыть диалог для себя. |
+| `GET` | `/api/v1/conversations/:id/pins` | Общие закрепленные сообщения диалога. |
+| `PUT` | `/api/v1/conversations/:id/pins/:messageId` | Закрепить доступное текстовое сообщение для диалога. |
+| `DELETE` | `/api/v1/conversations/:id/pins/:messageId` | Открепить сообщение диалога. |
+| `PATCH` | `/api/v1/conversations/:id` | Изменить имя и описание группы. |
+| `DELETE` | `/api/v1/conversations/:id` | Удалить группу. |
+| `GET` | `/api/v1/conversations/:id/members` | Список участников группы. |
+| `POST` | `/api/v1/conversations/:id/members` | Добавить зарегистрированных участников. |
+| `DELETE` | `/api/v1/conversations/:id/members/:userId` | Удалить участника; admin может удалить только member. |
+| `PATCH` | `/api/v1/conversations/:id/members/:userId` | Назначить admin/member. |
+| `POST` | `/api/v1/conversations/:id/leave` | Выйти из группы. |
+| `POST` | `/api/v1/conversations/:id/ownership` | Передать владение другому участнику; прежний owner становится admin. |
+| `POST` | `/api/v1/conversations/:id/read` | Алиас отметки прочитанного. |
+
+#### Сообщения и вложения
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/conferences/:id/messages` | История сообщений. |
+| `GET` | `/api/v1/conversations/:id/messages` | История сообщений. |
+| `POST` | `/api/v1/conferences/:id/messages` | Отправить сообщение с идемпотентностью. |
+| `POST` | `/api/v1/conversations/:id/messages` | Отправить сообщение с идемпотентностью. |
+| `PATCH` | `/api/v1/conferences/:id/messages/:messageId` | Изменить текст сообщения. |
+| `PATCH` | `/api/v1/conversations/:id/messages/:messageId` | Изменить текст сообщения. |
+| `DELETE` | `/api/v1/conferences/:id/messages/:messageId` | Мягко удалить сообщение. |
+| `DELETE` | `/api/v1/conversations/:id/messages/:messageId` | Мягко удалить сообщение. |
+| `GET` | `/api/v1/conferences/:id/chat/read` | Текущая граница прочтения. |
+| `GET` | `/api/v1/conversations/:id/chat/read` | Текущая граница прочтения. |
+| `PUT` | `/api/v1/conferences/:id/chat/read` | Монотонно отметить прочитанное. |
+| `PUT` | `/api/v1/conversations/:id/chat/read` | Монотонно отметить прочитанное. |
+| `POST` | `/api/v1/conferences/:id/attachments/init` | Создать резервирование вложения. |
+| `POST` | `/api/v1/conversations/:id/attachments/init` | Создать резервирование вложения. |
+| `PUT` | `/api/v1/conferences/:id/attachments/:attachmentId/content` | Передать байты в зарезервированное вложение. |
+| `PUT` | `/api/v1/conversations/:id/attachments/:attachmentId/content` | Передать байты в зарезервированное вложение. |
+| `POST` | `/api/v1/conferences/:id/attachments/:attachmentId/finalize` | Проверить и завершить загрузку. |
+| `POST` | `/api/v1/conversations/:id/attachments/:attachmentId/finalize` | Проверить и завершить загрузку. |
+| `GET` | `/api/v1/conferences/:id/attachments/:attachmentId/download` | Получить способ скачивания вложения. |
+| `GET` | `/api/v1/conversations/:id/attachments/:attachmentId/download` | Получить способ скачивания вложения. |
+
+#### Аватары групп и приватное скачивание
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `PUT` | `/api/v1/conversations/:id/avatar` | Загрузить аватар группы. |
+| `DELETE` | `/api/v1/conversations/:id/avatar` | Удалить аватар группы. |
+| `GET` | `/api/v1/conversations/:id/avatar/content` | Прочитать аватар через авторизованный поток. |
+| `GET` | `/api/v1/conversations/:id/attachments/:attachmentId/content` | Скачать вложение через авторизованный поток. |
+
+#### Поиск в диалогах
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/conversations/:id/messages/search` | Поиск сообщений личного/группового диалога. |
+| `GET` | `/api/v1/conversations/:id/messages/:messageId/context` | Контекст сообщения диалога. |
+
+#### Чаты конференций
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/conferences/:id/chat/info` | Название, описание и права конференционного чата. |
+| `GET` | `/api/v1/conferences/:id/chat/members` | Участники чата и presence. |
+| `PATCH` | `/api/v1/conferences/:id/chat/info` | Изменить метаданные чата/конференции. |
+| `GET` | `/api/v1/conferences/:id/chat/preferences` | Личная настройка уведомлений. |
+| `PUT` | `/api/v1/conferences/:id/chat/preferences` | Изменить личную настройку уведомлений. |
+| `DELETE` | `/api/v1/conferences/:id/chat/membership` | Выйти из чата конференции. |
+| `GET` | `/api/v1/conferences/:id/chat/messages/search` | Поиск сообщений конференции. |
+| `GET` | `/api/v1/conferences/:id/chat/messages/:messageId/context` | Окружение найденного сообщения. |
+| `GET` | `/api/v1/conferences/:id/chat/materials` | Изображения, файлы или ссылки из сообщений. |
+| `GET` | `/api/v1/conferences/:id/chat/pins` | Личные важные сообщения конференции. |
+| `PUT` | `/api/v1/conferences/:id/chat/pins/:messageId` | Добавить сообщение в личные важные. |
+| `DELETE` | `/api/v1/conferences/:id/chat/pins/:messageId` | Удалить сообщение из личных важных. |
+
+#### Личные звонки
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `POST` | `/api/v1/calls` | Позвонить зарегистрированному пользователю. |
+| `GET` | `/api/v1/calls/active` | Текущий звонок пользователя. |
+| `GET` | `/api/v1/calls/:id` | Состояние звонка. |
+| `POST` | `/api/v1/calls/:id/accept` | Принять входящий звонок. |
+| `POST` | `/api/v1/calls/:id/decline` | Отклонить входящий звонок. |
+| `POST` | `/api/v1/calls/:id/cancel` | Отменить исходящий звонок. |
+| `POST` | `/api/v1/calls/:id/end` | Завершить принятый звонок. |
+| `POST` | `/api/v1/calls/:id/heartbeat` | Продлить lease звонка. |
+
+#### Личные папки
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/folders` | Список папок и, опционально, принадлежность элемента. |
+| `POST` | `/api/v1/folders` | Создать папку. |
+| `PUT` | `/api/v1/folders/order` | Переставить папки. |
+| `GET` | `/api/v1/folders/:id` | Карточка папки. |
+| `PATCH` | `/api/v1/folders/:id` | Переименовать папку. |
+| `DELETE` | `/api/v1/folders/:id` | Удалить папку. |
+| `GET` | `/api/v1/folders/:id/items` | Содержимое папки. |
+| `GET` | `/api/v1/folder-items` | Доступные элементы для добавления в папку. |
+| `PUT` | `/api/v1/folders/:id/items/:kind/:itemId` | Добавить элемент в папку. |
+| `DELETE` | `/api/v1/folders/:id/items/:kind/:itemId` | Убрать элемент из папки. |
+
+#### Уведомления
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/notifications` | Лента уведомлений. |
+| `GET` | `/api/v1/notifications/events` | Поток SSE уведомлений. |
+| `POST` | `/api/v1/notifications/:notificationId/read` | Отметить уведомление прочитанным. |
+
+#### Интеграции
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/notifications/preferences` | Настройки каналов и видов уведомлений. |
+| `PUT` | `/api/v1/notifications/preferences` | Сохранить полный набор настроек уведомлений. |
+| `GET` | `/api/v1/notifications/devices` | Зарегистрированные push-устройства. |
+| `POST` | `/api/v1/notifications/devices` | Зарегистрировать push-устройство. |
+| `DELETE` | `/api/v1/notifications/devices/:deviceId` | Отозвать push-устройство. |
+| `GET` | `/api/v1/integrations/capabilities` | Настроенные провайдеры интеграций. |
+| `GET` | `/api/v1/integrations/calendars` | Список календарных подключений. |
+| `POST` | `/api/v1/integrations/calendars/mock` | Создать mock-подключение календаря. |
+| `GET` | `/api/v1/integrations/calendars/:provider/connect` | Начать OAuth календаря. |
+| `POST` | `/api/v1/integrations/calendars/:provider/callback` | Завершить OAuth календаря. |
+| `DELETE` | `/api/v1/integrations/calendars/:provider` | Отключить календарь. |
+| `GET` | `/api/v1/conferences/:id/calendar` | Календарные события конференции. |
+
+#### Записи конференций
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `POST` | `/api/v1/conferences/:id/recordings` | Запросить запись активной конференции. |
+| `GET` | `/api/v1/conferences/:id/recordings` | Список записей конференции. |
+| `GET` | `/api/v1/conferences/:id/recordings/:recordingId` | Карточка записи и доступные файлы. |
+| `DELETE` | `/api/v1/conferences/:id/recordings/:recordingId` | Удалить завершенную запись и ее артефакты. |
+| `POST` | `/api/v1/conferences/:id/recordings/:recordingId/stop` | Запросить остановку записи. |
+
+#### Контент и общий поиск
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/conferences/:id/recordings/:recordingId/transcript` | Метаданные транскрипции записи. |
+| `GET` | `/api/v1/conferences/:id/recordings/:recordingId/transcript/segments` | Страница текста с временными метками. |
+| `POST` | `/api/v1/conferences/:id/recordings/:recordingId/transcript/retry` | Поставить первую/повторную транскрипцию. |
+| `GET` | `/api/v1/conferences/:id/recordings/:recordingId/summary` | Прочитать AI summary. |
+| `POST` | `/api/v1/conferences/:id/recordings/:recordingId/summary/regenerate` | Поставить повторную генерацию summary. |
+| `GET` | `/api/v1/search` | Поиск конференций, транскрипций и summary. |
+
+#### Субтитры и аналитика
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/conferences/:id/captions` | Состояние живых субтитров. |
+| `PUT` | `/api/v1/conferences/:id/captions` | Включить/выключить живые субтитры. |
+| `GET` | `/api/v1/conferences/:id/captions/segments` | Сохраненные финальные субтитры после курсора. |
+| `GET` | `/api/v1/conferences/:id/analytics` | Аналитика конференции. |
+| `POST` | `/api/v1/conferences/:id/recordings/:recordingId/search/reindex` | Поставить повторную индексацию готовой транскрипции. |
+
+#### Реакции встречи
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `POST` | `/api/v1/conferences/:id/reactions` | Разослать временную реакцию. |
+
+#### WebSocket и настройки WebRTC
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `POST` | `/api/v1/conferences/:id/ws-ticket` | Получить билет подключения к конференции. |
+| `GET` | `/api/v1/conferences/:id/ws` | Открыть канал конференции, сигнализации и media-команд. |
+| `GET` | `/api/v1/webrtc/config` | Получить ICE/TURN конфигурацию клиента. |
+| `POST` | `/api/v1/ws-ticket` | Получить одноразовый билет глобального канала пользователя. |
+| `GET` | `/api/v1/ws` | Открыть глобальный канал диалогов, звонков, уведомлений и присутствия. |
+
+#### Возможности платформы
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `GET` | `/api/v1/capabilities` | Функции платформы при текущей конфигурации. |
+| `GET` | `/api/v1/admin/summary` | Операционная сводка администратора. |
+
+#### Телеметрия
+
+| Метод | Путь | Назначение |
+| --- | --- | --- |
+| `POST` | `/api/v1/client-errors` | Принять ограниченный отчет об ошибке браузера. |
+
+</details>
+
+### Реальное время, файлы и фоновые операции
+
+- Для конференции получите билет через `POST /api/v1/conferences/:id/ws-ticket`
+  и откройте `/api/v1/conferences/:id/ws?ticket=…`. Для личных/групповых чатов,
+  звонков и присутствия используйте `POST /api/v1/ws-ticket` и `/api/v1/ws`.
+  Билеты одноразовые; постоянный JWT в URL не передаётся.
+- Уведомления приходят через авторизованный fetch-SSE
+  `GET /api/v1/notifications/events`. Нужен Bearer-заголовок; передача токена
+  в query не поддерживается.
+- REST управляет встречами и звонками; аудио, видео и демонстрация экрана
+  передаются через WebRTC/SFU, а не загрузкой видео в HTTP endpoint.
+  ICE/TURN-конфигурация запрашивается через `GET /api/v1/webrtc/config`.
+- Вложения проходят `attachments/init → PUT content → finalize`, после чего
+  их ID можно включить в сообщение. Формат загрузки, допустимые типы и
+  ограничения описаны в [контракте чата](docs/collaboration.md).
+- Начало/остановка записи, транскрипция и генерация итогов асинхронны.
+  Готовность и доступные файлы нужно читать из ответов соответствующих API.
+- Дополнительные провайдеры STT, ИИ, календарей, email/push могут быть отключены.
+  Сначала проверяйте `GET /api/v1/capabilities` и
+  `GET /api/v1/integrations/capabilities`; наличие маршрута не означает,
+  что внешний провайдер настроен.
+
+### Версии и служебный API
+
+Публичные `GET /version` и `GET /version.json` возвращают метки API и frontend.
+`GET /health` — простой health API без проверки зависимостей. Подробные
+`/health/live`, `/health/ready`, `/metrics`, `/operations/*`, внутренние
+маршруты SFU/recorder и profiling описаны отдельно в
+[справочнике](docs/API_REFERENCE.md#api-group-21) и
+[операционном руководстве](docs/operations/README.md). Они не предназначены
+для публичного proxy; настройки установки блокируют служебные пути.
+
+Старые `/api/v1/records*`, `/api/records*` и WebRTC smoke/debug API не
+зарегистрированы. Актуальные записи доступны только через
+`/api/v1/conferences/:id/recordings*`.
 
 ## Локальный запуск
 
@@ -208,8 +562,10 @@ sudo bash install.sh --ref "$(git rev-parse HEAD)"
 
 Автоматическая подготовка рассчитана на Ubuntu/Debian с `apt` и `systemd`,
 архитектуру `amd64` или `arm64`, права root/sudo и интерактивный терминал.
-Рекомендуются 4 CPU, 8 ГиБ RAM и диск от 60 ГиБ; перед сборкой нужны как минимум
-35 ГиБ свободного места. Требуются домен с одной A-записью и публичный IPv4
+Рекомендуются 4 CPU, 8 ГиБ RAM и диск от 60 ГиБ; перед сборкой рекомендуется
+35 ГиБ свободного места. Нехватка места вызывает предупреждение, а не запрет
+продолжения; при заполнении диска сборка всё равно может завершиться ошибкой.
+Требуются домен с одной A-записью и публичный IPv4
 на интерфейсе сервера. Условия для DNS, Docker, сертификатов и открытых портов
 перечислены в [инструкции установки](docs/INSTALLATION.md).
 
@@ -233,15 +589,8 @@ sudo bash install.sh --ref "$(git rev-parse HEAD)"
 | `audio_only` | Аудио AAC в контейнере `final.mp4`, без видеопревью |
 | `individual_tracks` | Смешанное аудио MP4 и ZIP исходных дорожек IVF/OGG с манифестом |
 
-Основные маршруты, требующие авторизации:
-
-| Метод | Путь | Действие |
-| --- | --- | --- |
-| `POST` | `/api/v1/conferences/{id}/recordings` | Начать запись |
-| `GET` | `/api/v1/conferences/{id}/recordings` | Список записей |
-| `GET` | `/api/v1/conferences/{id}/recordings/{recordingId}` | Состояние и готовые файлы |
-| `POST` | `/api/v1/conferences/{id}/recordings/{recordingId}/stop` | Остановить запись |
-| `DELETE` | `/api/v1/conferences/{id}/recordings/{recordingId}` | Удалить запись |
+Маршруты записи включены в [общий каталог API](#каталог-маршрутов).
+Поля и ответы описаны в [контракте записи](docs/API_REFERENCE.md#api-group-5).
 
 Права проверяются для каждой операции. Остановка записи асинхронна: после неё
 идут финализация и загрузка. До готовности API может отвечать `202`; ссылки

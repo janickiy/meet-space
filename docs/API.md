@@ -11,6 +11,148 @@ WebSocket, медиа и диагностики. Исполняемые марш
 содержит **178 запросов**: те же контракты плюс статический frontend `/version.json`.
 Каталог включает доступ, запрос, ответ, ошибки и исходный файл для каждого пути.
 
+## Быстрый старт REST
+
+В [README](../README.md#api-meetspace) находится краткий каталог всех 148
+маршрутов `/api/v1`, а не только API записи. Ниже — последовательности запросов
+для основных функций. Примеры предназначены для локального стенда с уже
+созданными аккаунтами; они **не выполнялись на рабочем сервере** при подготовке
+документации. Запросы создания, отправки, закрепления и удаления меняют данные.
+
+### 1. Войти и проверить профиль
+
+Укажите адрес своего стенда. Для локального frontend это
+`http://localhost:5173/api/v1`, для прямого локального API —
+`http://localhost:8085/api/v1`. В production используйте HTTPS origin своего
+приложения с суффиксом `/api/v1`.
+
+```bash
+API=http://localhost:5173/api/v1
+
+curl --fail-with-body -X POST "$API/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"<your-password>"}'
+
+ACCESS_TOKEN='<accessToken из ответа входа>'
+curl --fail-with-body "$API/auth/me" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Вход возвращает `accessToken`, а не `token`. Регистрация
+`POST /auth/register` создаёт пользователя, но не заменяет вход. Постоянные
+браузерные сессии используют HttpOnly cookies и специальные auth-операции;
+для refresh/switch/logout нужно сохранять и передавать cookie выбранного
+аккаунта. В CLI без Origin auth-запросы разрешены; если Origin указан, он должен
+точно совпадать с `PUBLIC_FRONTEND_URL`. Не публикуйте пароли, JWT и cookies.
+
+### 2. Создать встречу и войти в неё
+
+```bash
+curl --fail-with-body -X POST "$API/conferences" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Встреча команды","waitingRoomEnabled":false}'
+
+CONFERENCE_ID='<item.id из ответа создания>'
+curl --fail-with-body -X POST "$API/conferences/$CONFERENCE_ID/start" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+curl --fail-with-body -X POST "$API/conferences/$CONFERENCE_ID/join" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+curl --fail-with-body "$API/conferences/$CONFERENCE_ID/participants/me" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Для планирования передайте `scheduledAt` в RFC3339 с будущим временем и,
+при необходимости, `plannedDurationMin`; изменение расписания выполняется
+`PUT /conferences/:id/schedule`. Персональные списки и календарь используют
+`GET /me/conferences?view=upcoming|active|past` и данные расписания встречи.
+Отдельного REST-префикса `/calendar` у приложения нет.
+
+Подключение к медиа не создаётся одним REST-запросом: после допуска получите
+`POST /conferences/:id/ws-ticket`, откройте WebSocket и выполните протокол SFU.
+При включённом зале ожидания сначала дождитесь допуска. Организатор завершает
+встречу через `POST /conferences/:id/finish`; обычный участник выходит через
+`POST /conferences/:id/leave`. См. [контракты встреч](auth-conferences-api.md)
+и [SFU](media-sfu.md).
+
+### 3. Найти собеседника, открыть диалог и отправить сообщение
+
+```bash
+curl --fail-with-body --get "$API/users" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  --data-urlencode 'search=Александр'
+
+PEER_ID='<id другого зарегистрированного пользователя>'
+curl --fail-with-body -X POST "$API/conversations/direct" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"userId\":\"$PEER_ID\"}"
+
+CONVERSATION_ID='<item.id диалога>'
+CLIENT_REQUEST_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+curl --fail-with-body -X POST "$API/conversations/$CONVERSATION_ID/messages" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"clientRequestId\":\"$CLIENT_REQUEST_ID\",\"text\":\"Здравствуйте! Обсудим проект?\"}"
+
+curl --fail-with-body "$API/conversations/$CONVERSATION_ID/messages?limit=50" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+В примере Python 3 нужен только для генерации UUID; в своём клиенте используйте
+его генератор UUID. Новый `clientRequestId` нужен для нового сообщения, но при
+повторе **того же** запроса сохраняйте прежний ключ. Повтор с другим содержимым
+вернёт `409`. Ответ на сообщение задаётся полем `replyTo`, вложения —
+`attachmentIds`. Для редактирования используется `PATCH /messages/:messageId`
+относительно выбранного диалога, для удаления — `DELETE` по тому же пути.
+
+Группа создаётся через `POST /conversations/group` с `clientRequestId`, `name`,
+необязательным `description` и `memberIds`. Сообщения группы используют те же
+маршруты `conversations/:id/messages`. Роли, передача владения, аватар,
+участники и выход описаны в [GROUP_CHATS.md](GROUP_CHATS.md).
+
+### 4. Закрепить сообщение, найти текст и отметить прочтение
+
+```bash
+MESSAGE_ID='<item.id отправленного текстового сообщения>'
+curl --fail-with-body -X PUT "$API/conversations/$CONVERSATION_ID/pins/$MESSAGE_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+curl --fail-with-body "$API/conversations/$CONVERSATION_ID/pins" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+curl --fail-with-body --get "$API/conversations/$CONVERSATION_ID/messages/search" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  --data-urlencode 'q=проект' --data-urlencode 'limit=20'
+curl --fail-with-body -X PUT "$API/conversations/$CONVERSATION_ID/chat/read" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"messageId\":\"$MESSAGE_ID\"}"
+```
+
+Закрепления диалога общие для его участников; важные сообщения конференционного
+чата — личные. Открепление выполняется `DELETE /conversations/:id/pins/:messageId`.
+Чат встречи использует `conferences/:id/messages`, а поиск, материалы и личные
+важные — `conferences/:id/chat/*`. Это разные пространства, их ID и маршруты
+нельзя смешивать. Подробности: [личные сообщения](PERSONAL_MESSAGES.md),
+[поиск](personal-chat-search.md), [чат конференции](collaboration.md).
+
+### Остальные сценарии
+
+| Сценарий | Последовательность / документация |
+| --- | --- |
+| Загрузка файла | `POST attachments/init` → `PUT attachments/:attachmentId/content` с байтами → `POST attachments/:attachmentId/finalize` → отправка сообщения с `attachmentIds`; [контракт](API_REFERENCE.md#api-group-4) |
+| Личный звонок | `POST /calls` с `targetUserId`, `clientRequestId`, `clientId` → `accept/decline/cancel/end` и heartbeat; медиа — через WebSocket/WebRTC; [протокол](direct-calls.md) |
+| Папки | `/folders`, `/folder-items`, `/folders/:id/items/:kind/:itemId`; [контракт](PERSONAL_FOLDERS.md) |
+| Уведомления | `/notifications`, `/:notificationId/read`, `/notifications/events` (SSE с Bearer); настройки и устройства — `/notifications/preferences` и `/notifications/devices` |
+| Календарные провайдеры | `/integrations/calendars`, OAuth connect/callback и `/conferences/:id/calendar`; [настройка провайдеров](content-integrations.md) |
+| Запись встречи | `/conferences/:id/recordings` → `/:recordingId/stop` → чтение состояния и файлов; [контракт](conference-recording.md) |
+| Текст и итоги встречи | `transcript`, `transcript/segments`, `summary` относительно записи; `captions` и `analytics` относительно конференции; сначала проверьте `/capabilities` |
+
+Пути в этой таблице указаны относительно `/api/v1`; `attachments/*` дополнительно
+относится к выбранному `/conferences/:id` или `/conversations/:id`.
+Служебные API worker/metrics/drain не заменяют пользовательские endpoints и не
+должны вызываться через публичный proxy. Не запускайте всю коллекцию Postman
+пакетно на рабочем окружении: она содержит изменяющие и удаляющие запросы.
+
 ## Контракты по областям
 
 | Область | Документ | Исполняемые маршруты / источник |
