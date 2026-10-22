@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Собирает приложение один раз; публикация и развёртывание используют эти же образы.
-set -euo pipefail
+set -Eeuo pipefail
 source "$(dirname "$0")/common.sh"
-version= registry= commit= output= allow_dirty=false layout=classic platform= provenance= builder= low_memory=false
+version= registry= commit= output= allow_dirty=false layout=classic platform= provenance= builder= low_memory=false resume=false
 while (($#)); do
   case "$1" in
     --version) version="$2"; shift 2;; --registry) registry="$2"; shift 2;;
@@ -11,6 +11,7 @@ while (($#)); do
     --snapshot-provenance) provenance="$2"; shift 2;;
     --builder) builder="$2"; shift 2;;
     --low-memory) low_memory=true; shift;;
+    --resume) resume=true; shift;;
     --allow-dirty-local) allow_dirty=true; shift;; *) fail "Unknown build argument: $1";;
   esac
 done
@@ -29,7 +30,10 @@ if git -C "$RELEASE_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
   [[ "$dirty" == false || "$allow_dirty" == true ]] || fail "Release source must be clean; only local rehearsal may allow dirty source"
 elif [[ "${CI_COMMIT_SHA:-}" != "$commit" ]]; then fail "Source without .git must be bound to CI_COMMIT_SHA"; fi
 mkdir -p "$output"
-[[ ! -e "$output/build.json" ]] || fail "Build metadata already exists; choose a new directory"
+[[ ! -L "$output/build.json" && ! -L "$output/build-progress.json" ]] || fail "Build metadata must not be a symbolic link"
+if [[ "$resume" == false && ( -e "$output/build.json" || -e "$output/build-progress.json" ) ]]; then
+  fail "Build metadata already exists; use --resume for the same build or choose a new directory"
+fi
 time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 command -v rg >/dev/null || fail "ripgrep is required to fingerprint source files"
 # Контрольная сумма включает имена и содержимое исходников, в том числе незакоммиченные файлы локальной репетиции.
@@ -53,8 +57,86 @@ if [[ "$low_memory" == true ]]; then
     --build-arg GOGC=20 --build-arg GOMEMLIMIT=768MiB
     --build-arg NODE_OPTIONS=--max-old-space-size=768)
 fi
-metadata="$(jq --argjson lowMemory "$low_memory" '.lowMemoryBuild=$lowMemory' <<<"$metadata")"
+telemetry="${CLIENT_TELEMETRY_ENABLED:-false}"
+[[ "$telemetry" == true || "$telemetry" == false ]] || fail "CLIENT_TELEMETRY_ENABLED must be true or false"
+metadata="$(jq --argjson lowMemory "$low_memory" --arg telemetry "$telemetry" '
+  .lowMemoryBuild=$lowMemory | .buildOptions={lowMemory:$lowMemory,clientTelemetryEnabled:$telemetry}
+  | .imageIDs={} | .timingsSeconds={}' <<<"$metadata")"
+
+# write_build_metadata atomically saves generated progress outside the source checkout.
+# Arguments: destination basename within the caller-selected artifact directory.
+write_build_metadata() {
+  local destination="$1" pending
+  pending="$(mktemp "$output/.build-progress.XXXXXXXX")"
+  printf '%s\n' "$metadata" > "$pending"
+  mv -f -- "$pending" "$output/$destination"
+}
+
+# verify_built_image binds a checkpoint to the actual image, source and build platform.
+# Arguments: service name, exact release tag, and optional immutable checkpoint image ID.
+verify_built_image() {
+  local service="$1" ref="$2" expected_id="${3:-}" inspected
+  inspected="$(docker image inspect "$ref")" || fail "Saved image is missing for $service; restore it or start a new build directory"
+  jq -e --arg version "$version" --arg commit "$commit" --arg source "$source_digest" \
+    --arg created "$time" --arg platform "$platform" --arg id "$expected_id" '
+      length == 1 and (.[0] |
+        (.Id | test("^sha256:[a-f0-9]{64}$")) and ($id == "" or .Id == $id)
+        and ($platform == "" or (.Os + "/" + .Architecture) == $platform)
+        and .Config.Labels["org.opencontainers.image.version"] == $version
+        and .Config.Labels["org.opencontainers.image.revision"] == $commit
+        and .Config.Labels["org.opencontainers.image.created"] == $created
+        and .Config.Labels["io.go-recorder.source-sha256"] == $source)' \
+    <<<"$inspected" >/dev/null || fail "Saved image identity/provenance mismatch for $service; refusing to reuse or overwrite it"
+  jq -r '.[0].Id' <<<"$inspected"
+}
+
+checkpoint=
+if [[ "$resume" == true ]]; then
+  if [[ -f "$output/build.json" ]]; then checkpoint="$output/build.json";
+  elif [[ -f "$output/build-progress.json" ]]; then checkpoint="$output/build-progress.json"; fi
+fi
+if [[ -n "$checkpoint" ]]; then
+  # Compare every input that affects the build before accepting any prior image.
+  jq -e --argjson expected "$metadata" --arg services "${build_services[*]}" '
+    .schemaVersion == $expected.schemaVersion and .version == $expected.version
+    and .commit == $expected.commit and .registry == $expected.registry
+    and .sourceDirty == $expected.sourceDirty and .sourceSHA256 == $expected.sourceSHA256
+    and .deploymentLayout == $expected.deploymentLayout and .platform == $expected.platform
+    and .buildOptions == $expected.buildOptions and .lowMemoryBuild == $expected.lowMemoryBuild
+    and .sourceSnapshot == $expected.sourceSnapshot
+    and .objectStorageProvider == $expected.objectStorageProvider
+    and .omittedComponents == $expected.omittedComponents
+    and (.builtAt | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+    and (.images | type == "object") and (.imageIDs | type == "object")
+    and (.timingsSeconds | type == "object")
+    and ((.images | keys) == (.imageIDs | keys))
+    and ((.images | keys) == (.timingsSeconds | keys))
+    and ((.images | keys) - ($services | split(" ")) | length == 0)
+    and all(.imageIDs[]; type == "string" and test("^sha256:[a-f0-9]{64}$"))
+    and all(.timingsSeconds[]; type == "number" and . >= 0)' "$checkpoint" >/dev/null \
+    || fail "Build checkpoint inputs do not match; source, platform and options must remain unchanged on --resume"
+  metadata="$(jq '.' "$checkpoint")"
+  time="$(jq -r .builtAt <<<"$metadata")"
+fi
+
+current_service=preparation
+# report_build_failure identifies the failed stage without logging environment secrets.
+# Arguments: process exit status and a short static failure reason.
+report_build_failure() {
+  local status="$1" reason="$2"
+  printf '\nBuild stopped at %s after %s s (%s, exit %s). Completed images are saved in %s/build-progress.json.\nResume with the same arguments and --resume.\n' \
+    "$current_service" "$((SECONDS - ${started:-$SECONDS}))" "$reason" "$status" "$output" >&2
+  exit "$status"
+}
+trap 'report_build_failure "$?" "command failed"' ERR
+trap 'report_build_failure 130 "interrupted"' INT
+trap 'report_build_failure 143 "terminated"' TERM
+if [[ -z "$checkpoint" ]]; then write_build_metadata build-progress.json; fi
+index=0
 for service in "${build_services[@]}"; do
+  index=$((index + 1))
+  current_service="$service"
+  started=$SECONDS
   context="$RELEASE_ROOT"; dockerfile="$RELEASE_ROOT/dockers/$service/Dockerfile"
   if [[ "$service" == frontend ]]; then context="$RELEASE_ROOT/frontend"; dockerfile="$context/Dockerfile"; fi
   if [[ "$layout" == hardened-shared-host ]]; then
@@ -67,17 +149,34 @@ for service in "${build_services[@]}"; do
     esac
   fi
   ref="$registry/$service:$version"
+  saved_ref="$(jq -r --arg service "$service" '.images[$service] // ""' <<<"$metadata")"
+  if [[ -n "$saved_ref" ]]; then
+    [[ "$saved_ref" == "$ref" ]] || fail "Checkpoint release tag mismatch for $service"
+    saved_id="$(jq -er --arg service "$service" '.imageIDs[$service]' <<<"$metadata")"
+    verify_built_image "$service" "$ref" "$saved_id" >/dev/null
+    printf '[%s/%s] %s: verified saved image; compilation skipped.\n' "$index" "${#build_services[@]}" "$service"
+    continue
+  fi
+  [[ "$checkpoint" != "$output/build.json" ]] || fail "Completed build manifest is missing $service"
   docker image inspect "$ref" >/dev/null 2>&1 && fail "Refusing to replace existing release tag: $ref"
   # Upstream Prometheus is identical across application releases; keep its binary
   # reproducible and cacheable while recording this release time in OCI labels.
   image_build_time="$time"
   if [[ "$service" == prometheus ]]; then image_build_time=unknown; fi
+  printf '[%s/%s] %s: building (started %s).\n' "$index" "${#build_services[@]}" "$service" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  started=$SECONDS
   "${build_command[@]}" --target runtime --file "$dockerfile" --tag "$ref" \
     --build-arg "BUILD_VERSION=$version" --build-arg "BUILD_COMMIT=$commit" --build-arg "BUILD_TIME=$image_build_time" \
-    --build-arg "CLIENT_TELEMETRY_ENABLED=${CLIENT_TELEMETRY_ENABLED:-false}" \
+    --build-arg "CLIENT_TELEMETRY_ENABLED=$telemetry" \
     --label "org.opencontainers.image.version=$version" --label "org.opencontainers.image.revision=$commit" \
     --label "org.opencontainers.image.created=$time" --label "io.go-recorder.source-sha256=$source_digest" "$context"
-  metadata="$(jq --arg service "$service" --arg ref "$ref" '.images[$service]=$ref' <<<"$metadata")"
+  elapsed=$((SECONDS - started))
+  image_id="$(verify_built_image "$service" "$ref")"
+  metadata="$(jq --arg service "$service" --arg ref "$ref" --arg id "$image_id" --argjson elapsed "$elapsed" \
+    '.images[$service]=$ref | .imageIDs[$service]=$id | .timingsSeconds[$service]=$elapsed' <<<"$metadata")"
+  write_build_metadata build-progress.json
+  printf '[%s/%s] %s: complete in %s s; progress saved.\n' "$index" "${#build_services[@]}" "$service" "$elapsed"
 done
-printf '%s\n' "$metadata" > "$output/build.json"
+write_build_metadata build.json
+trap - ERR INT TERM
 printf 'Built %s. Package these images without rebuilding.\n' "$version"

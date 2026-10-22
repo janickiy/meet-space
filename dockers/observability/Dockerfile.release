@@ -3,6 +3,7 @@
 FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201 AS build
 
 ENV GOTOOLCHAIN=local
+ARG TARGETARCH
 ARG GOMAXPROCS=2
 ARG GOFLAGS=-p=2
 ARG GOGC
@@ -20,13 +21,15 @@ RUN tar -xzf /tmp/prometheus-ui.tar.gz -C web/ui \
     && bash scripts/compress_assets.sh \
     && test -s web/ui/static/mantine-ui/index.html.gz \
     && test -s web/ui/static/react-app/index.html.gz
-RUN go get golang.org/x/net@v0.60.0 \
+RUN --mount=type=cache,id=meetspace-prometheus-go127-modules-${TARGETARCH},target=/go/pkg/mod,sharing=locked \
+    go get golang.org/x/net@v0.60.0 \
     && go mod download \
     && go mod verify
 
-ARG TARGETARCH
 ARG BUILD_TIME=unknown
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
+RUN --mount=type=cache,id=meetspace-prometheus-go127-modules-${TARGETARCH},target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,id=meetspace-prometheus-go127-build-${TARGETARCH},target=/root/.cache/go-build,sharing=locked \
+    CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
       -tags netgo,builtinassets \
       -ldflags "-s -w -X github.com/prometheus/common/version.Version=3.15.0 -X github.com/prometheus/common/version.Revision=5241a27fe3c6983549fccc32f6e65917408c63cd -X github.com/prometheus/common/version.Branch=release-3.15 -X github.com/prometheus/common/version.BuildUser=meetspace-security-rebuild -X github.com/prometheus/common/version.BuildDate=$BUILD_TIME" \
       -o /out/prometheus ./cmd/prometheus \

@@ -556,15 +556,20 @@ def build_and_bundle(work, state, wizard, requested_mode='auto'):
     require(wizard.yes('Начать или продолжить сборку из этих исходников?'), 'Сборка отменена.')
     if not state.get('built'):
         normalize_source_permissions(source, state['commit'])
-        run_id = secrets.token_hex(6)
-        state.update(version=f'v0.0.0-source.{state["commit"][:12]}.{run_id}',
-                     registry='meetspace-source-' + run_id, build='build-' + run_id, built=False)
+        if not state.get('build'):
+            run_id = secrets.token_hex(6)
+            state.update(version=f'v0.0.0-source.{state["commit"][:12]}.{run_id}',
+                         registry='meetspace-source-' + run_id, build='build-' + run_id, built=False)
+        require(re.fullmatch(r'build-[a-f0-9]{12}', state['build'])
+                and state.get('registry') == 'meetspace-source-' + state['build'][6:]
+                and state.get('version') == f'v0.0.0-source.{state["commit"][:12]}.{state["build"][6:]}',
+                'Параметры сохранённой сборки изменены; продолжение остановлено.')
         save_state(work, state)
         print('\n[1/3] Сборка контейнеров из исходников GitHub')
         arguments = ['bash', str(source / 'scripts/release/build.sh'), '--version', state['version'],
                      '--registry', state['registry'], '--commit', state['commit'],
                      '--output', str(work / state['build']), '--layout', 'hardened-shared-host',
-                     '--platform', target]
+                     '--platform', target, '--resume']
         if mode == 'low-memory':
             with low_memory_builder(work, state, info) as builder:
                 command(*arguments, '--builder', builder, '--low-memory', work=work)
