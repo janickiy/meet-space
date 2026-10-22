@@ -513,6 +513,33 @@ def validate_work(path):
     return state
 
 
+def existing_installation(wizard):
+    """Offer the default saved installation before creating or rebuilding a workspace.
+
+    Args:
+        wizard: Installation APIs loaded from the verified source checkout.
+
+    Returns:
+        The confirmed existing root, or None for a separate fresh installation.
+        An unrelated existing directory is never adopted or overwritten.
+    """
+    root = Path('/opt/meetspace')
+    try:
+        saved = wizard.inspect_existing_install(root)
+    except RuntimeError as error:
+        print(str(error))
+        require(wizard.yes('Продолжить сборку для новой установки в другом каталоге?'),
+                'Сборка не запущена. Существующий каталог не изменён.')
+        return None
+    if saved is None:
+        return None
+    if wizard.offer_existing_install(root) is not None:
+        return root
+    require(wizard.yes('Собрать отдельную новую установку в другом каталоге?'),
+            'Установка отменена. Сохранённые файлы и данные не изменены.')
+    return None
+
+
 def build_and_bundle(work, state, wizard, requested_mode='auto'):
     """Build once, scan all images and resume only completed stages recorded in private state."""
     source = work / 'source'
@@ -591,29 +618,44 @@ def main():
             'Уберите DOCKER_HOST/DOCKER_CONTEXT: нужен локальный Docker.')
     require(bool(arguments.source) != bool(arguments.resume),
             'Укажите каталог исходников или --resume с каталогом сохранённой сборки.')
-    work = None
+    work, resume_root = None, None
     try:
         with installation_lock():
             if arguments.resume:
                 work = Path(arguments.resume)
                 state = validate_work(work)
+                source = work / 'source'
             else:
                 source = Path(arguments.source)
                 commit = verify_checkout(source)
-                work = Path(tempfile.mkdtemp(prefix='meetspace-source-build.', dir='/var/tmp'))
-                (work / 'scratch').mkdir(mode=0o700)
-                state = dict(schemaVersion=1, work=str(work), repository=REPOSITORY, commit=commit)
-                clone_for_build(source, work, commit)
-                save_state(work, state)
-            wizard = load_wizard(work / 'source')
-            bundle = build_and_bundle(work, state, wizard, arguments.build_mode)
+            wizard = load_wizard(source)
+            resume_root = existing_installation(wizard)
+            if resume_root is None:
+                if not arguments.resume:
+                    work = Path(tempfile.mkdtemp(prefix='meetspace-source-build.', dir='/var/tmp'))
+                    (work / 'scratch').mkdir(mode=0o700)
+                    state = dict(schemaVersion=1, work=str(work), repository=REPOSITORY, commit=commit)
+                    clone_for_build(source, work, commit)
+                    save_state(work, state)
+                    source = work / 'source'
+                    wizard = load_wizard(source)
+                bundle = build_and_bundle(work, state, wizard, arguments.build_mode)
         # The child acquires the same host lock itself; do not hold it across this call.
+        if resume_root is not None:
+            print('\nПродолжаем сохранённую установку. Новая сборка не запускалась; '
+                  'мастер повторно проверит пакет и принадлежность ресурсов.')
+            command(sys.executable, '-I', str(source / 'scripts/install/wizard.py'), '--resume', str(resume_root))
+            return
         print('\nСборка и проверки завершены. Переходим к настройке сервера MeetSpace.')
         command(sys.executable, '-I', str(bundle / 'deployment/scripts/install/wizard.py'), str(bundle))
         print(f'\nИсходники и отчёты сборки сохранены в {work}.\n'
               'Они не удаляются автоматически; действующая установка хранит собственную проверенную копию.')
     except BaseException:
-        if work is not None and (work / 'source-build.json').is_file():
+        if resume_root is not None:
+            print(f'\nСохранённая установка не заменялась. Продолжение:\n'
+                  f'sudo python3 -I {shlex.quote(str(source / "scripts/install/wizard.py"))} '
+                  f'--resume {shlex.quote(str(resume_root))}', file=sys.stderr)
+        elif work is not None and (work / 'source-build.json').is_file():
             entry = work / 'source/scripts/install/from-source.py'
             print(f'\nСборка и результаты проверок сохранены в {work}.\n'
                   'После устранения причины продолжить сборку:\n'

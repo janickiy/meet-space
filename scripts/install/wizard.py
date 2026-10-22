@@ -269,8 +269,96 @@ def detect_server_ipv4(domain):
 def safe_root(value):
     """Require a new, canonical installation directory below /opt or /srv."""
     path = Path(value)
+    return valid_installation_path(value) and not path.exists() and not path.is_symlink()
+
+
+def valid_installation_path(value):
+    """Accept a canonical, non-symlink path below /opt or /srv, including existing paths.
+
+    Args:
+        value: Absolute installation directory entered by the operator.
+    """
+    path = Path(value)
     return (bool(re.fullmatch(r'/(opt|srv)/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*', value))
-            and path.resolve() == path and not path.exists() and not path.is_symlink())
+            and path.resolve() == path and not path.is_symlink())
+
+
+def inspect_existing_install(root):
+    """Read a private installer-owned directory without changing its files or resources.
+
+    Args:
+        root: Canonical installation directory to inspect.
+
+    Returns:
+        The saved state and verified manifest, or None when the directory is absent.
+        Existing directories that cannot be safely resumed raise RuntimeError.
+    """
+    if not valid_installation_path(str(root)):
+        raise RuntimeError('Укажите обычный абсолютный каталог внутри /opt или /srv без символических ссылок.')
+    if not root.exists():
+        return None
+    attributes = root.stat()
+    if not root.is_dir() or attributes.st_uid != 0 or attributes.st_mode & 0o077:
+        raise RuntimeError(f'Каталог {root} уже существует и не является закрытым каталогом установщика '
+                           '(требуются владелец root и права 0700). Выберите новый каталог; существующие файлы не изменены.')
+    state_path = root / 'installation.json'
+    try:
+        attributes = state_path.lstat()
+        if not stat.S_ISREG(attributes.st_mode) or attributes.st_uid != 0 or attributes.st_mode & 0o077:
+            raise ValueError('Unsafe installation state')
+        state = json.loads(state_path.read_text())
+        if (not isinstance(state, dict) or state.get('schemaVersion') != 1 or state.get('root') != str(root)
+                or not isinstance(state.get('complete'), bool)
+                or not isinstance(state.get('domain'), str) or not domain_valid(state['domain'])
+                or not isinstance(state.get('ip'), str) or not public_ip(state['ip'])
+                or not isinstance(state.get('project'), str)
+                or not re.fullmatch(r'meetspace(?:-[a-z0-9-]+)?', state['project'])
+                or not isinstance(state.get('token'), str) or not re.fullmatch(r'[a-f0-9]{32}', state['token'])
+                or not valid_subnet(state.get('subnet', '')) or state.get('tls') not in ('1', '2')
+                or not isinstance(state.get('email'), str) or not isinstance(state.get('certificateDirectory'), str)):
+            raise ValueError('Invalid installation state')
+        manifest = metadata(root / 'bundle')
+        if state.get('sourceCommit', manifest['commit']) != manifest['commit']:
+            raise ValueError('Saved source differs from release')
+    except (OSError, ValueError, KeyError, TypeError, AssertionError):
+        raise RuntimeError(f'Каталог {root} уже существует, но состояние установки или контрольные суммы не прошли проверку. '
+                           'Он не будет перезаписан. Выберите новый каталог либо проверьте сохранённую установку.') from None
+    return state, manifest
+
+
+def offer_existing_install(root, requested_manifest=None, expected_domain=None):
+    """Offer explicit continuation of a verified incomplete install, never an upgrade.
+
+    Args:
+        root: Existing private installation directory, or an unused default path.
+        requested_manifest: Optional new release metadata to contrast with the saved release.
+        expected_domain: Optional hostname that must match the saved installation.
+
+    Returns:
+        Saved state and manifest only after confirmation; None if absent or declined.
+    """
+    saved = inspect_existing_install(root)
+    if saved is None:
+        return None
+    state, manifest = saved
+    print(f'\nНайдена установка MeetSpace: https://{state["domain"]}\nКаталог: {root}\n'
+          f'Сохранённая версия: {manifest["version"]}\nКоммит: {manifest["commit"]}')
+    if state['complete']:
+        raise RuntimeError(f'MeetSpace в {root} уже установлен. Состояние: sudo {root}/manage.sh status. '
+                           'Для обновления используйте процедуру выпуска; мастер не перезаписывает действующую установку.')
+    if expected_domain is not None and state['domain'] != expected_domain:
+        raise RuntimeError(f'Сохранённая установка относится к {state["domain"]}, а не к {expected_domain}. '
+                           'Выберите другой каталог или продолжите установку для сохранённого домена.')
+    if requested_manifest is not None and (manifest.get('version'), manifest.get('commit')) != (
+            requested_manifest.get('version'), requested_manifest.get('commit')):
+        print('Внимание: сохранённая версия отличается от выбранных исходников или нового пакета.')
+    print('Продолжение использует ранее сохранённый пакет, настройки, сертификат и данные. '
+          'Новый пакет не заменит существующую версию.')
+    require_local_docker()
+    check_project(state['project'], state['token'])
+    if yes('Продолжить эту незавершённую установку без повторной сборки?', default=True):
+        return saved
+    return None
 
 
 def check_ports(include_http=False, include_grafana=False):
@@ -311,12 +399,16 @@ def check_project(project, token=None):
             candidates = {f'{project}_{name}' for name in
                           (('postgres', 'rabbitmq', 'minio', 'objects', 'prometheus', 'grafana') if kind == 'volume' else ('private',))}
             names.update(candidates.intersection(run('docker', kind, 'ls', '--format', '{{.Name}}', capture=True).splitlines()))
-        for name in names:
+        for name in sorted(names):
             label = run('docker', kind, 'inspect', '--format',
                         '{{index .Config.Labels "io.meetspace.install-id"}}' if kind == 'container'
                         else '{{index .Labels "io.meetspace.install-id"}}', name, capture=True)
             if not token or label != token:
-                raise RuntimeError(f'Проект {project} уже содержит посторонние ресурсы. Установка остановлена.')
+                resource = {'container': 'контейнер', 'volume': 'том', 'network': 'сеть'}[kind]
+                raise RuntimeError(f'Проект {project} уже содержит посторонние ресурсы: {resource} '
+                                   f'{json.dumps(name, ensure_ascii=False)} не принадлежит этой попытке установки. '
+                                   'Для продолжения прежней установки используйте её сохранённый каталог с --resume. '
+                                   'Для отдельной установки выберите другое имя проекта. Данные не изменены.')
 
 
 def validate_certificate(directory, domain):
@@ -343,7 +435,18 @@ def configure(bundle, manifest):
     domain = ask('Домен MeetSpace (например meet.company.ru)', validate=domain_valid)
     address = detect_server_ipv4(domain)
     print(f'Публичный IPv4 определён автоматически: {address}')
-    root = Path(ask('Новый каталог установки', '/opt/meetspace', safe_root))
+    while True:
+        root = Path(ask('Каталог установки', '/opt/meetspace'))
+        if safe_root(str(root)):
+            break
+        try:
+            saved = offer_existing_install(root, manifest, expected_domain=domain)
+        except RuntimeError as error:
+            print(str(error))
+        else:
+            if saved is not None:
+                return root, saved[0]
+            print('Выберите другой новый каталог для отдельной установки.')
     project = ask('Имя Docker Compose проекта', 'meetspace', lambda s: bool(re.fullmatch(r'meetspace(?:-[a-z0-9-]+)?', s)))
     check_project(project)
     subnet = ask('Отдельная Docker-подсеть /24', '172.30.240.0/24', valid_subnet)
@@ -696,17 +799,17 @@ def main():
         if sys.argv[1] == '--manage':
             manage(Path(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else 'status', sys.argv[4:])
             return
-        root = None
+        root, state = None, None
         try:
             if sys.argv[1] == '--resume':
-                root = Path(sys.argv[2]).resolve()
-                state = json.loads((root / 'installation.json').read_text())
-                if state['root'] != str(root) or state['schemaVersion'] != 1:
-                    raise RuntimeError('Неверный каталог установки.')
-                bundle = root / 'bundle'
-                manifest = metadata(bundle)
-                if not yes(f'Продолжить незавершённую установку {manifest["version"]} в {root}?'):
+                root = Path(sys.argv[2])
+                saved = offer_existing_install(root)
+                if saved is None:
+                    if not root.exists():
+                        raise RuntimeError(f'В {root} нет сохранённой установки. Для новой установки запустите мастер без --resume.')
                     return
+                state, manifest = saved
+                bundle = root / 'bundle'
             else:
                 bundle = Path(sys.argv[1]).resolve()
                 manifest = metadata(bundle)
@@ -719,10 +822,18 @@ def main():
                 raise RuntimeError('Архитектура Docker не соответствует пакету установки.')
             if root is None:
                 root, state = configure(bundle, manifest)
+                selected_bundle = root / 'bundle'
+                if digest(selected_bundle / 'bundle.json') != digest(bundle / 'bundle.json'):
+                    # An explicit resume must use only its retained bundle, never the new release.
+                    manifest = metadata(selected_bundle)
+                    run('bash', str(selected_bundle / 'deployment/scripts/install/verify-release.sh'), str(selected_bundle))
+                    require_image_store(manifest)
+                    if platform != manifest['platform']:
+                        raise RuntimeError('Архитектура Docker не соответствует сохранённому пакету установки.')
             install(root, state, manifest)
         except BaseException:
-            if root and (root / 'installation.json').is_file():
-                if json.loads((root / 'installation.json').read_text()).get('complete'):
+            if root and state is not None and (root / 'installation.json').is_file():
+                if state.get('complete'):
                     print(f'\nУстановка уже завершена. Управление: sudo {root}/manage.sh status', file=sys.stderr)
                 else:
                     print(f'\nФайлы и данные сохранены в {root}. После устранения причины продолжите:\n'
