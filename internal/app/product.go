@@ -182,6 +182,7 @@ func RunProductWorker() error {
 		{Kind: "integrations.conference", Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout, Handler: i}, {Kind: "integrations.event", Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout, Handler: i},
 		{Kind: "integrations.delivery", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i},
 		{Kind: "integrations.invitation", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i}, {Kind: "integrations.calendar", Concurrency: s.CalendarWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout * 3, Handler: i},
+		{Kind: "integrations.invitation_reminder", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i},
 		{Kind: "content.transcribe", Concurrency: s.STTWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.STTTimeout, Handler: c}, {Kind: "content.summarize", Concurrency: s.AIWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.AITimeout, Handler: c},
 		{Kind: "content.embed", Concurrency: cfg.StageEight.EmbeddingWorkers, MaxAttempts: s.MaxAttempts, Timeout: cfg.StageEight.EmbeddingTimeout, Handler: e},
 		{Kind: "analytics.aggregate", Concurrency: 1, MaxAttempts: 3, Timeout: 15 * time.Second, Handler: a},
@@ -254,7 +255,7 @@ func runProductTicks(ctx context.Context, service *integrations.Service, repo *p
 		counts, err := repo.Counts(tickCtx)
 		cancel()
 		if err == nil {
-			for _, kind := range []string{"integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate"} {
+			for _, kind := range []string{"integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate"} {
 				for _, state := range []string{"queued", "processing", "failed"} {
 					operations.ProductQueue(kind, state, 0)
 				}

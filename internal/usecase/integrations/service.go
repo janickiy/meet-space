@@ -52,10 +52,11 @@ type ConferenceSnapshot struct {
 // Delivery содержит разрешённые факты об уведомлениях и адреса получателей, но не содержимое
 // расшифровки.
 type Delivery struct {
-	Notification n.Notification
-	Email        string
-	Preferences  d.Preferences
-	Allowed      bool
+	Notification       n.Notification
+	Email              string
+	Preferences        d.Preferences
+	Allowed            bool
+	ExplicitInvitation bool
 }
 
 // Repository — репозиторий определяет надёжные операции интеграции; при асинхронной записи в рамках
@@ -428,7 +429,7 @@ func NewService(repo Repository, adapters d.Providers, cipher TokenCipher, optio
 		return nil, errors.New("integration timeout exceeds five minutes")
 	}
 	if len(options.ReminderOffsets) == 0 {
-		options.ReminderOffsets = []time.Duration{24 * time.Hour, 15 * time.Minute}
+		options.ReminderOffsets = []time.Duration{3 * time.Hour}
 	}
 	if len(options.ReminderOffsets) > 8 {
 		return nil, errors.New("too many reminder offsets")
@@ -760,6 +761,8 @@ func (s *Service) Handle(ctx context.Context, job jobs.Job) error {
 	switch job.Kind {
 	case "integrations.invitation":
 		return s.deliverInvitation(ctx, job)
+	case "integrations.invitation_reminder":
+		return s.deliverInvitationReminder(ctx, job)
 	case "integrations.delivery":
 		return s.deliver(ctx, job, payload)
 	case "integrations.event":
@@ -883,6 +886,9 @@ func (s *Service) deliver(ctx context.Context, job jobs.Job, payload eventPayloa
 	skip := !delivery.Allowed || !delivery.Preferences.Allows(delivery.Notification.Type)
 	if payload.Channel == "email" {
 		skip = skip || !delivery.Preferences.Email || s.adapters.Capabilities.Email == "noop"
+		// Explicit invitees receive the dedicated reminder, including its guest-capable link.
+		// Their in-app and push notifications continue through the ordinary delivery path.
+		skip = skip || delivery.Notification.Type == "conference.soon" && delivery.ExplicitInvitation
 	} else if payload.Channel == "push" {
 		skip = skip || !delivery.Preferences.Push || s.adapters.Capabilities.Push == "noop"
 	} else {

@@ -635,6 +635,21 @@ func (r *IntegrationRepository) ScheduleReminders(ctx context.Context, offsets [
 	}
 	for _, offset := range offsets {
 		seconds := int64(offset / time.Second)
+		// Reminder jobs use invitation IDs so external recipients do not need accounts.
+		// A schedule version invalidates queued mail after a reschedule or cancellation.
+		// Late invitations keep their immediate email without a second, back-to-back email.
+		if err := r.db.WithContext(ctx).Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,user_id,version,payload,dedup_key,available_at)
+		SELECT 'integrations.invitation_reminder',i.id,c.id,i.user_id,c.integration_version,
+		jsonb_build_object('scheduledAt',c.scheduled_at,'offsetSec',?::bigint),
+		'invitation-reminder:'||i.id::text||':'||c.integration_version::text||':'||?::bigint::text,
+		GREATEST(now(),c.scheduled_at-(?*interval '1 second'))
+		FROM conference_invitations i JOIN conferences c ON c.id=i.conference_id
+		WHERE c.kind='meeting' AND c.status='scheduled' AND c.scheduled_at>now() AND i.status='sent'
+		AND c.scheduled_at-(?*interval '1 second')>=GREATEST(i.sent_at,c.integration_version_at)
+		AND NOT EXISTS(SELECT 1 FROM background_jobs j WHERE j.dedup_key='invitation-reminder:'||i.id::text||':'||c.integration_version::text||':'||?::bigint::text)
+		ORDER BY c.scheduled_at,i.id LIMIT 1000 ON CONFLICT(dedup_key) DO NOTHING`, seconds, seconds, seconds, seconds, seconds).Error; err != nil {
+			return err
+		}
 		if err := r.db.WithContext(ctx).Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,payload,dedup_key,available_at)
 		SELECT 'integrations.event',c.id,c.id,c.integration_version,jsonb_build_object('event','conference.soon','scheduledAt',c.scheduled_at,'offsetSec',?::bigint),
 		'reminder-job:'||c.id::text||':'||c.integration_version::text||':'||?::bigint::text,
@@ -680,6 +695,13 @@ func (r *IntegrationRepository) Delivery(ctx context.Context, job jobs.Job) (u.D
 		return result, err
 	}
 	kind := result.Notification.Type
+	if kind == "conference.soon" {
+		var invitations int64
+		if err := r.db.WithContext(ctx).Table("conference_invitations").Where("conference_id=? AND user_id=?", job.ConferenceID, *job.UserID).Count(&invitations).Error; err != nil {
+			return result, err
+		}
+		result.ExplicitInvitation = invitations > 0
+	}
 	if kind == "conference.soon" || kind == "conference.rescheduled" || kind == "conference.invited" {
 		if conference.Status != "scheduled" || conference.ScheduledAt == nil {
 			return result, nil

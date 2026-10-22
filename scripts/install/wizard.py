@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Interactive, fresh-host installation of a checksum-verified MeetSpace bundle."""
 
+import base64
+from email.message import EmailMessage
 import fcntl
 import getpass
 import hashlib
@@ -13,12 +15,15 @@ import re
 import secrets
 import shutil
 import socket
+import smtplib
+import ssl
 import stat
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+import warnings
 
 
 def run(*args, capture=False, data=None):
@@ -53,6 +58,142 @@ def yes(label, default=False):
     value = ask(label + ' (да/нет)', 'да' if default else 'нет',
                 lambda s: s.lower() in ('да', 'нет', 'yes', 'no', 'y', 'n'))
     return value.lower() in ('да', 'yes', 'y')
+
+
+def smtp_host_valid(value):
+    """Validate value as a bare DNS hostname or an IP address, never a URL."""
+    if not value or len(value) > 253 or any(char in value for char in '/\\\r\n\t @?#'):
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', label)
+                   for label in value.split('.'))
+
+
+def smtp_email_valid(value):
+    """Accept one ASCII mailbox in value without display names or header delimiters."""
+    if len(value) > 254 or not value.isascii() or value.count('@') != 1:
+        return False
+    local, domain = value.rsplit('@', 1)
+    return (bool(re.fullmatch(r"[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+", local))
+            and len(local) <= 64 and not local.startswith('.') and not local.endswith('.')
+            and '..' not in local and domain_valid(domain.lower()))
+
+
+def smtp_password():
+    """Read an SMTP password from the terminal without allowing an echoed fallback."""
+    while True:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', getpass.GetPassWarning)
+            try:
+                password = getpass.getpass('Пароль SMTP или пароль приложения (ввод скрыт): ')
+            except getpass.GetPassWarning:
+                raise RuntimeError('Для безопасного ввода SMTP-пароля нужен интерактивный терминал.') from None
+        if password and len(password) <= 4096 and not any(char in password for char in '\r\n\x00'):
+            return password
+        print('Введите непустой пароль длиной до 4096 символов без переводов строки.')
+
+
+def check_smtp(settings, recipient=''):
+    """Verify TLS and AUTH PLAIN; send a test only when recipient was explicitly supplied.
+
+    Args:
+        settings: SMTP environment values held in memory; credentials are never logged.
+        recipient: Validated, operator-approved mailbox for an optional test message.
+    """
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    client = None
+    try:
+        options = dict(host=settings['SMTP_HOST'], port=int(settings['SMTP_PORT']), timeout=15)
+        if settings['SMTP_TLS_MODE'] == 'tls':
+            client = smtplib.SMTP_SSL(**options, context=context)
+            client.ehlo('localhost')
+        else:
+            client = smtplib.SMTP(**options)
+            client.ehlo('localhost')
+            if not client.has_extn('starttls'):
+                raise RuntimeError('SMTP-сервер не поддерживает обязательный STARTTLS.')
+            client.starttls(context=context)
+            client.ehlo('localhost')
+        if 'PLAIN' not in client.esmtp_features.get('auth', '').upper().split():
+            raise RuntimeError('SMTP-сервер должен поддерживать AUTH PLAIN через защищённое соединение.')
+        credentials = '\x00' + settings['SMTP_USERNAME'] + '\x00' + settings['SMTP_PASSWORD']
+        response = base64.b64encode(credentials.encode('utf-8')).decode('ascii')
+        code, _ = client.docmd('AUTH', 'PLAIN ' + response)
+        if code == 334:
+            code, _ = client.docmd(response)
+        if code != 235:
+            raise RuntimeError('SMTP-сервер отклонил вход. Проверьте логин и пароль приложения.')
+        if recipient:
+            message = EmailMessage()
+            message['From'] = settings['SMTP_FROM']
+            message['To'] = recipient
+            message['Subject'] = 'MeetSpace — проверка отправки уведомлений'
+            message.set_content('Отправка email-уведомлений MeetSpace настроена.\n'
+                                'Приглашения и напоминания о встречах будут приходить по электронной почте.\n')
+            client.send_message(message)
+    except ssl.SSLError:
+        raise RuntimeError('Не удалось проверить TLS-сертификат SMTP-сервера. Проверьте адрес и режим шифрования.') from None
+    except (OSError, smtplib.SMTPException):
+        # SMTP replies can contain credentials, addresses or provider diagnostics.
+        raise RuntimeError('Проверка SMTP не выполнена. Проверьте доступность сервера, порт, '
+                           'отправителя и разрешение SMTP у почтового провайдера.') from None
+    finally:
+        if client is not None:
+            client.close()
+
+
+def configure_smtp(domain):
+    """Collect optional SMTP settings for domain and return them without persisting secrets."""
+    print('\nEmail-уведомления: приглашение сразу и напоминание за 3 часа до встречи.')
+    if not yes('Настроить отправку писем через SMTP сейчас?', default=True):
+        print('Отправка email отключена. Настройки SMTP можно добавить после установки.')
+        return None
+    while True:
+        settings = {'SMTP_HOST': ask('SMTP-сервер (без https:// и порта)', validate=smtp_host_valid)}
+        print('Шифрование: tls — защищённое соединение с начала (обычно 465); '
+              'starttls — обязательное переключение на TLS (обычно 587).')
+        settings['SMTP_TLS_MODE'] = ask('Режим SMTP', 'tls', lambda value: value in ('tls', 'starttls'))
+        settings['SMTP_PORT'] = ask('Порт SMTP', '465' if settings['SMTP_TLS_MODE'] == 'tls' else '587',
+                                    lambda value: value.isascii() and value.isdigit() and 1 <= int(value) <= 65535)
+        settings['SMTP_USERNAME'] = ask('Логин SMTP', validate=lambda value: bool(value) and len(value) <= 512
+                                        and all(ord(char) >= 32 for char in value))
+        settings['SMTP_PASSWORD'] = smtp_password()
+        sender = ask('Email отправителя (разрешённый почтовым провайдером)', 'noreply@' + domain,
+                     smtp_email_valid)
+        settings.update(SMTP_FROM='MeetSpace <' + sender + '>', SMTP_TIMEOUT='15s')
+        try:
+            check_smtp(settings)
+        except RuntimeError as error:
+            print(str(error))
+            if yes('Исправить настройки SMTP и повторить проверку?', default=True):
+                continue
+            if not yes('Сохранить непроверенные настройки SMTP и продолжить установку?'):
+                raise RuntimeError('Настройка SMTP отменена.')
+        else:
+            print('Защищённое соединение и вход в SMTP проверены.')
+            if yes('Отправить одно тестовое письмо для проверки доставки?'):
+                recipient = ask('Email получателя тестового письма', sender, smtp_email_valid)
+                try:
+                    check_smtp(settings, recipient)
+                    print('SMTP-сервер принял тестовое письмо. Проверьте входящие и папку «Спам».')
+                except RuntimeError as error:
+                    print(str(error))
+                    if yes('Исправить настройки SMTP и повторить проверку?', default=True):
+                        continue
+                    if not yes('Продолжить установку с этими настройками SMTP?'):
+                        raise RuntimeError('Настройка SMTP отменена.')
+        return settings
+
+
+def dotenv_literal(value):
+    """Quote a single-line value for Compose env files without expanding dollar references."""
+    if any(char in value for char in '\r\n\x00'):
+        raise ValueError('Значение настройки содержит недопустимый управляющий символ.')
+    return json.dumps(value, ensure_ascii=False).replace('$', '$$')
 
 
 def write(path, text, mode=0o600):
@@ -474,6 +615,7 @@ def configure(bundle, manifest):
     else:
         cert_dir = Path(ask('Абсолютный каталог fullchain.pem и privkey.pem', validate=lambda s: s.startswith('/')))
         validate_certificate(cert_dir, domain)
+    smtp = configure_smtp(domain)
     check_ports(tls == '1', manifest.get('deploymentLayout') == 'classic')
     info = json.loads(run('docker', 'info', '--format', '{{json .}}', capture=True))
     if info.get('NCPU', 0) < 4 or info.get('MemTotal', 0) < 8 * 1024**3:
@@ -487,6 +629,7 @@ def configure(bundle, manifest):
     warn_disk_space(ancestor, required)
     warn_disk_space(Path(info['DockerRootDir']), 15 * 1024**3)
     print(f'\nВерсия: {manifest["version"]}\nСайт: https://{domain}\nIP: {address}\nКаталог: {root}\nПроект: {project}')
+    print('Email-уведомления: ' + ('SMTP настроен; напоминание за 3 часа.' if smtp else 'отключены.'))
     print('Откройте во внешнем firewall: TCP 80,443,3478,5349,50010; UDP 3478,50010,49160–49259.\n'
           'Мастер не меняет firewall и не открывает наружу базы данных.')
     ask('Нажмите Enter, чтобы начать установку (Ctrl+C — отмена)', validate=lambda s: s == '')
@@ -509,7 +652,7 @@ def configure(bundle, manifest):
                  certificateDirectory=str(cert_dir) if cert_dir else '', complete=False)
     if (root / 'bundle/source').is_dir():
         state.update(sourceRepository='https://github.com/janickiy/meet-space.git', sourceCommit=manifest['commit'])
-    make_configuration(root, manifest, state)
+    make_configuration(root, manifest, state, smtp)
     write(root / 'installation.json', json.dumps(state, indent=2) + '\n')
     print(f'Конфигурация сохранена в {root}. Пароли созданы автоматически.')
     return root, state
@@ -525,8 +668,15 @@ def valid_subnet(value):
         return False
 
 
-def make_configuration(root, manifest, state):
-    """Generate independent secrets and a standalone override for the release Compose."""
+def make_configuration(root, manifest, state, smtp=None):
+    """Generate private configuration and Compose overlays for the verified installation.
+
+    Args:
+        root: Newly created, root-owned installation directory.
+        manifest: Verified release metadata with immutable service image references.
+        state: Non-secret installation choices persisted for resumable deployment.
+        smtp: Optional SMTP values, stored separately and only passed to email services.
+    """
     cpu_count = json.loads(run('docker', 'info', '--format', '{{json .}}', capture=True)).get('NCPU')
     if not isinstance(cpu_count, int) or isinstance(cpu_count, bool) or cpu_count < 1:
         raise RuntimeError('Docker не сообщил допустимое количество CPU сервера.')
@@ -542,7 +692,7 @@ def make_configuration(root, manifest, state):
                   HTTP_TRUSTED_PROXIES=state['subnet'], BUILD_VERSION=manifest['version'],
                   RECORDER_STORAGE_DIR=str(root / 'storage'), TLS_CERT_DIR=str(root / 'certs'),
                   TURN_TLS_CERT_DIR=str(root / 'certs'), PROVIDER_TOKEN_ENCRYPTION_KEY='',
-                  DB_MAX_OPEN='10', DB_MAX_IDLE='2')
+                  DB_MAX_OPEN='10', DB_MAX_IDLE='2', REMINDER_OFFSETS='3h')
     template = (root / 'bundle/deployment/.env.production.example').read_text()
     lines = []
     for line in template.splitlines():
@@ -562,6 +712,11 @@ def make_configuration(root, manifest, state):
     labels = {'io.meetspace.install-id': state['token']}
     services = {name: {'labels': labels} for name in manifest['images']}
     services['migrate'] = {'labels': labels}
+    if smtp:
+        smtp_path = root / 'config/smtp.env'
+        write(smtp_path, ''.join(f'{key}={dotenv_literal(value)}\n' for key, value in smtp.items()))
+        for name in ('api', 'product-worker'):
+            services[name].update(env_file=[str(smtp_path)], environment={'EMAIL_PROVIDER_MODE': 'smtp'})
     services['proxy'].update(volumes=[f'{root}/config/nginx.conf:/etc/nginx/conf.d/default.conf:ro'])
     # Render the verified release with this installation's private environment.
     # Only CPU quotas above the host capacity are lowered; existing smaller limits remain.

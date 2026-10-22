@@ -13,6 +13,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -282,8 +283,17 @@ func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs
 		if err := tx.Table("users").Select("COALESCE(NULLIF(display_name,''),email)").Where("id=?", delivery.Conference.OwnerID).Scan(&delivery.Organizer).Error; err != nil {
 			return err
 		}
-		if delivery.Invitation.Status != "queued" || (delivery.Conference.Status != "created" && delivery.Conference.Status != "scheduled" && delivery.Conference.Status != "active") {
-			return nil
+		reminder := job.Kind == "integrations.invitation_reminder"
+		if reminder {
+			if delivery.Invitation.Status != "sent" || delivery.Conference.Status != "scheduled" ||
+				delivery.Conference.IntegrationVersion != job.Version || delivery.Conference.ScheduledAt == nil ||
+				!delivery.Conference.ScheduledAt.After(time.Now()) {
+				return nil
+			}
+		} else {
+			if delivery.Invitation.Status != "queued" || (delivery.Conference.Status != "created" && delivery.Conference.Status != "scheduled" && delivery.Conference.Status != "active") {
+				return nil
+			}
 		}
 		if delivery.Invitation.UserID != nil {
 			var allowed int64
@@ -293,6 +303,15 @@ func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs
 			}
 			if allowed == 0 {
 				return nil
+			}
+			if reminder {
+				var disabled int64
+				if err := tx.Table("notification_preferences").Where("user_id=? AND NOT reminder", *delivery.Invitation.UserID).Count(&disabled).Error; err != nil {
+					return err
+				}
+				if disabled > 0 {
+					return nil
+				}
 			}
 		}
 		delivery.Allowed = true

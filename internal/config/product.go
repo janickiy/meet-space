@@ -145,7 +145,7 @@ func LoadStageSeven(local bool) (StageSevenConfig, error) {
 			return c, fmt.Errorf("calendar OAuth configuration is incomplete")
 		}
 	}
-	for _, part := range strings.Split(env("REMINDER_OFFSETS", "24h,15m"), ",") {
+	for _, part := range strings.Split(env("REMINDER_OFFSETS", "3h"), ",") {
 		duration, parseErr := time.ParseDuration(strings.TrimSpace(part))
 		if parseErr != nil || duration < time.Minute || duration > 7*24*time.Hour || len(c.ReminderOffsets) >= 8 {
 			return c, fmt.Errorf("REMINDER_OFFSETS requires 1..8 durations within 1m..168h")
