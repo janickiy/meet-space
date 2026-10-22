@@ -41,7 +41,7 @@ RUN --mount=type=cache,id=meetspace-prometheus-go127-modules-${TARGETARCH},targe
 # Keep the upstream runtime, certificates, users, default config and licenses.
 # Flatten this stage without its original binaries so vulnerable binary layers
 # are not included anywhere in the final distributable image.
-FROM prom/prometheus:v3.15.0@sha256:86b17a25c2db1d16a61b16b3c8f336679eb19e26333d03e808da387206e40faa AS upstream-runtime
+FROM prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e AS upstream-runtime
 USER root
 RUN rm /bin/prometheus /bin/promtool
 
