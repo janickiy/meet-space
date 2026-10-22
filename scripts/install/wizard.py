@@ -68,6 +68,9 @@ def smtp_host_valid(value):
         ipaddress.ip_address(value)
         return True
     except ValueError:
+        # Port numbers and malformed numeric IPv4 addresses are not DNS names.
+        if re.fullmatch(r'[0-9.]+', value):
+            return False
         return all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', label)
                    for label in value.split('.'))
 
@@ -149,11 +152,12 @@ def check_smtp(settings, recipient=''):
 def configure_smtp(domain):
     """Collect optional SMTP settings for domain and return them without persisting secrets."""
     print('\nEmail-уведомления: приглашение сразу и напоминание за 3 часа до встречи.')
-    if not yes('Настроить отправку писем через SMTP сейчас?', default=True):
+    if not yes('Настроить отправку писем через SMTP сейчас?', default=False):
         print('Отправка email отключена. Настройки SMTP можно добавить после установки.')
         return None
     while True:
-        settings = {'SMTP_HOST': ask('SMTP-сервер (без https:// и порта)', validate=smtp_host_valid)}
+        settings = {'SMTP_HOST': ask('Адрес SMTP-сервера (например smtp.example.com; порт вводится отдельно)',
+                                     validate=smtp_host_valid)}
         print('Шифрование: tls — защищённое соединение с начала (обычно 465); '
               'starttls — обязательное переключение на TLS (обычно 587).')
         settings['SMTP_TLS_MODE'] = ask('Режим SMTP', 'tls', lambda value: value in ('tls', 'starttls'))
@@ -162,7 +166,8 @@ def configure_smtp(domain):
         settings['SMTP_USERNAME'] = ask('Логин SMTP', validate=lambda value: bool(value) and len(value) <= 512
                                         and all(ord(char) >= 32 for char in value))
         settings['SMTP_PASSWORD'] = smtp_password()
-        sender = ask('Email отправителя (разрешённый почтовым провайдером)', 'noreply@' + domain,
+        default_sender = settings['SMTP_USERNAME'] if smtp_email_valid(settings['SMTP_USERNAME']) else 'noreply@' + domain
+        sender = ask('Email отправителя (разрешённый почтовым провайдером)', default_sender,
                      smtp_email_valid)
         settings.update(SMTP_FROM='MeetSpace <' + sender + '>', SMTP_TIMEOUT='15s')
         try:
@@ -172,7 +177,8 @@ def configure_smtp(domain):
             if yes('Исправить настройки SMTP и повторить проверку?', default=True):
                 continue
             if not yes('Сохранить непроверенные настройки SMTP и продолжить установку?'):
-                raise RuntimeError('Настройка SMTP отменена.')
+                print('Установка продолжится без email-уведомлений. Настройки SMTP можно добавить после установки.')
+                return None
         else:
             print('Защищённое соединение и вход в SMTP проверены.')
             if yes('Отправить одно тестовое письмо для проверки доставки?'):
@@ -185,7 +191,8 @@ def configure_smtp(domain):
                     if yes('Исправить настройки SMTP и повторить проверку?', default=True):
                         continue
                     if not yes('Продолжить установку с этими настройками SMTP?'):
-                        raise RuntimeError('Настройка SMTP отменена.')
+                        print('Установка продолжится без email-уведомлений. Настройки SMTP можно добавить после установки.')
+                        return None
         return settings
 
 
@@ -576,8 +583,12 @@ def configure(bundle, manifest):
     domain = ask('Домен MeetSpace (например meet.company.ru)', validate=domain_valid)
     address = detect_server_ipv4(domain)
     print(f'Публичный IPv4 определён автоматически: {address}')
+    print('Стандартные параметры: каталог /opt/meetspace; проект meetspace; подсеть 172.30.240.0/24.')
+    customize = yes('Изменить каталог, имя проекта или подсеть?', default=False)
+    root = Path('/opt/meetspace')
     while True:
-        root = Path(ask('Каталог установки', '/opt/meetspace'))
+        if customize:
+            root = Path(ask('Каталог установки', '/opt/meetspace'))
         if safe_root(str(root)):
             break
         try:
@@ -588,9 +599,11 @@ def configure(bundle, manifest):
             if saved is not None:
                 return root, saved[0]
             print('Выберите другой новый каталог для отдельной установки.')
-    project = ask('Имя Docker Compose проекта', 'meetspace', lambda s: bool(re.fullmatch(r'meetspace(?:-[a-z0-9-]+)?', s)))
+        customize = True
+    project = (ask('Имя Docker Compose проекта', 'meetspace',
+                   lambda s: bool(re.fullmatch(r'meetspace(?:-[a-z0-9-]+)?', s))) if customize else 'meetspace')
     check_project(project)
-    subnet = ask('Отдельная Docker-подсеть /24', '172.30.240.0/24', valid_subnet)
+    subnet = ask('Отдельная Docker-подсеть /24', '172.30.240.0/24', valid_subnet) if customize else '172.30.240.0/24'
     occupied = run('docker', 'network', 'ls', '-q', capture=True).splitlines()
     if occupied:
         for network in json.loads(run('docker', 'network', 'inspect', *occupied, capture=True)):

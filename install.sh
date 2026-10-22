@@ -5,7 +5,7 @@ umask 077
 
 REPOSITORY_URL='https://github.com/janickiy/meet-space.git'
 DEFAULT_REF='main'
-DEFAULT_RELEASE='v0.4.0-prebuilt.20261022.1'
+DEFAULT_RELEASE='v0.4.0-prebuilt.20261023.1'
 
 # fail prints an actionable error without exposing credentials or configuration.
 fail() { printf '\nОшибка: %s\n' "$*" >&2; exit 1; }
@@ -38,7 +38,8 @@ main() (
           'Опубликованный установщик закреплён за проверенным коммитом; --ref меняет его.' \
           'Режим images не компилирует приложение и не запускает сканер на вашем сервере.' \
           'Для сборки из исходников рекомендуются 4 CPU, 8 ГиБ RAM и 35 ГиБ свободного места.' \
-          'Мастер запросит домен, сертификат, каталог и необязательные настройки SMTP; IPv4 определит автоматически.' \
+          'Мастер запросит домен и сертификат; SMTP необязателен. IPv4 определяется автоматически.' \
+          'Каталог /opt/meetspace, проект meetspace и подсеть 172.30.240.0/24 используются по умолчанию.' \
           'Существующая установка не обновляется и не удаляется.'
         return;;
       --mode)

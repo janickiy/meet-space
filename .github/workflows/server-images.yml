@@ -6,7 +6,7 @@ on:
       version:
         description: Immutable server release version
         required: true
-        default: v0.4.0-prebuilt.20261022.1
+        default: v0.4.0-prebuilt.20261023.1
 
 permissions:
   contents: read
