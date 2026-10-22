@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare a commit-pinned bootstrapper and a mirror of public GitHub sources.
+# Prepare a commit-pinned prebuilt-image bootstrapper and a GitHub source mirror.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
@@ -8,7 +8,7 @@ usage() {
   printf '%s\n' \
     'Usage: bash scripts/release/package-installer.sh --commit FULL_SHA --output /absolute/new-directory --base-url https://host/downloads' \
     'The commit must already exist in the public janickiy/meet-space GitHub repository.' \
-    'The installer fetches GitHub directly; the downloadable archive is a source mirror, not prebuilt images.'
+    'The default installs published prebuilt images; --mode source explicitly compiles on the server.'
 }
 
 commit= output= base_url= staging=
@@ -69,7 +69,7 @@ with tarfile.open(archive, 'r:gz') as source:
         total += member.size
         if len(files) > 50000 or total > 2 * 1024**3:
             raise SystemExit('GitHub source archive exceeds publication limits')
-    for required in ('install.sh', 'scripts/install/from-source.py', 'scripts/install/wizard.py',
+    for required in ('install.sh', 'scripts/install/from-source.py', 'scripts/install/from-images.py', 'scripts/install/wizard.py',
                      'scripts/release/build.sh', 'scripts/release/package.sh', 'go.mod'):
         if f'{prefix}/{required}' not in files or not files[f'{prefix}/{required}'].isfile():
             raise SystemExit('The selected GitHub commit lacks required installation files')
@@ -77,6 +77,9 @@ with tarfile.open(archive, 'r:gz') as source:
 installer, count = re.subn(r"^DEFAULT_REF='[^'\n]+'$", f"DEFAULT_REF='{commit}'", installer, flags=re.M)
 if count != 1 or "REPOSITORY_URL='https://github.com/janickiy/meet-space.git'" not in installer:
     raise SystemExit('Unexpected bootstrapper repository or default-ref declaration')
+release = re.search(r"^DEFAULT_RELEASE='(v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?)'$", installer, flags=re.M)
+if release is None:
+    raise SystemExit('Missing pinned prebuilt release')
 (root / 'install.sh').write_text(installer)
 (root / 'install.sh').chmod(0o755)
 (root / 'install.sh.sha256').write_text(hashlib.sha256(installer.encode()).hexdigest() + '  install.sh\n')
@@ -84,7 +87,7 @@ hasher = hashlib.sha256()
 with archive.open('rb') as stream:
     for block in iter(lambda: stream.read(1024 * 1024), b''):
         hasher.update(block)
-metadata = dict(schemaVersion=1, installationMode='github-source',
+metadata = dict(schemaVersion=1, installationMode='prebuilt', release=release.group(1), sourceBuildMode='source',
                 repository='https://github.com/janickiy/meet-space.git', commit=commit,
                 archive=dict(url=f'{base_url}/{archive.name}', upstreamURL=upstream,
                              sha256=hasher.hexdigest(), sizeBytes=archive.stat().st_size))
