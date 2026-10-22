@@ -75,8 +75,15 @@ jobs:
           bash scripts/release/build.sh --version "$VERSION" --commit "$GITHUB_SHA" \
             --registry "meetspace-source-${GITHUB_SHA:0:12}" --layout hardened-shared-host \
             --platform "linux/$ARCH" --output "$RUNNER_TEMP/meetspace-release/build"
-          bash scripts/release/package.sh --build "$RUNNER_TEMP/meetspace-release/build/build.json" \
-            --mode archive --output "$RUNNER_TEMP/meetspace-release/package"
+          if ! bash scripts/release/package.sh --build "$RUNNER_TEMP/meetspace-release/build/build.json" \
+            --mode archive --output "$RUNNER_TEMP/meetspace-release/package"; then
+            for report in "$RUNNER_TEMP/meetspace-release/package/"*.scan.json; do
+              [[ -f "$report" ]] || continue
+              jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? |
+                [$target, .VulnerabilityID, .PkgName, .InstalledVersion, .FixedVersion, .Severity] | @tsv' "$report"
+            done
+            exit 1
+          fi
           python3 -I scripts/release/prebuilt-bundle.py --package "$RUNNER_TEMP/meetspace-release/package" \
             --output "$RUNNER_TEMP/meetspace-release/output"
       - name: Upload verified architecture bundle

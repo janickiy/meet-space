@@ -57,7 +57,7 @@ for service in "${RELEASE_SERVICES[@]}"; do
   case "$service" in
     postgres) ref=postgres:16-alpine;; redis) ref=redis:7-alpine;;
     rabbitmq) ref=rabbitmq:4.2.9-management;; coturn) ref=coturn/coturn:4.18.0-r0;;
-    proxy) ref=nginx:1.30.5-alpine;; prometheus) ref=prom/prometheus:v3.5.0;; grafana) ref=grafana/grafana:12.2.0;;
+    proxy) ref=nginx:1.30.6-alpine;; prometheus) ref=prom/prometheus:v3.5.0;; grafana) ref=grafana/grafana:12.2.0;;
     *) ref="$(jq -er --arg service "$service" '.images[$service]' "$build")";;
   esac
   fi

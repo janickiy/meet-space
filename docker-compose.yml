@@ -109,7 +109,7 @@ services:
       - app-network
 
   https:
-    image: nginx:1.30.5-alpine
+    image: nginx:1.30.6-alpine
     restart: unless-stopped
     depends_on:
       - api
