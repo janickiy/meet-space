@@ -5,7 +5,7 @@ umask 077
 
 REPOSITORY_URL='https://github.com/janickiy/meet-space.git'
 DEFAULT_REF='main'
-DEFAULT_RELEASE='v0.4.0-prebuilt.20261023.2'
+DEFAULT_RELEASE='latest'
 
 # fail prints an actionable error without exposing credentials or configuration.
 fail() { printf '\nОшибка: %s\n' "$*" >&2; exit 1; }
@@ -23,7 +23,7 @@ source_git() {
 }
 
 # main selects prebuilt images by default and delegates to the interactive wizard.
-# Arguments: --mode images|source, --release TAG, --ref REF, and --build-mode MODE.
+# Arguments: --mode images|source, --release latest|TAG, --ref REF, and --build-mode MODE.
 main() (
   local ref="$DEFAULT_REF" release="$DEFAULT_RELEASE" mode=images explicit_mode=false
   local source_option=false build_mode=auto scratch= architecture= commit= dependency missing=false
@@ -31,11 +31,12 @@ main() (
     case "$1" in
       --help|-h)
         printf '%s\n' 'MeetSpace — интерактивная установка на новый Linux-сервер' \
-          'По умолчанию: готовые Docker-образы, собранные и проверенные в GitHub Actions.' \
-          'Запуск: sudo bash install.sh [--mode images|source] [--release VERSION]' \
+          'По умолчанию: последний опубликованный релиз с готовыми Docker-образами для этого сервера.' \
+          'Запуск: sudo bash install.sh [--mode images|source] [--release latest|VERSION]' \
           'Сборка на сервере: sudo bash install.sh --mode source [--ref REF] [--build-mode auto|low-memory|standard]' \
           'Исходники: https://github.com/janickiy/meet-space' \
-          'Опубликованный установщик закреплён за проверенным коммитом; --ref меняет его.' \
+          'Коммит инструментов закрепляется при публикации; версия образов выбирается при запуске.' \
+          'Сборка актуального main: sudo bash install.sh --mode source --ref main' \
           'Режим images не компилирует приложение и не запускает сканер на вашем сервере.' \
           'Для сборки из исходников рекомендуются 4 CPU, 8 ГиБ RAM и 35 ГиБ свободного места.' \
           'Мастер запросит домен и сертификат; SMTP необязателен. IPv4 определяется автоматически.' \
@@ -62,7 +63,8 @@ main() (
   if [[ "$source_option" == true && "$explicit_mode" == false ]]; then mode=source; fi
   [[ "$mode" == images || "$mode" == source ]] || fail 'Режим установки: images или source.'
   [[ "$mode" == source || "$source_option" == false ]] || fail '--ref и --build-mode требуют --mode source.'
-  [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]] || fail 'Некорректная версия готовых образов.'
+  [[ "$release" == latest || "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]] \
+    || fail 'Укажите latest или версию готовых образов (например v0.4.0-prebuilt.20261023.2).'
   [[ "$build_mode" == auto || "$build_mode" == low-memory || "$build_mode" == standard ]] \
     || fail 'Режим сборки: auto, low-memory или standard.'
   [[ "$ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ && "$ref" != *..* && "$ref" != */ && "$ref" != *//* ]] \
@@ -89,7 +91,12 @@ main() (
   source_git check-ref-format "refs/heads/$ref" >/dev/null || fail 'Некорректное имя ветки или тега.'
   printf '\n[2/7] Установщик из GitHub\nРепозиторий: %s\nКоммит/ветка: %s\nПлатформа: %s\n' "$REPOSITORY_URL" "$ref" "$architecture"
   if [[ "$mode" == images ]]; then
-    printf 'Готовые образы: %s. Сборка на сервере не выполняется.\n' "$release"
+    if [[ "$release" == latest ]]; then
+      printf 'Будет выбран последний совместимый релиз с готовыми образами из GitHub Releases.\n'
+    else
+      printf 'Готовые образы: %s.\n' "$release"
+    fi
+    printf 'Сборка на сервере не выполняется. При отсутствии пакета используйте --mode source --ref main.\n'
     ask 'Скачать готовые образы и запустить мастер установки? [да/нет]'
   else
     ask 'Скачать исходники и запустить сборку на этом сервере? [да/нет]'

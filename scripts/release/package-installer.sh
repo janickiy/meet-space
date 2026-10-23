@@ -77,9 +77,9 @@ with tarfile.open(archive, 'r:gz') as source:
 installer, count = re.subn(r"^DEFAULT_REF='[^'\n]+'$", f"DEFAULT_REF='{commit}'", installer, flags=re.M)
 if count != 1 or "REPOSITORY_URL='https://github.com/janickiy/meet-space.git'" not in installer:
     raise SystemExit('Unexpected bootstrapper repository or default-ref declaration')
-release = re.search(r"^DEFAULT_RELEASE='(v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?)'$", installer, flags=re.M)
+release = re.search(r"^DEFAULT_RELEASE='(latest|v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?)'$", installer, flags=re.M)
 if release is None:
-    raise SystemExit('Missing pinned prebuilt release')
+    raise SystemExit('Missing prebuilt release selector')
 (root / 'install.sh').write_text(installer)
 (root / 'install.sh').chmod(0o755)
 (root / 'install.sh.sha256').write_text(hashlib.sha256(installer.encode()).hexdigest() + '  install.sh\n')
@@ -88,6 +88,7 @@ with archive.open('rb') as stream:
     for block in iter(lambda: stream.read(1024 * 1024), b''):
         hasher.update(block)
 metadata = dict(schemaVersion=1, installationMode='prebuilt', release=release.group(1), sourceBuildMode='source',
+                releaseSelection='latest-compatible' if release.group(1) == 'latest' else 'pinned',
                 repository='https://github.com/janickiy/meet-space.git', commit=commit,
                 archive=dict(url=f'{base_url}/{archive.name}', upstreamURL=upstream,
                              sha256=hasher.hexdigest(), sizeBytes=archive.stat().st_size))
