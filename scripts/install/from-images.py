@@ -238,6 +238,23 @@ def validate_bundle(bundle, index, platform):
                 'Контрольная сумма инструментов установки не совпадает: ' + name)
 
 
+def start_wizard(bundle):
+    """Run this pinned installer's wizard against the unmodified, verified image bundle.
+
+    Args:
+        bundle: The extracted image release directory after validate_bundle succeeds.
+
+    Installer UX fixes come from the same GitHub checkout as this downloader,
+    independently of the image release. The wizard still checks the original
+    bundle metadata, source hashes and offline security reports before setup.
+    Retained bundle files and their checksums are never rewritten for a UX fix.
+    """
+    wizard = Path(__file__).absolute().with_name('wizard.py')
+    require(wizard.is_file() and not wizard.is_symlink(),
+            'В проверенном коммите установщика отсутствует wizard.py. Скачайте новый install.sh.')
+    subprocess.run(['python3', '-I', str(wizard), str(bundle)], check=True)
+
+
 def main():
     """Fetch the chosen architecture's published bundle; never silently start a source build."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -265,7 +282,7 @@ def main():
         bundle = extract(archive, work)
         validate_bundle(bundle, index, args.platform)
         archive.unlink()
-        subprocess.run(['python3', '-I', str(bundle / 'deployment/scripts/install/wizard.py'), str(bundle)], check=True)
+        start_wizard(bundle)
     except BaseException:
         print(f'\nПакет сохранён в {work}. Если проверка пакета прошла и мастер создал каталог установки, '
               'используйте напечатанную им команду продолжения.', file=sys.stderr)

@@ -633,7 +633,7 @@ def configure(bundle, manifest):
     info = json.loads(run('docker', 'info', '--format', '{{json .}}', capture=True))
     if info.get('NCPU', 0) < 4 or info.get('MemTotal', 0) < 8 * 1024**3:
         print('Рекомендуется не менее 4 CPU и 8 ГБ RAM; при записи ресурсы особенно важны.')
-        if not yes('Продолжить на этом сервере?'):
+        if not yes('Продолжить на этом сервере?', default=True):
             raise RuntimeError('Установка отменена.')
     required = sum(p.stat().st_size for p in bundle.rglob('*') if p.is_file()) + 15 * 1024**3
     ancestor = root.parent
