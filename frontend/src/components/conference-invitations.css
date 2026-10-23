@@ -168,7 +168,7 @@
 }
 .conference-invite-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--border);
