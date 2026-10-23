@@ -5,7 +5,7 @@ umask 077
 
 REPOSITORY_URL='https://github.com/janickiy/meet-space.git'
 DEFAULT_REF='main'
-DEFAULT_RELEASE='v0.4.0-prebuilt.20261023.1'
+DEFAULT_RELEASE='v0.4.0-prebuilt.20261023.2'
 
 # fail prints an actionable error without exposing credentials or configuration.
 fail() { printf '\nОшибка: %s\n' "$*" >&2; exit 1; }
