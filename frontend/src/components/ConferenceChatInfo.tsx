@@ -188,7 +188,7 @@ export function ConferenceChatInfoModal({
               <h3>{info.title}</h3>
               <p>
                 {info.description ||
-                  "Чат участников встречи. Переписка доступна в конференции."}
+                  "Время указано в часовом поясе организатора."}
               </p>
               <p>Создана {formatDate(conference.createdAt)}</p>
               <Link className="text-link" to={conferenceLink(conference)}>
