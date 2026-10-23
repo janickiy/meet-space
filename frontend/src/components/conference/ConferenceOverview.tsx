@@ -151,7 +151,7 @@ export function ConferenceOverview(props: ConferenceViewProps) {
       {utility === "invite" && (
         <Modal
           className="conference-invite-modal"
-          title="Пригласить участников"
+          title="Поделиться встречей"
           onClose={() => {
             if (!invitationBusy) setUtility(null);
           }}

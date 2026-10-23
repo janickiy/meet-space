@@ -4,14 +4,14 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Mail, Search, X } from "lucide-react";
 import { api } from "../api";
 import type { Conference, InvitationUser } from "../types";
-import { Button, ErrorNotice } from "./ui";
+import { Button, ErrorNotice, Modal } from "./ui";
 import { MeetingInvitationLink } from "./MeetingInvitationLink";
 import "./conference-invitations.css";
 
 const maxRecipients = 20;
 
 /**
- * Show the invitation link, QR code and optional recipient form for a meeting.
+ * Share a meeting link and open a separate recipient dialog when requested.
  * @param conference The meeting to share with participants.
  * @param canInvite Whether the current user may send invitations through the server.
  * @param onBusyChange Notify the parent while an invitation request is in progress.
@@ -25,23 +25,74 @@ export function ConferenceInviteContent({
   canInvite: boolean;
   onBusyChange?: (busy: boolean) => void;
 }) {
+  const [inviting, setInviting] = useState(false);
   return (
-    <div className="conference-invitations">
-      <p className="conference-invitation-title">{conference.title}</p>
-      <MeetingInvitationLink inviteCode={conference.inviteCode} />
-      {canInvite && (
-        <>
-          <div className="invitation-form-divider">
-            <span>или отправьте приглашение</span>
+    <>
+      <div className="conference-invitations">
+        <p className="conference-invitation-title">{conference.title}</p>
+        <MeetingInvitationLink inviteCode={conference.inviteCode} />
+        {canInvite && (
+          <div className="conference-invite-actions">
+            <Button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => setInviting(true)}
+            >
+              <Mail size={18} aria-hidden="true" />
+              Пригласить участников
+            </Button>
           </div>
-          <ConferenceInvitationForm
-            key={conference.id}
-            conferenceId={conference.id}
-            onBusyChange={onBusyChange}
-          />
-        </>
+        )}
+      </div>
+      {canInvite && inviting && (
+        <ConferenceInvitationModal
+          key={conference.id}
+          conference={conference}
+          onClose={() => setInviting(false)}
+          onBusyChange={onBusyChange}
+        />
       )}
-    </div>
+    </>
+  );
+}
+
+/**
+ * Invite recipients in a dedicated dialog and retain submission results until closed.
+ * @param conference The meeting to invite recipients to.
+ * @param onClose Return to the sharing dialog after closing or cancelling.
+ * @param onBusyChange Keep the underlying dialog open while a request is pending.
+ */
+export function ConferenceInvitationModal({
+  conference,
+  onClose,
+  onBusyChange,
+}: {
+  conference: Conference;
+  onClose: () => void;
+  onBusyChange?: (busy: boolean) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    onBusyChange?.(busy);
+    return () => onBusyChange?.(false);
+  }, [busy, onBusyChange]);
+
+  return (
+    <Modal
+      title="Пригласить участников"
+      className="conference-invite-modal conference-recipient-modal"
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+    >
+      <p className="conference-invitation-title">{conference.title}</p>
+      <ConferenceInvitationForm
+        key={conference.id}
+        conferenceId={conference.id}
+        onBusyChange={setBusy}
+        onCancel={onClose}
+      />
+    </Modal>
   );
 }
 
@@ -49,13 +100,16 @@ export function ConferenceInviteContent({
  * Collect email addresses and selected users, keeping input until invitations are accepted.
  * @param conferenceId The meeting that receives the selected participants.
  * @param onBusyChange Notify the parent while the invitation submission is pending.
+ * @param onCancel Return to the sharing dialog without sending invitations.
  */
 export function ConferenceInvitationForm({
   conferenceId,
   onBusyChange,
+  onCancel,
 }: {
   conferenceId: string;
   onBusyChange?: (busy: boolean) => void;
+  onCancel?: () => void;
 }) {
   const id = useId();
   const [emailsText, setEmailsText] = useState("");
@@ -163,6 +217,7 @@ export function ConferenceInvitationForm({
             Email участников
             <textarea
               id={`${id}-emails`}
+              data-autofocus
               placeholder="colleague@example.com"
               autoComplete="off"
               rows={2}
@@ -301,9 +356,19 @@ export function ConferenceInvitationForm({
       )}
       <footer className="invitation-form-footer">
         <p>До {maxRecipients} участников за раз</p>
+        {onCancel && (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={invitation.isPending}
+            onClick={onCancel}
+          >
+            Назад
+          </Button>
+        )}
         <Button type="submit" busy={invitation.isPending}>
           <Mail size={18} aria-hidden="true" />
-          Пригласить участников
+          Отправить приглашения
         </Button>
       </footer>
     </form>

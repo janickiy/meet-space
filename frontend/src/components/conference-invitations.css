@@ -107,21 +107,6 @@
   width: 44px;
   height: 44px;
 }
-.invitation-form-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 20px 0;
-  color: var(--muted);
-  font-size: calc(12px * var(--text-scale));
-}
-.invitation-form-divider::before,
-.invitation-form-divider::after {
-  content: "";
-  height: 1px;
-  flex: 1;
-  background: var(--border);
-}
 .conference-invitations > .field-hint {
   margin: 0;
   font-size: calc(13px * var(--text-scale));
@@ -181,19 +166,20 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
-.conference-invite-modal .invitation-form-divider {
-  margin: 24px 0;
-  font-size: calc(12px * var(--text-scale));
+.conference-invite-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.conference-invite-actions > .button {
+  min-height: 48px;
+  max-width: 100%;
+  padding: 12px 18px;
+  font-size: calc(14px * var(--text-scale));
   line-height: 1.5;
-  text-align: center;
-}
-.conference-invite-modal .invitation-form-divider > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.conference-invite-modal .invitation-form-divider::before,
-.conference-invite-modal .invitation-form-divider::after {
-  min-width: 16px;
+  white-space: normal;
 }
 .conference-invite-modal .conference-invitation-form {
   min-width: 0;
@@ -348,12 +334,6 @@
 .invitation-form-footer > .button > svg {
   flex: none;
 }
-.conference-invite-modal .conference-invite-back {
-  min-height: 44px;
-  margin-top: 12px;
-  padding: 10px 16px;
-  font-size: calc(13px * var(--text-scale));
-}
 @media (max-width: 767px) {
   .modal-backdrop:has(.conference-invite-modal) {
     padding: 12px;
@@ -379,6 +359,9 @@
   .conference-invitation-title {
     margin-bottom: 20px;
   }
+  .conference-invite-actions > .button {
+    width: 100%;
+  }
   .conference-invitation-fields {
     grid-template-columns: minmax(0, 1fr);
     gap: 20px;
@@ -398,9 +381,6 @@
   }
   .conference-invite-modal .invitation-form-footer > .button {
     flex: 1 1 100%;
-    width: 100%;
-  }
-  .conference-invite-modal .conference-invite-back {
     width: 100%;
   }
 }

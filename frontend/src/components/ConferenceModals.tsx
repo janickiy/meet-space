@@ -17,7 +17,7 @@ import { Button, ErrorNotice, Modal, SuccessMark } from "./ui";
 import { ScheduleFields } from "./ScheduleFields";
 import { localSchedule, toLocalInput } from "../collaboration";
 import { PRODUCT_NAME } from "../brand";
-import { ConferenceInviteContent } from "./ConferenceInvitations";
+import { ConferenceInvitationModal } from "./ConferenceInvitations";
 import { MeetingInvitationLink } from "./MeetingInvitationLink";
 import "./meeting-modals.css";
 
@@ -35,31 +35,13 @@ export function ShareConference({
   onClose: () => void;
 }) {
   const [inviting, setInviting] = useState(false);
-  const [invitationBusy, setInvitationBusy] = useState(false);
   if (inviting)
     return (
-      <Modal
+      <ConferenceInvitationModal
         key="invite"
-        title="Пригласить участников"
-        className="conference-invite-modal"
-        onClose={() => {
-          if (!invitationBusy) onClose();
-        }}
-      >
-        <ConferenceInviteContent
-          conference={conference}
-          canInvite
-          onBusyChange={setInvitationBusy}
-        />
-        <Button
-          variant="secondary"
-          disabled={invitationBusy}
-          className="conference-invite-back"
-          onClick={() => setInviting(false)}
-        >
-          Назад
-        </Button>
-      </Modal>
+        conference={conference}
+        onClose={() => setInviting(false)}
+      />
     );
   return (
     <Modal

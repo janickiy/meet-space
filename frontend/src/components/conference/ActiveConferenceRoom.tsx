@@ -255,7 +255,7 @@ export function ActiveConferenceRoom(props: ActiveConferenceViewProps) {
           title={
             utility === "recording"
               ? "Записи конференции"
-              : "Пригласить участников"
+              : "Поделиться встречей"
           }
           onClose={() => {
             if (!invitationBusy) setUtility(null);

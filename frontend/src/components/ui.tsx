@@ -280,8 +280,8 @@ export function Modal({
           dialog.current
         )
           return;
-        // Горячие клавиши фоновой встречи не должны реагировать на ввод в диалоге.
-        event.stopPropagation();
+        // Only the top dialog handles this event, even if closing it exposes another dialog.
+        event.stopImmediatePropagation();
         if (event.key === "Escape") {
           event.preventDefault();
           close.current();
