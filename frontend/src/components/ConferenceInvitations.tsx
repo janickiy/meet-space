@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Mail, Search, X } from "lucide-react";
+import { Info, Mail, Search, Users, Video, X } from "lucide-react";
 import { api } from "../api";
 import type { Conference, InvitationUser } from "../types";
 import { Button, ErrorNotice, Modal } from "./ui";
@@ -85,7 +85,15 @@ export function ConferenceInvitationModal({
         if (!busy) onClose();
       }}
     >
-      <p className="conference-invitation-title">{conference.title}</p>
+      <div className="invitation-meeting-context">
+        <span className="invitation-meeting-icon">
+          <Video size={20} aria-hidden="true" />
+        </span>
+        <div>
+          <span>Приглашение на встречу</span>
+          <strong>{conference.title}</strong>
+        </div>
+      </div>
       <ConferenceInvitationForm
         key={conference.id}
         conferenceId={conference.id}
@@ -214,7 +222,10 @@ export function ConferenceInvitationForm({
       <div className="conference-invitation-fields">
         <div className="invitation-email-section">
           <label className="field" htmlFor={`${id}-emails`}>
-            Email участников
+            <span className="invitation-field-label">
+              <Mail size={18} aria-hidden="true" />
+              По email
+            </span>
             <textarea
               id={`${id}-emails`}
               data-autofocus
@@ -224,6 +235,7 @@ export function ConferenceInvitationForm({
               maxLength={6000}
               value={emailsText}
               disabled={invitation.isPending}
+              aria-label="По email — адреса участников"
               aria-describedby={`${id}-email-hint`}
               onChange={(event) => {
                 edit();
@@ -232,12 +244,15 @@ export function ConferenceInvitationForm({
             />
           </label>
           <p className="field-hint" id={`${id}-email-hint`}>
-            Несколько адресов разделяйте запятой или новой строкой.
+            Разделяйте адреса запятой или новой строкой.
           </p>
         </div>
         <div className="invitation-people-section">
           <label className="field" htmlFor={`${id}-search`}>
-            Добавить пользователей системы
+            <span className="invitation-field-label">
+              <Users size={18} aria-hidden="true" />
+              Пользователи MeetSpace
+            </span>
             <span className="invitation-search-field">
               <Search size={17} aria-hidden="true" />
               <input
@@ -248,13 +263,14 @@ export function ConferenceInvitationForm({
                 maxLength={100}
                 value={queryText}
                 disabled={invitation.isPending}
+                aria-label="Пользователи MeetSpace — поиск по имени или email"
                 aria-describedby={`${id}-search-hint`}
                 onChange={(event) => setQueryText(event.target.value)}
               />
             </span>
           </label>
           <p className="field-hint" id={`${id}-search-hint`}>
-            Введите минимум 2 символа имени или email.
+            Найдите коллегу по имени или email — от 2 символов.
           </p>
           {selected.length > 0 && (
             <ul
@@ -326,14 +342,17 @@ export function ConferenceInvitationForm({
               </ul>
             ) : (
               <p className="field-hint" role="status">
-                Пользователи не найдены. Можно указать email выше.
+                Пользователи не найдены. Укажите email в поле приглашения.
               </p>
             ))}
         </div>
       </div>
       <p className="field-hint invitation-delivery-note">
-        Получатели получат письмо со ссылкой на встречу. У зарегистрированных
-        пользователей приглашение появится и в личном кабинете.
+        <Info size={17} aria-hidden="true" />
+        <span>
+          Отправим ссылку на встречу по email. Пользователи MeetSpace также
+          увидят приглашение в личном кабинете.
+        </span>
       </p>
       <ErrorNotice error={invitation.error}>{validation || null}</ErrorNotice>
       {invitation.data && (
@@ -355,7 +374,10 @@ export function ConferenceInvitationForm({
         </div>
       )}
       <footer className="invitation-form-footer">
-        <p>До {maxRecipients} участников за раз</p>
+        <p>
+          <Users size={16} aria-hidden="true" />
+          До {maxRecipients} участников
+        </p>
         {onCancel && (
           <Button
             type="button"
