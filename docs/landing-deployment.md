@@ -27,44 +27,42 @@ default application build retains its existing account behavior.
 
 ## Latest desktop download update
 
-The current release is `landing-20261024T123600Z-desktop-014`, published on 24 October 2026.
-Windows and Linux now publish version `0.1.4-beta`; all 26 earlier packages remain
-in their original version folders. All eight packages include the SSH installer
-choice between ready Docker images and building from source, backed by the signed
-Android installer bundle and verified release metadata. The installer interface
-follows the reference layout. Secure-storage recovery, compact conference controls,
-offline QR invitations without captions, and archive/document attachments remain.
-Windows EXE and Linux DEB/RPM/AppImage are available for x64 and ARM64.
+The current release is `landing-20261024T195300Z-desktop-015`, published on 24 October 2026.
+Windows and Linux now publish version `0.1.5-beta`; all 34 earlier packages remain
+in their original version folders. The installer has a compact, consistent layout
+and an explicit choice to open a saved job or begin a new setup. Saved jobs no
+longer open directly at step 5, and unknown status is not displayed as ongoing
+installation. Windows EXE and Linux DEB/RPM/AppImage remain available for x64 and ARM64.
 
-Immutable Desktop package commit: `3e5a487298fb0fee517216809bcb151b51862e27` in
+Immutable Desktop package commit: `bdd27b0fbc7ac55081aa075bcbb7c141ab8d77ce` in
 `janickiy/meet-space-desktop/source`. Source commit:
-`abfb787c62ab46da7ed57e74f3b2be421e5b803e`. The 440 exact build inputs have SHA-256
-`7d3f51bd7c9b0387dfdffaa84655c192ea5890e31e0b1b7ac7424f7f2efb7184`.
+`c7666c0f6cc35ccaa2ae0466f7f5f16b93f90f48`. The 440 exact build inputs have SHA-256
+`de97d1f5a78a39067a48cea4f5df4629ebe14f0395bd82774f5660dc3d27a215`.
 All eight public GitHub downloads passed full SHA-256, byte-size and binary/archive
 magic checks before activation. The publication check did not execute installers.
 These remain unsigned beta packages; automatic updates are disabled.
 
 The metadata-only update copies the current published static artifact into a new
-release with immutable asset namespace `desktop-014-20261024t123600z`. Both the
+release with immutable asset namespace `desktop-015-20261024t195300z`. Both the
 prerendered Windows x64 / Linux DEB x64 cards and all eight client-side download
 choices contain the new names, version, URLs, sizes and checksums. Platform links point to real immutable source directories, rather than release tags. Android 0.3.11-beta, existing
 assets, architecture punctuation and site verification files remain byte-identical.
-The previous release `landing-20261024T110104Z-desktop-013` is retained for rollback.
+The previous release `landing-20261024T123600Z-desktop-014` is retained for rollback.
 No application containers, databases or Apache configuration changed.
 
 `frontend/src/landing/downloads.ts` matches the eight published Desktop records.
-Evidence is in `frontend/test-results/landing/version-014-downloads-20261024/`:
+Evidence is in `frontend/test-results/landing/version-015-downloads-20261024/`:
 full public-download verification, catalogue verification, staging and activation
 reports, and live HTTPS checks. This evidence covers automated package and live-site metadata checks; browser visual
 acceptance is separate.
 
 The publication verifies the deployed static artifact directly over HTTPS.
-The changed metadata module passes an isolated strict TypeScript check.
-A full build of the backend/web checkout remains blocked by pre-existing errors
-outside these files: `auth.tsx` imports the absent `accessTokenTTLSeconds` export
-and `MeetingInvitationLink.tsx` imports the missing `qrcode.react` dependency.
-Those application sources were not changed. Browser visual acceptance and
-real-host installer acceptance were not performed by this publication.
+The last full backend/web build was blocked by pre-existing errors outside these
+files: `auth.tsx` imports the absent `accessTokenTTLSeconds` export and
+`MeetingInvitationLink.tsx` imports the missing `qrcode.react` dependency.
+Those application sources were not changed. Compilation and GUI acceptance are
+separate checks; this helper does not claim that a full backend/web build or
+real-host installer acceptance was performed.
 
 ## Previous architecture punctuation update
 
