@@ -1,5 +1,5 @@
 /**
- * Published client downloads checked on 23 October 2026 and captured at build time.
+ * Published desktop downloads checked on 24 October 2026 and captured at build time.
  * Source repositories publish binaries in Git folders; GitHub release assets are empty.
  * URLs are pinned to the inspected commits so sizes and publisher checksums stay aligned.
  * A source-code archive is not an application installer.
@@ -92,14 +92,14 @@ export const DOWNLOADS: readonly DownloadPlatform[] = [
     supportedSystems: ["Android 8.0 и новее"],
     assets: [
       {
-        name: "MeetSpace-0.3.8-beta.apk",
-        version: "0.3.8-beta",
+        name: "MeetSpace-0.3.11-beta.apk",
+        version: "0.3.11-beta",
         architecture: "Universal",
         format: "APK",
-        url: "https://github.com/janickiy/meet-space-android/raw/86915851ca4ea7d0717ce4e98fdc9d11b2b0fda5/dist/MeetSpace-0.3.8-beta.apk",
-        sizeBytes: 52850224,
+        url: "https://github.com/janickiy/meet-space-android/raw/86915851ca4ea7d0717ce4e98fdc9d11b2b0fda5/dist/MeetSpace-0.3.11-beta.apk",
+        sizeBytes: 78143680,
         sha256:
-          "fac7bcdbbd307e10be611c3dd34b822f986fd4b8ed47a8ae45b66fbb1ad69ee2",
+          "6de79eeaaba9c77381d7d503198b394e5676c7313b3d7c0bf9d0d8da780336ae",
       },
     ],
   },
@@ -122,20 +122,20 @@ export const DOWNLOADS: readonly DownloadPlatform[] = [
         version: "0.1.2-beta",
         architecture: "x64",
         format: "EXE",
-        url: "https://github.com/janickiy/meet-space-desktop/raw/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/windows/0.1.2-beta/MeetSpace-0.1.2-beta-win-x64-test-setup.exe",
-        sizeBytes: 121753483,
+        url: "https://github.com/janickiy/meet-space-desktop/raw/4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90/source/windows/0.1.2-beta/MeetSpace-0.1.2-beta-win-x64-test-setup.exe",
+        sizeBytes: 121775536,
         sha256:
-          "3b21846b1f73141743a1dd69829f48e3790332b77b3bef47b6c7cd909b83656e",
+          "6ac2db3f70fa3f3ed43e136e17e28a8943467518e92c907c8333dc6ab31e4875",
       },
       {
         name: "MeetSpace-0.1.2-beta-win-arm64-test-setup.exe",
         version: "0.1.2-beta",
         architecture: "ARM64",
         format: "EXE",
-        url: "https://github.com/janickiy/meet-space-desktop/raw/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/windows/0.1.2-beta/MeetSpace-0.1.2-beta-win-arm64-test-setup.exe",
-        sizeBytes: 116494316,
+        url: "https://github.com/janickiy/meet-space-desktop/raw/4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90/source/windows/0.1.2-beta/MeetSpace-0.1.2-beta-win-arm64-test-setup.exe",
+        sizeBytes: 116516452,
         sha256:
-          "38896ade79686783d7f9b169bafafa279c84062763e4150aee8875f23defdff9",
+          "4702dc821bd8364bbdb828098f4c3aeaccc167a6b1854836db7cb049c9cc65c5",
       },
     ],
   },
@@ -158,60 +158,60 @@ export const DOWNLOADS: readonly DownloadPlatform[] = [
         version: "0.1.2-beta",
         architecture: "x64",
         format: "DEB",
-        url: "https://github.com/janickiy/meet-space-desktop/raw/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/linux/0.1.2-beta/DEB/MeetSpace-0.1.2-beta-linux-amd64-test.deb",
-        sizeBytes: 100437924,
+        url: "https://github.com/janickiy/meet-space-desktop/raw/4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90/source/linux/0.1.2-beta/DEB/MeetSpace-0.1.2-beta-linux-amd64-test.deb",
+        sizeBytes: 100464852,
         sha256:
-          "f316cfd52a06c088e69db6eb4acb1a100af833d4da2a1ef648edde554923abc1",
+          "65fa62e0ca38b8db6b2f536dc33eabb6556d5f9d152eeccca4c5d8a01676b526",
       },
       {
         name: "MeetSpace-0.1.2-beta-linux-x86_64-test.rpm",
         version: "0.1.2-beta",
         architecture: "x64",
         format: "RPM",
-        url: "https://github.com/janickiy/meet-space-desktop/raw/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/linux/0.1.2-beta/RPM/MeetSpace-0.1.2-beta-linux-x86_64-test.rpm",
-        sizeBytes: 90079817,
+        url: "https://github.com/janickiy/meet-space-desktop/raw/4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90/source/linux/0.1.2-beta/RPM/MeetSpace-0.1.2-beta-linux-x86_64-test.rpm",
+        sizeBytes: 90096925,
         sha256:
-          "258611790b851fa86aa9dead95df9e10a09cdfd1663ec1532ed87dd0a95397e8",
+          "fbc7d86741ff15e037dab4dc7c321c742cd0161d2fded99fa92e49af67cb4dcd",
       },
       {
         name: "MeetSpace-0.1.2-beta-linux-x86_64-test.AppImage",
         version: "0.1.2-beta",
         architecture: "x64",
         format: "AppImage",
-        url: "https://github.com/janickiy/meet-space-desktop/raw/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/linux/0.1.2-beta/AppImage/MeetSpace-0.1.2-beta-linux-x86_64-test.AppImage",
-        sizeBytes: 126888488,
+        url: "https://github.com/janickiy/meet-space-desktop/raw/4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90/source/linux/0.1.2-beta/AppImage/MeetSpace-0.1.2-beta-linux-x86_64-test.AppImage",
+        sizeBytes: 127015597,
         sha256:
-          "c0ac2540941a1066d1aac42ebf0a89b209714420fcecfa4af5180f3bc5ef9657",
+          "a202a3ec6b10d4c825b0f1121a7b15cc536aeb6cd0a7bd9addc3cf69afc11b41",
       },
       {
         name: "MeetSpace-0.1.2-beta-linux-arm64-test.deb",
         version: "0.1.2-beta",
         architecture: "ARM64",
         format: "DEB",
-        url: "https://github.com/janickiy/meet-space-desktop/raw/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/linux/0.1.2-beta/DEB/MeetSpace-0.1.2-beta-linux-arm64-test.deb",
-        sizeBytes: 95662188,
+        url: "https://github.com/janickiy/meet-space-desktop/raw/4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90/source/linux/0.1.2-beta/DEB/MeetSpace-0.1.2-beta-linux-arm64-test.deb",
+        sizeBytes: 95688656,
         sha256:
-          "dcd54dace5d4ffae837308e330db0e0ee30842f59f235b4e745ba7aeeb8091da",
+          "ad8a312bf7fe9d2dcfceb9fea2fae2cf778fba6b9f9d6e0b36aefcb24340b3d2",
       },
       {
         name: "MeetSpace-0.1.2-beta-linux-aarch64-test.rpm",
         version: "0.1.2-beta",
         architecture: "ARM64",
         format: "RPM",
-        url: "https://github.com/janickiy/meet-space-desktop/raw/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/linux/0.1.2-beta/RPM/MeetSpace-0.1.2-beta-linux-aarch64-test.rpm",
-        sizeBytes: 85800593,
+        url: "https://github.com/janickiy/meet-space-desktop/raw/4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90/source/linux/0.1.2-beta/RPM/MeetSpace-0.1.2-beta-linux-aarch64-test.rpm",
+        sizeBytes: 85834613,
         sha256:
-          "8e515daf5104cefe4ef2d8c4931bf14bdd91c1352f3ea19b34faf97b6c5fa4d1",
+          "e280db4bc6676f4a9320d7a7d85f8b08fcd34169ee957be6500ca5064e5a74e5",
       },
       {
         name: "MeetSpace-0.1.2-beta-linux-arm64-test.AppImage",
         version: "0.1.2-beta",
         architecture: "ARM64",
         format: "AppImage",
-        url: "https://github.com/janickiy/meet-space-desktop/raw/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/linux/0.1.2-beta/AppImage/MeetSpace-0.1.2-beta-linux-arm64-test.AppImage",
-        sizeBytes: 119067319,
+        url: "https://github.com/janickiy/meet-space-desktop/raw/4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90/source/linux/0.1.2-beta/AppImage/MeetSpace-0.1.2-beta-linux-arm64-test.AppImage",
+        sizeBytes: 119182389,
         sha256:
-          "7e008f306090dc1703fc2a27c37959bd12f15100791dc890479ea1886f6e84cc",
+          "41b5a19634906d0d6e0187581399ad6b7cd99b96e24c59f9cfff6f726a819d35",
       },
     ],
   },

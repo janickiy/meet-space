@@ -1,6 +1,6 @@
 # MeetSpace landing deployment
 
-Published on 23 October 2026 at **https://meet-space.janickiy.com/**.
+Updated on 24 October 2026 at **https://meet-space.janickiy.com/**.
 
 The landing is a static Apache site on the existing host `93.89.223.151`.
 The application remains at `https://meeting.janickiy.com`.
@@ -25,9 +25,49 @@ Marketing-only mode renders the root landing without account recovery or API
 providers. Account and workspace actions use absolute application URLs. The
 default application build retains its existing account behavior.
 
-## Latest architecture punctuation update
+## Latest desktop download update
 
-The current server release is `landing-20261023T074412Z-architecture-dashes`,
+The current release is `landing-20261024T081838Z-desktop-downloads-ssr`,
+published on 24 October 2026. Windows and Linux retain version `0.1.2-beta`
+and now use the refreshed reference interface, conference controls and invitation
+modal. All eight download records point to the immutable Desktop publication
+commit `4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90` in
+`janickiy/meet-space-desktop/source`: Windows EXE and Linux DEB/RPM/AppImage,
+each for x64 and ARM64. Exact build inputs have SHA-256
+`07579126f9e501b8d8bffe0df1d99c6255abf6d03a98e5c5e6ff5023ab5d40ef`.
+
+All eight packages were fully downloaded from the public GitHub URLs and checked
+against their SHA-256, size and binary/archive magic. No downloaded installer was
+executed by the publication check. Both prerendered HTML and the active client
+bundle serve the new URLs and checksums. These remain unsigned beta packages;
+automatic updates are disabled.
+
+The update copies the current static artifact into a new release and uses the
+immutable asset namespace `desktop-downloads-20261024t081838z`. Existing assets,
+Android 0.3.11-beta, the architecture punctuation and site verification files are
+preserved. The final HTML-only completion release changes the three prerendered
+download-card documents; it reuses the already checked client bundle. Existing
+releases remain available for rollback. No application containers, databases or
+Apache configuration changed.
+
+`frontend/src/landing/downloads.ts` contains the same eight new Desktop records.
+Its Android record was reconciled with the already published 0.3.11-beta record
+to avoid reverting that separate update on a later source build.
+
+Evidence: `frontend/test-results/landing/desktop-downloads-20261024/` contains the
+full public download check, live HTTP check and release switch reports. Browser
+visual verification was not run because browser use is disabled in Work settings.
+
+The changed download metadata module passes an isolated strict TypeScript check.
+A full build of the local backend/web checkout is blocked by pre-existing errors
+outside the changed files: `auth.tsx` imports the absent `accessTokenTTLSeconds`
+export and `MeetingInvitationLink.tsx` imports the missing `qrcode.react`
+dependency. Those unrelated application sources were not changed by this
+publication. The deployed static artifact was verified directly over HTTPS.
+
+## Previous architecture punctuation update
+
+That server release was `landing-20261023T074412Z-architecture-dashes`,
 published on 23 October 2026. The seven long dashes in Architecture > Application
 services were replaced with ASCII hyphens in HTML and client bundles.
 The local source correction is in `frontend/src/landing/docs-product.ts`.
