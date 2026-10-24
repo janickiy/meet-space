@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -9,6 +17,15 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
+// RegisterChatActionRoutes регистрирует конечные точки действий в чате с предоставленными
+// средствами аутентификации и промежуточным ПО для обработки запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterChatActionRoutes(router gin.IRouter, handler *chatapp.ActionHandler, auth gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	base := APIV1Prefix + "/conferences/:id/chat"
 	key := func(c *gin.Context) string {

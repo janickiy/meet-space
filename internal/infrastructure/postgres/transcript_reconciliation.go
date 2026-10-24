@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -5,10 +13,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// reconcileLiveTranscript сохраняет живой черновик и делает основной готовую расшифровку после записи.
-// Speaker переносится только при буквальном совпадении нормализованного текста, времени и единственном участнике.
-// @args tx — транзакция ready transcript; t — проверенные связанные UUID.
-// @return ошибка SQL; неизвестная личность остаётся NULL и не угадывается по голосу.
+// reconcileLiveTranscript сверяет окончательные субтитры в реальном времени с текущей
+// расшифровкой.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func reconcileLiveTranscript(tx *gorm.DB, t domain.Transcript) error {
 	if err := tx.Exec(`WITH links AS (
  SELECT s.id,min(l.participant_id::text)::uuid AS participant_id FROM transcript_segments s

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package config
 
 import (
@@ -15,39 +23,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// MediaConfig задаёт настройки медиа-воркера, SFU, внутренней авторизации и распределённого владения.
-//   - HTTPPort: значение HTTPPort типа int, используемое согласно назначению этой операции.
-//   - WorkerID: идентификатор воркера-владельца операции.
-//   - WorkerInternalURL: значение WorkerInternalURL типа string, используемое согласно назначению этой операции.
-//   - Namespace: пространство изолированных ключей и каналов Redis.
-//   - TicketSecret: значение TicketSecret типа string, используемое согласно назначению этой операции.
-//   - InternalSecret: значение InternalSecret типа string, используемое согласно назначению этой операции.
-//   - TicketTTL: значение TicketTTL типа time.Duration, используемое согласно назначению этой операции.
-//   - OperationTimeout: значение OperationTimeout типа time.Duration, используемое согласно назначению этой операции.
-//   - HeartbeatInterval: значение HeartbeatInterval типа time.Duration, используемое согласно назначению этой операции.
-//   - WorkerTTL: значение WorkerTTL типа time.Duration, используемое согласно назначению этой операции.
-//   - OwnershipTTL: значение OwnershipTTL типа time.Duration, используемое согласно назначению этой операции.
-//   - SessionCheckInterval: значение SessionCheckInterval типа time.Duration, используемое согласно назначению этой операции.
-//   - MaxPeers: значение MaxPeers типа int, используемое согласно назначению этой операции.
-//   - MaxRooms: значение MaxRooms типа int, используемое согласно назначению этой операции.
-//   - MaxPublishedTracks: значение MaxPublishedTracks типа int, используемое согласно назначению этой операции.
-//   - MaxAudioTracks: значение MaxAudioTracks типа int, используемое согласно назначению этой операции.
-//   - MaxVideoTracks: значение MaxVideoTracks типа int, используемое согласно назначению этой операции.
-//   - MaxScreenSharers: значение MaxScreenSharers типа int, используемое согласно назначению этой операции.
-//   - EgressQueueSize: значение EgressQueueSize типа int, используемое согласно назначению этой операции.
-//   - VideoMaxWidth: значение VideoMaxWidth типа int, используемое согласно назначению этой операции.
-//   - VideoMaxHeight: значение VideoMaxHeight типа int, используемое согласно назначению этой операции.
-//   - VideoMaxFPS: значение VideoMaxFPS типа int, используемое согласно назначению этой операции.
-//   - UDPPort: значение UDPPort типа int, используемое согласно назначению этой операции.
-//   - UDPMinPort: значение UDPMinPort типа int, используемое согласно назначению этой операции.
-//   - UDPMaxPort: значение UDPMaxPort типа int, используемое согласно назначению этой операции.
-//   - TCPPort: значение TCPPort типа int, используемое согласно назначению этой операции.
-//   - NATIPs: набор значений NATIPs для последовательной или пакетной обработки.
-//   - ICE: значение ICE типа realtime.ICEConfig, используемое согласно назначению этой операции.
-//   - ICEDisconnectedTimeout: значение ICEDisconnectedTimeout типа time.Duration, используемое согласно назначению этой операции.
-//   - ICEFailedTimeout: значение ICEFailedTimeout типа time.Duration, используемое согласно назначению этой операции.
-//   - ICEKeepaliveInterval: значение ICEKeepaliveInterval типа time.Duration, используемое согласно назначению этой операции.
-//   - NegotiationTimeout: значение NegotiationTimeout типа time.Duration, используемое согласно назначению этой операции.
+// MediaConfig содержит параметры media-worker, SFU, внутренней аутентификации
+// и распределённого владения ресурсами.
 type MediaConfig struct {
 	HTTPPort               int
 	WorkerID               string
@@ -84,11 +61,11 @@ type MediaConfig struct {
 	TURN                   TURNConfig
 }
 
-// LoadMedia читает и проверяет настройки медиа-воркера, его внутреннего транспорта и ICE.
+// LoadMedia загружает и проверяет настройки SFU, медиа-воркера, маршрутизации и внутренней аутентификации.
 //
-// @return:
-//   - результат 1 (MediaConfig): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: итоговая конфигурация медиа.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения данных.
 func LoadMedia() (MediaConfig, error) {
 	c := MediaConfig{
 		HTTPPort:               envInt("MEDIA_HTTP_PORT", 8091),
@@ -124,8 +101,9 @@ func LoadMedia() (MediaConfig, error) {
 		ICEKeepaliveInterval:   envDuration("MEDIA_ICE_KEEPALIVE_INTERVAL", 2*time.Second),
 		NegotiationTimeout:     envDuration("MEDIA_NEGOTIATION_TIMEOUT", 15*time.Second),
 	}
-	// Сохраняем совместимость с локальным Compose без повторного использования исходных ключей токенов доступа.
-	// В рабочей среде нужны независимые секреты; производные ключи разрешены только локально.
+	// Сохраняет совместимость с локальным Compose без прямого повторного использования ключей
+	// доступа.  Для работы в производственной среде требуются независимые секретные данные;
+	// производные ключи разрешены только на локальном уровне.
 	local := Config{AppEnv: env("APP_ENV", "local")}.IsLocal()
 	base := os.Getenv("JWT_SECRET")
 	if local && len(base) >= 32 {
@@ -155,24 +133,24 @@ func LoadMedia() (MediaConfig, error) {
 	return c, c.Validate()
 }
 
-// mediaDerivedSecret вычисляет отдельный секрет назначения из базового секрета, исключая совместное использование ключей разных протоколов.
+// mediaDerivedSecret создает локальный медиа-секрет с разделением доменов без повторного использования ключа access-token напрямую.
 //
-// @args
-//   - base (string): значение base типа string, используемое согласно назначению этой операции.
-//   - purpose (string): значение purpose типа string, используемое согласно назначению этой операции.
+// @Parameters:
+//   - base: базовая конфигурация или значение, на основе которого создается результат.
+//   - purpose: метка разделения доменов для создаваемого секрета.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// Возвращаемое значение:
+//   - result1: локальный медиа-секрет с разделением доменов.
 func mediaDerivedSecret(base, purpose string) string {
 	h := hmac.New(sha256.New, []byte(base))
 	_, _ = h.Write([]byte("go-recorder:" + purpose))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// Validate проверяет ограничения и согласованность полей текущего значения перед его использованием.
+// Валидация отклоняет несогласованные или выходящие за пределы допустимых значений поля media.go перед использованием значения.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения.
 func (c MediaConfig) Validate() error {
 	if len(c.TicketSecret) < 32 || len(c.InternalSecret) < 32 || c.TicketSecret == c.InternalSecret {
 		return fmt.Errorf("MEDIA_TICKET_SECRET and MEDIA_INTERNAL_SECRET must be distinct and contain at least 32 bytes")
@@ -218,13 +196,13 @@ func (c MediaConfig) Validate() error {
 	return validateMediaICE(c.ICE)
 }
 
-// ValidateMediaEndpoint проверяет допустимый внутренний адрес медиа-воркера.
+// ValidateMediaEndpoint проверяет, что конечная точка медиаворкера использует допустимую схему и адрес.
 //
-// @args
-//   - address (string): адрес целевого внутреннего сервиса или сети.
+// @Parameters:
+//   - address: адрес для проверки перед подключением или доставкой.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func ValidateMediaEndpoint(address string) error {
 	u, err := url.Parse(address)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
@@ -234,13 +212,13 @@ func ValidateMediaEndpoint(address string) error {
 	return nil
 }
 
-// validateMediaICE проверяет формат настроек ICE и ограничения передачи учётных данных.
+// validateMediaICE проверяет настроенные ICE-серверы перед передачей их медиа-пирам.
 //
-// @args
-//   - c (realtime.ICEConfig): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// @Parameters:
+//   - c: значение конфигурации ICE, обрабатываемое этой операцией.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func validateMediaICE(c realtime.ICEConfig) error {
 	if len(c.ICEServers) > 16 {
 		return fmt.Errorf("too many ICE servers")

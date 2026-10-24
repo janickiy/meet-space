@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package config
 
 import (
@@ -9,12 +17,11 @@ import (
 	"time"
 )
 
-// OperationsConfig задаёт эксплуатационные границы одного процесса.
-// ProbeTimeout ограничивает проверку зависимости, ProbeInterval объединяет частые
-// обращения к readiness, ShutdownTimeout ограничивает завершение работы.
-// DBMaxOpen/DBMaxIdle/DBLifetime управляют пулом БД; HTTPBodyBytes ограничивает JSON.
-// InternalSecret защищает recorder HTTP, MetricsSecret — Prometheus; PprofPort=0
-// отключает диагностику, иначе она слушает только loopback внутри контейнера.
+// OperationsConfig определяет операционные ограничения для каждого процесса. Зависимость ProbeTimeout определяет границы
+// проверяет; ProbeInterval объединяет проверки готовности; ShutdownTimeout определяет границы завершения работы. DBMaxOpen,
+// DBMaxIdle и DBLifetime управляют пулом баз данных; HTTPBodyBytes ограничивает JSON. InternalSecret
+// защищает протокол записи HTTP, а MetricsSecret защищает Prometheus. PprofPort=0 отключает профилирование.;
+// включенное профилирование прослушивается только при обратной связи.
 type OperationsConfig struct {
 	ProbeTimeout, ProbeInterval, ShutdownTimeout time.Duration
 	DBMaxOpen, DBMaxIdle                         int
@@ -26,9 +33,16 @@ type OperationsConfig struct {
 	HTTPReadTimeout                              time.Duration
 }
 
-// loadOperations читает пределы из окружения и отвергает опасные значения.
-// Аргумент local разрешает только локальную производную внутреннего секрета;
-// результат содержит проверенную конфигурацию либо ошибку без значения секрета.
+// loadOperations загружает данные о готовности на уровне процесса, завершении работы, пуле подключений и диагностике
+// ограничениях.
+//
+// @Parameters:
+//   - local: разрешено ли явное использование только локального режима.
+//
+// @returns:
+//   - result1: результирующая конфигурация операций.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func loadOperations(local bool) (OperationsConfig, error) {
 	c := OperationsConfig{
 		ProbeTimeout: envDuration("HEALTH_PROBE_TIMEOUT", time.Second), ProbeInterval: envDuration("HEALTH_PROBE_INTERVAL", 2*time.Second),
@@ -59,9 +73,13 @@ func loadOperations(local bool) (OperationsConfig, error) {
 	return c, nil
 }
 
-// validateProduction проверяет настройки при запуске в рабочей среде, не раскрывая
-// секреты в ошибках. cfg содержит уже загруженные адреса, ключи и ограничения.
-// Возвращает nil для допустимой конфигурации или причину отказа запуска.
+// validateProduction отклоняет небезопасные или неполные настройки перед запуском производственного процесса.
+//
+// @Parameters:
+//   - cfg: управляемая оператором конфигурация и ограничения обработки.
+//
+// @returns:
+//   - result1: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
 func validateProduction(cfg Config) error {
 	if cfg.IsLocal() || cfg.AppEnv == "test" {
 		return nil
@@ -111,9 +129,12 @@ func validateProduction(cfg Config) error {
 	return nil
 }
 
-// validateTypedEnvironment предотвращает молчаливое применение значения по
-// умолчанию при опечатке в числовом, логическом или временном параметре env.
-// Аргументов нет; ошибка содержит только имя параметра, а не его значение.
+// validateTypedEnvironment отклоняет некорректные значения типизированной среды вместо того, чтобы молча использовать
+// значения по умолчанию.
+//
+// @returns:
+//   - result1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения
+//     данных.
 func validateTypedEnvironment() error {
 	for _, key := range []string{"HTTP_READ_TIMEOUT", "DB_QUERY_TIMEOUT"} {
 		if raw := os.Getenv(key); raw != "" {

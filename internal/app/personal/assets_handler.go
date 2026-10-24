@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package personalapp
 
 import (
@@ -16,9 +24,27 @@ import (
 
 type AssetHandler struct{ service *personalusecase.AssetService }
 
+// NewAssetHandler создает обработчик ресурсов с зависимостями и ограничениями, необходимыми для // личных и групповых чатов.
+//
+// @Parameters:
+//   - service: служба приложения, вызываемая этим адаптером.
+//
+// @returns:
+//   - result1: созданный или загруженный обработчик ресурсов.
 func NewAssetHandler(service *personalusecase.AssetService) *AssetHandler {
 	return &AssetHandler{service: service}
 }
+
+// assetParameter проверяет идентификатор частного актива из маршрута перед обращением к хранилищу.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - name: имя настраиваемого параметра, файла cookie, ресурса или провайдера.
+//
+// @returns:
+//   - result1: проверенный идентификатор частного актива.
+//   - result2: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func assetParameter(c *gin.Context, name string) (string, bool) {
 	id, err := chat.UUID(c.Param(name))
 	if err != nil {
@@ -27,6 +53,11 @@ func assetParameter(c *gin.Context, name string) (string, bool) {
 	}
 	return id, true
 }
+
+// PutAvatar проверяет и сохраняет нормализованный групповой аватар, а затем публикует зафиксированное изменение в диалоге.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) PutAvatar(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -43,6 +74,12 @@ func (h *AssetHandler) PutAvatar(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
+
+// DeleteAvatar очищает аватар авторизованной группы и планирует удаление устаревших приватных объектов для
+// очистки.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) DeleteAvatar(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -55,6 +92,11 @@ func (h *AssetHandler) DeleteAvatar(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
+
+// AvatarContent предоставляет аватар для закрытой группы только после проверки членства запрашивающей учетной записи.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *AssetHandler) AvatarContent(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -62,6 +104,12 @@ func (h *AssetHandler) AvatarContent(c *gin.Context) {
 	}
 	h.content(c, id, "")
 }
+
+// AttachmentContent обслуживает видимое вложение группового сообщения через авторизованную
+// конечную точку для работы с контентом.
+//
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *AssetHandler) AttachmentContent(c *gin.Context) {
 	id, ok := assetParameter(c, "id")
 	if !ok {
@@ -73,6 +121,14 @@ func (h *AssetHandler) AttachmentContent(c *gin.Context) {
 	}
 	h.content(c, id, attachment)
 }
+
+// content открывает авторизованный приватный аватар или вложение и передает его через HTTP
+// ответ.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
+//   - id: идентификатор ресурса, на который указывает эта операция.
+//   - attachment: идентификатор приватного вложения или метаданные в соответствии с его типом.
 func (h *AssetHandler) content(c *gin.Context, id, attachment string) {
 	controller := http.NewResponseController(c.Writer)
 	_ = controller.SetWriteDeadline(time.Now().Add(personalusecase.AssetStreamTimeout))

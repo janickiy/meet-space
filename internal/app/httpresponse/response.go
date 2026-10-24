@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httpresponse
 
 import (
@@ -11,11 +19,15 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 )
 
-// InternalErrorMessage is the safe public message for unexpected server errors.
+// InternalErrorMessage безопасное публичное сообщение о непредвиденных ошибках сервера.
 const InternalErrorMessage = "internal server error"
 
-// Fail сопоставляет прикладную ошибку с HTTP-статусом и безопасным JSON-ответом.
-// Для Internal всегда используется общий текст без диагностической причины.
+// Fail преобразует ошибку приложения в безопасный HTTP-статус и тело ответа, не раскрывая
+// внутреннюю диагностику.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - err: ошибка, которую нужно классифицировать, обернуть или безопасно сообщить о ней.
 func Fail(c *gin.Context, err error) {
 	status, message := http.StatusInternalServerError, InternalErrorMessage
 	switch apperrors.Classify(err) {
@@ -43,9 +55,17 @@ func Fail(c *gin.Context, err error) {
 	c.AbortWithStatusJSON(status, gin.H{"status": "failed", "message": message})
 }
 
-// BindJSON декодирует одно JSON-значение в target с лимитом тела 32 КиБ,
-// запрещая неизвестные поля и данные после значения. optional разрешает пустое
-// тело. При false ответ 400 уже записан и обработка запроса прервана.
+// BindJSON декодирует одно ограниченное значение JSON, отбрасывая неизвестные поля и завершающие данные; опционально
+// входные данные могут быть пустыми.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - target: целевое состояние, учетная запись или декодированное значение в соответствии с его типом.
+//   - optional: разрешено ли использование пустого тела запроса.
+//
+// @returns:
+//   - result1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func BindJSON(c *gin.Context, target any, optional bool) bool {
 	if c.Request.Body == nil {
 		c.Request.Body = http.NoBody
@@ -67,9 +87,16 @@ func BindJSON(c *gin.Context, target any, optional bool) bool {
 	return false
 }
 
-// Pagination возвращает limit, offset и признак успешного разбора query-параметров.
-// По умолчанию limit=20 и offset=0; допустимы limit от 1 до 100 и offset >= 0.
-// При false ответ с ошибкой валидации уже записан.
+// При разбивке на страницы размер страницы и смещение в запросе анализируются, а недопустимые значения или значения вне допустимого диапазона отклоняются.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//
+// @returns:
+//   - result1: итоговое количество, размер или числовое значение.
+//   - result2: итоговое количество, размер или числовое значение.
+//   - result3: выполняется ли задокументированное условие операции или достигнуто ли условное состояние
+//     изменения.
 func Pagination(c *gin.Context) (int, int, bool) {
 	limit, offset := 20, 0
 	var err error

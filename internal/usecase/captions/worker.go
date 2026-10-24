@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package captions
 
 import (
@@ -19,7 +27,8 @@ import (
 	"github.com/janickiy/meet-space/internal/operations"
 )
 
-// Worker запускает ограниченное число конференций и дорожек в отдельном от SFU и рекордера процессе.
+// Worker запускает ограниченное количество сеансов конференций и треков в процессе, отдельном
+// от SFU и записывающего устройства.
 type Worker struct {
 	drainMu    sync.Mutex
 	draining   bool
@@ -36,23 +45,32 @@ type Worker struct {
 	active     atomic.Int64
 }
 
-// statusStamp ограничивает повторную отправку одинакового состояния при массовом drop кадров.
+// statusStamp ограничивает количество повторяющихся идентичных уведомлений о статусе, когда
+// теряется много аудиокадров.
 type statusStamp struct {
 	value string
 	at    time.Time
 }
 
-// BeginDrain останавливает новые аренды конференций, не прерывая действующие.
+// BeginDrain прекращает принимать новые задачи, пока не завершатся текущие операции.
 func (w *Worker) BeginDrain() { w.drainMu.Lock(); w.draining = true; w.drainMu.Unlock() }
 
-// Active возвращает число активных конференций и незавершённых захватов аренды.
+// Active возвращает количество операций, принадлежащих компоненту, которые необходимо завершить
+// до завершения работы.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
 func (w *Worker) Active() int { w.drainMu.Lock(); defer w.drainMu.Unlock(); return w.workActive }
 
-// finishWork освобождает счётчик завершённой конференции или неудачного захвата.
+// finishWork записывает результат работы и освобождает ресурсы, задействованные в активной
+// работе.
 func (w *Worker) finishWork() { w.drainMu.Lock(); w.workActive--; w.drainMu.Unlock() }
 
-// Run захватывает короткие SQL-аренды, продлевает их и ожидает завершения всех своих обработчиков.
-// @args ctx — время жизни процесса.
+// Run запускает субтитры в реальном времени до тех пор, пока контекст не будет отменён или пока
+// не произойдёт сбой при обработке.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (w *Worker) Run(ctx context.Context) {
 	w.slots = make(chan struct{}, w.Config.LiveSessions)
 	conferences := make(chan struct{}, w.Config.LiveConferences)
@@ -99,8 +117,13 @@ func (w *Worker) Run(ctx context.Context) {
 	}
 }
 
-// conference следит за актуальностью аренды и максимальной длительностью, независимо от состояния аудио.
-// @args parent — контекст процесса; lease — актуальная версия согласия пользователя.
+// conference — конференция отслеживает срок действия субтитров в реальном времени и максимальную
+// продолжительность сеанса независимо от входящей аудиоактивности.
+//
+// @Parameters:
+//   - parent: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - lease: Идентификатор текущего резервирования, используемый для изоляции устаревших
+//     рабочих процессов.
 func (w *Worker) conference(parent context.Context, lease Lease) {
 	deadline := lease.EnabledAt.Add(w.Config.LiveMaxDuration)
 	if !lease.Enabled {
@@ -172,9 +195,20 @@ func (w *Worker) conference(parent context.Context, lease Lease) {
 	w.publish(op, lease.ConferenceID, "caption.status", map[string]any{"sessionId": lease.SessionID, "generation": lease.Generation, "status": outcome, "enabled": lease.Enabled})
 }
 
-// stream распределяет кадры по очередям ограниченного размера; переполнение затрагивает только субтитры.
-// @args ctx — аренда; lease — конференция; validUntil — локальный консервативный срок действительности аренды.
-// @return причина прекращения вспомогательного потока.
+// stream — поток распределяет аудиокадры по ограниченным очередям субтитров, чтобы переполнение не
+// блокировало медиаконтент конференции.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - lease: Идентификатор текущего резервирования, используемый для изоляции устаревших
+//     рабочих процессов.
+//   - validUntil: консервативный дедлайн, после наступления которого текущий срок действия
+//     субтитров в реальном времени истекает.
+//   - meter: агрегатор аудиоактивности всей конференции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (w *Worker) stream(ctx context.Context, lease Lease, validUntil *atomic.Int64, meter *activityMeter) error {
 	child, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -263,9 +297,19 @@ func (w *Worker) stream(ctx context.Context, lease Lease, validUntil *atomic.Int
 	return fmt.Errorf("audio tap closed")
 }
 
-// track декодирует один экземпляр дорожки; переподключение провайдера не запускает второй декодер.
-// @args ctx — жизненный цикл; lease — актуальная аренда; track/speaker — проверенная идентичность;
-// packets — ограниченный канал; validUntil — текущий срок действительности аренды.
+// track — декодирует один экземпляр аудиодорожки без создания второго декодера при повторном
+// подключении провайдера.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - lease: Идентификатор текущего резервирования, используемый для изоляции устаревших
+//     рабочих процессов.
+//   - track: Метаданные медиадорожки или согласованный экземпляр дорожки.
+//   - speaker: подтверждённая личность говорящего или публичная метка говорящего.
+//   - packets: Входной канал закодированных медиакадров.
+//   - validUntil: консервативный дедлайн, после наступления которого текущий срок действия
+//     субтитров в реальном времени истекает.
+//   - meter: агрегатор аудиоактивности всей конференции.
 func (w *Worker) track(ctx context.Context, lease Lease, track media.EgressTrack, speaker string, packets <-chan media.EgressFrame, validUntil *atomic.Int64, meter *activityMeter) {
 	var first media.EgressFrame
 	var ok bool
@@ -277,7 +321,8 @@ func (w *Worker) track(ctx context.Context, lease Lease, track media.EgressTrack
 			return
 		}
 	}
-	// Первая порция возвращается декодеру через ограниченный вход без чтения всего потока в память.
+	// возвращает первый фрагмент в декодер через ограниченную входную очередь без буферизации
+	// всего потока.
 	input := make(chan media.EgressFrame, 1)
 	input <- first
 	copyCtx, stopCopy := context.WithCancel(ctx)
@@ -399,9 +444,18 @@ func (w *Worker) track(ctx context.Context, lease Lease, track media.EgressTrack
 	}
 }
 
-// receive проверяет ревизии, временные границы и размер текста до сохранения/публикации.
-// @args ctx — жизненный цикл; lease/track/speaker — серверная идентичность; runID — идентификатор запуска провайдера;
-// origin — смещение PCM во времени конференции; events — поток ограниченного размера.
+// receive — приёмник считывает входящие события состояния субтитров в реальном времени и перенаправляет
+// их в соответствующий путь доставки с ограниченной буферизацией.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - lease: Идентификатор текущего резервирования, используемый для изоляции устаревших
+//     рабочих процессов.
+//   - track: Метаданные медиадорожки или согласованный экземпляр дорожки.
+//   - speaker: подтверждённая личность говорящего или публичная метка говорящего.
+//   - runID: Идентификатор текущего этапа обработки субтитров в реальном времени.
+//   - origin: Время начала воспроизведения медиа в миллисекундах.
+//   - events: Место назначения для зафиксированных событий жизненного цикла или чатов.
 func (w *Worker) receive(ctx context.Context, lease Lease, track media.EgressTrack, speaker, runID string, origin int64, events <-chan domain.Event) {
 	latest := map[string]domain.Event{}
 	for event := range events {
@@ -446,22 +500,43 @@ func (w *Worker) receive(ctx context.Context, lease Lease, track media.EgressTra
 	}
 }
 
-// ValidEvent отвергает небезопасные размеры и неоднозначные timestamps входящего провайдера.
-// @args e — событие; maximum — предел Unicode символов; duration — предел времени ms.
-// @return допустимость непроверенного ответа.
+// ValidEvent проверяет событие поставщика субтитров в реальном времени перед его публикацией
+// или сохранением.
+//
+// @Parameters:
+//   - e: Состояние события, обработанное в ходе этой операции.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - duration: Продолжительность или период действия, используемый в ходе операции.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func ValidEvent(e domain.Event, maximum int, duration int64) bool {
 	return e.UtteranceID != "" && len(e.UtteranceID) <= 128 && utf8.ValidString(e.UtteranceID) && !strings.ContainsRune(e.UtteranceID, 0) && utf8.ValidString(e.Text) && !strings.ContainsRune(e.Text, 0) && len(strings.TrimSpace(e.Text)) > 0 && utf8.RuneCountInString(e.Text) <= maximum && e.StartMS >= 0 && e.EndMS >= e.StartMS && e.EndMS <= duration && e.Revision >= 0 && e.Sequence >= 0 && (e.Language == "ru" || e.Language == "en" || e.Language == "auto")
 }
 
-// Newer сравнивает версии одной реплики, запрещая возврат от final к partial.
-// @args old,next — сохранённая и входящая версии.
-// @return разрешение заменить текущий текст.
+// Функция Newer сравнивает версии субтитров, чтобы устаревшие обновления не заменяли более
+// новые результаты распознавания речи.
+//
+// @Parameters:
+//   - old: Ранее принятая версия события.
+//   - next: Следующий обработчик HTTP или более новое событие, в зависимости от его типа.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func Newer(old, next domain.Event) bool {
 	return (!old.Final || next.Final) && (next.Revision > old.Revision || next.Revision == old.Revision && next.Final && !old.Final) && next.Sequence >= old.Sequence
 }
 
-// status сохраняет и публикует состояние с коротким сроком выполнения; исходные ошибки не логируются.
-// @args ctx — отмена; lease — актуальная аренда; status — ограниченное состояние.
+// Функция status сохраняет и публикует ограниченный статус субтитров в реальном времени, не
+// регистрируя исходную ошибку поставщика.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - lease: Идентификатор текущего резервирования, используемый для изоляции устаревших
+//     рабочих процессов.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
 func (w *Worker) status(ctx context.Context, lease Lease, status string) {
 	w.statusMu.Lock()
 	previous := w.statuses[lease.Token]
@@ -480,8 +555,14 @@ func (w *Worker) status(ctx context.Context, lease Lease, status string) {
 	w.publish(op, lease.ConferenceID, "caption.status", map[string]any{"sessionId": lease.SessionID, "generation": lease.Generation, "status": status, "enabled": lease.Enabled})
 }
 
-// publish отправляет небольшое событие без критичного приоритета; final восстанавливается через HTTP.
-// @args ctx — срок выполнения; cid,kind — серверная область/тип; payload — проверенные данные.
+// Функция publish публикует сохраненное изменение состояния субтитров в реальном времени через
+// настроенный транспорт событий или команд.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - payload: Структурированная полезная информация о событии или команде.
 func (w *Worker) publish(ctx context.Context, cid, kind string, payload any) {
 	if w.Events == nil {
 		return

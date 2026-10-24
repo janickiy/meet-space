@@ -1,4 +1,4 @@
-/* Messenger details adapted from the desktop design to touch layouts. */
+/* Элементы интерфейса Messenger адаптированы для сенсорного управления с помощью дизайна для настольных компьютеров. */
 .cr-thread .thread-header { flex-shrink: 0; gap: 10px; }
 .cr-contact-copy { min-width: 0; }
 .cr-contact-copy h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -96,7 +96,7 @@
 .cr-thread .thread-header .avatar{display:inline-flex;min-width:32px}
 .cr-message-tools{height:40px}.cr-message-tools .cr-more{width:44px;min-width:44px;height:40px}
 
-/* Conversation actions stay anchored to the header on phones and tablets. */
+/* Элементы управления диалогом остаются привязанными к заголовку на телефонах и планшетах. */
 .cr-thread .thread-header { position: relative; z-index: 30; overflow: visible; }
 .cr-header-actions { position: relative; display: flex; align-items: center; flex-shrink: 0; overflow: visible; }
 .cr-header-actions .cr-header-menu-trigger { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-width: 44px; height: 44px; padding: 0; border-radius: 12px; background: transparent; color: var(--ink); }
@@ -134,7 +134,7 @@ svg.cr-muted-indicator { width: 14px; height: 14px; flex-shrink: 0; }
   .cr-chat-empty { padding: 25px 18px; }
 }
 
-/* Message actions: a contextual stack, independent of conversation menus. */
+/* Элементы управления сообщениями: контекстный стек, не связанный с меню диалога. */
 .modal-backdrop.cr-message-backdrop { display: block; position: fixed; inset: 0; z-index: 1100; padding: 0; background: #1320396b; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
 .modal.cr-message-popover { position: fixed; display: flex; flex-direction: column; gap: 9px; width: min(320px, calc(100vw - 32px)); max-width: min(336px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -webkit-tap-highlight-color: transparent; }
 .cr-message-popover::-webkit-scrollbar { display: none; }
@@ -175,7 +175,7 @@ svg.cr-muted-indicator { width: 14px; height: 14px; flex-shrink: 0; }
 [data-theme="dark"] .cr-message-popover .cr-quick-reactions,
 [data-theme="dark"] .cr-message-popover .cr-context-actions { box-shadow: 0 4px 18px #00000030; }
 
-/* Reserve space only for actual reaction chips, never for a menu affordance. */
+/* Оставляйте место только для самих чипов с реакциями, а не для меню. */
 .cr-message-content { position: relative; }
 .cr-message-tools { position: static; display: flex; align-items: center; justify-content: flex-start; gap: 6px; height: auto; min-height: 0; margin: 0; padding: 0; }
 .cr-message.mine .cr-message-tools { justify-content: flex-end; }

@@ -1,0 +1,24 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Расшифровки, сводки и поиск", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "content_embeddings" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>content_embeddings [pgvector]</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: recording_id</TD></TR><TR><TD ALIGN="LEFT">FK: transcript_id</TD></TR><TR><TD ALIGN="LEFT">17 полей</TD></TR></TABLE>>];
+  "content_search_indexes" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>content_search_indexes</B></TD></TR><TR><TD ALIGN="LEFT">PK: transcript_id, model_key</TD></TR><TR><TD ALIGN="LEFT">9 полей</TD></TR></TABLE>>];
+  "embedding_cache" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>embedding_cache [pgvector]</B></TD></TR><TR><TD ALIGN="LEFT">PK: model_key, content_hash</TD></TR><TR><TD ALIGN="LEFT">4 полей</TD></TR></TABLE>>];
+  "meeting_summaries" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>meeting_summaries</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: transcript_id</TD></TR><TR><TD ALIGN="LEFT">19 полей</TD></TR></TABLE>>];
+  "record" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>record</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "transcript_segments" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>transcript_segments</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: transcript_id</TD></TR><TR><TD ALIGN="LEFT">10 полей</TD></TR></TABLE>>];
+  "transcripts" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>transcripts</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: recording_id</TD></TR><TR><TD ALIGN="LEFT">12 полей</TD></TR></TABLE>>];
+  "content_embeddings" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "content_embeddings" -> "record" [label="recording_id → uuid\nDELETE RESTRICT"];
+  "content_embeddings" -> "transcripts" [label="transcript_id → id\nDELETE RESTRICT"];
+  "content_search_indexes" -> "transcripts" [label="transcript_id → id\nDELETE RESTRICT"];
+  "meeting_summaries" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "meeting_summaries" -> "transcripts" [label="transcript_id → id\nDELETE RESTRICT"];
+  "transcript_segments" -> "transcripts" [label="transcript_id → id\nDELETE RESTRICT"];
+  "transcripts" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "transcripts" -> "record" [label="recording_id → uuid\nDELETE RESTRICT"];
+  "content_embeddings" -> "transcript_segments" [style=dashed, color="#a06b20", label="segment_id → id\nбез FK"];
+  "content_embeddings" -> "embedding_cache" [style=dashed, color="#a06b20", label="model_key, content_hash → model_key, content_hash\nбез FK"];
+}

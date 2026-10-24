@@ -1,26 +1,26 @@
-# Эксплуатация Go Recorder / Meet
+# Эксплуатация MeetSpace
 
-Текущая модель — single-host Compose, не HA-платформа. Реальный staging ещё
-не предоставлен; локальные проверки не подтверждают production/WAN/TURNS.
-Измерения 1–2 октября 2026 в [CAPACITY_BASELINE](../CAPACITY_BASELINE.md),
-[отчёте этапа 6](production-hardening-report.md) и
-[UX-отчёте этапа 9](PRODUCT_UX_RELEASE_REPORT.md) — исторические результаты,
-а не приёмка текущего выпуска.
+Runbook для одного Docker Compose-хоста: проверка служб, сеть, управление
+нагрузкой, диагностика, резервное копирование и восстановление.
 
 ## Выпуск и навигация
 
-- [Итоговый launch audit и локальная репетиция](launch-readiness-report.md): результаты, ограничения и production NO-GO.
 - [Развёртывание и окружения](../DEPLOYMENT.md): хост, конфигурация, сеть, secrets и local rehearsal.
 - [Процесс выпуска](../RELEASE_PROCESS.md): immutable package, CI gates, ledger и production approval.
 - [Откат](../ROLLBACK.md): предыдущие образы и совместимость с текущей схемой.
 - [Backup/restore](backup-restore.md): write freeze, проверка копии и границы восстановления.
 - [Production checklist](../PRODUCTION_LAUNCH_CHECKLIST.md): актуальное решение go/no-go.
-- [Frontend release checks](frontend-release-checks.md): browser/build результаты, npm versions и raw license inventory.
+- [Проверки frontend](frontend-release-checks.md): сборка, браузеры и пользовательские сценарии.
+- [Отказные проверки](FAILURE_TESTS.md): сценарии для изолированного стенда.
 - [Архитектура](../ARCHITECTURE.md), [потоки данных](../DATA_FLOWS.md), [API](../API.md), [пользовательское руководство](../USER_GUIDE.md).
 
-Прежняя инструкция этапа 6 с `up --build` и автоматическими миграциями **заменена
-для staging/production** указанным release-процессом. Dev-сборка остаётся в
-[корневом README](../../README.md). На release-хосте используются закреплённые
+Для установки через `install.sh` используйте `manage.sh` и её полный
+[Compose-контекст](../DEPLOYMENT.md#compose-контекст-установки-мастером). Общие
+release helpers выбирают classic/shared-host и автоматически не читают
+`config/compose.json` и `config/turn.yml` мастера. Обновление standalone требует
+плана с сохранением её томов, сети, proxy/TURN и образов; `--resume` не updater.
+
+Dev-сборка описана в [корневом README](../../README.md). На release-хосте используются закреплённые
 образы, `AUTO_MIGRATE=false` и явная migration job до deploy, не DDL при старте.
 Применённые SQL-файлы и их комментарии не редактируют: ledger сверяет байты.
 В частности, индексы `000021_admin_capability.up.sql` требуют замера времени и
@@ -38,12 +38,14 @@ TLS, не опубликованный наружу. Между отдельны
 | HTTPS/WSS | 443/TCP | Браузеры → Nginx |
 | API | 8085/TCP | Только Compose/LB внутри доверенной сети |
 | media-worker control | 8091/TCP | Только API/recorder, Bearer service secret |
-| recorder control | 8090/TCP | Только API, Bearer service secret |
+| recorder control | 8090/TCP | Внутренняя сеть, Bearer service secret |
+| product/live-worker | 8092/8093/TCP | Health/operations только внутри сети |
 | SFU ICE mux | 50010/UDP и TCP по умолчанию | Публичное назначение `MEDIA_NAT_IPS`, прямой RTP |
 | TURN | 3478/UDP + TCP | Браузеры → Coturn |
 | TURNS | 5349/TCP | TLS fallback, отдельный действительный сертификат |
 | TURN relay | 49160–49259/UDP по умолчанию | Coturn → SFU; диапазон должен совпасть с firewall |
-| PostgreSQL / Redis / Rabbit / MinIO | 5432 / 6379 / 5672 / 9000 | Не опубликованы в production |
+| PostgreSQL / Redis / Rabbit / S3 | 5432 / 6379 / 5672 / 9000 | Не опубликованы в production |
+| ACME | 80/TCP | Выпуск/продление Let’s Encrypt в установке мастером; постоянного HTTP redirect нет |
 | Metrics / pprof | `/metrics` / loopback `PPROF_PORT` | Метрики требуют Bearer; pprof выключен по умолчанию |
 
 RTP не проходит через HTTP reverse proxy. TCP fallback здесь означает TCP между
@@ -101,8 +103,12 @@ Compositor встроен в recorder, отдельного процесса/hea
 Product проверяет PG и MinIO при включённом STT; live-worker — PG и Redis.
 Readiness внешнего provider нельзя считать доказанным только по этим probes.
 
-Диагностические команды ниже выполняются в отдельном Bash из корня checkout
-после выбора **установленного** manifest. Helper читает env как данные Compose,
+Для установки мастером сначала задайте функцию `compose` из
+[DEPLOYMENT.md](../DEPLOYMENT.md#compose-контекст-установки-мастером), затем
+выполняйте только строки `compose ps`/`compose exec` ниже.
+
+Следующий полный блок предназначен для общего release workflow: отдельный Bash
+из корня checkout после выбора **установленного** manifest. Helper читает env как данные Compose,
 не исполняет его shell-код и не выводит конфигурацию с секретами:
 
 ```bash
@@ -135,6 +141,33 @@ grace period 45s. После дедлайна процесс может заве
 при смене media-worker требуется reconnect, повторное получение ticket и новые PC.
 Redis PubSub ephemeral; клиент после reconnect получает HTTP snapshot/history.
 
+### Возврат standalone после drain
+
+В установке мастером используйте её функцию `compose`, не `release.sh resume`.
+Перед перезапуском завершите встречи/записи и фоновые работы, включите drain и
+проверьте `draining=true`, `active=0` у всех заменяемых процессов. Управляющий
+POST и GET для API выполняются внутри контейнера без вывода секрета:
+
+```bash
+compose exec -T api sh -c 'wget -qO- --post-data="" --header="Authorization: Bearer $METRICS_SECRET" http://127.0.0.1:8085/operations/drain'
+compose exec -T api sh -c 'wget -qO- --header="Authorization: Bearer $METRICS_SECRET" http://127.0.0.1:8085/operations/drain'
+```
+
+Повторите с service/port `media-worker:8091`, `worker:8090`,
+`product-worker:8092`, `live-worker:8093`. Только после нулевой активности,
+проверки очередей и завершения backup/обслуживания верните те же image IDs:
+
+```bash
+compose up -d --no-build --no-deps --force-recreate --wait --wait-timeout 240 \
+  media-worker worker product-worker live-worker api frontend
+```
+
+Этот блок возобновляет установленную версию: он не собирает новый выпуск и не
+обновляет инфраструктуру. Если env/образы уже менялись, сначала сверяйте план
+обновления. Повторно проверьте readiness/version, очереди и пользовательские
+сценарии, затем снимайте внешнее ограничение нагрузки. Перезапуск SFU прерывает
+соединения, поэтому его выполняют после завершения встреч.
+
 Для recorder перед drain сначала прекратить появление новых `record.start` и
 дождаться обработки уже ожидающих стартов, сопоставляя очередь/outbox со
 статусами записей. Уже активные записи остановить штатно и дождаться финализации;
@@ -161,10 +194,11 @@ production Nginx закрывает metrics/internal/debug/health и drain. `rel
 deploy` поднимает observability-профиль из того же immutable manifest; отдельно
 пересобирать или запускать mutable образы метрик при выпуске не нужно.
 
-Предварительно положить token в `METRICS_TOKEN_FILE`, совпадающий с METRICS_SECRET,
-и отдельный пароль Grafana в `GRAFANA_PASSWORD_FILE`. Файлы вне Git, доступны
+Предварительно положить token в `METRICS_TOKEN_FILE`, совпадающий с METRICS_SECRET.
+Для classic-варианта нужен отдельный пароль Grafana в `GRAFANA_PASSWORD_FILE`.
+Установка мастером создаёт token автоматически; hardened не запускает Grafana. Файлы вне Git, доступны
 пользователю контейнера; не сохранять значения в dashboard или Prometheus YAML.
-UI доступны только на loopback 19090/13001, использовать SSH tunnel.
+Prometheus доступен только на loopback 19090, Grafana classic — 13001; используйте SSH tunnel.
 `dockers/observability/` содержит starter dashboard и alert rules. Порог DB 18
 соответствует pool 20; при изменении пула скорректировать alert. Общие CPU/RAM
 пороги требуют настройки под роль службы. Доставка alert через Alertmanager
@@ -184,7 +218,6 @@ recordings/FFmpeg, disk free и последнюю queue latency. Счётчик
 host/srflx/prflx — direct. Это не статистика переключений пары внутри одного PC.
 Waiting/online глобально и Rabbit queue depth пока не экспортируются; queue depth
 смотреть в брокере.
-Такие ограничения перечислены в отчёте, не выдаются за реализованные метрики.
 
 Продуктовые jobs имеют `recorder_product_queue`, `recorder_product_jobs_total`
 и provider-метрики. Это не Rabbit depth. Опциональная frontend-телеметрия добавляет
@@ -208,7 +241,9 @@ Legacy ingest также ограничен MaxActive. JSON max 1 МиБ, API re
 upload route имеет отдельный лимит 10 МиБ и собственный deadline. SSE/WS имеют
 отдельные heartbeat/write deadlines, поэтому общий HTTP WriteTimeout не используется.
 
-PG pool 20 open/10 idle/30m lifetime. Подключение 5s, query timeout 10s,
+Значения шаблона PG pool — 20 open/10 idle/30m lifetime; текущий мастер
+задаёт 10 open/2 idle. Сверяйте фактические DB_MAX_OPEN/DB_MAX_IDLE перед
+настройкой оповещений. Подключение 5s, query timeout 10s,
 lock timeout 5s. Migration job имеет отдельные transaction/advisory lock,
 `lock_timeout=15s` и deadline 5 минут. Не увеличивать лимит всех пользовательских
 запросов ради DDL; тяжёлую миграцию проектировать и проверять отдельно.
@@ -225,7 +260,13 @@ connect bounded, publisher confirms/reconnect, consumer QoS=1/reconnect.
 пересмотра по длительности записей и нагрузке; он не включён как «работающий»
 Prometheus rule без соответствующей серии/exporter.
 
-MinIO операции имеют сетевые deadlines, bounded SDK retry, upload deadline 10m,
+В development/classic работает MinIO; в hardened и текущей установке мастером
+— SeaweedFS под тем же service name `minio` и `MINIO_*`. S3-клиент общий,
+но формат томов разный: подключать MinIO data volume к SeaweedFS нельзя.
+`S3_MAX_VOLUMES=16` — default SeaweedFS, размер volume задаётся entrypoint как
+128 МиБ; ёмкость планируется отдельно от размера диска хоста.
+
+S3-операции имеют сетевые deadlines, bounded SDK retry, upload deadline 10m,
 проверку размера сохранённого объекта. При частичной composite финализации
 незакоммиченный token-prefix удаляется best effort (5s). При outage очистка может
 не пройти; сверять такие orphan objects с PG перед удалением. Повторный upload
@@ -235,16 +276,23 @@ MinIO операции имеют сетевые deadlines, bounded SDK retry, u
 FFmpeg вызывается напрямую, без shell. Новые bounded wrappers сохраняют до
 64 КиБ вывода. Cancel: SIGTERM, через 3s SIGKILL; legacy normal stop сначала
 отправляет `q`, затем TERM/KILL с ограниченным ожиданием. Контейнер `init: true`
-помогает reap дочерних процессов. Codecs: VP8/Opus ingest, H.264/AAC MP4 и JPEG
-preview; runtime FFmpeg должен содержать libvpx/libx264/libopus/AAC.
+помогает reap дочерних процессов. Codecs: VP8/Opus ingest, H.264/AAC MP4 для composite/screen_focus и JPEG
+preview; audio_only формирует AAC в MP4 без preview, individual_tracks —
+аудио MP4 и ZIP исходных IVF/OGG с manifest. Runtime FFmpeg должен содержать
+libvpx/libx264/libopus/AAC. Конференционный путь: SFU → HTTP NDJSON egress →
+recorder → FFmpeg → S3; RabbitMQ передаёт команды, а не RTP.
 Low disk снимает readiness, но не является полноценной квотой записи в процессе:
 следить за диском и заранее прекращать admission. Приложение не удаляет чужие
 или неопознанные каталоги при запуске; завершённые chunks нужны для восстановления.
+Composite очищает spool после upload и commit ready, если
+`RECORDING_KEEP_LOCAL=false`. Артефакты сохраняются под
+`recordings/{conferenceId}/{recordId}/artifacts/{token}/`; устаревшие keys
+`records/{recordId}/final.mp4` не описывают текущий конференционный путь.
 
 ## Аварии и восстановление
 
-См. исторический [FAILURE_TESTS](FAILURE_TESTS.md) для выполненной в этапе 6 матрицы
-и рисков; он не является повторным тестом текущего release artifact.
+[Матрица отказных проверок](FAILURE_TESTS.md) описывает, как проверить
+восстановление на изолированном стенде.
 
 При recording failed не подменять статус success. Проверить worker readiness,
 lease/token, свободный диск, retained chunks, FFmpeg stderr, MinIO и outbox.
@@ -265,7 +313,9 @@ MinIO outage: восстановить storage/диск/credentials, свери�
 ## Backup, restore и rollback
 
 Актуальные команды и границы — [backup-restore.md](backup-restore.md) и
-[ROLLBACK.md](../ROLLBACK.md). Backup helper сохраняет PG и текущие MinIO objects
+[ROLLBACK.md](../ROLLBACK.md). Общий backup helper привязан к release workflow;
+для standalone используйте отдельный контекст и инструкции backup. Сохраняются
+PG и текущие S3 objects
 с `ContentType`, не историю версий, произвольную metadata или весь broker/spool.
 Глобальный write freeze обязателен: это не атомарный cross-store snapshot.
 Secrets/config/TLS и ключ provider-токенов сохраняются отдельно защищённо.
@@ -278,10 +328,6 @@ Restore drill создаёт отдельные БД/bucket и сохраняе�
 и без пересборки старого commit. Несовместимость схемы требует отдельного решения.
 
 ## Ручная проверка после выпуска
-
-Автоматизированные stage6/load/soak/TURN-сценарии и их тестовый Compose удалены.
-Старые локальные результаты ниже сохранены как исторический baseline, не как
-действующие команды или подтверждение нового артефакта.
 
 Сверить `/version` и `/version.json` с выбранным манифестом; через закрытый доступ
 проверить health/readiness, drain и очереди каждого изменённого сервиса.
@@ -296,11 +342,8 @@ Restore drill создаёт отдельные БД/bucket и сохраняе�
 
 ## Предлагаемые SLI/SLO и окно наблюдения
 
-Это начальный **план измерений, не утверждённый SLO/SLA**. Исторический локальный
-baseline содержит 100 auth-запросов (p95 1.984ms), burst 100 WS (p95 261ms),
-синтетический SFU 2/5/10 участников с RTP payload 4 bytes, короткую запись и
-30m SFU soak. Он полезен для сравнения одинаковых сценариев, но не задаёт
-production latency, bitrate, безопасное число встреч и доступность в процентах.
+Выберите SLI и измерьте их при ожидаемой нагрузке целевого окружения. На основе
+этих данных определяются SLO и допустимое число одновременных встреч.
 
 | Область SLI | Что измерять перед назначением SLO |
 | --- | --- |
@@ -311,14 +354,10 @@ production latency, bitrate, безопасное число встреч и д�
 | Ресурсы и зависимости | Readiness, DB pool/locks, CPU/RSS/goroutines/FD, диск/spool, PG/MinIO/Rabbit и выбранные relay/direct подключения |
 | Frontend | Ограниченные error codes и версии с фактическим числом browser-сценариев; отсутствие событий не доказывает отсутствие ошибок |
 
-Предложение для первого выпуска: 15 минут первичной проверки после deploy и
-ещё 30 минут наблюдения при согласованном реальном/синтетическом трафике. Это
-организационные окна, не автоматический gate и не достаточное измерение SLO.
-До начала владелец выпуска задаёт минимальный объём каждого сценария для
-своего pilot; в отчёте сохраняются **фактические counts** HTTP/login/WS/media/
-recordings и период. Если трафика мало или нет, продлить наблюдение и выполнить
-контролируемые проверки: нулевые ошибки при нулевой нагрузке не основание для go.
-Численные SLO и capacity утверждаются только после representative staging run.
+До запуска задайте окно наблюдения, минимальный объём сценариев и условия
+остановки. Сохраните фактическое число HTTP/login/WS/media/recording операций
+за период. При недостаточном трафике продлите наблюдение или выполните
+контролируемые проверки на стенде.
 
 Стартовые alert rules находятся в `dockers/observability/alerts.yml`:
 

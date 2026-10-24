@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -15,38 +23,35 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// ConferenceRepository реализует постоянное хранение конференций и членств участников через GORM.
-//   - db: подключение или текущая транзакция GORM, задающая контекст доступа к базе.
+// ConferenceRepository сохраняет информацию о жизненном цикле конференции и членстве участников
+// с помощью GORM.
 type ConferenceRepository struct{ db *gorm.DB }
 
-// NewConferenceRepository создаёт и связывает зависимости компонента ConferenceRepository, используемого в жизненном цикле конференций и правах участников.
+// NewConferenceRepository создает репозиторий конференций с зависимостями и ограничениями,
+// необходимыми для проведения конференции.
 //
-// @args
-//   - db (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// @return:
-//   - результат 1 (*ConferenceRepository): созданный компонент с переданными зависимостями.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий конференций.
 func NewConferenceRepository(db *gorm.DB) *ConferenceRepository { return &ConferenceRepository{db: db} }
 
-// Create создаёт новое состояние конференций и членств участников по переданным параметрам.
-// Операции с базой данных объединяет в транзакцию.
+// Create создает и сохраняет новую конференцию для действующей учетной записи.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conference (conferences.Conference): конференция либо её идентификатор, ограничивающий область операции.
-//   - owner (conferences.Participant): значение owner типа conferences.Participant, используемое согласно назначению этой операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conference: Conference запись и проверенные метаданные о жизненном цикле.
+//   - owner: Учетная запись, участник или работник, которому принадлежит ресурс.
 //
-// @return:
-//   - результат 1 (conferences.Conference): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Create(ctx context.Context, conference conferences.Conference, owner conferences.Participant) (conferences.Conference, error) {
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			var account users.User
 			if err := tx.Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id=? AND password_hash<>''", conference.OwnerID).Take(&account).Error; err != nil {
 				return mapNotFound(err)
@@ -63,45 +68,49 @@ func (r *ConferenceRepository) Create(ctx context.Context, conference conference
 	return conference, err
 }
 
-// Get читает состояние конференций и членств участников для дальнейшей обработки или ответа.
+// Get загружает запрошенную конференцию в рамках полномочий вызывающей стороны.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// @return:
-//   - результат 1 (conferences.Conference): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Get(ctx context.Context, id string) (conferences.Conference, error) {
 	return findConference(r.db.WithContext(ctx), id, false)
 }
 
-// GetByInvite находит конференцию по действующему коду приглашения.
+// GetByInvite загружает конференцию, связанную с действительным кодом приглашения.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - code (string): код приглашения или машинный код результата.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - code: Ограниченный публичный статус или код ошибки.
 //
-// @return:
-//   - результат 1 (conferences.Conference): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) GetByInvite(ctx context.Context, code string) (conferences.Conference, error) {
 	var conference conferences.Conference
 	err := r.db.WithContext(ctx).Where("invite_code = ? AND kind = 'meeting'", code).Take(&conference).Error
 	return conference, mapNotFound(err)
 }
 
-// ListForUser возвращает конференции, доступные указанному пользователю.
+// ListForUser возвращает только те конференции, которые доступны для просмотра в рамках
+// членства указанной учетной записи.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - limit (int): максимальное число элементов страницы или порции обработки.
-//   - offset (int): число элементов, пропускаемых перед началом страницы.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
 //
-// @return:
-//   - результат 1 ([]conferences.Conference): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Собранные данные о конференции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) ListForUser(ctx context.Context, userID string, limit, offset int) ([]conferences.Conference, error) {
 	items := []conferences.Conference{}
 	err := r.db.WithContext(ctx).Model(&conferences.Conference{}).
@@ -114,31 +123,34 @@ func (r *ConferenceRepository) ListForUser(ctx context.Context, userID string, l
 	return items, err
 }
 
-// Membership читает членство пользователя в заданной конференции.
+// Membership загружает сохраненное членство учетной записи в запрошенной конференции.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Membership(ctx context.Context, id, userID string) (conferences.Participant, error) {
 	return findMembership(r.db.WithContext(ctx), id, userID)
 }
 
-// Participants возвращает разрешённую страницу участников конференции.
+// Participants возвращает участников конференции, доступных для просмотра действующей учетной
+// записи.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - limit (int): максимальное число элементов страницы или порции обработки.
-//   - offset (int): число элементов, пропускаемых перед началом страницы.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
 //
-// @return:
-//   - результат 1 ([]conferences.Participant): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Собранные данные об участниках.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Participants(ctx context.Context, id string, limit, offset int) ([]conferences.Participant, error) {
 	items := []conferences.Participant{}
 	err := r.db.WithContext(ctx).Where("conference_id = ?", id).
@@ -146,27 +158,25 @@ func (r *ConferenceRepository) Participants(ctx context.Context, id string, limi
 	return items, err
 }
 
-// Transition выполняет разрешённый переход состояния конференции или записи.
-// Операции с базой данных объединяет в транзакцию.
+// Transition применяет допустимый переход между этапами жизненного цикла конференции без
+// перезаписи более нового состояния.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - target (conferences.Status): целевой объект, участник или состояние операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
 //
-// @return:
-//   - результат 1 (conferences.Conference): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Transition(ctx context.Context, id, userID string, target conferences.Status) (conferences.Conference, error) {
 	var conference conferences.Conference
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			var err error
 			conference, err = findConference(tx, id, true)
 			if err != nil {
@@ -204,27 +214,25 @@ func (r *ConferenceRepository) Transition(ctx context.Context, id, userID string
 	return conference, err
 }
 
-// Join создаёт или восстанавливает членство участника, учитывая приглашение, состояние встречи и зал ожидания.
-// Операции с базой данных объединяет в транзакцию.
+// Join создает или возобновляет авторизованное членство или подключение к медиакомнате,
+// сохраняя текущие идентификационные данные.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - user (users.User): пользователь либо его идентификатор, определяющий область доступа.
-//   - inviteCode (string): криптографически случайный код приглашения, не заменяющий авторизацию.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - user: Подтвержденная запись учетной записи, для которой обрабатывается публичная
+//     идентификация или сеанс на сервере.
+//   - inviteCode: Подтвержденный код приглашения на конференцию.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Join(ctx context.Context, id string, user users.User, inviteCode string) (conferences.Participant, error) {
 	var participant conferences.Participant
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			conference, err := findConference(tx, id, true)
 			if err != nil {
 				return err
@@ -264,8 +272,8 @@ func (r *ConferenceRepository) Join(ctx context.Context, id string, user users.U
 				}
 				return tx.Create(&participant).Error
 			}
-			// Ссылка даёт немедленный допуск, в том числе участнику из прежнего зала ожидания.
-			// Явные отклонения и исключения проверены выше.
+			// Приглашение дает право на немедленный доступ, в том числе для участника, который
+			// ранее находился в режиме ожидания. Явный отказ и удаление были проверены выше.
 			if hasInvite && participant.AdmissionState == conferences.AdmissionWaiting {
 				status := conferences.Joined
 				var joinedAt *time.Time = &now
@@ -278,7 +286,7 @@ func (r *ConferenceRepository) Join(ctx context.Context, id string, user users.U
 				participant, err = findMembership(tx, id, user.ID)
 				return err
 			}
-			// Без ссылки сохраняется прежнее состояние допуска.
+			// Без приглашения сохраняется предыдущее состояние доступа.
 			if participant.AdmissionState == conferences.AdmissionWaiting {
 				if participant.Status == conferences.Waiting {
 					return nil
@@ -297,26 +305,23 @@ func (r *ConferenceRepository) Join(ctx context.Context, id string, user users.U
 	return participant, err
 }
 
-// Leave фиксирует выход участника, сохраняя историю членства и состояние допуска.
-// Операции с базой данных объединяет в транзакцию.
+// Leave отменяет активное членство или подключение к мультимедиа, сохраняя при этом сохранённую
+// историю разговоров или конференций.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRepository) Leave(ctx context.Context, id, userID string) (conferences.Participant, error) {
 	var participant conferences.Participant
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			if _, err := findConference(tx, id, true); err != nil {
 				return err
 			}
@@ -343,22 +348,33 @@ func (r *ConferenceRepository) Leave(ctx context.Context, id, userID string) (co
 	return participant, err
 }
 
-// findConference читает конференцию, при необходимости блокируя строку для изменения.
+// findConference загружает конференцию, используемую для авторизации текущей транзакции.
 //
-// @args
-//   - db (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - locked (bool): указывает, требуется ли чтение с блокировкой строки для согласованного изменения.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - locked: Указывает, должен ли запрос блокировать выбранную строку перед изменением.
 //
-// @return:
-//   - результат 1 (conferences.Conference): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func findConference(db *gorm.DB, id string, locked bool) (conferences.Conference, error) {
 	return findMediaRoom(db.Where("kind = 'meeting'"), id, locked)
 }
 
-// findMediaRoom includes private call rooms. Only the media lifecycle may use
-// it; ordinary meeting APIs must go through findConference instead.
+// findMediaRoom включает в себя приватные переговорные комнаты. Его может использовать только
+// жизненный цикл медиа. Для обычных совещаний APIs необходимо использовать findConference.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - locked: Указывает, должен ли запрос блокировать выбранную строку перед изменением.
+//
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func findMediaRoom(db *gorm.DB, id string, locked bool) (conferences.Conference, error) {
 	if locked {
 		db = db.Clauses(clause.Locking{Strength: "UPDATE"})
@@ -368,16 +384,18 @@ func findMediaRoom(db *gorm.DB, id string, locked bool) (conferences.Conference,
 	return conference, mapNotFound(err)
 }
 
-// findMembership читает членство пользователя внутри конкретной конференции.
+// findMembership загружает данные о членстве участников, используемые в рамках текущей
+// транзакции.
 //
-// @args
-//   - db (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// @return:
-//   - результат 1 (conferences.Participant): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func findMembership(db *gorm.DB, id, userID string) (conferences.Participant, error) {
 	var participant conferences.Participant
 	err := db.Where("conference_id = ? AND user_id = ?", id, userID).Take(&participant).Error

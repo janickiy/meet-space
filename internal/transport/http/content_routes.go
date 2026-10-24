@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -7,16 +15,24 @@ import (
 	"time"
 )
 
-// RegisterContentRoutes защищает все маршруты содержимого и поиска общей авторизацией JWT.
-// @args router — HTTP router; handler — content сценарии; authentication — Bearer verifier.
+// RegisterContentRoutes регистрирует конечные точки для контента с предоставленными
+// промежуточными модулями аутентификации и обработки запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
+//   - limiters: Общие реализации ограничителей для зарегистрированных конечных точек.
 func RegisterContentRoutes(router gin.IRouter, handler *contentapp.Handler, authentication gin.HandlerFunc, limiters ...middleware.Limiter) {
 	var limiter middleware.Limiter
 	if len(limiters) > 0 {
 		limiter = limiters[0]
 	}
 	searchLimit := middleware.RateLimit(limiter, middleware.RateLimitConfig{Enabled: limiter != nil, Rules: []middleware.Rule{{Method: "GET", Path: APIV1Prefix + "/search", Scope: "content_search", Limit: 30, Window: time.Minute, Key: func(c *gin.Context) string { return middleware.UserID(c) }}}})
-	// Приватный текст не сохраняется браузером/proxy после logout или revoke.
-	// @args c — текущий HTTP response/request context.
+	// Отключить кэширование приватного текста в браузере и прокси-сервере после выхода из
+	// системы или отзыва доступа.  c — текущий контекст запроса и ответа HTTP.
 	private := func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")
 		c.Header("Pragma", "no-cache")

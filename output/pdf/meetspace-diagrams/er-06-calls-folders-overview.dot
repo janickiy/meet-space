@@ -1,0 +1,27 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Личные звонки и пользовательские папки</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#f2f2f2", color="#a4a9ad"];
+"conversation_members" [label="conversation_\nmembers", tooltip="conversation_members", fillcolor="#f2f2f2", color="#a4a9ad"];
+"conversations" [label="conversations", tooltip="conversations", fillcolor="#f2f2f2", color="#a4a9ad"];
+"direct_call_slots" [label="direct_call_slots", tooltip="direct_call_slots", fillcolor="#e9f1f7", color="#527087"];
+"direct_calls" [label="direct_calls", tooltip="direct_calls", fillcolor="#e9f1f7", color="#527087"];
+"folder_conferences" [label="folder_conferences", tooltip="folder_conferences", fillcolor="#e9f1f7", color="#527087"];
+"folder_conversations" [label="folder_\nconversations", tooltip="folder_conversations", fillcolor="#e9f1f7", color="#527087"];
+"folders" [label="folders", tooltip="folders", fillcolor="#e9f1f7", color="#527087"];
+"users" [label="users", tooltip="users", fillcolor="#f2f2f2", color="#a4a9ad"];
+"direct_call_slots" -> "direct_calls" [tooltip="direct_call_slots_call_id_fkey: FOREIGN KEY (call_id) REFERENCES direct_calls(id) ON DELETE RESTRICT"];
+"direct_call_slots" -> "users" [tooltip="direct_call_slots_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"direct_calls" -> "users" [tooltip="direct_calls_callee_user_id_fkey: FOREIGN KEY (callee_user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"direct_calls" -> "users" [tooltip="direct_calls_caller_user_id_fkey: FOREIGN KEY (caller_user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"direct_calls" -> "conferences" [tooltip="direct_calls_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"direct_calls" -> "conversation_members" [tooltip="direct_calls_conversation_id_callee_user_id_fkey: FOREIGN KEY (conversation_id, callee_user_id) REFERENCES conversation_members(conversation_id, user_id)"];
+"direct_calls" -> "conversation_members" [tooltip="direct_calls_conversation_id_caller_user_id_fkey: FOREIGN KEY (conversation_id, caller_user_id) REFERENCES conversation_members(conversation_id, user_id)"];
+"direct_calls" -> "conversations" [tooltip="direct_calls_conversation_id_fkey: FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE RESTRICT"];
+"folder_conferences" -> "conferences" [tooltip="folder_conferences_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE CASCADE"];
+"folder_conferences" -> "folders" [tooltip="folder_conferences_folder_id_fkey: FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE"];
+"folder_conversations" -> "conversations" [tooltip="folder_conversations_conversation_id_fkey: FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE"];
+"folder_conversations" -> "folders" [tooltip="folder_conversations_folder_id_fkey: FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE"];
+"folders" -> "users" [tooltip="folders_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"];
+}

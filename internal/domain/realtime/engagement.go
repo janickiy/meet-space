@@ -1,23 +1,35 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package realtime
 
-// AllowedReaction проверяет, входит ли эмодзи в список разрешённых реакций 👍, 👏, ❤️ и 😂.
+// AllowedReaction проверяет, относится ли реакция к фиксированному набору реакций,
+// поддерживаемых протоколом.
 //
-// @args
-//   - emoji (string): одна из разрешённых временных реакций.
+// @Parameters:
+//   - emoji: Одна из временных реакций, поддерживаемых протоколом.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func AllowedReaction(emoji string) bool {
 	return emoji == "👍" || emoji == "👏" || emoji == "❤️" || emoji == "😂"
 }
 
-// LowPriorityEvent отделяет восстанавливаемые события чата и реакций от критичных событий управления звонком.
+// LowPriorityEvent определяет события, которые могут использовать ограниченную очередь с низким
+// приоритетом в режиме реального времени.
 //
-// @args
-//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func LowPriorityEvent(kind string) bool {
 	switch kind {
 	case "caption.partial", "caption.final", "caption.status", "reaction.created", "chat.message.created", "chat.message.updated", "chat.message.deleted", "chat.read.updated":

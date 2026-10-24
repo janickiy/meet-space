@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package s3
 
 import (
@@ -8,24 +16,45 @@ import (
 	"strings"
 )
 
-// limitedRecording сохраняет ограничение чтения и закрывает приватный объект.
+// limitedRecording проверяет лимит на чтение и закрывает поток для приватных объектов.
 type limitedRecording struct {
 	reader io.Reader
 	object io.Closer
 }
 
-// Read читает только заранее ограниченный объект.
-// @args p — буфер вызывающей стороны.
-// @return число байтов и ошибку потока либо EOF.
+// Read — прочитанные копии имеют размер, не превышающий размер буфера назначения, и извлекаются из
+// потока, при этом сохраняются ограничения на количество прочитанных данных и возможность
+// отмены операции.
+//
+// @Parameters:
+//   - p: Целевой байтовый буфер заполняется данными из потока.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *limitedRecording) Read(p []byte) (int, error) { return r.reader.Read(p) }
 
-// Close освобождает HTTP/MinIO ресурсы потока.
-// @return ошибка закрытия private object.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *limitedRecording) Close() error { return r.object.Close() }
 
-// OpenRecording открывает приватный готовый MP4 без публичного URL и произвольных сетевых запросов.
-// @args ctx — срок выполнения воркера; key — серверный ключ из БД; maximum — бюджет байтов.
-// @return ограниченный поток, подтверждённый размер и безопасную ошибку хранилища.
+// OpenRecording открывает приватный аудиопоток или медиапоток для записи, используя сохраненный
+// идентификатор артефакта.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - maximum: Максимально допустимый размер или количество символов.
+//
+// @returns:
+//   - result1: Результирующий считывающий модуль.
+//   - result2: Возвращает количество, размер или числовое значение.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) OpenRecording(ctx context.Context, key string, maximum int64) (io.ReadCloser, int64, error) {
 	parts := strings.Split(key, "/")
 	if maximum <= 0 || len(parts) != 6 || parts[0] != "recordings" || !attachmentID(parts[1]) || !attachmentID(parts[2]) || parts[3] != "artifacts" || !attachmentID(parts[4]) || parts[5] != "final.mp4" {

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -10,8 +18,18 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// DeleteAccount erases credentials and personal configuration atomically. Shared history
-// retains an anonymous reference so another participant's messages are not destroyed.
+// DeleteAccount атомарно удаляет учетные данные и персональные настройки.  Общая история
+// сохраняет анонимную ссылку, поэтому сообщения других участников не удаляются.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - verifiedHash: Ранее проверенный хэш пароля, используемый для защиты от
+//     несанкционированного удаления учетной записи.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var user users.User
@@ -41,7 +59,8 @@ func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash str
 				return err
 			}
 		}
-		// Removing calendar mappings first preserves their FK and deletes encrypted credentials.
+		// При удалении сопоставлений с календарями сначала сохраняется их FK, а затем удаляются
+		// зашифрованные учетные данные.
 		if err := tx.Exec(`DELETE FROM calendar_event_mappings WHERE connection_id IN (SELECT id FROM calendar_connections WHERE user_id=?)`, id).Error; err != nil {
 			return err
 		}
@@ -62,8 +81,9 @@ func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash str
 		if err := tx.Exec(`UPDATE conversation_members SET left_at=clock_timestamp(),notifications_enabled=false WHERE user_id=? AND role<>'owner' AND conversation_id IN (SELECT id FROM conversations WHERE type='group')`, id).Error; err != nil {
 			return err
 		}
-		// Empty accounts are physically removed. Accounts referenced by shared history
-		// become anonymous tombstones; no email, password, name or login remains.
+		// Пустые учетные записи физически удаляются. Аккаунты, на которые ссылается общая
+		// история, становятся анонимными «захоронениями»: от них не остается ни адреса
+		// электронной почты, ни пароля, ни имени, ни логина.
 		if err := tx.SavePoint("account_erasure").Error; err != nil {
 			return err
 		}
@@ -71,7 +91,14 @@ func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash str
 		if err == nil {
 			return nil
 		}
-		var state interface{ SQLState() string }
+		var state interface {
+			// SQLState возвращает код PostgreSQL SQLSTATE, используемый для классификации
+			// ошибок, связанных с нарушением ограничений базы данных.
+			//
+			// @returns:
+			//   - result1: Пятизначный код ошибки PostgreSQL SQLSTATE.
+			SQLState() string
+		}
 		if !errors.As(err, &state) || state.SQLState() != "23503" {
 			return err
 		}

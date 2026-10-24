@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package sfu
 
 import (
@@ -7,24 +15,22 @@ import (
 	"github.com/pion/sdp/v3"
 )
 
-// bundleOnlySections отличает активные BUNDLE-секции с нулевым портом от
-// отключённых дорожек. Firefox использует port 0 + bundle-only для камеры в
-// первоначальном предложении: её транспорт задаётся первой секцией BUNDLE.
-// Проверка не разрешает дорожку без существующего транспорта, повторные MID,
-// неоднозначное членство в группах или произвольный атрибут bundle-only.
+// bundleOnlySections проверяет медиасекции, доступные только для BUNDLE, прежде чем они будут
+// допущены в качестве источников данных.
 //
-// @args
-//   - description: разобранное SDP-предложение либо SDP-ответ.
+// @Parameters:
+//   - description: Разобранное описание сеанса SDP для проверки.
 //
-// @return
-//   - множество секций, у которых нулевой порт допустим благодаря BUNDLE;
-//   - media.ErrInvalid, если структура BUNDLE некорректна.
+// @returns:
+//   - result1: Результирующее описание медиаданных]bool.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func bundleOnlySections(description *sdp.SessionDescription) (map[*sdp.MediaDescription]bool, error) {
 	sections := map[string]*sdp.MediaDescription{}
 	only := map[*sdp.MediaDescription]bool{}
 	for _, attr := range description.Attributes {
 		if attr.Key == "bundle-only" {
-			return nil, media.ErrInvalid // Этот атрибут разрешён только на уровне m-секции.
+			return nil, media.ErrInvalid // Этот атрибут допустим только на уровне медиасекции.
 		}
 	}
 	for _, section := range description.MediaDescriptions {

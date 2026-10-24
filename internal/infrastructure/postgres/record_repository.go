@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -10,25 +18,33 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// RecordRepository реализует постоянное хранение задач записи и связанных артефактов через GORM.
-//   - db: подключение или текущая транзакция GORM, задающая контекст доступа к базе.
+// RecordRepository сохраняет задания записи и связанные с ними артефакты через GORM.
 type RecordRepository struct {
 	db *gorm.DB
 }
 
-// NewRecordRepository создает repository.
-// @args
-// - db: GORM-подключение.
-// @return repository для записей.
+// NewRecordRepository создает репозиторий записей с зависимостями и ограничениями, необходимыми
+// для работы с записями.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный репозиторий записей.
 func NewRecordRepository(db *gorm.DB) *RecordRepository {
 	return &RecordRepository{db: db}
 }
 
-// Create создает запись record.
-// @args
-// - ctx: контекст операции.
-// - record: модель с входными полями.
-// @return созданную запись с UUID или ошибку БД.
+// Create создает и сохраняет новую запись для действующей учетной записи.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - record: Запись и сохраненные метаданные ее жизненного цикла.
+//
+// @returns:
+//   - result1: Результирующая запись.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) Create(ctx context.Context, record records.Record) (records.Record, error) {
 	if err := r.db.WithContext(ctx).Create(&record).Error; err != nil {
 		return records.Record{}, err
@@ -37,11 +53,16 @@ func (r *RecordRepository) Create(ctx context.Context, record records.Record) (r
 	return record, nil
 }
 
-// FindByUUID возвращает запись по публичному UUID.
-// @args
-// - ctx: контекст операции.
-// - uuid: UUID записи.
-// @return запись или ошибку not found.
+// FindByUUID загружает запись по ее публичному идентификатору UUID.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//
+// @returns:
+//   - result1: Результирующая запись.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) FindByUUID(ctx context.Context, uuid string) (records.Record, error) {
 	var record records.Record
 	if err := r.db.WithContext(ctx).Where("uuid = ?", uuid).First(&record).Error; err != nil {
@@ -51,12 +72,18 @@ func (r *RecordRepository) FindByUUID(ctx context.Context, uuid string) (records
 	return record, nil
 }
 
-// List возвращает последние записи.
-// @args
-// - ctx: контекст операции.
-// - limit: ограничение количества.
-// - offset: смещение.
-// @return список записей или ошибку БД.
+// List возвращает страницу записей с ограниченным количеством записей, используя заданную
+// разбивку на страницы и фильтры.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
+//
+// @returns:
+//   - result1: Собранные значения записей.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) List(ctx context.Context, limit int, offset int) ([]records.Record, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
@@ -77,12 +104,18 @@ func (r *RecordRepository) List(ctx context.Context, limit int, offset int) ([]r
 	return result, err
 }
 
-// ListDetails возвращает записи со связанными файлами, сегментами и событиями.
-// @args
-// - ctx: контекст операции.
-// - limit: ограничение количества.
-// - offset: смещение.
-// @return список карточек данных или ошибку БД.
+// ListDetails загружает записи с сопутствующими файлами, сегментами и событиями жизненного
+// цикла.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
+//
+// @returns:
+//   - result1: Собранные сведения о записях.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ListDetails(ctx context.Context, limit int, offset int) ([]records.RecordDetails, error) {
 	items, err := r.List(ctx, limit, offset)
 	if err != nil {
@@ -114,12 +147,19 @@ func (r *RecordRepository) ListDetails(ctx context.Context, limit int, offset in
 	return result, nil
 }
 
-// ListSummaryDetailsByConferenceIDs возвращает записи только с итоговыми файлами и превью.
-// @args
-// - ctx: контекст операции.
-// - conferenceIDs: список UUID конференций.
-// - status: optional фильтр по статусу записи.
-// @return список карточек данных, отсортированный от новых к старым, или ошибку БД.
+// ListSummaryDetailsByConferenceIDs загружает сводные записи по артефактам для группы
+// идентификаторов конференций.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceIDs: Идентификаторы конференций, по которым необходимо загрузить сводные
+//     записи.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
+//
+// @returns:
+//   - result1: Собранные сведения о записях.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ListSummaryDetailsByConferenceIDs(ctx context.Context, conferenceIDs []string, status string) ([]records.RecordDetails, error) {
 	if len(conferenceIDs) == 0 {
 		return []records.RecordDetails{}, nil
@@ -160,11 +200,16 @@ func (r *RecordRepository) ListSummaryDetailsByConferenceIDs(ctx context.Context
 	return result, nil
 }
 
-// FindDetailsByUUID возвращает одну запись со связанными файлами, сегментами и событиями.
-// @args
-// - ctx: контекст операции.
-// - uuid: UUID записи.
-// @return карточку данных или ошибку not found.
+// FindDetailsByUUID загружает сведения по UUID из хранилища записей.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//
+// @returns:
+//   - result1: Полученные сведения о записях.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) FindDetailsByUUID(ctx context.Context, uuid string) (records.RecordDetails, error) {
 	var record records.Record
 	err := r.db.WithContext(ctx).Scopes(availableRecordings).Where("uuid = ?", uuid).First(&record).Error
@@ -184,9 +229,18 @@ func (r *RecordRepository) FindDetailsByUUID(ctx context.Context, uuid string) (
 	}, nil
 }
 
-// FindDetailsByUUIDs loads one authorized page in a fixed number of queries.
-// Availability is rechecked here, just as in FindDetailsByUUID; callers retain
-// responsibility for membership checks. Results follow the requested order.
+// FindDetailsByUUIDs загружает одну авторизованную страницу за фиксированное количество
+// запросов.  Здесь повторно проверяется доступность, как и в FindDetailsByUUID; ответственность
+// за проверку членства лежит на вызывающей стороне.  Результаты выдаются в запрошенном порядке.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
+//
+// @returns:
+//   - result1: Собранные сведения о записях.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) FindDetailsByUUIDs(ctx context.Context, ids []string) ([]records.RecordDetails, error) {
 	if len(ids) == 0 {
 		return []records.RecordDetails{}, nil
@@ -218,12 +272,17 @@ func (r *RecordRepository) FindDetailsByUUIDs(ctx context.Context, ids []string)
 	return result, nil
 }
 
-// MarkRecording переводит запись в recording.
-// @args
-// - ctx: контекст операции.
-// - uuid: UUID записи.
-// - workerID: идентификатор worker-а.
-// @return ошибку БД.
+// MarkRecording условно переводит запись в состояние записи, не перезаписывая более новый
+// переход жизненного цикла.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//   - workerID: Идентификатор работника, которому принадлежит эта операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) MarkRecording(ctx context.Context, uuid string, workerID string) error {
 	now := time.Now().UTC()
 	return r.transition(ctx, uuid, []string{records.StatusStarting}, map[string]any{
@@ -233,12 +292,17 @@ func (r *RecordRepository) MarkRecording(ctx context.Context, uuid string, worke
 	})
 }
 
-// MarkStopping переводит запись в stopping.
-// @args
-// - ctx: контекст операции.
-// - uuid: UUID записи.
-// - reason: причина остановки.
-// @return ошибку БД.
+// MarkStopping условно переводит запись в состояние остановки, не перезаписывая более новый
+// переход жизненного цикла.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//   - reason: Ограниченный жизненный цикл или причина сбоя.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) MarkStopping(ctx context.Context, uuid string, reason string) error {
 	now := time.Now().UTC()
 	return r.transition(ctx, uuid, []string{records.StatusStarting, records.StatusRecording, records.StatusDegraded}, map[string]any{
@@ -248,31 +312,47 @@ func (r *RecordRepository) MarkStopping(ctx context.Context, uuid string, reason
 	})
 }
 
-// MarkFinalizing переводит запись в finalizing.
-// @args
-// - ctx: контекст операции.
-// - uuid: UUID записи.
-// @return ошибку БД.
+// MarkFinalizing условно переводит запись в состояние финализации, не перезаписывая более новый
+// переход жизненного цикла.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) MarkFinalizing(ctx context.Context, uuid string) error {
-	// При повторе допустимо состояние uploading: локальные артефакты сохраняются до фиксации БД.
+	// При повторных попытках может отслеживаться состояние загрузки: локальные артефакты
+	// сохраняются до успешного подтверждения транзакции в базе данных.
 	return r.transition(ctx, uuid, []string{records.StatusStarting, records.StatusRecording, records.StatusDegraded, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}, map[string]any{"status": records.StatusFinalizing})
 }
 
-// MarkUploading переводит запись в uploading.
-// @args
-// - ctx: контекст операции.
-// - uuid: UUID записи.
-// @return ошибку БД.
+// MarkUploading условно переводит запись в состояние загрузки, не перезаписывая более новый
+// переход жизненного цикла.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) MarkUploading(ctx context.Context, uuid string) error {
 	return r.transition(ctx, uuid, []string{records.StatusFinalizing, records.StatusUploading}, map[string]any{"status": records.StatusUploading})
 }
 
-// MarkFailed переводит запись в failed и сохраняет текст ошибки.
-// @args
-// - ctx: контекст операции.
-// - uuid: UUID записи.
-// - cause: причина ошибки.
-// @return ошибку БД.
+// MarkFailed автоматически переводит запись в состояние сбоя, не перезаписывая новый переход
+// жизненного цикла.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//   - cause: Основная ошибка, из-за которой операция завершилась неудачно.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) MarkFailed(ctx context.Context, uuid string, cause error) error {
 	message := "unknown error"
 	if cause != nil {
@@ -286,21 +366,23 @@ func (r *RecordRepository) MarkFailed(ctx context.Context, uuid string, cause er
 	})
 }
 
-// SaveFinalArtifacts сохраняет record_file и обновляет record ссылками на MinIO.
-// @args
-// - ctx: контекст операции.
-// - uuid: UUID записи.
-// - finalFile: запись итогового MP4.
-// - previewFile: запись preview.jpg, может быть nil.
-// @return ошибку транзакции.
+// SaveFinalArtifacts после успешной обработки сохраняется завершенный файл записи,
+// предварительный просмотр и метаданные сегмента.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//   - finalFile: Окончательная запись - сохранение метаданных файла.
+//   - previewFile: Дополнительный предварительный просмотр - сохранение метаданных изображения.
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) SaveFinalArtifacts(ctx context.Context, uuid string, finalFile records.RecordFile, previewFile *records.RecordFile, segments []records.RecordSegment) error {
-	return r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	return r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			var record records.Record
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("uuid = ?", uuid).First(&record).Error; err != nil {
 				return err
@@ -341,16 +423,21 @@ func (r *RecordRepository) SaveFinalArtifacts(ctx context.Context, uuid string, 
 		})
 }
 
-// AddEvent сохраняет событие записи.
-// @args
-// - ctx: контекст операции.
-// - recordUUID: UUID записи.
-// - eventType: тип события.
-// - source: источник события.
-// - severity: уровень важности info/warning/error.
-// - message: текст события.
-// - workerID: идентификатор worker-а.
-// @return ошибку БД.
+// AddEvent добавляет событие диагностики жизненного цикла постоянной записи.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordUUID: Внешняя запись UUID.
+//   - eventType: Ограниченная категория событий жизненного цикла записи.
+//   - source: Медиа или источник контента, связанный с текущей операцией.
+//   - severity: Ограниченная степень серьезности диагностики.
+//   - message: Ограниченный текст сообщения, используемый в этой операции; не указывайте личные
+//     учетные данные.
+//   - workerID: Идентификатор работника, которому принадлежит эта операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) AddEvent(ctx context.Context, recordUUID string, eventType string, source string, severity string, message string, workerID string) error {
 	record, err := r.FindByUUID(ctx, recordUUID)
 	if err != nil {
@@ -368,16 +455,18 @@ func (r *RecordRepository) AddEvent(ctx context.Context, recordUUID string, even
 	return r.db.WithContext(ctx).Create(&event).Error
 }
 
-// transition условно меняет состояние задачи записи и защищает её от устаревшего перехода.
+// transition — переход условно изменяет состояние записи без перезаписи более нового перехода жизненного
+// цикла.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - uuid (string): внешний UUID обрабатываемой записи.
-//   - from ([]string): исходное состояние или нижняя граница диапазона.
-//   - updates (map[string]any): индекс значений updates для поиска и согласования состояния.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - uuid: Внешняя запись UUID.
+//   - from: Исходное состояние предлагаемого перехода между состояниями жизненного цикла.
+//   - updates: Проверенные поля для обновления в сохраняемом ресурсе.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) transition(ctx context.Context, uuid string, from []string, updates map[string]any) error {
 	result := r.db.WithContext(ctx).Model(&records.Record{}).
 		Where("uuid = ? AND status IN ?", uuid, from).Updates(updates)
@@ -390,16 +479,18 @@ func (r *RecordRepository) transition(ctx context.Context, uuid string, from []s
 	return nil
 }
 
-// filesByRecordIDs пакетно загружает файлы для набора записей.
+// filesByRecordIDs загружает файлы записей пакетами, чтобы не выполнять запрос для каждой
+// записи по отдельности.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - recordIDs ([]int64): идентификаторы связанных ресурсов для пакетной операции.
-//   - fileTypes (...string): значение fileTypes типа ...string, используемое согласно назначению этой операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordIDs: Идентификаторы записей для загрузки в ограниченном пакете.
+//   - fileTypes: Допустимые типы артефактов, используемые для фильтрации запроса к файлам.
 //
-// @return:
-//   - результат 1 (map[int64][]records.RecordFile): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующий файл записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) filesByRecordIDs(ctx context.Context, recordIDs []int64, fileTypes ...string) (map[int64][]records.RecordFile, error) {
 	filesByRecord := make(map[int64][]records.RecordFile, len(recordIDs))
 	query := r.db.WithContext(ctx).Where("record_id IN ?", recordIDs)
@@ -416,17 +507,18 @@ func (r *RecordRepository) filesByRecordIDs(ctx context.Context, recordIDs []int
 	return filesByRecord, nil
 }
 
-// relatedByRecordIDs пакетно загружает связанные сведения для набора записей.
+// relatedByRecordIDs загружает связанные метаданные записи пакетами.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - recordIDs ([]int64): набор идентификаторов записей для пакетной операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordIDs: Идентификаторы записей для загрузки в ограниченном пакете.
 //
-// @return:
-//   - результат 1 (map[int64][]records.RecordFile): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (map[int64][]records.RecordSegment): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 3 (map[int64][]records.RecordEvent): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 4 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующий файл записи.
+//   - result2: Результирующий сегмент записи.
+//   - result3: Результирующее событие записи.
+//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) relatedByRecordIDs(ctx context.Context, recordIDs []int64) (map[int64][]records.RecordFile, map[int64][]records.RecordSegment, map[int64][]records.RecordEvent, error) {
 	filesByRecord, err := r.filesByRecordIDs(ctx, recordIDs)
 	if err != nil {
@@ -462,14 +554,16 @@ func (r *RecordRepository) relatedByRecordIDs(ctx context.Context, recordIDs []i
 	return filesByRecord, segmentsByRecord, eventsByRecord, nil
 }
 
-// upsertRecordFile добавляет или обновляет метаданные итогового файла записи.
+// upsertRecordFile вставляет или обновляет строку с файлом записи, используя его стабильный
+// идентификатор артефакта.
 //
-// @args
-//   - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-//   - file (*records.RecordFile): значение file типа *records.RecordFile, используемое согласно назначению этой операции.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - file: Проверенные метаданные файла или артефакта.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func upsertRecordFile(tx *gorm.DB, file *records.RecordFile) error {
 	if file.RecordID == 0 {
 		return fmt.Errorf("recordID is required for file %s", file.FileType)
@@ -499,14 +593,16 @@ func upsertRecordFile(tx *gorm.DB, file *records.RecordFile) error {
 	return tx.Create(file).Error
 }
 
-// upsertRecordSegment добавляет или обновляет метаданные сегмента записи.
+// upsertRecordSegment вставляет или обновляет метаданные сегмента, используя его стабильный
+// идентификатор записи.
 //
-// @args
-//   - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-//   - segment (*records.RecordSegment): значение segment типа *records.RecordSegment, используемое согласно назначению этой операции.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - segment: Метаданные записанного медиасегмента.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func upsertRecordSegment(tx *gorm.DB, segment *records.RecordSegment) error {
 	if segment.RecordID == 0 {
 		return fmt.Errorf("recordID is required for segment %d", segment.SeqNo)

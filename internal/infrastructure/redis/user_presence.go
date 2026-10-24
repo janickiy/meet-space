@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package redis
 
 import (
@@ -8,13 +16,24 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// One lease per physical account socket. Pruning and mutation are atomic across APIs.
+// Одна аренда на сокет физического аккаунта. Обрезка и мутация являются атомарными операциями в
+// APIs.
 type UserPresence struct {
 	client *goredis.Client
 	prefix string
 	ttl    time.Duration
 }
 
+// NewUserPresence формирует данные о присутствии пользователя с учетом зависимостей и
+// ограничений, необходимых для распределенного присутствия и владения.
+//
+// @Parameters:
+//   - c: Клиент Redis, используемый для атомарных операций с данными о присутствии и владении.
+//   - namespace: Пространство имен, изолирующее распределенные ключи и каналы этого компонента.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
+//
+// @returns:
+//   - result1: Сформированные или загруженные данные о присутствии пользователя.
 func NewUserPresence(c *goredis.Client, namespace string, ttl time.Duration) *UserPresence {
 	return &UserPresence{c, namespace + ":user-presence:", ttl}
 }
@@ -30,27 +49,87 @@ var userPresenceCountScript = goredis.NewScript(`
 local clock=redis.call('TIME');local now=clock[1]*1000+math.floor(clock[2]/1000)
 return redis.call('ZCOUNT',KEYS[1],'('..now,'+inf')`)
 
+// Функция Touch обновляет данные о присутствии, используя предоставленное время подтвержденной
+// активности на транспортном уровне.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - connection: Текущая интеграция учетной записи или физическое транспортное соединение.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *UserPresence) Touch(ctx context.Context, user, connection string) (int64, error) {
 	return p.change(ctx, user, connection, "touch")
 }
+
+// Remove удаляет указанного физического клиента из набора данных о присутствии учетной записи.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - connection: Текущая интеграция учетной записи или физическое транспортное соединение.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *UserPresence) Remove(ctx context.Context, user, connection string) (int64, error) {
 	return p.change(ctx, user, connection, "remove")
 }
+
+// change атомарно обновляет набор данных о присутствии учетной записи и возвращает его текущее
+// состояние.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - action: Запрошенное действие по управлению жизненным циклом или модерации.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *UserPresence) change(ctx context.Context, user, id, action string) (int64, error) {
 	return userPresenceScript.Run(ctx, p.client, []string{p.prefix + user}, id, action, p.ttl.Milliseconds()).Int64()
 }
+
+// Count возвращает количество активных физических сессий для учетной записи.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *UserPresence) Count(ctx context.Context, user string) (int64, error) {
 	return userPresenceCountScript.Run(ctx, p.client, []string{p.prefix + user}).Int64()
 }
 
-// A page uses one Redis command and a shared Redis clock, independent of API clocks.
+// На странице используется одна команда Redis и общие часы Redis, не зависящие от часов API.
 const userPresenceOnlineScript = `
 local clock=redis.call('TIME');local now=clock[1]*1000+math.floor(clock[2]/1000)
 local result={}
 for i,key in ipairs(KEYS) do result[i]=redis.call('ZCOUNT',key,'('..now,'+inf') end
 return result`
 
-// Online projects confirmed global account leases without extending their lifetime.
+// Online — онлайн-проекты подтверждают глобальную аренду учетных записей без продления срока их
+// действия.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - users: Идентификаторы учетных записей или репозиторий учетных записей в соответствии с их
+//     типом.
+//
+// @returns:
+//   - result1: Результирующая карта [строка]bool.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *UserPresence) Online(ctx context.Context, users []string) (map[string]bool, error) {
 	if len(users) > 100 {
 		return nil, apperrors.ErrInvalidInput
@@ -68,7 +147,8 @@ func (p *UserPresence) Online(ctx context.Context, users []string) (map[string]b
 	if len(keys) == 0 {
 		return result, nil
 	}
-	// EVAL avoids the extra NOSCRIPT retry on an API instance's first lookup.
+	// EVAL позволяет избежать дополнительной повторной попытки NOSCRIPT при первом поиске в
+	// экземпляре API.
 	counts, err := p.client.Eval(ctx, userPresenceOnlineScript, keys).Int64Slice()
 	if err != nil {
 		return nil, err

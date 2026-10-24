@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package config
 
 import (
@@ -13,21 +21,23 @@ import (
 	"unicode/utf8"
 )
 
-// ProviderConfig описывает серверный адаптер; endpoint и token никогда не принимаются от пользователя.
+// ProviderConfig описывает адаптер, настроенный на сервере; конечная точка и токен никогда не
+// принимаются от пользователя.
 type ProviderConfig struct {
 	Mode, Endpoint, Token string
 }
 
-// SMTPConfig хранит только операторские настройки защищённой доставки почты.
+// SMTPConfig содержит только параметры безопасной доставки электронной почты, контролируемые
+// оператором.
 type SMTPConfig struct {
 	Host, Username, Password, From, TLSMode string
 	Port                                    int
 	Timeout                                 time.Duration
 }
 
-// StageSevenConfig задаёт бюджет отдельного продуктового работника и внешние интеграции.
-// STT/AI выключены по умолчанию; MockAllowed запрещает фиктивные внешние результаты в рабочей среде.
-// Ключ шифрования независим от JWT и используется только для устройств и календарных токенов.
+// StageSevenConfig ограничивает работу отдельного продуктового воркера и его внешних интеграций.  STT и ИИ
+// по умолчанию отключены; MockAllowed запрещает имитацию производственных результатов.  Ключ шифрования
+// не зависит от ключей JWT и защищает только учетные данные устройства и календаря.
 type StageSevenConfig struct {
 	PublicURL, EncryptionKey, TempRoot                            string
 	Email, Push, Calendar, STT, AI                                ProviderConfig
@@ -46,9 +56,16 @@ type StageSevenConfig struct {
 	ReprocessCooldown                                             time.Duration
 }
 
-// LoadStageSeven читает только продуктовую конфигурацию и отклоняет неоднозначные env-значения.
-// @args local — локальный/test режим, разрешающий HTTP тестового gateway и mock.
-// @return проверенные пределы, адреса и секреты либо ошибка без значений секретов.
+// LoadStageSeven загружает бюджет продукта и явно включенную внешнюю интеграцию
+// настройки.
+//
+// @Parameters:
+//   - local: разрешено ли явно использовать только локальные настройки.
+//
+// @returns:
+//   - result1: итоговая конфигурация седьмого этапа.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func LoadStageSeven(local bool) (StageSevenConfig, error) {
 	c := StageSevenConfig{MockAllowed: local, TempRoot: env("PRODUCT_TEMP_PATH", os.TempDir()), AIModel: env("AI_PROVIDER_MODEL", "configured-model")}
 	if !utf8.ValidString(c.AIModel) || strings.ContainsRune(c.AIModel, 0) || utf8.RuneCountInString(c.AIModel) > 100 {
@@ -128,7 +145,7 @@ func LoadStageSeven(local bool) (StageSevenConfig, error) {
 			return c, fmt.Errorf("calendar OAuth configuration is incomplete")
 		}
 	}
-	for _, part := range strings.Split(env("REMINDER_OFFSETS", "24h,15m"), ",") {
+	for _, part := range strings.Split(env("REMINDER_OFFSETS", "3h"), ",") {
 		duration, parseErr := time.ParseDuration(strings.TrimSpace(part))
 		if parseErr != nil || duration < time.Minute || duration > 7*24*time.Hour || len(c.ReminderOffsets) >= 8 {
 			return c, fmt.Errorf("REMINDER_OFFSETS requires 1..8 durations within 1m..168h")
@@ -191,7 +208,11 @@ func LoadStageSeven(local bool) (StageSevenConfig, error) {
 	return c, nil
 }
 
-// loadSMTP отклоняет открытый SMTP, инъекции заголовков и неполные credentials без их вывода.
+// loadSMTP загружает и проверяет настройки доставки SMTP, управляемые оператором.
+//
+// @returns:
+//   - result1: итоговая конфигурация SMTP.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения. //
 func loadSMTP() (SMTPConfig, error) {
 	c := SMTPConfig{Host: os.Getenv("SMTP_HOST"), Username: os.Getenv("SMTP_USERNAME"), Password: os.Getenv("SMTP_PASSWORD"), From: os.Getenv("SMTP_FROM"), TLSMode: env("SMTP_TLS_MODE", "tls")}
 	if c.Host == "" || len(c.Host) > 253 || strings.ContainsAny(c.Host, "/\\\r\n\t @?#") || strings.TrimSpace(c.Host) != c.Host {
@@ -235,6 +256,15 @@ func loadSMTP() (SMTPConfig, error) {
 	return c, nil
 }
 
+// smtpASCIIAddress проверяет, можно ли передать адрес электронной почты в поддерживаемом формате ASCII
+// SMTP-путь.
+//
+// @Parameters:
+//   - address: адрес для проверки перед подключением или доставкой.
+//
+// @returns:
+//   - result1: выполняется ли задокументированное условие операции или изменяется ли ее условное состояние
+//     успешно.
 func smtpASCIIAddress(address *mail.Address) bool {
 	if address == nil || !strings.Contains(address.Address, "@") {
 		return false
@@ -247,9 +277,16 @@ func smtpASCIIAddress(address *mail.Address) bool {
 	return true
 }
 
-// stageSevenURL проверяет операторский URL без credentials, fragment и скрытой redirect-конфигурации.
-// @args name — имя env для безопасной ошибки; raw — адрес; local — разрешение test HTTP.
-// @return nil для абсолютного HTTPS URL либо локального HTTP, иначе ошибка конфигурации.
+// stageSevenURL проверяет интеграционный URL на соответствие специфичным для среды ограничениям транспорта
+//
+// @Parameters:
+//   - name: имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется обращение.
+//   - raw: недоверенное сериализованное значение для декодирования или проверки.
+//   - local: разрешено ли явное использование только локального режима.
+//
+// @returns:
+//   - result1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, транспорта или сохранения
+//     данных.
 func stageSevenURL(name, raw string, local bool) error {
 	u, err := url.Parse(raw)
 	if err != nil || u.Hostname() == "" || u.User != nil || u.Fragment != "" || (u.Scheme != "https" && !(local && u.Scheme == "http")) {

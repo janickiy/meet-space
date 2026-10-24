@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package ffmpeg
 
 import (
@@ -8,9 +16,17 @@ import (
 	"time"
 )
 
-// FinalizeAudio объединяет аудиосегменты без видеопроцесса и без искусственного превью.
-// @args ctx — срок выполнения; dir — приватный каталог закрытых сегментов.
-// @return проверенный AAC/MP4, контрольная сумма и метаданные либо ошибка.
+// FinalizeAudio преобразует записанные входные данные в ограниченный аудиоконтент, необходимый
+// для последующей обработки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - dir: Проверенный локальный каталог.
+//
+// @returns:
+//   - result1: Результирующий результат.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *PostProcessor) FinalizeAudio(ctx context.Context, dir string) (Result, error) {
 	paths, err := findSegments(dir)
 	if err != nil {

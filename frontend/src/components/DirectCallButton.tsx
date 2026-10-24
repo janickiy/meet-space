@@ -2,7 +2,7 @@ import { Phone } from "lucide-react";
 import { useAuth } from "../auth";
 import { useDirectCalls } from "./DirectCalls";
 
-/** One entry point for a private call from chat headers and participant profiles. */
+/** Одна точка входа для приватного вызова из заголовков чата и профилей участников. */
 export function DirectCallButton({
   userId,
   name,

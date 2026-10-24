@@ -1,4 +1,4 @@
-/* Account settings prototype. Preferences and drafts stay in this preview's memory. */
+/* Прототип настроек аккаунта.  Настройки и черновики остаются в памяти этого предварительного просмотра. */
 (() => {
   const M = window.MS, I = (name) => M.icon(name), E = (text) => M.escape(text);
   const sections = [

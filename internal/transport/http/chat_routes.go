@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -9,25 +17,34 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// RegisterChatRoutes регистрирует HTTP-маршруты соответствующего сценария и подключает авторизацию и ограничения запросов.
+// RegisterChatRoutes регистрирует конечные точки чата с предоставленными промежуточными
+// модулями аутентификации и обработки запросов.
 //
-// @args
-//   - router (gin.IRouter): значение router типа gin.IRouter, используемое согласно назначению этой операции.
-//   - handler (*chatapp.Handler): обработчик вызываемой команды или маршрута.
-//   - authentication (gin.HandlerFunc): значение authentication типа gin.HandlerFunc, используемое согласно назначению этой операции.
-//   - limiter (httpmiddleware.Limiter): ограничитель частоты запросов, общий для экземпляров API.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterChatRoutes(router gin.IRouter, handler *chatapp.Handler, authentication gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	registerMessageRoutes(router, handler, authentication, limiter, "conferences")
 }
 
+// registerMessageRoutes регистрирует маршруты для сообщений, вложений и состояния чтения для
+// выбранной области диалога.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
+//   - limiter: Общий ограничитель частоты запросов.
+//   - namespace: Пространство имен, изолирующее распределенные ключи и каналы этого компонента.
+//   - checks: Именованные проверки готовности зависимостей или маршрутные проверки.
 func registerMessageRoutes(router gin.IRouter, handler *chatapp.Handler, authentication gin.HandlerFunc, limiter httpmiddleware.Limiter, namespace string, checks ...gin.HandlerFunc) {
-	// Вложенный обработчик выполняет выделенный шаг обработки в постоянном чате и приватных вложениях, используя состояние окружающей функции.
-	//
-	// @args
-	//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-	//
-	// @return:
-	//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+
 	key := func(c *gin.Context) string {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil || id == uuid.Nil {
@@ -47,10 +64,7 @@ func registerMessageRoutes(router gin.IRouter, handler *chatapp.Handler, authent
 	} {
 		rules = append(rules, httpmiddleware.Rule{Method: rule.method, Path: path + rule.suffix, Scope: namespace + ":" + rule.scope, Limit: rule.limit, Window: time.Minute, Key: key})
 	}
-	// Вложенный обработчик выполняет выделенный шаг обработки в постоянном чате и приватных вложениях, используя состояние окружающей функции.
-	//
-	// @args
-	//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+
 	private := func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")
 		c.Header("X-Content-Type-Options", "nosniff")

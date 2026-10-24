@@ -1,0 +1,20 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  background_jobs["background_jobs<br/>PK: id"]
+  conference_participants["conference_participants<br/>PK: id"]
+  conferences["conferences<br/>PK: id"]
+  notification_jobs["notification_jobs<br/>PK: id"]
+  notification_preferences["notification_preferences<br/>PK: user_id"]
+  notifications["notifications<br/>PK: id"]
+  record["record<br/>PK: id"]
+  release_schema_migrations["release_schema_migrations<br/>PK: name"]
+  users["users<br/>PK: id"]
+  notification_jobs -->|"participant_id; DELETE RESTRICT"| conference_participants
+  notification_jobs -->|"recording_id; DELETE RESTRICT"| record
+  notification_jobs -->|"user_id; DELETE RESTRICT"| users
+  notification_preferences -->|"user_id; DELETE RESTRICT"| users
+  notifications -->|"user_id; DELETE RESTRICT"| users
+  background_jobs -.->|"conference_id; без FK"| conferences
+  background_jobs -.->|"user_id; без FK"| users
+  notification_jobs -.->|"conference_id; без FK"| conferences
+  notification_jobs -.->|"cursor_participant_id; без FK"| conference_participants

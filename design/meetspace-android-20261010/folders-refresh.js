@@ -1,4 +1,4 @@
-/* Personal folders: local prototype, scoped to the selected demo account. */
+/* Личные папки: локальный прототип, привязанный к выбранной демонстрационной учётной записи. */
 (() => {
   const M = window.MS, E = (v) => M.escape(v), I = (v) => M.icon(v);
   let stores = {};

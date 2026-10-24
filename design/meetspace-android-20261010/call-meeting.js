@@ -1,4 +1,4 @@
-/* Interactive video meeting: messages, local attachments and recording controls. */
+/* Интерактивная видеовстреча: сообщения, локальные вложения и элементы управления записью. */
 (() => {
   const M = window.MS;
   const E = (value) => M.escape(value);

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package media
 
 import (
@@ -14,47 +22,41 @@ import (
 	domain "github.com/janickiy/meet-space/internal/domain/media"
 )
 
-// HTTPClient выполняет внутренние медиа-вызовы; не передаёт секрет через редиректы и не раскрывает ответ с SDP в ошибке.
-// @params
-//   - secret: секрет подписи или внутренней авторизации компонента.
-//   - client: клиент внешнего сервиса или транспорта компонента.
+// HTTPClient выполняет внутренние медиавызовы, никогда не передает учетные данные при
+// редиректах и никогда не предоставляет тела ответов с SDP в случае ошибок.
 type HTTPClient struct {
 	secret string
 	client *http.Client
 }
 
-// NewHTTPClient создаёт и связывает зависимости компонента HTTPClient, используемого в защищённом управлении медиа-комнатой.
+// NewHTTPClient создает клиент HTTP с зависимостями и ограничениями, необходимыми для
+// аутентифицированного управления медиакомнатами.
 //
-// @args
-//   - secret (string): секрет подписи или внутренней авторизации компонента.
-//   - timeout (time.Duration): максимальное время ожидания операции.
+// @Parameters:
+//   - secret: Материал для создания закрытого ключа или необработанный секретный ключ; его
+//     нельзя регистрировать или раскрывать.
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
 //
-// @return:
-//   - результат 1 (*HTTPClient): созданный компонент с переданными зависимостями.
+// @returns:
+//   - result1: Созданный или загруженный клиент HTTP.
 func NewHTTPClient(secret string, timeout time.Duration) *HTTPClient {
 	return &HTTPClient{secret: secret, client: &http.Client{Timeout: timeout,
-		CheckRedirect:/* Вложенный обработчик выполняет выделенный шаг обработки в защищённом управлении медиа-комнатой, используя состояние окружающей функции.
-
-		@args
-		  - аргумент 1 (*http.Request): входящий HTTP-запрос.
-		  - аргумент 2 ([]*http.Request): входящий HTTP-запрос.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		Transport: &http.Transport{Proxy: nil, MaxIdleConns: 64, MaxIdleConnsPerHost: 32, IdleConnTimeout: 60 * time.Second, ResponseHeaderTimeout: timeout},
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		Transport:     &http.Transport{Proxy: nil, MaxIdleConns: 64, MaxIdleConnsPerHost: 32, IdleConnTimeout: 60 * time.Second, ResponseHeaderTimeout: timeout},
 	}}
 }
 
-// Call выполняет защищённый внутренний HTTP-вызов выбранной операции медиа-воркера.
+// Call — вызов выполняет аутентифицированную внутреннюю операцию HTTP с выбранным медиа-воркером.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - action (string): действие управления, которое необходимо проверить или исполнить.
-//   - command (domain.Command): внутренняя команда с типом операции и серверной идентичностью ресурса.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - action: Запрошенное действие по управлению жизненным циклом или модерации.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 //
-// @return:
-//   - результат 1 (domain.Result): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующий результат.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *HTTPClient) Call(ctx context.Context, action string, command domain.Command) (domain.Result, error) {
 	if config.ValidateMediaEndpoint(command.Route.Endpoint) != nil {
 		return domain.Result{}, domain.ErrInvalid
@@ -94,7 +96,7 @@ func (c *HTTPClient) Call(ctx context.Context, action string, command domain.Com
 		}
 		_ = json.Unmarshal(body, &failure)
 		code := failure.Code
-		// Older workers used the error field for the same machine code.
+		// В более старых воркерах для того же машинного кода использовалось поле error.
 		if code == "" {
 			code = failure.Error
 		}
@@ -107,5 +109,5 @@ func (c *HTTPClient) Call(ctx context.Context, action string, command domain.Com
 	return result, nil
 }
 
-// Close закрывает принадлежащие компоненту ресурсы и завершает связанный жизненный цикл.
+// Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.
 func (c *HTTPClient) Close() { c.client.CloseIdleConnections() }

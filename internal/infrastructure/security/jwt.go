@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package security
 
 import (
@@ -20,22 +28,23 @@ type sessionClaims struct {
 	SessionID         string `json:"sid,omitempty"`
 }
 
-// TokenService выпускает и проверяет JWT учётной записи с настроенным сроком жизни.
-//   - secret: секрет подписи или внутренней авторизации компонента.
-//   - now: операция now с контрактом, описанным у метода.
+// TokenService создает и проверяет учетную запись JWTs с заданным ограниченным сроком действия.
 type TokenService struct {
 	secret []byte
 	now    func() time.Time
 }
 
-// NewTokenService создаёт и связывает зависимости компонента TokenService, используемого в проверке учётных данных и ограниченных разрешений.
+// NewTokenService создает службу токенов с зависимостями и ограничениями, необходимыми для
+// аутентификации и криптографических привязок.
 //
-// @args
-//   - secret (string): секрет подписи или внутренней авторизации компонента.
+// @Parameters:
+//   - secret: Материал для создания закрытого ключа или необработанный секретный ключ; его
+//     нельзя регистрировать или раскрывать.
 //
-// @return:
-//   - результат 1 (*TokenService): созданный компонент с переданными зависимостями.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Созданная или загруженная служба токенов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewTokenService(secret string) (*TokenService, error) {
 	if len(secret) < 32 {
 		return nil, fmt.Errorf("JWT_SECRET must contain at least 32 bytes")
@@ -43,19 +52,30 @@ func NewTokenService(secret string) (*TokenService, error) {
 	return &TokenService{secret: []byte(secret), now: time.Now}, nil
 }
 
-// Issue выпускает подписанный JWT пользователя с настроенным сроком действия.
+// Issue создает подписанный токен, привязанный к предоставленным идентификационным данным и
+// сроку действия.
 //
-// @args
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// @Parameters:
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Подписанные краткосрочные учетные данные для подтвержденной личности.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *TokenService) Issue(userID string) (string, error) {
 	return s.issue(userID, "", "")
 }
 
-// IssueSession binds a short-lived access token to a revocable account session.
+// IssueSession привязывает краткосрочный токен доступа к отзываемой сессии учетной записи.
+//
+// @Parameters:
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - sessionID: Постоянный или физический идентификатор сессии, определяемый операцией.
+//
+// @returns:
+//   - result1: Подписанный доступ JWT привязан к постоянному сеансу.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *TokenService) IssueSession(userID, sessionID string) (string, error) {
 	id, err := uuid.Parse(sessionID)
 	if err != nil || id == uuid.Nil {
@@ -64,7 +84,18 @@ func (s *TokenService) IssueSession(userID, sessionID string) (string, error) {
 	return s.issue(userID, "", id.String())
 }
 
-// IssueGuest grants only the invited meeting; it never grants account access.
+// IssueGuest предоставляет доступ только к приглашённым участникам конференции, но не к учётной
+// записи.
+//
+// @Parameters:
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Подписанный гостевой доступ JWT ограничен приглашёнными участниками
+//     конференции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *TokenService) IssueGuest(userID, conferenceID string) (string, error) {
 	id, err := uuid.Parse(conferenceID)
 	if err != nil || id == uuid.Nil {
@@ -73,6 +104,19 @@ func (s *TokenService) IssueGuest(userID, conferenceID string) (string, error) {
 	return s.issue(userID, id.String(), "")
 }
 
+// issue создаёт подписанный токен, привязанный к предоставленным идентификационным данным и
+// сроку действия.
+//
+// @Parameters:
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - sessionID: Постоянный или физический идентификатор сессии, определяемый операцией.
+//
+// @returns:
+//   - result1: Подписанный доступ JWT содержит привязку к предоставленным идентификационным
+//     данным.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *TokenService) issue(userID, conferenceID, sessionID string) (string, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil || id == uuid.Nil {
@@ -89,53 +133,84 @@ func (s *TokenService) issue(userID, conferenceID, sessionID string) (string, er
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 }
 
-// Verify проверяет подпись и срок JWT и извлекает идентификатор пользователя.
+// Verify проверяет предоставленные учётные данные или подписанную привязку, прежде чем
+// подтвердить личность вызывающего абонента.
 //
-// @args
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
+// @Parameters:
+//   - raw: Сериализованный токен доступа или обновленные учетные данные для проверки; никогда
+//     не сохраняйте и не раскрывайте их.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Подтвержденный идентификатор учетной записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *TokenService) Verify(raw string) (string, error) {
 	id, _, err := s.VerifyWithExpiry(raw)
 	return id, err
 }
 
-// VerifyWithExpiry проверяет подпись и содержимое JWT и возвращает идентификатор пользователя вместе со сроком действия.
+// VerifyWithExpiry проверяет токен доступа и возвращает идентификатор учетной записи и срок
+// действия токена.
 //
-// @args
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
+// @Parameters:
+//   - raw: Сериализованный токен доступа или обновленные учетные данные для проверки; никогда
+//     не сохраняйте и не раскрывайте их.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (time.Time): временная отметка результата или окончания действия разрешения.
-//   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Подтвержденный идентификатор учетной записи.
+//   - result2: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *TokenService) VerifyWithExpiry(raw string) (string, time.Time, error) {
 	id, _, expiry, err := s.VerifySession(raw)
 	return id, expiry, err
 }
 
-// VerifySession validates the signature and returns the optional meeting scope.
+// VerifySession проверяет подпись и возвращает необязательную область действия встречи.
+//
+// @Parameters:
+//   - raw: Сериализованный токен доступа или обновленные учетные данные для проверки; никогда
+//     не сохраняйте и не раскрывайте их.
+//
+// @returns:
+//   - result1: Подтвержденный идентификатор учетной записи.
+//   - result2: Область действия гостевой конференции или пустая строка для неограниченной
+//     зарегистрированной учетной записи.
+//   - result3: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *TokenService) VerifySession(raw string) (string, string, time.Time, error) {
 	id, conferenceID, _, expiry, err := s.VerifyAuthorization(raw)
 	return id, conferenceID, expiry, err
 }
 
-// VerifyAuthorization validates JWT claims; the application also checks session revocation.
+// VerifyAuthorization проверяет утверждения JWT; приложение также проверяет возможность отзыва
+// сеанса.
+//
+// @Parameters:
+//   - raw: Сериализованный токен доступа или обновленные учетные данные для проверки; никогда
+//     не сохраняйте и не раскрывайте их.
+//
+// @returns:
+//   - result1: Подтвержденный идентификатор учетной записи.
+//   - result2: Область действия гостевой конференции или пустая строка для
+//     зарегистрированной учетной записи.
+//   - result3: Постоянный идентификатор сеанса на сервере или пустая строка для гостевого
+//     или устаревшего токена.
+//   - result4: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result5: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *TokenService) VerifyAuthorization(raw string) (string, string, string, time.Time, error) {
 	if len(raw) == 0 || len(raw) > 4096 {
 		return "", "", "", time.Time{}, apperrors.ErrUnauthorized
 	}
 	claims := &sessionClaims{}
-	token, err := jwt.ParseWithClaims(raw, claims, /* Вложенный обработчик выполняет выделенный шаг обработки в проверке учётных данных и ограниченных разрешений, используя состояние окружающей функции.
+	token, err := jwt.ParseWithClaims(raw, claims,
 
-		@args
-		  - _ (*jwt.Token): неиспользуемый аргумент, сохранённый для совместимости с контрактом вызова.
-
-		@return:
-		  - результат 1 (any): значение, подготовленное операцией для вызывающей стороны.
-		  - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(_ *jwt.Token) (any, error) { return s.secret, nil },
+		func(_ *jwt.Token) (any, error) { return s.secret, nil },
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(), jwt.WithIssuer(tokenIssuer), jwt.WithAudience(tokenAudience), jwt.WithTimeFunc(s.now))
 	if err != nil || !token.Valid || claims.IssuedAt == nil {

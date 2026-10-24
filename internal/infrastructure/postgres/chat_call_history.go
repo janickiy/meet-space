@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -5,8 +13,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// decorateCallHistory hydrates the page in one bounded query after chat authorization
-// and the reader's history cutoff have been applied. Device claims are never returned.
+// decorateCallHistory загружает страницу за один ограниченный запрос после авторизации в чате и
+// применения фильтра истории чтения.  Данные об устройстве никогда не возвращаются.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - items: Ограниченная коллекция записей для обработки.
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func decorateCallHistory(tx *gorm.DB, items []chat.Message, ids []string) error {
 	hasCalls := false
 	for _, item := range items {

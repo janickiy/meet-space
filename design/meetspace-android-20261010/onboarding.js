@@ -1,4 +1,4 @@
-/* MeetSpace Android design prototype. No network access or credential persistence. */
+/* Прототип MeetSpace для Android. Нет доступа к сети или сохранения учетных данных. */
 (() => {
   const M = window.MS;
   const I = (name) => M.icon(name);

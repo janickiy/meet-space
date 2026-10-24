@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -9,18 +17,33 @@ import (
 	"gorm.io/gorm"
 )
 
-// JobRepository хранит независимую продуктовую очередь; медиакоманды RabbitMQ не изменяются.
+// JobRepository сохраняет независимую очередь продуктов без изменения медиакоманд RabbitMQ.
 type JobRepository struct{ db *gorm.DB }
 
-// NewJobRepository связывает очередь с существующим ограниченным пулом PostgreSQL.
-// @args db — подключение к базе с настроенными таймаутами.
-// @return репозиторий фоновых заданий.
+// NewJobRepository создает репозиторий заданий с зависимостями и ограничениями, необходимыми
+// для выполнения задания.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный репозиторий заданий.
 func NewJobRepository(db *gorm.DB) *JobRepository { return &JobRepository{db: db} }
 
-// Claim атомарно получает одно задание, не ожидая блокировок другого работника.
-// Последний просроченный захват допускает фиксацию окончательного отказа, но не вызов провайдера.
-// @args ctx — предел SQL; kind — фиксированная категория; lease — срок владения.
-// @return задание, признак наличия работы и ошибка базы.
+// Claim — требование атомарно получает текущую арендуемую запись задания или запись о владении.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - lease: Идентификатор текущего резервирования, используемый для изоляции устаревших
+//     рабочих процессов.
+//
+// @returns:
+//   - result1: Результирующее задание.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *JobRepository) Claim(ctx context.Context, kind string, lease time.Duration) (jobs.Job, bool, error) {
 	var job jobs.Job
 	result := r.db.WithContext(ctx).Raw(`UPDATE background_jobs SET state='processing',attempts=attempts+1,
@@ -31,10 +54,19 @@ func (r *JobRepository) Claim(ctx context.Context, kind string, lease time.Durat
 	return job, result.RowsAffected != 0, result.Error
 }
 
-// Finish фиксирует результат с проверкой актуальности UUID аренды и её срока.
-// @args ctx — срок записи; job — захваченная версия; state/code — безопасный исход;
-// retryAt — время следующей попытки либо nil для окончательного завершения.
-// @return ошибка SQL или ErrLeaseLost, если владение уже прекратилось.
+// Finish фиксирует завершение аренды операции задания.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - state: Текущее состояние или обновлённое валидированное состояние.
+//   - code: Ограниченный публичный статус или код ошибки.
+//   - retryAt: Следующее допустимое время для повторной попытки; nil означает, что повторная
+//     попытка не запланирована.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *JobRepository) Finish(ctx context.Context, job jobs.Job, state, code string, retryAt *time.Time) error {
 	query := `UPDATE background_jobs SET state=?,error_code=NULLIF(?,''),updated_at=clock_timestamp(),
         lease_token=NULL,lease_until=NULL,finished_at=clock_timestamp()
@@ -56,9 +88,16 @@ func (r *JobRepository) Finish(ctx context.Context, job jobs.Job, state, code st
 	return nil
 }
 
-// Counts читает размер очереди по ограниченному набору категорий без содержимого заданий.
-// @args ctx — общий срок SQL-запроса.
-// @return агрегаты очереди и ошибка базы.
+// Counts возвращает количество элементов в ограниченной очереди, используемое для мониторинга
+// операционной деятельности.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: Собранные значения количества.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *JobRepository) Counts(ctx context.Context) ([]jobs.Count, error) {
 	items := []jobs.Count{}
 	err := r.db.WithContext(ctx).Raw(`SELECT kind,state,count(*) AS count FROM background_jobs

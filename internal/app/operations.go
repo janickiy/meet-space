@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package app
 
 import (
@@ -13,8 +21,10 @@ import (
 	"github.com/janickiy/meet-space/internal/operations"
 )
 
-// hostname возвращает идентичность экземпляра для журналов, а не меток метрик.
-// Аргументов нет; при отсутствии hostname используется фиксированное имя.
+// hostname возвращает метку хоста процесса, не раскрывая конфиденциальные данные конфигурации.
+//
+// @returns:
+//   - result1: ограниченная метка хоста процесса.
 func hostname() string {
 	value, err := os.Hostname()
 	if err != nil {
@@ -23,16 +33,22 @@ func hostname() string {
 	return value
 }
 
-// runProfiling запускает необязательную loopback-диагностику. ctx прекращает
-// сервер, ops содержит проверенный порт. Ошибка не раскрывает данные профиля.
+// runProfiling запускает прослушиватель ограниченного профилирования, если диагностика явно включена.
+//
+// @Parameters:
+//   - ctx: контекст, управляющий отменой, дедлайнами и временем жизни операций.
+//   - ops: операции процесса и среда выполнения готовности.
 func runProfiling(ctx context.Context, ops *operations.Runtime) {
 	if err := ops.Profiling(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("profiling unavailable", "event_type", "profiling.failed")
 	}
 }
 
-// sampleDatabase обновляет размер пула и накопленные ожидания каждые 5 секунд.
-// ctx задаёт время жизни процесса, db — общий SQL-пул; запросы к БД не выполняются.
+// sampleDatabase обновляет метрики пула подключений к ограниченной базе данных.
+//
+// @Parameters:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - db: дескриптор базы данных, используемый для операции или транзакции.
 func sampleDatabase(ctx context.Context, db *sql.DB) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -50,8 +66,11 @@ func sampleDatabase(ctx context.Context, db *sql.DB) {
 	}
 }
 
-// sampleMedia снимает агрегированные показатели SFU без идентификаторов комнат.
-// ctx останавливает наблюдение, engine предоставляет согласованный Snapshot.
+// sampleMedia обновляет ограниченные показатели активности медиа-воркера.
+//
+// @Parameters:
+//   - ctx: контекст, управляющий отменой, дедлайнами и временем жизни операции.
+//   - engine: медиа-движок, которому принадлежат комната и ресурсы пиров.
 func sampleMedia(ctx context.Context, engine *sfu.Manager) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()

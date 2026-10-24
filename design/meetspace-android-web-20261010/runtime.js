@@ -1,4 +1,4 @@
-/* Standalone UI prototype. All fixtures and interactions stay in memory. */
+/* Автономный прототип UI.  Все приспособления и взаимодействия сохраняются в памяти. */
 window.MS = {
   screens: {},
   state: {

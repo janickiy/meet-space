@@ -1,4 +1,4 @@
-/* October 2026 product scenarios. Local fixtures only; no media or server requests. */
+/* Сценарии использования продукта на октябрь 2026 года. Только локальные фикстуры, без медиафайлов и запросов к серверу. */
 (() => {
   const M = window.MS, I = name => M.icon(name), E = text => M.escape(text);
   const modes = [

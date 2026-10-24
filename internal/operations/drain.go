@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package operations
 
 import (
@@ -5,14 +13,22 @@ import (
 	"net/http"
 )
 
-// ConfigureDrain задаёт остановку приёма работ и подсчёт активности до запуска HTTP.
-// @args begin — идемпотентное закрытие приёма; active — точное число незавершённых работ.
+// ConfigureDrain регистрирует принадлежащие процессу хуки graceful-drain, используемые при
+// развертывании.
+//
+// @Parameters:
+//   - begin: Функция обратного вызова, которая останавливает прием новых задач от компонентов.
+//   - active: Функция обратного вызова, возвращающая количество активных операций, которые все
+//     еще выполняются во время процесса graceful-drain.
 func (r *Runtime) ConfigureDrain(begin func(), active func() int) {
 	r.beginDrain, r.activeWork = begin, active
 }
 
-// DrainStatus запускает или читает необратимое завершение работы с внутренним секретом.
-// @args w — ответ; req — GET либо POST с METRICS_SECRET, без JSON и идентификаторов работ.
+// DrainStatus возвращает текущее состояние процесса graceful-drain и количество активных задач.
+//
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - req: Входящий запрос HTTP.
 func (r *Runtime) DrainStatus(w http.ResponseWriter, req *http.Request) {
 	if !Authorized(req, r.Config.MetricsSecret) {
 		http.NotFound(w, req)

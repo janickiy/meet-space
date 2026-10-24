@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -8,9 +16,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// lockDirectConversation сериализует персональные действия и отправку сообщений.
-// @args: tx — транзакция; user — текущий аккаунт; id — идентификатор переписки.
-// @return: ошибка доступа, типа переписки или запроса.
+// lockDirectConversation блокирует членство вызывающего абонента в прямых беседах, прежде чем
+// изменить его личные настройки или историю.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func lockDirectConversation(tx *gorm.DB, user, id string) error {
 	if err := authorizeDirect(tx, user, id, true); err != nil {
 		return err
@@ -25,9 +41,19 @@ func lockDirectConversation(tx *gorm.DB, user, id string) error {
 	return nil
 }
 
-// SetConversationPreferences сохраняет уведомления только текущего участника.
-// @args: ctx — контекст; user — владелец настройки; id — переписка; enabled — разрешение уведомлений.
-// @return: актуальная персональная проекция переписки и ошибка.
+// SetConversationPreferences обновляет только настройки уведомлений о беседах действующего
+// участника.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - enabled: Включает или отключает запрошенную функцию или настройку.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) SetConversationPreferences(ctx context.Context, user, id string, enabled bool) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -45,10 +71,18 @@ func (r *PersonalRepository) SetConversationPreferences(ctx context.Context, use
 	return item, err
 }
 
-// clearDirectHistory ставит персональную границу истории без удаления общих данных.
-// Блокировка переписки гарантирует, что параллельная отправка окажется до или после границы.
-// @args: tx — транзакция с блокировкой; user — владелец истории; id — переписка; hide — скрыть также сам чат.
-// @return: ошибка сохранения; повторная очистка без новых сообщений безопасна.
+// clearDirectHistory перемещает границу истории конкретного участника, не удаляя сообщения
+// другого участника.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - hide: Нужно ли также скрыть представление беседы конкретного участника.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func clearDirectHistory(tx *gorm.DB, user, id string, hide bool) error {
 	var latest struct {
 		ID       string
@@ -70,9 +104,18 @@ func clearDirectHistory(tx *gorm.DB, user, id string, hide bool) error {
 	return tx.Table("conversation_members").Where("conversation_id=? AND user_id=?", id, user).Updates(updates).Error
 }
 
-// ClearDirectHistory очищает видимую историю только у вызвавшего действие аккаунта.
-// @args: ctx — контекст; user — текущий аккаунт; id — личная переписка.
-// @return: переписка без старых превью и непрочитанных сообщений, либо ошибка.
+// ClearDirectHistory перемещает только границу истории прямого чата действующего участника, не
+// удаляя историю собеседника.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) ClearDirectHistory(ctx context.Context, user, id string) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -89,10 +132,18 @@ func (r *PersonalRepository) ClearDirectHistory(ctx context.Context, user, id st
 	return item, err
 }
 
-// HideDirectConversation убирает чат и прежнюю историю только у текущего аккаунта.
-// Новое сообщение или явное создание диалога возвращает чат, но не очищенную историю.
-// @args: ctx — контекст; user — текущий аккаунт; id — личная переписка.
-// @return: точная персональная граница скрытой истории и ошибка; повторное скрытие идемпотентно.
+// HideDirectConversation скрывает прямые беседы для действующего аккаунта и сохраняет
+// сохранённую историю переписки с другим участником.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) HideDirectConversation(ctx context.Context, user, id string) (int64, error) {
 	var cutoff int64
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

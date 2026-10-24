@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -14,12 +22,34 @@ import (
 
 type GuestRepository struct{ db *gorm.DB }
 
+// NewGuestRepository создает гостевой репозиторий с зависимостями и ограничениями, необходимыми
+// для работы с гостевыми учетными записями.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный гостевой репозиторий.
 func NewGuestRepository(db *gorm.DB) *GuestRepository {
 	return &GuestRepository{db: db.Session(&gorm.Session{Logger: logger.Discard})}
 }
 
-// JoinGuest commits the identity and membership together. Rejected guests keep
-// their existing identity when retrying with the same session.
+// JoinGuest фиксирует личность и членство в группе одновременно.  Гости, получившие отказ, при
+// повторной попытке с использованием того же сеанса сохраняют свои текущие учетные данные.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - code: Ограниченный публичный статус или код ошибки.
+//   - name: Имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется
+//     обращение.
+//   - resumeUserID: Идентификатор существующей гостевой учетной записи, с помощью которого
+//     можно возобновить действие приглашения.
+//
+// @returns:
+//   - result1: Полученный пользователь.
+//   - result2: Полученный участник.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *GuestRepository) JoinGuest(ctx context.Context, code, name, resumeUserID string) (users.User, conferences.Participant, error) {
 	var user users.User
 	var participant conferences.Participant

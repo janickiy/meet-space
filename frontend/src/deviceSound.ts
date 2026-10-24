@@ -1,6 +1,6 @@
 import toneURL from "./assets/device-tone.wav";
 
-/** Local playback only. No recording or device data is sent to a server. */
+/** Только локальное воспроизведение.  Данные о записи и устройстве не отправляются на сервер. */
 export function playDeviceTone(
   sinkId: string,
   done: (error?: unknown) => void,

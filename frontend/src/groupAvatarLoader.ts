@@ -1,6 +1,7 @@
 import { api, ApiError } from "./api";
 
-// Bound the burst from one UI below the server's eight private-content slots.
+// Ограничьте объем данных, передаваемых из одного UI, восемью слотами для приватного контента
+// на сервере.
 let active = 0;
 const waiting: Array<() => void> = [];
 async function withSlot<T>(load: () => Promise<T>, signal: AbortSignal) {
@@ -46,7 +47,7 @@ function pause(ms: number, signal: AbortSignal) {
   });
 }
 
-/** No byte cache: each mounted avatar owns and releases its private Object URL. */
+/** Без байтового кэша: каждый подключенный аватар имеет собственный приватный объект URL и освобождает его. */
 export async function loadGroupAvatar(id: string, signal: AbortSignal) {
   for (let attempt = 0; ; attempt++) {
     try {

@@ -1,0 +1,49 @@
+flowchart TB
+  %% Синий = управление; зелёный = медиа; фиолетовый = файлы; охра = SQL/RESP.
+  %% Двусторонние стрелки: запрос/ответ либо отправка своих и приём удалённых дорожек.
+  api["api<br/>outbox dispatcher"]
+  sfu["media-worker / SFU<br/>recording + audio egress"]
+  mq["RabbitMQ<br/>record.start / record.stop"]
+  worker["worker · Go recorder<br/>capture, FFmpeg, publish"]
+  product["product-worker<br/>jobs, STT, AI, интеграции"]
+  live["live-worker<br/>live captions"]
+  pg["PostgreSQL<br/>leases, records, jobs"]
+  redis["Redis<br/>registry, locks, events"]
+  spool["Локальный /storage<br/>исходники и артефакты"]
+  objects["S3 · minio:9000<br/>SeaweedFS / MinIO"]
+  api -->|"AMQP publish"| mq
+  linkStyle 0 stroke:#2c5d8a,color:#2c5d8a,stroke-width:1.5px
+  mq -->|"AMQP consume"| worker
+  linkStyle 1 stroke:#2c5d8a,color:#2c5d8a,stroke-width:1.5px
+  sfu -->|"HTTP NDJSON<br/>RTP base64"| worker
+  linkStyle 2 stroke:#067566,color:#067566,stroke-width:2.2px
+  sfu -->|"HTTP audio tap"| live
+  linkStyle 3 stroke:#067566,color:#067566,stroke-width:2.2px
+  worker <-->|"file I/O<br/>FFmpeg"| spool
+  linkStyle 4 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  worker -->|"S3 PUT / HEAD"| objects
+  linkStyle 5 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  worker <-->|"SQL<br/>lease / ready"| pg
+  linkStyle 6 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  worker <-->|"RESP<br/>locks / events"| redis
+  linkStyle 7 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  product <-->|"SQL<br/>jobs / content"| pg
+  linkStyle 8 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  product <-->|"S3 GET<br/>↔ bytes"| objects
+  linkStyle 9 stroke:#7b439a,color:#7b439a,stroke-width:1.5px
+  live <-->|"SQL<br/>captions"| pg
+  linkStyle 10 stroke:#94630d,color:#94630d,stroke-width:1.5px
+  live <-->|"RESP<br/>registry / events"| redis
+  linkStyle 11 stroke:#94630d,color:#94630d,stroke-width:1.5px
+
+  subgraph legend["Легенда каналов"]
+    direction LR
+    legend_control["Управление: HTTP / WSS / AMQP"]
+    legend_media["Медиа: SRTP / RTP"]
+    legend_files["Файлы: S3 / file I/O"]
+    legend_db["Данные: SQL / RESP"]
+  end
+  style legend_control fill:#eef4fa,stroke:#2c5d8a,color:#2c5d8a
+  style legend_media fill:#def1eb,stroke:#067566,color:#067566
+  style legend_files fill:#f3e8f8,stroke:#7b439a,color:#7b439a
+  style legend_db fill:#fff2d4,stroke:#94630d,color:#94630d

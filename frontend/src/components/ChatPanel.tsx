@@ -114,9 +114,9 @@ export function MessageThread({
   onAccessDenied?: () => void;
   focusMessageId?: string;
   onLatest?: () => void;
-  /** A hidden side tab keeps its draft without measuring or marking reads. */
+  /** Скрытая боковая панель сохраняет черновик без измерения или маркировки прочитанных данных. */
   visible?: boolean;
-  /** Repeated selection can revisit the same message without discarding the draft. */
+  /** При повторном выборе можно вернуться к тому же сообщению, не удаляя черновик. */
   focusRequest?: number;
   onFocusMessage?: (messageId: string) => void;
 }) {

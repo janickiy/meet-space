@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -7,24 +15,30 @@ import (
 	"time"
 )
 
-// RegisterIntegrationRoutes подключает preferences/devices/calendar только с общей Bearer авторизацией.
-// @args router — HTTP transport; handler — прикладные обработчики; auth — проверка пользовательского токена;
-// limiters — необязательный общий ограничитель Redis, отключаемый только в изолированных тестах.
+// RegisterIntegrationRoutes регистрирует конечные точки для интеграции с предоставленными
+// промежуточными модулями аутентификации и обработки запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiters: Общие реализации ограничителей для зарегистрированных конечных точек.
 func RegisterIntegrationRoutes(router gin.IRouter, handler *app.Handler, auth gin.HandlerFunc, limiters ...middleware.Limiter) {
 	var limiter middleware.Limiter
 	if len(limiters) > 0 {
 		limiter = limiters[0]
 	}
-	// Middleware исключает caching любых интеграционных ответов, включая ошибки.
-	// @args c — HTTP запрос/ответ текущей цепочки.
+	// Отключить кэширование для всех ответов интеграции, включая сообщения об ошибках. c —
+	// текущий контекст запроса и ответа промежуточного программного обеспечения.
 	private := func(c *gin.Context) {
 		c.Header("Cache-Control", "private, no-store")
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Next()
 	}
-	// Ключ использует только проверенную идентичность Bearer, а не пользовательские данные.
-	// @args c — authenticated запрос.
-	// @return: идентификатор владельца rate limit bucket.
+	// Формировать ключ сегмента ограничения частоты только на основе подтверждённой личности
+	// пользователя с токеном Bearer, а не на основе полей, предоставленных пользователем. c —
+	// аутентифицированный запрос; результат — идентификатор владельца сегмента.
 	key := func(c *gin.Context) string { return middleware.UserID(c) }
 	rules := []middleware.Rule{}
 	for _, rule := range []struct {
@@ -55,6 +69,7 @@ func RegisterIntegrationRoutes(router gin.IRouter, handler *app.Handler, auth gi
 	integration.GET("/calendars/:provider/connect", handler.Connect)
 	integration.POST("/calendars/:provider/callback", handler.Callback)
 	integration.DELETE("/calendars/:provider", handler.Disconnect)
-	// Gin использует одно имя шаблона маршрута для подключения и возврата провайдера и удаления по UUID; обработчик отдельно проверяет UUID.
+	// Gin использует одно имя шаблона маршрута для подключения к провайдеру, обратного вызова и
+	// удаления UUID; обработчик отдельно проверяет UUIDs.
 	router.GET(APIV1Prefix+"/conferences/:id/calendar", private, auth, handler.CalendarMappings)
 }

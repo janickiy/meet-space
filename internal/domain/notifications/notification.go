@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package notifications
 
 import (
@@ -9,12 +17,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 )
 
-// Payload содержит только ссылки на ресурсы и состояние; уведомление не раскрывает чат, файлы и не выдаёт права доступа.
-// @params
-//   - ConferenceID: идентификатор конференции, ограничивающий область операции.
-//   - RecordingID: идентификатор записи конференции.
-//   - ScheduledAt: однозначное запланированное время встречи.
-//   - AdmissionState: состояние ожидания, допуска, отклонения либо исключения.
+// Payload содержит только ссылки на ресурсы и состояние. Уведомление не раскрывает содержимое
+// чата или файлов и не предоставляет доступ к ресурсам.
 type Payload struct {
 	ConferenceID     string     `json:"conferenceId"`
 	ConversationID   string     `json:"conversationId,omitempty"`
@@ -30,17 +34,8 @@ type Payload struct {
 	Generation       int64      `json:"generation,omitempty"`
 }
 
-// Notification сохраняет личное уведомление, ссылочную нагрузку, дедупликацию, прочтение и состояние доставки.
-// @params
-//   - ID: уникальный идентификатор данной сущности.
-//   - UserID: идентификатор пользователя, для которого выполняется операция.
-//   - Type: значение Type типа string, используемое согласно назначению этой операции.
-//   - Version: версия изменения для защиты от устаревших операций.
-//   - Payload: типизированная нагрузка события или ссылочные сведения уведомления.
-//   - DedupKey: уникальный ключ факта для предотвращения дублирующих уведомлений.
-//   - CreatedAt: время создания значения.
-//   - ReadAt: момент отметки прочтения; nil означает непрочитанное.
-//   - PublishedAt: момент завершения публикации либо подавления доставки; nil означает, что обработка ещё не завершена.
+// Notification сохраняет личное событие, ссылки на ресурсы, данные дедупликации, состояние
+// чтения и состояние доставки.
 type Notification struct {
 	ID          string     `json:"id" gorm:"type:uuid;primaryKey"`
 	UserID      string     `json:"userId" gorm:"type:uuid"`
@@ -53,41 +48,37 @@ type Notification struct {
 	PublishedAt *time.Time `json:"-"`
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Notification) TableName() string { return "notifications" }
 
-// Page собирает элементы одной страницы и метаданные продолжения списка.
-//   - Items: элементы страницы или порции пакетной обработки.
-//   - NextCursor: непрозрачная граница следующей страницы; пустое значение завершает список.
-//   - UnreadCount: число доступных непрочитанных элементов.
+// Page содержит одну страницу с ограниченным количеством уведомлений и метаданные продолжения.
 type Page struct {
 	Items       []Notification `json:"items"`
 	NextCursor  *string        `json:"nextCursor"`
 	UnreadCount int64          `json:"unreadCount"`
 }
 
-// Cursor задаёт границу (CreatedAt, ID) следующей страницы уведомлений пользователя.
-//   - UserID: аккаунт, для которого выдан курсор.
-//   - At: CreatedAt граничного уведомления; нулевое время недопустимо.
-//   - ID: UUID граничного уведомления для упорядочивания одинаковых временных отметок.
+// Cursor содержит границы CreatedAt и ID следующей страницы с уведомлениями об аккаунте.
 type Cursor struct {
 	UserID string    `json:"userId"`
 	At     time.Time `json:"at"`
 	ID     string    `json:"id"`
 }
 
-// DecodeCursor декодирует курсор уведомлений и проверяет привязку к пользователю, время и UUID.
+// DecodeCursor декодирует и проверяет непрозрачный курсор для разбивки на страницы.
 //
-// @args
-//   - value (string): значение для проверки, нормализации или преобразования.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// @return:
-//   - результат 1 (*Cursor): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Сконструированный или загруженный курсор.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func DecodeCursor(value, userID string) (*Cursor, error) {
 	if value == "" {
 		return nil, nil
@@ -108,13 +99,13 @@ func DecodeCursor(value, userID string) (*Cursor, error) {
 	return &c, nil
 }
 
-// EncodeCursor создаёт курсор следующей страницы по времени и UUID уведомления.
+// EncodeCursor кодирует стабильную границу для следующей страницы с результатами.
 //
-// @args
-//   - n (Notification): значение n типа Notification, используемое согласно назначению этой операции.
+// @Parameters:
+//   - n: Количество запрошенных элементов или операций.
 //
-// @return:
-//   - результат 1 (string): кодированная граница следующей страницы.
+// @returns:
+//   - result1: Непрозрачный курсор для продолжения уведомлений.
 func EncodeCursor(n Notification) string {
 	b, _ := json.Marshal(Cursor{UserID: n.UserID, At: n.CreatedAt, ID: n.ID})
 	return base64.RawURLEncoding.EncodeToString(b)

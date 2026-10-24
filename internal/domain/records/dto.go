@@ -1,11 +1,14 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package records
 
-// Command задаёт согласованное представление данных «Command» для управлении задачами записи и её артефактами.
-// @params
-//   - Type: значение Type типа string, используемое согласно назначению этой операции.
-//   - RecordID: внешний UUID задачи записи.
-//   - Reason: причина завершения, отказа или изменения состояния.
-//   - SegmentDurationSec: плановая длительность сегмента записи в секундах.
+// Command содержит данные команд, используемые для метаданных записи.
 type Command struct {
 	Type               string `json:"type"`
 	RecordID           string `json:"recordId"`
@@ -13,28 +16,21 @@ type Command struct {
 	SegmentDurationSec int    `json:"segmentDurationSec,omitempty"`
 }
 
-// WebRTCOfferRequest передаёт SDP-предложение клиента при установке входа записи.
-//   - Type: значение Type типа string, используемое согласно назначению этой операции.
-//   - SDP: значение SDP типа string, используемое согласно назначению этой операции.
+// WebRTCOfferRequest содержит предложение клиента SDP, используемое для организации приема
+// записи.
 type WebRTCOfferRequest struct {
 	Type string `json:"type"`
 	SDP  string `json:"sdp"`
 }
 
-// WebRTCAnswerResponse возвращает SDP-ответ приёмника записи.
-//   - Type: значение Type типа string, используемое согласно назначению этой операции.
-//   - SDP: значение SDP типа string, используемое согласно назначению этой операции.
+// WebRTCAnswerResponse содержит согласованный ответ получателя записи SDP.
 type WebRTCAnswerResponse struct {
 	Type string `json:"type"`
 	SDP  string `json:"sdp"`
 }
 
-// RecordDetails объединяет запись и связанные файлы, сегменты и события для прикладного чтения.
-// @params
-//   - Record: задача записи с её сохранённым состоянием.
-//   - Files: набор файлов или артефактов для обработки.
-//   - Segments: доступные сегменты записи для итоговой сборки.
-//   - Events: получатель или издатель событий прикладного сценария.
+// RecordDetails объединяет запись с сопутствующими файлами, сегментами и событиями для чтения
+// приложениями.
 type RecordDetails struct {
 	Record   Record
 	Files    []RecordFile
@@ -42,12 +38,8 @@ type RecordDetails struct {
 	Events   []RecordEvent
 }
 
-// RecordCard возвращает карточку записи с разрешёнными ссылками и связанными артефактами.
-// @params
-//   - Record: встроенный тип, добавляющий свой контракт или данные.
-//   - Files: набор файлов или артефактов для обработки.
-//   - Segments: доступные сегменты записи для итоговой сборки.
-//   - Events: получатель или издатель событий прикладного сценария.
+// RecordCard содержит авторизованное представление записи с разрешенными ссылками и
+// сопутствующими артефактами.
 type RecordCard struct {
 	Record
 	Files    []RecordFileView    `json:"files"`
@@ -55,20 +47,15 @@ type RecordCard struct {
 	Events   []RecordEvent       `json:"events,omitempty"`
 }
 
-// RecordFileView добавляет к метаданным файла временную ссылку разрешённого чтения.
-// @params
-//   - RecordFile: встроенный тип, добавляющий свой контракт или данные.
-//   - URL: значение URL типа string, используемое согласно назначению этой операции.
+// RecordFileView добавляет временную авторизованную ссылку для чтения к метаданным сохраненного
+// файла.
 type RecordFileView struct {
 	RecordFile
 	URL string `json:"url,omitempty"`
 }
 
-// RecordSegmentView добавляет к метаданным сегмента бакет и временную ссылку чтения.
-// @params
-//   - RecordSegment: встроенный тип, добавляющий свой контракт или данные.
-//   - Bucket: имя бакета объектного хранилища.
-//   - URL: значение URL типа string, используемое согласно назначению этой операции.
+// RecordSegmentView добавляет приватный сегмент и временную ссылку для чтения к метаданным
+// сегмента.
 type RecordSegmentView struct {
 	RecordSegment
 	Bucket string `json:"bucket,omitempty"`

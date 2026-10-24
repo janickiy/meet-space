@@ -1,8 +1,21 @@
-// Пакет captionsapp связывает настройки живого распознавания с авторизованным HTTP.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Пакет captionsapp подключает настройки субтитров в реальном времени к аутентифицированным
+// конечным точкам HTTP.
 package captionsapp
 
 import (
 	"context"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/janickiy/meet-space/internal/app/httpresponse"
@@ -11,26 +24,50 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 	live "github.com/janickiy/meet-space/internal/usecase/captions"
-	"net/http"
-	"strconv"
-	"time"
 )
 
-// Handler возвращает сохранённые финальные реплики и настройки, не открывая провайдер в API.
+// Обработчик возвращает сохраненные финальные субтитры и настройки без открытия сеанса речевого провайдера в API.
 type Handler struct {
 	Repo      live.Repository
 	Enabled   bool
 	Analytics interface {
+		// Read загружает сохраненные данные технических конференций после проверки истории аккаунта
+		// доступ.
+		//
+		// @Parameters:
+		//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+		//   - arg2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+		//   - arg3: идентификатор конференции, ограничивающий область действия операции.
+		//
+		// @returns:
+		//   - result1: полученная конференция.
+		//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+		//     данных.
 		Read(context.Context, string, string) (analytics.Conference, error)
 	}
 	Search interface {
+		// Reindex переиндексация очередей с ограниченной переиндексацией транскрипта после проверки прав доступа субъекта.
+		//
+		// @Parameters:
+		//   - arg1: контекст, управляющий отменой, сроками и временем выполнения операции.
+		//   - arg2: идентификатор действующего аккаунта, используемый для ограничения доступа.
+		//   - arg3: идентификатор конференции, ограничивающий область действия операции.
+		//   - arg4: идентификатор записи, используемый текущей операцией.
+		//   - arg5: конфигурация и ограничения обработки, контролируемые оператором.
+		//   - arg6: минимальный интервал между дорогостоящими запросами на повторную обработку.
+		//
+		// @returns:
+		//   - result1: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения. 		//
 		Reindex(context.Context, string, string, string, config.StageEightConfig, time.Duration) error
 	}
 	Config config.StageEightConfig
 }
 
-// ReadAnalytics возвращает объективные агрегаты только допущенным участникам встречи.
-// @args c — авторизованный запрос с идентификатором конференции.
+// ReadAnalytics возвращает сохраненные данные технической конференции только допущенным
+// участникам.
+//
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *Handler) ReadAnalytics(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -44,8 +81,10 @@ func (h *Handler) ReadAnalytics(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": value})
 }
 
-// Reindex ставит ограниченную по частоте переиндексацию для организатора или соведущего.
-// @args c — авторизованный запрос с идентификаторами встречи и записи.
+// Reindex переиндексирует очереди с помощью ограниченной транскрипт-реиндексации после проверки прав доступа актора.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Reindex(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -64,9 +103,14 @@ func (h *Handler) Reindex(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"status": "success"})
 }
 
-// id проверяет UUID конференции до выполнения SQL.
-// @args c — авторизованный HTTP запрос.
-// @return нормализованный UUID и признак успешной проверки.
+// id проверяет UUID ресурса из HTTP-маршрута перед выполнением операции в приложении или базе данных.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//
+// @returns:
+//   - result1: проверенный UUID ресурса.
+//   - result2: выполняется ли задокументированное условие операции или произошло ли успешное изменение условного состояния.
 func id(c *gin.Context) (string, bool) {
 	v, e := uuid.Parse(c.Param("id"))
 	if e != nil || v == uuid.Nil {
@@ -76,8 +120,10 @@ func id(c *gin.Context) (string, bool) {
 	return v.String(), true
 }
 
-// Read показывает согласие и состояние всем допущенным участникам и право изменения организатору.
-// @args c — authenticated request.
+// Read считывает состояние субтитров в реальном времени, необходимое вызывающей стороне.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Read(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -96,8 +142,10 @@ func (h *Handler) Read(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": s})
 }
 
-// Set принимает только enabled/language, без произвольных параметров провайдера и URI.
-// @args c — запрос организатора с JSON.
+// Read считывает статус субтитров в реальном времени, необходимый вызывающей стороне.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Set(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {
@@ -130,8 +178,11 @@ func (h *Handler) Set(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": s})
 }
 
-// Finals восстанавливает пропущенные финальные события WebSocket через курсорную пагинацию.
-// @args c — authenticated request с afterCursor/limit.
+// Finals возвращает страницу с сохраненными финальными подписями, ограниченную курсором, чтобы клиенты могли восстановить пропущенные
+// события в реальном времени.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Finals(c *gin.Context) {
 	cid, ok := id(c)
 	if !ok {

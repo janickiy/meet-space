@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -14,9 +22,16 @@ import (
 	"time"
 )
 
-// contentLease блокирует действующую аренду перед короткой фиксацией продуктовых данных.
-// @args tx — транзакция; job — идентичность и токен полученного задания.
-// @return ErrLeaseLost для просроченного или заменённого владельца.
+// contentLease проверяет аренду и генерацию задания перед фиксацией результатов обработки
+// контента.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func contentLease(tx *gorm.DB, job jobs.Job) error {
 	var id string
 	if err := tx.Raw(`SELECT id FROM background_jobs WHERE id=? AND state='processing' AND lease_token=? AND lease_until>clock_timestamp() FOR UPDATE`, job.ID, job.LeaseToken).Scan(&id).Error; err != nil {
@@ -25,8 +40,9 @@ func contentLease(tx *gorm.DB, job jobs.Job) error {
 	if id == "" {
 		return jobs.ErrLeaseLost
 	}
-	// Порядок конференция → сущности содержимого соответствует затратным POST и внешним ключам.
-	// KEY SHARE допускает параллельные фиксации воркеров, но блокирует отзыв доступа.
+	// Блокировка конференции перед обработкой сущностей контента, сопоставление ресурсоемких
+	// операций POST и внешних ключей. KEY SHARE позволяет выполнять параллельные рабочие
+	// коммиты, предотвращая при этом отзыв доступа.
 	var cid string
 	if err := tx.Raw("SELECT id FROM conferences WHERE id=? FOR KEY SHARE", job.ConferenceID).Scan(&cid).Error; err != nil {
 		return err
@@ -37,9 +53,18 @@ func contentLease(tx *gorm.DB, job jobs.Job) error {
 	return nil
 }
 
-// workerSource читает строго готовый объект только в границах конференции серверного задания.
-// @args tx — транзакция; rid/cid — подтверждённые идентификаторы из исходящей очереди.
-// @return приватный объект или ErrSkip для удалённой/неготовой записи.
+// workerSource загружает текущие записи и входные данные контента для фонового задания с
+// арендой.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Результирующий источник записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func workerSource(tx *gorm.DB, rid, cid string) (domain.RecordingSource, error) {
 	var source domain.RecordingSource
 	err := tx.Raw(`SELECT uuid AS recording_id,platform_conference_id AS conference_id,storage_object_key AS object_key,COALESCE(duration_sec,0) AS duration_sec,COALESCE(size_bytes,0) AS size_bytes FROM record WHERE uuid=? AND platform_conference_id=? AND mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status='ready' AND deleted_at IS NULL`, rid, cid).Scan(&source).Error
@@ -49,9 +74,18 @@ func workerSource(tx *gorm.DB, rid, cid string) (domain.RecordingSource, error) 
 	return source, err
 }
 
-// StartTranscript идемпотентно создаёт/захватывает нужное поколение без provider вызова в транзакции.
-// @args ctx — срок выполнения операции БД; job — действующее продуктовое задание.
-// @return метаданные обрабатываемого задания и источник; ErrSkip для устаревшего или завершённого поколения.
+// StartTranscript запрашивает создание текущей расшифровки до начала ресурсоемкой обработки
+// поставщиком.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//
+// @returns:
+//   - result1: Результирующая расшифровка.
+//   - result2: Результирующий источник записи.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) StartTranscript(ctx context.Context, job jobs.Job) (domain.Transcript, domain.RecordingSource, error) {
 	var t domain.Transcript
 	var source domain.RecordingSource
@@ -79,23 +113,57 @@ func (r *ContentRepository) StartTranscript(ctx context.Context, job jobs.Job) (
 	return t, source, err
 }
 
-// readyIntegration фиксирует ready событие вместе с результатом; приватный текст в payload не попадает.
-// @args tx — короткая транзакция фиксации; event/entity/cid/rid/tid/sid — тип и идентификаторы; version — поколение.
-// @return ошибка сохранения исходящей очереди, откатывающая весь результат обработки.
+// readyIntegration проверяет, включен ли и доступен ли запрошенный поставщик контента.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - event: Доверенное событие для публикации или обработки.
+//   - entity: Идентификатор сущности или категория сущности, связанные с заданием на обработку.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//   - tid: Идентификатор текущей генерации расшифровки.
+//   - sid: Текущий идентификатор сводной информации или сеанса, определяемый операцией.
+//   - version: Версия или значение ограждения, используемое для предотвращения устаревания прав
+//     собственности.
+//   - attempts: Максимально допустимое количество попыток выполнения задания или текущее
+//     количество повторных попыток.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func readyIntegration(tx *gorm.DB, event, entity, cid, rid, tid, sid string, version int64, attempts int) error {
 	payload, _ := json.Marshal(map[string]string{"event": event, "recordingId": rid, "transcriptId": tid, "summaryId": sid})
 	return tx.Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,payload,dedup_key,max_attempts) VALUES ('integrations.event',?,?,?,?::jsonb,?,?) ON CONFLICT(dedup_key) DO NOTHING`, entity, cid, version, string(payload), "integrations:"+event+":"+entity+":"+formatGeneration(version), attempts).Error
 }
 
-// formatGeneration даёт стабильную десятичную часть ключа дедупликации.
-// @args generation — положительное поколение результата.
-// @return строковое представление без locale/timezone зависимости.
+// formatGeneration форматирует идентификатор генерации контента, используемый фоновыми
+// задачами.
+//
+// @Parameters:
+//   - generation: Идентификатор генерации контента, используемый для отклонения устаревших
+//     результатов.
+//
+// @returns:
+//   - result1: Стабильный сериализованный идентификатор генерации контента.
 func formatGeneration(generation int64) string { return strconv.FormatInt(generation, 10) }
 
-// SaveTranscript сохраняет проверенный текст и атомарно ставит задания ИИ и уведомлений.
-// @args ctx — срок фиксации транзакции; job/t — аренда и поколение; result — проверенный результат распознавания;
-// provider — безопасное имя адаптера; ai — разрешение следующей стадии; attempts — бюджет повторов.
-// @return ошибка или потеря аренды; состояние записи никогда не изменяется.
+// SaveTranscript фиксирует выходные данные транскрипта только для текущей генерации записи и
+// аренды задания.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - t: Test дескриптор, используемый для утверждений, очистки и сообщений об ошибках.
+//   - result: Подтвержденный результат обработки или операции.
+//   - provider: Идентификатор провайдера, выбранный оператором, или фиксированная техническая
+//     метка провайдера.
+//   - ai: Нужно ли запланировать создание сводной таблицы для расшифровки.
+//   - attempts: Максимально допустимое количество попыток выполнения задания или текущее
+//     количество повторных попыток.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) SaveTranscript(ctx context.Context, job jobs.Job, t domain.Transcript, result domain.TranscriptionResult, provider string, ai bool, attempts int) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := contentLease(tx, job); err != nil {
@@ -151,9 +219,18 @@ func (r *ContentRepository) SaveTranscript(ctx context.Context, job jobs.Job, t 
 	})
 }
 
-// StartSummary читает согласованный текст текущего поколения после проверки аренды.
-// @args ctx — срок выполнения; job — арендованное задание ИИ с UUID расшифровки в EntityID.
-// @return метаданные резюме, сегменты и ErrSkip для устаревшего, удалённого или неготового источника.
+// StartSummary запрашивает текущее создание сводной таблицы перед вызовом настроенного
+// провайдера.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//
+// @returns:
+//   - result1: Полученная сводная таблица.
+//   - result2: Собранные значения сегментов.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) StartSummary(ctx context.Context, job jobs.Job) (domain.Summary, []domain.Segment, error) {
 	var s domain.Summary
 	segments := []domain.Segment{}
@@ -189,10 +266,25 @@ func (r *ContentRepository) StartSummary(ctx context.Context, job jobs.Job) (dom
 	return s, segments, err
 }
 
-// SaveSummary атомарно сохраняет JSON, проверенный по схеме, и уведомление о готовности.
-// @args ctx — срок выполнения; job/s — аренда/поколение; output — проверенный JSON;
-// provider/model/prompt/schema задают воспроизводимую версию обработки; attempts — бюджет доставки.
-// @return ошибка commit; ни transcript, ни recording при отказе AI не меняются.
+// SaveSummary сохраняет валидированную сводную таблицу только для текущего создания расшифровки
+// и аренды задания.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - s: Состояние сводной таблицы, обработанное в ходе этой операции.
+//   - output: Целевой или сгенерированный результат, необходимый для выполнения этой операции.
+//   - provider: Идентификатор провайдера, выбранный оператором, или фиксированная техническая
+//     метка провайдера.
+//   - model: Настроенный идентификатор модели провайдера.
+//   - prompt: Версионированный идентификатор модели-инструкции, используемый в сводной таблице.
+//   - schema: Ожидаемая версия выходной схемы.
+//   - attempts: Максимально допустимое количество попыток выполнения задания или текущее
+//     количество повторных попыток.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) SaveSummary(ctx context.Context, job jobs.Job, s domain.Summary, output domain.SummaryOutput, provider, model, prompt, schema string, attempts int) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := contentLease(tx, job); err != nil {
@@ -226,9 +318,17 @@ func (r *ContentRepository) SaveSummary(ctx context.Context, job jobs.Job, s dom
 	})
 }
 
-// FailJob отмечает только текущее поколение при окончательном сбое, сохраняя запись и расшифровку.
-// @args ctx — новый срок выполнения операции БД; job — арендованное задание, окончательно завершившееся ошибкой; code — безопасная техническая категория.
-// @return ошибка фиксации либо ErrLeaseLost; причины поставщика/контент не логируются.
+// FailJob регистрирует сбой задания с ограничением, не раскрывая ответы провайдера и не заменяя
+// более новую версию.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - code: Ограниченный публичный статус или код ошибки.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) FailJob(ctx context.Context, job jobs.Job, code string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := contentLease(tx, job); err != nil {
@@ -271,10 +371,26 @@ func (r *ContentRepository) FailJob(ctx context.Context, job jobs.Job, code stri
 	})
 }
 
-// contentFailureEvent уведомляет только владельца об окончательном сбое без текста и подробного вывода ошибки.
-// @args tx — result transaction; event/entity/cid/rid/tid/sid — тип/IDs;
-// code — безопасная техническая категория; version/attempts — ограниченные идемпотентность и повторы.
-// @return ошибка создания исходящего уведомления только для владельца; об удалённых записях уведомления не отправляются.
+// contentFailureEvent формирует безопасное событие сбоя при обработке контента без указания
+// деталей ответа провайдера.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - event: Доверенное событие для публикации или обработки.
+//   - entity: Идентификатор сущности или категория сущности, связанные с заданием на обработку.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//   - tid: Идентификатор текущей генерации расшифровки.
+//   - sid: Текущий идентификатор сводной информации или сеанса, определяемый операцией.
+//   - code: Ограниченный публичный статус или код ошибки.
+//   - version: Версия или значение ограждения, используемое для предотвращения устаревания прав
+//     собственности.
+//   - attempts: Максимально допустимое количество попыток выполнения задания или текущее
+//     количество повторных попыток.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func contentFailureEvent(tx *gorm.DB, event, entity, cid, rid, tid, sid, code string, version int64, attempts int) error {
 	if attempts < 1 {
 		attempts = 5

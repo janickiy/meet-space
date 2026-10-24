@@ -33,7 +33,7 @@ import { DirectConversationActions } from "./DirectConversationActions";
 import { GroupInfoModal } from "./GroupChats";
 import "./folders.css";
 
-/** Each checkbox is an idempotent mapping write; folders never grant access. */
+/** Каждый флажок — это идемпотентная запись при сопоставлении; папки никогда не предоставляют доступ. */
 export function FolderPicker({
   target,
   onClose,

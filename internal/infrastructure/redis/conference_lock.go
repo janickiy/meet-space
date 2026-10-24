@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package redis
 
 import (
@@ -31,29 +39,39 @@ end
 return 0
 `)
 
-// ConferenceLock управляет Redis-блокировкой одной активной записи на конференцию.
-//   - client: клиент внешнего сервиса или транспорта компонента.
-//   - ttl: срок жизни сохраняемого значения или выданного разрешения.
+// ConferenceLock поддерживает блокировку Redis для одной активной записи на конференцию.
 type ConferenceLock struct {
 	client *goredis.Client
 	ttl    time.Duration
 }
 
-// NewConferenceLock создаёт блокировку Redis для conferenceId.
-// @args
-// - client: клиент Redis.
-// - ttl: срок жизни lock-а.
-// @return ConferenceLock.
+// NewConferenceLock создает блокировку конференции с зависимостями и ограничениями,
+// необходимыми для распределенного присутствия и владения.
+//
+// @Parameters:
+//   - client: Идентификация медиа-клиента браузера или зависимость от транспорта, определяемая
+//     его типом.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
+//
+// @returns:
+//   - result1: Созданная или загруженная блокировка конференции.
 func NewConferenceLock(client *goredis.Client, ttl time.Duration) *ConferenceLock {
 	return &ConferenceLock{client: client, ttl: ttl}
 }
 
-// Acquire пытается установить блокировку conferenceId со значением recordId.
-// @args
-// - ctx: контекст операции.
-// - conferenceID: UUID конференции.
-// - recordID: UUID записи-владельца lock-а.
-// @return true, если блокировка успешно установлена.
+// Атомарная операция Acquire устанавливает блокировку записи конференции, владельцем которой
+// является указанная запись.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (l *ConferenceLock) Acquire(ctx context.Context, conferenceID string, recordID string) (bool, error) {
 	if l == nil || l.client == nil {
 		return true, nil
@@ -70,12 +88,17 @@ func (l *ConferenceLock) Acquire(ctx context.Context, conferenceID string, recor
 	return result == 1, nil
 }
 
-// Release снимает lock только если им владеет текущая запись.
-// @args
-// - ctx: контекст операции.
-// - conferenceID: UUID конференции.
-// - recordID: UUID записи-владельца lock-а.
-// @return ошибку Redis.
+// Release — при освобождении освобождается только ресурс Redis, принадлежащий соответствующей операции
+// или токену.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (l *ConferenceLock) Release(ctx context.Context, conferenceID string, recordID string) error {
 	if l == nil || l.client == nil || strings.TrimSpace(conferenceID) == "" || strings.TrimSpace(recordID) == "" {
 		return nil
@@ -87,13 +110,13 @@ func (l *ConferenceLock) Release(ctx context.Context, conferenceID string, recor
 	return nil
 }
 
-// lockKey строит Redis-ключ блокировки одной конференции.
+// lockKey создает ключ Redis с пространством имен для блокировки записи конференции.
 //
-// @args
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Ключ блокировки записи конференции с пространством имен.
 func lockKey(conferenceID string) string {
 	return conferenceLockPrefix + strings.TrimSpace(conferenceID) + ":lock"
 }

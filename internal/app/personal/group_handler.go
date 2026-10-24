@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package personalapp
 
 import (
@@ -12,20 +20,145 @@ import (
 )
 
 type GroupRepository interface {
+	// CreateGroup создает групповой чат с проверенными зарегистрированными участниками и владельцем.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: проверенный запрос приложения или входящие параметры операции.
+	//
+	// @returns:
+	//   - result1: созданный чат.
+	//   - result2: указывает, был ли создан новый объект, а не повторно использован идемпотентный результат.
+	//   - result3: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+	//     данных.
 	CreateGroup(context.Context, string, personal.CreateGroupRequest) (personal.Conversation, bool, error)
+	// UpdateGroup обновляет валидированные метаданные группы после проверки прав доступа к управлению.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: идентификатор ресурса, к которому применяется эта операция.
+	//   - arg4: валидированный запрос приложения или входящие параметры операции.
+	//
+	// @returns:
+	//   - result1: результирующий диалог.
+	//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+	//     данных.
 	UpdateGroup(context.Context, string, string, personal.UpdateGroupRequest) (personal.Conversation, error)
+	// GroupMembers возвращает список участников группы, видимых для действующего аккаунта.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: идентификатор аккаунта, выполняющего операцию.
+	//   - arg3: идентификатор ресурса, к которому обращается эта операция.
+	//
+	// @returns:
+	//   - result1: собранные значения участников.
+	//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+	//     данных.
 	GroupMembers(context.Context, string, string) ([]personal.Member, error)
+	// AddGroupMembers добавляет проверенные зарегистрированные аккаунты после проверки членства в группе и соблюдения правил управления.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: идентификатор аккаунта, выполняющего операцию.
+	//   - arg3: идентификатор ресурса, к которому применяется эта операция.
+	//   - arg4: идентификаторы ненадёжных участников для проверки и дедупликации.
+	//
+	// @returns:
+	//   - result1: результирующий диалог.
+	//   - result2: собранные значения участников.
+	//   - result3: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.  //
 	AddGroupMembers(context.Context, string, string, []string) (personal.Conversation, []personal.Member, error)
+	// RemoveGroupMember удаляет участника группы, соблюдая ограничения на владение и управление
+	// ресурсами.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: идентификатор аккаунта, выполняющего операцию.
+	//   - arg3: идентификатор ресурса, к которому применяется эта операция.
+	//   - arg4: целевое состояние, аккаунт или декодированное значение в соответствии с его типом.
+	//
+	// @returns:
+	//   - result1: результирующий диалог.
+	//   - result2: выполняется ли задокументированное условие операции или изменение условного состояния
+	//     прошло успешно.
+	//   - result3: nil в случае успеха; в противном случае — ошибка валидации, доступа, передачи или сохранения
+	//     данных.
 	RemoveGroupMember(context.Context, string, string, string) (personal.Conversation, bool, error)
+	// ChangeGroupRole изменяет роль участника группы в рамках полномочий действующего менеджера.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - arg2: идентификатор аккаунта, выполняющего операцию.
+	//   - arg3: идентификатор ресурса, к которому применяется эта операция.
+	//   - arg4: целевое состояние, аккаунт или декодированное значение в соответствии с его типом.
+	//   - arg5: подтвержденная роль, которую нужно назначить целевому участнику группы.
+	//
+	// @returns:
+	//   - result1: результирующий диалог.
+	//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+	//     данных.
 	ChangeGroupRole(context.Context, string, string, string, personal.Role) (personal.Conversation, error)
+	// TransferGroupOwnership атомарно передает право владения группой соответствующему текущему участнику.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - arg2: идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: идентификатор ресурса, к которому применяется эта операция.
+	//   - arg4: целевое состояние, учетная запись или декодированное значение в соответствии с его типом.
+	//
+	// @returns:
+	//   - result1: результирующий диалог.
+	//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+	//     данных.
 	TransferGroupOwnership(context.Context, string, string, string) (personal.Conversation, error)
+	// LeaveGroup покидает группу только в том случае, если правила владения позволяют действующему участнику выйти из нее.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем выполнения операции.
+	//   - arg2: идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: идентификатор ресурса, к которому обращается эта операция.
+	//
+	// @returns:
+	//   - result1: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения.
+	//
 	LeaveGroup(context.Context, string, string) error
+	// DeleteGroup удаляет группу для ее авторизованного владельца и возвращает затронутых получателей для
+	// доставки событий.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: идентификатор учетной записи, выполняющей операцию.
+	//   - arg3: идентификатор ресурса, к которому применяется эта операция.
+	//
+	// @returns:
+	//   - result1: собранные строковые значения.
+	//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения
+	//     данных.
 	DeleteGroup(context.Context, string, string) ([]string, error)
 }
 
+// groupResult записывает общедоступный ответ о групповом разговоре после успешного выполнения операции.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - item: состояние диалога, обработанное в ходе этой операции.
 func groupResult(c *gin.Context, item personal.Conversation) {
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
+
+// groupEvent публикует зафиксированные метаданные группы или изменения в членстве в группе вместе с ограниченным событием
+// полезная нагрузка.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//   - id: идентификатор ресурса, к которому применяется эта операция.
+//   - kind: валидированное событие, задание, медиафайл или категория ресурса.
+//   - user: действующий идентификатор учетной записи, используемый для ограничения доступа.
+//   - role: запрошенная роль участника или члена группы.
+//   - extra: дополнительные поля ограниченного события или обратные вызовы.
 func (h *Handler) groupEvent(c *gin.Context, id, kind, user string, role personal.Role, extra ...string) {
 	if h.Events == nil {
 		return
@@ -40,6 +173,10 @@ func (h *Handler) groupEvent(c *gin.Context, id, kind, user string, role persona
 	_ = h.Events.PublishConversationTo(c.Request.Context(), id, kind, data, extra...)
 }
 
+// CreateGroup создает групповой чат с проверенными зарегистрированными участниками и владельцем.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) CreateGroup(c *gin.Context) {
 	var body personal.CreateGroupRequest
 	if !httpresponse.BindJSON(c, &body, false) {
@@ -60,6 +197,11 @@ func (h *Handler) CreateGroup(c *gin.Context) {
 	}
 	c.JSON(status, gin.H{"status": "success", "item": item})
 }
+
+// UpdateGroup обновляет проверенные метаданные группы после проверки прав администратора.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) UpdateGroup(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -77,6 +219,11 @@ func (h *Handler) UpdateGroup(c *gin.Context) {
 	h.groupEvent(c, id, "conversation.updated", "", "")
 	groupResult(c, item)
 }
+
+// GroupMembers возвращает список участников группы, видимых для действующего аккаунта.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) GroupMembers(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -89,6 +236,11 @@ func (h *Handler) GroupMembers(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"status": "success", "items": items})
 }
+
+// AddGroupMembers добавляет проверенные зарегистрированные учетные записи после проверки членства в группе и соблюдения правил управления.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) AddGroupMembers(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -110,6 +262,11 @@ func (h *Handler) AddGroupMembers(c *gin.Context) {
 	}
 	groupResult(c, item)
 }
+
+// RemoveGroupMember удаляет участника группы, соблюдая ограничения на владение и управление.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) RemoveGroupMember(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -129,6 +286,11 @@ func (h *Handler) RemoveGroupMember(c *gin.Context) {
 	}
 	groupResult(c, item)
 }
+
+// ChangeGroupRole изменяет роль участника группы в рамках полномочий действующего руководителя.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) ChangeGroupRole(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -152,6 +314,11 @@ func (h *Handler) ChangeGroupRole(c *gin.Context) {
 	h.groupEvent(c, id, "conversation.member.updated", target, body.Role)
 	groupResult(c, item)
 }
+
+// TransferGroupOwnership атомарно передает право собственности на группу соответствующему текущему участнику.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) TransferGroupOwnership(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -178,6 +345,11 @@ func (h *Handler) TransferGroupOwnership(c *gin.Context) {
 	h.groupEvent(c, id, "conversation.member.updated", target, personal.Owner)
 	groupResult(c, item)
 }
+
+// LeaveGroup покидает группу только в том случае, если правила владения группой позволяют действующему участнику выйти из нее.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) LeaveGroup(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -195,6 +367,12 @@ func (h *Handler) LeaveGroup(c *gin.Context) {
 	h.groupEvent(c, id, "conversation.member.removed", actor, "", actor)
 	c.JSON(200, gin.H{"status": "success"})
 }
+
+// DeleteGroup удаляет группу для ее авторизованного владельца и возвращает затронутых получателей для
+// доставки событий.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) DeleteGroup(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {

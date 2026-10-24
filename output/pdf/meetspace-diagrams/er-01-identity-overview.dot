@@ -1,0 +1,15 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Учётные записи и сессии</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"auth_legacy_tokens" [label="auth_legacy_tokens", tooltip="auth_legacy_tokens", fillcolor="#e9f1f7", color="#527087"];
+"auth_session_tokens" [label="auth_session_tokens", tooltip="auth_session_tokens", fillcolor="#e9f1f7", color="#527087"];
+"auth_sessions" [label="auth_sessions", tooltip="auth_sessions", fillcolor="#e9f1f7", color="#527087"];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#f2f2f2", color="#a4a9ad"];
+"users" [label="users", tooltip="users", fillcolor="#e9f1f7", color="#527087"];
+"auth_legacy_tokens" -> "auth_sessions" [tooltip="auth_legacy_tokens_session_id_fkey: FOREIGN KEY (session_id) REFERENCES auth_sessions(id) ON DELETE CASCADE"];
+"auth_legacy_tokens" -> "users" [tooltip="auth_legacy_tokens_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"];
+"auth_session_tokens" -> "auth_sessions" [tooltip="auth_session_tokens_session_id_fkey: FOREIGN KEY (session_id) REFERENCES auth_sessions(id) ON DELETE CASCADE"];
+"auth_sessions" -> "users" [tooltip="auth_sessions_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"];
+"users" -> "conferences" [style=dashed, color="#94661d", penwidth=1.45, tooltip="guest_conference_id -> id; Область гостевой идентичности; FK отсутствует.", constraint=false];
+}

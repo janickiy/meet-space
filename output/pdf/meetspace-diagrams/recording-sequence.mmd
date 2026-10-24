@@ -1,0 +1,50 @@
+sequenceDiagram
+  autonumber
+  actor B as Браузер участника
+  participant A as API / WS hub
+  participant P as PostgreSQL
+  participant Q as RabbitMQ
+  participant W as Go recorder-worker
+  participant S as SFU / media-worker
+  participant O as S3 / minio service
+  Note over B,S: До записи: WS signaling через API, WebRTC медиадорожки напрямую в SFU или через TURN
+  B->>A: POST /api/v1/conferences/{id}/recordings {mode, segmentDurationSec}
+  A->>P: Проверить membership и active; record starting + outbox в транзакции
+  A-->>B: 202 {status: success, item: RecordCard}
+  A->>Q: Dispatcher: persistent record.start (после Redis lock)
+  Q-->>A: Publisher confirm
+  A->>P: Outbox published_at
+  Q->>W: record.start
+  W->>P: Claim recorder_token + lease
+  W-->>Q: ACK после запуска async обработки
+  W->>S: POST /internal/media/egress + secret + route lease
+  S-->>W: HTTP NDJSON hello
+  W->>P: starting → recording; started_at
+  W-->>A: recording.started через Redis realtime
+  A-->>B: WS event; перечитать карточку
+  loop capture до остановки
+    B->>S: WebRTC VP8 / Opus
+    S-->>W: NDJSON track / rtp(base64) / ping / track.end
+    Note over W: sources + chunk manifest → FFmpeg → segment_N.mp4 в /storage
+    W->>P: Renew lease / проверить stop
+  end
+  B->>A: POST /api/v1/conferences/{id}/recordings/{recordingId}/stop {}
+  A->>P: Проверить owner/requestedBy; stopping + outbox
+  A-->>B: 202 {status: success, item}
+  A->>Q: record.stop
+  Q->>W: record.stop (идемпотентно)
+  Note over W,P: Capture также видит stopping при опросе БД
+  W->>S: Закрыть egress subscription
+  W->>P: finalizing (API: processing)
+  Note over W: Recover manifests, concat, ffprobe, preview/checksum
+  W->>P: uploading (API: processing)
+  W->>O: PUT artifacts/token/final.mp4 и нужные companion files
+  O-->>W: Upload + StatObject size verified
+  W->>P: Транзакция record_file + segments + ready
+  W-->>A: recording.ready через Redis; release lock
+  Note over W: Удалить spool, если RECORDING_KEEP_LOCAL=false
+  A-->>B: WS event
+  B->>A: GET карточки
+  A-->>B: ready + files[].url (presigned 24h)
+  B->>O: GET по подписанной ссылке через Nginx
+  O-->>B: MP4 / audio / ZIP

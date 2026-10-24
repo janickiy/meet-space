@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -7,6 +15,14 @@ import (
 	"time"
 )
 
+// RegisterFolderRoutes регистрирует конечные точки для работы с папками с предоставленными
+// промежуточными модулями аутентификации и обработки запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - h: Адаптер обработчика HTTP для регистрации или привязки к клиенту.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterFolderRoutes(router gin.IRouter, h *foldersapp.Handler, auth gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	rules := []httpmiddleware.Rule{}
 	for _, route := range []struct {

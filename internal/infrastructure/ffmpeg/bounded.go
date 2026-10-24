@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package ffmpeg
 
 import (
@@ -8,10 +16,18 @@ import (
 	"time"
 )
 
-// runBounded выполняет бинарный файл напрямую, без shell и интерполяции команд.
-// ctx задаёт дедлайн, binary — доверенный исполняемый файл, args — отдельные
-// аргументы. Возвращает не более 64 КиБ диагностики и ошибку процесса. Отмена
-// сначала посылает SIGTERM, через 3 секунды Go завершает процесс принудительно.
+// runBounded запускает внешний процесс с возможностью отмены и ограничением вывода
+// диагностических данных.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - binary: Путь к настроенному внешнему исполняемому файлу.
+//   - args: Аргументы командной строки, процесса или протокола.
+//
+// @returns:
+//   - result1: Собранные байтовые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func runBounded(ctx context.Context, binary string, args ...string) ([]byte, error) {
 	started := time.Now()
 	operations.FFmpegActive(1)

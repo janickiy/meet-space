@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package redis
 
 import (
@@ -8,36 +16,37 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// NotificationBus изолирует личные уведомления в Redis-каналах пользователей.
-// @params
-//   - client: клиент внешнего сервиса или транспорта компонента.
-//   - prefix: ограниченный префикс объектов, относящихся к одной операции.
+// NotificationBus изолирует персональные уведомления в каналах Redis, привязанных к конкретному
+// аккаунту.
 type NotificationBus struct {
 	client *goredis.Client
 	prefix string
 }
 
-// NewNotificationBus создаёт и связывает зависимости компонента NotificationBus, используемого в личных уведомлениях и их фоновой доставке.
+// NewNotificationBus создает шину уведомлений с зависимостями и ограничениями, необходимыми для
+// распределенного присутствия и владения.
 //
-// @args
-//   - client (*goredis.Client): клиент внешнего сервиса или транспорта компонента.
-//   - namespace (string): изолированное пространство Redis-ключей и каналов приложения или теста.
+// @Parameters:
+//   - client: Идентификация медиа-клиента браузера или зависимость от транспорта, определяемая
+//     его типом.
+//   - namespace: Пространство имен, изолирующее распределенные ключи и каналы этого компонента.
 //
-// @return:
-//   - результат 1 (*NotificationBus): созданный компонент с переданными зависимостями.
+// @returns:
+//   - result1: Созданная или загруженная шина уведомлений.
 func NewNotificationBus(client *goredis.Client, namespace string) *NotificationBus {
 	return &NotificationBus{client: client, prefix: namespace + ":notification:"}
 }
 
-// Publish сериализует доверенное событие и публикует его в изолированном Redis-канале.
+// Publish — публикует сохраненные изменения в Redis через настроенный транспорт событий или команд.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - event (domain.Envelope): конверт входящего или публикуемого события.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - event: Доверенное событие для публикации или обработки.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (b *NotificationBus) Publish(ctx context.Context, userID string, event domain.Envelope) error {
 	data, err := json.Marshal(event)
 	if err != nil {
@@ -46,15 +55,17 @@ func (b *NotificationBus) Publish(ctx context.Context, userID string, event doma
 	return b.client.Publish(ctx, b.prefix+userID, data).Err()
 }
 
-// Subscribe открывает ограниченную по времени подписку на изолированный канал событий.
+// Subscribe открывает подписку на события с областью видимости, время жизни которой ограничено
+// предоставленным контекстом.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
 //
-// @return:
-//   - результат 1 (*goredis.PubSub): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Созданная или загруженная шина pub sub.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (b *NotificationBus) Subscribe(ctx context.Context, userID string) (*goredis.PubSub, error) {
 	sub := b.client.Subscribe(ctx, b.prefix+userID)
 	if _, err := sub.Receive(ctx); err != nil {

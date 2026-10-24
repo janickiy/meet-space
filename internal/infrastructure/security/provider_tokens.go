@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package security
 
 import (
@@ -8,12 +16,20 @@ import (
 	"errors"
 )
 
-// ProviderTokens шифрует секреты AES-256-GCM; дополнительный контекст запрещает перенос токена между пользователями и устройствами.
+// ProviderTokens шифрует приватные значения с помощью AES-256-GCM; аутентифицированный контекст
+// предотвращает перемещение токена между учетными записями или устройствами.
 type ProviderTokens struct{ aead cipher.AEAD }
 
-// NewProviderTokens проверяет независимый ключ шифрования, заданный в base64; пустой ключ отключает хранение секретов.
-// @args key — base64-кодированный случайный 32-байтовый ключ, не JWT secret.
-// @return: шифратор либо nil при отключении; ошибка некорректного ключа.
+// NewProviderTokens создает токены провайдера с зависимостями и ограничениями, необходимыми для
+// аутентификации и криптографических привязок.
+//
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//
+// @returns:
+//   - result1: Созданные или загруженные токены провайдера.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewProviderTokens(key string) (*ProviderTokens, error) {
 	if key == "" {
 		return nil, nil
@@ -33,9 +49,17 @@ func NewProviderTokens(key string) (*ProviderTokens, error) {
 	return &ProviderTokens{aead: aead}, nil
 }
 
-// Encrypt создаёт случайный nonce и аутентифицированный ciphertext, не сохраняя plaintext.
-// @args value — секрет; binding — user/provider/entity контекст владельца.
-// @return: base64 ciphertext либо ошибка генератора случайных чисел/отключённого шифрования.
+// Encrypt шифрует приватное значение провайдера с помощью случайного одноразового номера и
+// аутентифицированной привязки владельца.
+//
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//   - binding: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
+//
+// @returns:
+//   - result1: Аутентифицированное зашифрованное значение провайдера.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *ProviderTokens) Encrypt(value, binding string) (string, error) {
 	if p == nil {
 		return "", errors.New("provider encryption disabled")
@@ -48,9 +72,18 @@ func (p *ProviderTokens) Encrypt(value, binding string) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
-// Decrypt проверяет ciphertext и контекст владельца перед расшифровкой.
-// @args value — сохранённый ciphertext; binding — тот же контекст, что при Encrypt.
-// @return: исходный секрет либо безопасная ошибка без токенов в тексте.
+// Decrypt аутентифицирует сохраненный зашифрованный текст и привязку владельца, после чего
+// возвращает приватное значение.
+//
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//   - binding: Подтвержденная идентификация учетной записи, сеанса и медиа-подключения.
+//
+// @returns:
+//   - result1: Аутентифицированное значение провайдера в виде открытого текста только для
+//     использования на стороне сервера.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *ProviderTokens) Decrypt(value, binding string) (string, error) {
 	if p == nil {
 		return "", errors.New("provider encryption disabled")

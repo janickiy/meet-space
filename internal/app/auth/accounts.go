@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package authapp
 
 import (
@@ -18,13 +26,51 @@ const accountCookiePrefix = "meetrix_account_"
 const maxBrowserAccounts = 5
 
 type accountService interface {
+	// SessionAccount возвращает общедоступное представление учетной записи для действительного постоянного сеанса.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: сериализованное значение, не требующее доверия, для декодирования или проверки.
+	//
+	// @returns:
+	//   - result1: результирующее представление.
+	//   - result2: nil в случае успеха; в противном случае — ошибка при проверке, доступе, передаче или сохранении. 	//
 	SessionAccount(context.Context, string) (users.View, error)
+	// DeleteAccount проверяет право собственности на учетную запись и удаляет ее вместе с областью действия
+	// состояние сеанса.
+	//
+	// @Parameters:
+	// - arg1: Контекст, управляющий отменой, крайними сроками и сроком действия операции.
+	// - arg2: Идентификатор ресурса, к которому обращается эта операция.
+	// - arg3: Открытый текстовый пароль принимается только для проверки или хеширования.
+	//
+	// @returns:
+	// - result1: ноль в случае успеха; в противном случае проверка, доступ, транспортировка или сохранение
+	// сбой.
 	DeleteAccount(context.Context, string, string) error
 }
 
+// accountCookieName формирует имя cookie-файла для обновления данных для каждого аккаунта на основе идентификатора аккаунта.
+//
+// @Parameters:
+//   - id: идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: имя cookie-файла для обновления данных для каждого аккаунта с атрибутом HttpOnly.
 func accountCookieName(id string) string { return accountCookiePrefix + id }
 
-// Cookie names are only selectors. Each secret is checked against its server-side owner.
+// browserAccounts считывает действительные постоянные сеансы учетных записей браузера, не возвращая их
+// секреты.
+//
+// Имена файлов cookie используются только в качестве селекторов. Каждый секрет проверяется на соответствие владельцу на стороне сервера.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//
+// @returns:
+//   - result1: собранные значения представления.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения
+//     данных.
 func (h *Handler) browserAccounts(c *gin.Context) ([]users.View, error) {
 	service, ok := h.service.(accountService)
 	if !ok || !h.persistentSessions {
@@ -63,7 +109,14 @@ func (h *Handler) browserAccounts(c *gin.Context) ([]users.View, error) {
 	return items, nil
 }
 
-// preserveSignIn keeps other identities in HttpOnly cookies, never in JavaScript storage.
+// preserveSignIn сохраняет другие идентификационные данные в файлах cookie с атрибутом HttpOnly, а не в хранилище JavaScript.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированный идентификатор.
+//   - response: ответ приложения, в котором обрабатываются метаданные сеанса или общедоступные метаданные.
+//
+// Возвращаемое значение:
+//   - result1: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
 func (h *Handler) preserveSignIn(c *gin.Context, response users.LoginResponse) error {
 	service, ok := h.service.(accountService)
 	if !ok {
@@ -93,8 +146,8 @@ func (h *Handler) preserveSignIn(c *gin.Context, response users.LoginResponse) e
 	if !seen[response.User.ID] && len(seen) >= maxBrowserAccounts {
 		return apperrors.New(apperrors.ErrConflict, "browser account limit reached")
 	}
-	// Re-entering the same account replaces that browser's old sign-in. Other
-	// saved accounts and sessions belonging to other devices are preserved.
+	// При повторном входе в тот же аккаунт старый вход в браузере будет отменен. Другие
+	// сохраненные аккаунты и сеансы, принадлежащие другим устройствам, будут сохранены.
 	if sessions, ok := h.service.(persistentService); ok {
 		saved, _ := c.Cookie(accountCookieName(response.User.ID))
 		for _, raw := range []string{saved, previous} {
@@ -120,6 +173,10 @@ func (h *Handler) preserveSignIn(c *gin.Context, response users.LoginResponse) e
 	return nil
 }
 
+// Accounts выводит список учетных записей браузера, прошедших аутентификацию, без возврата секретов сеанса.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Accounts(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return
@@ -136,6 +193,10 @@ func (h *Handler) Accounts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "items": items})
 }
 
+// SwitchAccount выбирает учетную запись браузера только после проверки ее постоянного сеанса на сервере.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) SwitchAccount(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return
@@ -170,6 +231,10 @@ func (h *Handler) SwitchAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// DeleteAccount проверяет право собственности на учетную запись и удаляет ее вместе с состоянием сеанса в области видимости.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) DeleteAccount(c *gin.Context) {
 	if !h.sameOrigin(c) {
 		return
@@ -197,7 +262,7 @@ func (h *Handler) DeleteAccount(c *gin.Context) {
 		return
 	}
 	h.setNamedSessionCookie(c, accountCookieName(id), "")
-	// Do not clear a different account's cookie selected concurrently by another tab.
+	// Не удаляйте файлы cookie другой учетной записи, выбранные одновременно на другой вкладке.
 	if currentError != nil || current.ID == id {
 		h.setSessionCookie(c, "")
 	}

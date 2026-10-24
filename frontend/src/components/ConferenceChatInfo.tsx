@@ -67,7 +67,7 @@ const titles: Record<ConferenceChatView, string> = {
   edit: "Название и описание",
 };
 
-/** All panels stay inside the meeting context and retain server access checks. */
+/** Все панели остаются в контексте собрания и сохраняют доступ к серверу. */
 export function ConferenceChatInfoModal({
   conference,
   initialView = "info",
@@ -96,6 +96,7 @@ export function ConferenceChatInfoModal({
     retry: false,
   });
   const info = query.data?.item;
+  const past = ["finished", "cancelled"].includes(conference.status);
   const canEdit = info?.canEdit === true && user?.id === conference.ownerId;
   const notifications = useMutation({
     mutationFn: (enabled: boolean) =>
@@ -187,7 +188,7 @@ export function ConferenceChatInfoModal({
               <h3>{info.title}</h3>
               <p>
                 {info.description ||
-                  "Чат участников встречи. Переписка доступна в конференции."}
+                  "Время указано в часовом поясе организатора."}
               </p>
               <p>Создана {formatDate(conference.createdAt)}</p>
               <Link className="text-link" to={conferenceLink(conference)}>
@@ -199,21 +200,26 @@ export function ConferenceChatInfoModal({
             </div>
           </div>
           <div className="conference-chat-info-actions">
-            <button
-              type="button"
-              className="conference-chat-info-action"
-              role="switch"
-              aria-label="Уведомления"
-              aria-checked={info.notificationsEnabled}
-              disabled={notifications.isPending}
-              onClick={() => notifications.mutate(!info.notificationsEnabled)}
-            >
-              <Bell size={23} aria-hidden="true" />
-              Уведомления
-              <span className="conference-chat-info-switch" aria-hidden="true">
-                <span />
-              </span>
-            </button>
+            {!past && (
+              <button
+                type="button"
+                className="conference-chat-info-action"
+                role="switch"
+                aria-label="Уведомления"
+                aria-checked={info.notificationsEnabled}
+                disabled={notifications.isPending}
+                onClick={() => notifications.mutate(!info.notificationsEnabled)}
+              >
+                <Bell size={23} aria-hidden="true" />
+                Уведомления
+                <span
+                  className="conference-chat-info-switch"
+                  aria-hidden="true"
+                >
+                  <span />
+                </span>
+              </button>
+            )}
             <button
               type="button"
               className="conference-chat-info-action"
@@ -249,7 +255,7 @@ export function ConferenceChatInfoModal({
               <Star size={23} aria-hidden="true" />
               Важные сообщения
             </button>
-            {canEdit && (
+            {(past || canEdit) && (
               <button
                 type="button"
                 className="conference-chat-info-action"
@@ -259,14 +265,16 @@ export function ConferenceChatInfoModal({
                 Название и описание
               </button>
             )}
-            <button
-              type="button"
-              className="conference-chat-info-action"
-              onClick={() => setView("invite")}
-            >
-              <UserPlus size={23} aria-hidden="true" />
-              Добавить участников
-            </button>
+            {!past && (
+              <button
+                type="button"
+                className="conference-chat-info-action"
+                onClick={() => setView("invite")}
+              >
+                <UserPlus size={23} aria-hidden="true" />
+                Добавить участников
+              </button>
+            )}
             <button
               type="button"
               className="conference-chat-info-action conference-chat-danger"
@@ -300,8 +308,8 @@ export function ConferenceChatInfoModal({
         <div className="conference-chat-info-panel">
           <p className="modal-description">
             Покинуть чат «{info.title}»? Встреча исчезнет из вашего списка,
-            уведомления и доступ к её чату отключатся. По ссылке можно
-            присоединиться снова.
+            уведомления и доступ к её чату отключатся.
+            {!past && " По ссылке можно присоединиться снова."}
           </p>
           <ErrorNotice error={leave.error} />
           <Button
@@ -336,9 +344,21 @@ export function ConferenceChatInfoModal({
             }}
           />
         ) : (
-          <p className="conference-chat-info-empty">
-            Изменять название и описание может только администратор чата.
-          </p>
+          <div className="conference-chat-info-panel">
+            <dl className="conference-chat-info-details">
+              <div>
+                <dt>Название</dt>
+                <dd>{info.title}</dd>
+              </div>
+              <div>
+                <dt>Описание</dt>
+                <dd>{info.description || "Описание не добавлено."}</dd>
+              </div>
+            </dl>
+            <p className="field-hint">
+              Изменять название и описание может только администратор чата.
+            </p>
+          </div>
         ))}
       {info && view === "participants" && (
         <ConferenceChatMembers

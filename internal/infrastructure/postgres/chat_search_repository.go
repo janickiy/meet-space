@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -9,14 +17,43 @@ import (
 	"gorm.io/gorm"
 )
 
-// SearchMessages preserves the conference action API while using the shared visibility rules.
+// SearchMessages сохраняет действие конференции API при использовании общих правил видимости.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - scopeID: Идентификатор конференции или диалога, выбранный в зависимости от режима
+//     репозитория.
+//   - query: Текст для поиска или валидированные фильтры запросов.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//
+// @returns:
+//   - result1: Результирующая страница с сообщениями.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) SearchMessages(ctx context.Context, userID, scopeID, query, cursor string, limit int) (chat.MessagePage, error) {
 	page, err := r.SearchMessagePage(ctx, userID, scopeID, query, cursor, limit)
 	return chat.MessagePage{Items: page.Items, NextCursor: page.NextCursor}, err
 }
 
-// SearchMessagePage searches literal text in the history currently visible to this reader.
-// The conversation SHARE lock in authorize serializes group removal and history clearing.
+// SearchMessagePage выполняет поиск по буквальному тексту в истории, видимой в данный момент
+// для этого читателя.  Блокировка диалога SHARE в авторизованном режиме сериализует удаление
+// групп и очистку истории.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - scopeID: Идентификатор конференции или диалога, выбранный в зависимости от режима
+//     репозитория.
+//   - query: Текст для поиска или валидированные фильтры запросов.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) SearchMessagePage(ctx context.Context, userID, scopeID, query, cursor string, limit int) (chat.Page, error) {
 	page := chat.Page{Items: []chat.Message{}}
 	query, err := chat.NormalizeSearchQuery(query)
@@ -63,8 +100,21 @@ func (r *ChatRepository) SearchMessagePage(ctx context.Context, userID, scopeID,
 	return page, err
 }
 
-// ChatMessageContext returns up to 25 messages through the target and 25 newer ones,
-// chronologically, with an ordinary older-message cursor anchored to the visible window.
+// ChatMessageContext возвращает до 25 сообщений из целевого списка и 25 более новых сообщений в
+// хронологическом порядке с помощью обычного курсора для просмотра старых сообщений,
+// привязанного к видимому окну.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - scopeID: Идентификатор конференции или диалога, выбранный в зависимости от режима
+//     репозитория.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
+//
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ChatMessageContext(ctx context.Context, userID, scopeID, messageID string) (chat.Page, error) {
 	page := chat.Page{Items: []chat.Message{}}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

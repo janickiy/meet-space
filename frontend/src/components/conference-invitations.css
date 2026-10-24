@@ -107,21 +107,6 @@
   width: 44px;
   height: 44px;
 }
-.invitation-form-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 20px 0;
-  color: var(--muted);
-  font-size: calc(12px * var(--text-scale));
-}
-.invitation-form-divider::before,
-.invitation-form-divider::after {
-  content: "";
-  height: 1px;
-  flex: 1;
-  background: var(--border);
-}
 .conference-invitations > .field-hint {
   margin: 0;
   font-size: calc(13px * var(--text-scale));
@@ -148,4 +133,367 @@
 .invitation-card > .button {
   margin-top: 16px;
   width: 100%;
+}
+
+/* Share the same compact dialog proportions in every invitation entry point. */
+.modal-backdrop .modal.conference-invite-modal {
+  width: min(720px, 100%);
+  max-width: 720px;
+  min-height: 0;
+  max-height: calc(100dvh - 48px);
+  padding: 28px 32px 32px;
+  border-radius: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal.conference-invite-modal > h2 {
+  margin: 0 40px 12px 0;
+  font-size: calc(22px * var(--text-scale));
+  line-height: 1.4;
+  letter-spacing: -0.03em;
+}
+.modal.conference-invite-modal .modal-close {
+  top: 23px;
+  right: 24px;
+}
+.conference-invite-modal .conference-invitations {
+  min-width: 0;
+}
+.conference-invitation-title {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: calc(14px * var(--text-scale));
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.conference-invite-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.conference-invite-actions > .button {
+  min-height: 48px;
+  max-width: 100%;
+  padding: 12px 18px;
+  font-size: calc(14px * var(--text-scale));
+  line-height: 1.5;
+  white-space: normal;
+}
+.conference-invite-modal .conference-invitation-form {
+  min-width: 0;
+  margin-top: 0;
+}
+.conference-invitation-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 24px;
+}
+.conference-invitation-fields > div {
+  min-width: 0;
+}
+.conference-invite-modal .conference-invitation-form .field {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: calc(14px * var(--text-scale));
+  font-weight: 550;
+  line-height: 1.5;
+}
+.conference-invite-modal .conference-invitation-form .field textarea,
+.conference-invite-modal .conference-invitation-form .field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 400;
+  line-height: 1.5;
+}
+.conference-invite-modal .conference-invitation-form .field textarea {
+  min-height: 104px;
+  max-height: 300px;
+}
+.conference-invite-modal .invitation-search-field {
+  min-width: 0;
+}
+.conference-invite-modal .invitation-search-field > svg {
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+}
+.conference-invite-modal
+  .conference-invitation-form
+  .invitation-search-field
+  input {
+  padding-left: 40px;
+}
+.conference-invitation-fields .field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.conference-invitation-fields .invitation-people-section > [role="status"],
+.conference-invitation-fields .invitation-search-error {
+  margin-top: 12px;
+}
+.conference-invite-modal .invitation-user-results,
+.conference-invite-modal .invitation-selected {
+  margin: 12px 0 0;
+}
+.conference-invite-modal .invitation-user-results {
+  border-radius: 10px;
+  background: var(--surface);
+}
+.conference-invite-modal .invitation-user-results label {
+  gap: 10px;
+  padding: 10px 12px;
+}
+.conference-invite-modal .invitation-user-results label > span {
+  min-width: 0;
+}
+.conference-invite-modal .invitation-user-results input {
+  margin: 0;
+  accent-color: var(--primary);
+}
+.conference-invite-modal .invitation-user-results strong {
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.5;
+}
+.conference-invite-modal .invitation-user-results small {
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+}
+.conference-invite-modal .invitation-selected button:hover:not(:disabled) {
+  background: var(--surface-soft);
+}
+.conference-invite-modal .invitation-selected button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.conference-invite-modal .invitation-delivery-note {
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.conference-invite-modal .invitation-result {
+  margin: 16px 0 0;
+  border-color: color-mix(in srgb, var(--success) 24%, var(--border));
+  background: var(--success-soft);
+  color: var(--success);
+}
+.conference-invite-modal .invitation-result li {
+  min-width: 0;
+}
+.conference-invite-modal .invitation-result span {
+  color: inherit;
+  line-height: 1.5;
+}
+.invitation-form-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.invitation-form-footer > p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 120px;
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.conference-invite-modal .invitation-form-footer > .button {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 18px;
+  font-size: calc(14px * var(--text-scale));
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.invitation-form-footer > .button > svg {
+  flex: none;
+}
+/* Keep the sharing dialog mounted for Back and focus restoration, without stacked edges. */
+.modal-backdrop:has(~ .modal-backdrop > .conference-recipient-modal) {
+  visibility: hidden;
+}
+.modal-backdrop .modal.conference-recipient-modal {
+  width: min(700px, 100%);
+  max-width: 700px;
+  padding: 28px;
+  border-radius: 24px;
+}
+.modal.conference-recipient-modal > h2 {
+  margin-bottom: 20px;
+}
+.invitation-meeting-context {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  min-width: 0;
+}
+.invitation-meeting-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.invitation-meeting-context > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.invitation-meeting-context > div > span {
+  color: var(--muted);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+}
+.invitation-meeting-context strong {
+  color: var(--text);
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 600;
+  line-height: 1.5;
+}
+.conference-recipient-modal .conference-invitation-fields {
+  align-items: stretch;
+  gap: 16px;
+}
+.conference-recipient-modal .conference-invitation-fields > div {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-soft) 55%, var(--surface));
+}
+.conference-recipient-modal .conference-invitation-form .field {
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.invitation-field-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.invitation-field-label > svg {
+  flex: none;
+  color: var(--primary);
+}
+.conference-recipient-modal .conference-invitation-form .field textarea,
+.conference-recipient-modal .conference-invitation-form .field input {
+  border-color: color-mix(in srgb, var(--border-strong) 40%, var(--border));
+  font-size: calc(14px * var(--text-scale));
+  border-radius: 10px;
+}
+.conference-recipient-modal .conference-invitation-form .field textarea {
+  min-height: 104px;
+}
+.conference-recipient-modal .invitation-delivery-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 18px;
+}
+.invitation-delivery-note > svg,
+.invitation-form-footer > p > svg {
+  flex: none;
+  margin-top: 1px;
+}
+.conference-recipient-modal .invitation-form-footer {
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+}
+.conference-recipient-modal .invitation-form-footer > .button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: calc(13px * var(--text-scale));
+}
+.conference-recipient-modal .invitation-form-footer > .button-secondary {
+  border-color: var(--border);
+}
+@media (max-width: 767px) {
+  .modal-backdrop:has(.conference-invite-modal) {
+    padding: 12px;
+  }
+  .modal-backdrop .modal.conference-invite-modal {
+    max-height: calc(100dvh - 24px);
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+  }
+  .modal.conference-invite-modal .modal-close {
+    top: 18px;
+    right: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .modal-backdrop .modal.conference-invite-modal {
+    padding: 24px 20px;
+  }
+  .modal.conference-invite-modal > h2 {
+    font-size: calc(21px * var(--text-scale));
+  }
+  .conference-invitation-title {
+    margin-bottom: 20px;
+  }
+  .conference-recipient-modal .conference-invitation-fields > div {
+    padding: 16px;
+  }
+  .conference-recipient-modal .invitation-meeting-context {
+    margin-bottom: 20px;
+  }
+  .conference-invite-actions > .button {
+    width: 100%;
+  }
+  .conference-invitation-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .conference-invite-modal .conference-invitation-form .field textarea,
+  .conference-invite-modal .conference-invitation-form .field input {
+    font-size: calc(16px * var(--text-scale));
+  }
+  .invitation-form-footer {
+    align-items: stretch;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 16px;
+  }
+  .invitation-form-footer > p {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+  .conference-invite-modal .invitation-form-footer > .button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
 }

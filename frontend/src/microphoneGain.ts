@@ -1,4 +1,4 @@
-/** Applied after browser capture processing and before WebRTC encoding. */
+/** Применяется после обработки захвата данных браузером и перед кодированием WebRTC. */
 export const MICROPHONE_GAIN = 0.8;
 
 export class MicrophoneGain {
@@ -16,7 +16,8 @@ export class MicrophoneGain {
     if (typeof AudioContext === "undefined")
       throw new Error("microphone_processing");
     this.context = new AudioContext();
-    // Start inside the capture action, before the permission prompt can consume activation.
+    // Начинается внутри действия по захвату данных, до того как запрос на предоставление
+    // разрешений может привести к активации.
     void this.resume();
     this.context.addEventListener("statechange", this.contextChanged);
   }

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package personal
 
 import (
@@ -12,21 +20,69 @@ import (
 )
 
 type Members interface {
+	// Members возвращает текущие идентификаторы участников или их представления для
+	// авторизованного диалога.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//
+	// @returns:
+	//   - result1: Собранные строковые значения.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Members(context.Context, string) ([]string, error)
 }
 type conversationTypes interface {
+	// ConversationType возвращает информацию о том, является ли сохраненный диалог прямым или
+	// групповым.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//
+	// @returns:
+	//   - result1: Тип сохраненного диалога: прямой или групповой.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ConversationType(context.Context, string) (string, error)
 }
 type Bus interface {
+	// Publish публикует сохраненные изменения в переписке через настроенный транспорт событий
+	// или команд.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Доверенное событие для публикации или обработки.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Publish(context.Context, string, realtime.Envelope) error
 }
 
-// Events adapts the shared chat application to per-account delivery after persistence.
+// Events адаптирует приложение для группового чата к доставке данных для каждого аккаунта после
+// сохранения.
 type Events struct {
 	Members Members
 	Bus     Bus
 }
 
+// Функция Broadcast публикует доверенное событие только для тех участников конференции или
+// беседы, которые в данный момент имеют к ней доступ.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - event: Доверенное событие для публикации или обработки.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (e *Events) Broadcast(ctx context.Context, event realtime.Envelope) error {
 	var m chat.Message
 	if err := json.Unmarshal(event.Data, &m); err != nil {
@@ -38,23 +94,35 @@ func (e *Events) Broadcast(ctx context.Context, event realtime.Envelope) error {
 	}
 	return e.PublishConversation(ctx, m.ConversationID, strings.TrimPrefix(event.Type, "chat."), map[string]any{"conversationId": m.ConversationID, "type": kind, "message": m})
 }
+
+// PublishConversation публикует зафиксированное изменение в диалоге для авторизованных текущих
+// участников.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - data: Входные байты или структурированная полезная информация о событии.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (e *Events) PublishConversation(ctx context.Context, id, kind string, data any) error {
 	return e.PublishConversationTo(ctx, id, kind, data)
 }
 
-// PublishUser доставляет результат личной настройки только вкладкам её владельца.
-// В отличие от PublishConversation, она не раскрывает собеседнику отключение
-// уведомлений, очистку истории или скрытие чата. Авторизацию mutation выполняет
-// обработчик до публикации; отправка в сокет повторно проверяет членство.
+// PublishUser отправляет изменения личных настроек или истории только на вкладки владельца
+// аккаунта; другие аккаунты не получают уведомления о личных настройках или истории.
 //
-// @args
-//   - ctx — контекст публикации после сохранения изменения.
-//   - user — владелец личной настройки и персонального канала.
-//   - kind — одно из событий preferences.updated, history.cleared или hidden.
-//   - data — нагрузка с conversationId, type и userId, совпадающим с владельцем.
-//     Группы допускают только preferences.updated; очистка и скрытие остаются личными.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - data: Входные байты или структурированная полезная информация о событии.
 //
-// @return ошибка контракта нагрузки или публикации.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (e *Events) PublishUser(ctx context.Context, user, kind string, data any) error {
 	if kind != "conversation.preferences.updated" && kind != "conversation.history.cleared" && kind != "conversation.hidden" {
 		return errors.New("unsupported personal conversation event")
@@ -79,8 +147,21 @@ func (e *Events) PublishUser(ctx context.Context, user, kind string, data any) e
 	return e.Bus.Publish(ctx, user, realtime.Event(kind, "", data))
 }
 
-// PublishConversationTo also delivers a minimal lifecycle event to a removed user.
-// Callers persist first; extra recipients must never receive private messages.
+// PublishConversationTo также отправляет минимальное событие жизненного цикла удаленному
+// пользователю.  Сначала сохраняются данные отправителя; дополнительные получатели никогда не
+// должны получать личные сообщения.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - data: Входные байты или структурированная полезная информация о событии.
+//   - extraUsers: Дополнительные авторизованные получатели, включенные в зафиксированное
+//     событие изменения группы.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (e *Events) PublishConversationTo(ctx context.Context, id, kind string, data any, extraUsers ...string) error {
 	ids, err := e.Members.Members(ctx, id)
 	if err != nil {
@@ -101,6 +182,19 @@ func (e *Events) PublishConversationTo(ctx context.Context, id, kind string, dat
 	}
 	return err
 }
+
+// SendToParticipant публикует доверенное событие для физических сеансов выбранного
+// авторизованного участника.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - event: Доверенное событие для публикации или обработки.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (e *Events) SendToParticipant(ctx context.Context, id, user string, event realtime.Envelope) error {
 	var state chat.ReadState
 	if err := json.Unmarshal(event.Data, &state); err != nil {
@@ -113,10 +207,21 @@ func (e *Events) SendToParticipant(ctx context.Context, id, user string, event r
 	return e.Bus.Publish(ctx, user, realtime.Event("conversation.read.updated", "", map[string]any{"conversationId": id, "type": kind, "state": state}))
 }
 
+// conversationType определяет тип сохраненной переписки, прежде чем выбрать способ доставки
+// событий.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Тип сохраненного диалога: прямой или групповой.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (e *Events) conversationType(ctx context.Context, id string) (string, error) {
 	if types, ok := e.Members.(conversationTypes); ok {
 		return types.ConversationType(ctx, id)
 	}
-	// Compatibility for existing direct-only adapters.
+	// Совместимость с существующими адаптерами, поддерживающими только прямую отправку.
 	return "direct", nil
 }

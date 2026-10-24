@@ -1,5 +1,13 @@
-// Пакет content описывает расшифровки, проверенные результаты ИИ и поиск по встречам.
-// Он не зависит от SDK внешних поставщиков и не участвует в передаче медиапотока.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Содержимое пакета включает расшифровки, подтверждённые результаты AI и поиск по конференции.
+// Оно не зависит от провайдера SDKs и не участвует в передаче медиаданных.
 package content
 
 import (
@@ -16,8 +24,8 @@ const (
 	Failed     = "failed"
 )
 
-// Transcript хранит состояние одного поколения расшифровки готовой записи.
-// Внешний ответ не содержит ключей MinIO, аренды job или секретов провайдера.
+// Transcript — расшифровка содержит одно поколение транскрипции для завершённой записи.  В общедоступных
+// ответах не используются ключи MinIO, данные об аренде рабочих мест и секреты провайдера.
 type Transcript struct {
 	ID           string     `json:"id"`
 	ConferenceID string     `json:"conferenceId"`
@@ -33,8 +41,8 @@ type Transcript struct {
 	ProcessedAt  *time.Time `json:"processedAt,omitempty"`
 }
 
-// Segment связывает текст с интервалом готовой записи; speakerLabel означает
-// только метку диаризации, а не подтверждённую личность участника встречи.
+// Segment — сегмент привязывает текст к временному интервалу завершённой записи.  speakerLabel — это
+// метка для диаризации, а не подтверждённая личность участника конференции.
 type Segment struct {
 	ID           string   `json:"id"`
 	TranscriptID string   `json:"transcriptId"`
@@ -47,8 +55,8 @@ type Segment struct {
 	Confidence   *float64 `json:"confidence"`
 }
 
-// ActionItem содержит только подтверждённое текстом действие. Исполнитель и
-// срок остаются null, если в исходных сегментах нет соответствующего подтверждения.
+// ActionItem содержит только действия, поддерживаемые исходным текстом. Целеуказатель и срок
+// выполнения остаются пустыми, если исходные сегменты не поддерживают их явно.
 type ActionItem struct {
 	Text             string   `json:"text"`
 	Assignee         *string  `json:"assignee"`
@@ -56,7 +64,7 @@ type ActionItem struct {
 	SourceSegmentIDs []string `json:"sourceSegmentIds"`
 }
 
-// SummaryOutput задаёт единственную принимаемую JSON-схему ответа AI.
+// SummaryOutput определяет единственную допустимую схему JSON для сводного ответа AI.
 type SummaryOutput struct {
 	Summary     string       `json:"summary"`
 	KeyPoints   []string     `json:"keyPoints"`
@@ -64,7 +72,8 @@ type SummaryOutput struct {
 	Topics      []string     `json:"topics"`
 }
 
-// Summary хранит проверенный результат с версией исходной расшифровки и инструкции.
+// Summary — в сводном ответе хранится валидированный результат с исходным стенограммой и версиями
+// инструкций.
 type Summary struct {
 	ID                   string `json:"id"`
 	ConferenceID         string `json:"conferenceId"`
@@ -85,8 +94,8 @@ type Summary struct {
 	ProcessedAt          *time.Time      `json:"processedAt,omitempty"`
 }
 
-// TranscriptState позволяет отличить отсутствие расшифровки от отключённой
-// возможности и показывает проверенное сервером право повторного запуска.
+// TranscriptState позволяет отличить отсутствующую стенограмму от отключенной функции и
+// предоставляет подтвержденное сервером разрешение на повторную попытку.
 type TranscriptState struct {
 	Item         *Transcript `json:"item"`
 	Enabled      bool        `json:"enabled"`
@@ -94,7 +103,8 @@ type TranscriptState struct {
 	ProviderMode string      `json:"providerMode"`
 }
 
-// SummaryState возвращает необязательный результат и права без вымышленных состояний обработки.
+// SummaryState возвращает необязательный сохраненный результат и разрешения без создания
+// промежуточных состояний обработки.
 type SummaryState struct {
 	Item          *Summary `json:"item"`
 	Enabled       bool     `json:"enabled"`
@@ -102,7 +112,8 @@ type SummaryState struct {
 	ProviderMode  string   `json:"providerMode"`
 }
 
-// SegmentPage содержит ограниченную страницу хронологически упорядоченного текста.
+// SegmentPage содержит ограниченную страницу с хронологически упорядоченным текстом
+// стенограммы.
 type SegmentPage struct {
 	Items  []Segment `json:"items"`
 	Total  int64     `json:"total"`
@@ -110,7 +121,8 @@ type SegmentPage struct {
 	Offset int       `json:"offset"`
 }
 
-// SearchQuery задаёт серверные фильтры; время передаётся как однозначная временная отметка UTC.
+// SearchQuery определяет фильтры на стороне сервера; время однозначно определяется временными
+// метками UTC.
 type SearchQuery struct {
 	Mode, ParticipantID, Membership string
 	Query, Source, ConferenceID     string
@@ -118,7 +130,8 @@ type SearchQuery struct {
 	Limit, Offset                   int
 }
 
-// SearchResult возвращает обычный текст фрагмента и точку перехода к записи, без URL хранилища.
+// SearchResult содержит фрагменты в виде обычного текста и позиции навигации по записи, но не
+// объектное хранилище URLs.
 type SearchResult struct {
 	SpeakerID       *string `json:"speakerId,omitempty"`
 	Speaker         string  `json:"speaker,omitempty"`
@@ -133,7 +146,7 @@ type SearchResult struct {
 	Rank            float64 `json:"rank"`
 }
 
-// SearchPage содержит ограниченную страницу только разрешённых результатов.
+// SearchPage содержит только ограниченную страницу с авторизованными результатами.
 type SearchPage struct {
 	EffectiveMode  string         `json:"effectiveMode"`
 	FallbackReason string         `json:"fallbackReason,omitempty"`
@@ -143,14 +156,15 @@ type SearchPage struct {
 	Offset         int            `json:"offset"`
 }
 
-// RecordingSource описывает приватный объект из проверенной БД, а не пользовательский URL.
+// RecordingSource идентифицирует приватный объект, загруженный из доверенного состояния базы
+// данных, а не предоставленный пользователем URL.
 type RecordingSource struct {
 	RecordingID, ConferenceID, ObjectKey string
 	DurationSec                          int
 	SizeBytes                            int64
 }
 
-// Audio содержит ограниченный источник mono/16k WAV и обязательную очистку ресурсов.
+// Audio содержит ограниченный моно 16-битный источник kHz WAV и обязательную операцию очистки.
 type Audio struct {
 	Reader      io.ReadCloser
 	Size        int64
@@ -158,7 +172,8 @@ type Audio struct {
 	Cleanup     func()
 }
 
-// TranscriptionRequest передаёт аудио, автоматический выбор языка и стабильный ключ идемпотентности адаптеру.
+// TranscriptionRequest предоставляет аудио, автоматический выбор языка и стабильный ключ
+// идемпотентности для адаптера провайдера.
 type TranscriptionRequest struct {
 	Audio                                 io.Reader
 	Size                                  int64
@@ -166,37 +181,66 @@ type TranscriptionRequest struct {
 	DurationSec                           int
 }
 
-// TranscriptionResult возвращает язык и непроверенные сегменты поставщика.
+// TranscriptionResult содержит обнаруженный язык и сегменты, которые провайдер ещё не проверил.
 type TranscriptionResult struct {
 	Language string    `json:"language"`
 	Segments []Segment `json:"segments"`
 }
 
-// TranscriptionProvider изолирует внешний STT от domain/usecase.
+// TranscriptionProvider изолирует внешнее распознавание речи от кода домена и приложения.
 type TranscriptionProvider interface {
-	// Name возвращает постоянное имя адаптера без секретов.
+	// Name возвращает настроенный идентификатор провайдера, используемый для маркировки и
+	// проверки сгенерированного контента.
+	//
+	// @returns:
+	//   - result1: Настроенный идентификатор провайдера.
 	Name() string
-	// Transcribe распознаёт аудио, соблюдая отмену контекста.
-	// @args ctx — срок выполнения; request — ограниченное аудио и ключ дедупликации.
-	// @return непроверенный результат или классифицированную ошибку.
+	// Transcribe отправляет ограниченный объём аудиозаписи настроенный провайдер транскрипции.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Валидированный запрос приложения или входящие параметры операции.
+	//
+	// @returns:
+	//   - result1: Результат транскрипции.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Transcribe(context.Context, TranscriptionRequest) (TranscriptionResult, error)
 }
 
-// AIRequest отделяет неизменные инструкции от недоверенного JSON содержимого встречи.
-// Инструменты и сетевые действия не входят в контракт.
+// AIRequest отделяет неизменяемые инструкции от недоверенного контента конференции JSON.
+// Использование инструментов и сетевые действия не входят в рамки данного контракта.
 type AIRequest struct {
 	PromptVersion, SchemaVersion, Instructions, InputJSON, IdempotencyKey string
 	Merge                                                                 bool
 }
 
-// AIProvider возвращает JSON, который сценарий проверяет перед сохранением.
+// AIProvider возвращает JSON, который приложение должно проверить перед сохранением.
 type AIProvider interface {
-	// Name возвращает постоянное имя адаптера.
+	// Name возвращает настроенный идентификатор провайдера, используемый для маркировки и
+	// проверки сгенерированного контента.
+	//
+	// @returns:
+	//   - result1: Настроенный идентификатор провайдера.
 	Name() string
-	// Model возвращает техническое имя модели без credentials.
+	// Model возвращает настроенный идентификатор модели, используемый для маркировки и проверки
+	// сгенерированного контента.
+	//
+	// @returns:
+	//   - result1: Настроенный идентификатор модели провайдера.
 	Model() string
-	// Summarize обрабатывает только переданные входные данные, не выполняя внешних действий.
-	// @args ctx — срок выполнения; request — инструкции и недоверенные данные.
-	// @return сырой JSON для строгой серверной проверки или ошибку.
+	// Summarize создает сводную информацию с ограничениями по схеме на основе переданного
+	// транскрипта.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Валидированный запрос приложения или входящие параметры операции.
+	//
+	// @returns:
+	//   - result1: Результирующее необработанное сообщение.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Summarize(context.Context, AIRequest) (json.RawMessage, error)
 }

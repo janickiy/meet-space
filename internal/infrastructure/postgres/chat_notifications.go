@@ -1,10 +1,29 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import "gorm.io/gorm"
 
-// Notifications share the message transaction: retries, failures and attachments
-// cannot create a notice without a committed message. Groups are bounded by the
-// existing member limit; mute, inactive members and the sender are excluded.
+// createConversationNotifications создаёт идемпотентные уведомления для получателей сообщений,
+// соответствующих критериям, после сохранения нового сообщения.
+//
+// Уведомления связаны с транзакцией сообщения: повторные попытки, сбои и вложения не могут
+// создать уведомление без подтверждённого сообщения.  Группы ограничены существующим лимитом на
+// количество участников; неактивные участники, а также отправитель исключаются.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func createConversationNotifications(tx *gorm.DB, messageID string) error {
 	return tx.Exec(`INSERT INTO notifications(id,user_id,type,payload,dedup_key,created_at)
 		SELECT gen_random_uuid(),member.user_id,'chat.message',
@@ -21,9 +40,18 @@ func createConversationNotifications(tx *gorm.DB, messageID string) error {
 		ON CONFLICT(user_id,dedup_key) DO NOTHING`, messageID).Error
 }
 
-// Resource IDs are compared as text so malformed historical JSON fails closed
-// rather than breaking the whole notification feed. Payloads carry no message
-// text or attachments; opening the target always checks the current permissions.
+// notificationVisibilitySQL формирует предикат доступа, используемый для скрытия уведомлений,
+// источник которых больше не виден.
+//
+// Ресурсы IDs сравниваются как текстовые, поэтому некорректные исторические данные JSON не
+// приводят к закрытию, а не к разрыву всей ленты уведомлений.  В полезных данных нет текста
+// сообщения или вложений; при открытии целевого объекта всегда проверяются текущие разрешения.
+//
+// @Parameters:
+//   - alias: Псевдоним отношения SQL, управляемый сервером.
+//
+// @returns:
+//   - result1: Предикат доступа к уведомлениям, созданный сервером.
 func notificationVisibilitySQL(alias string) string {
 	return `NOT EXISTS (SELECT 1 FROM conference_chat_preferences cp
 		WHERE cp.user_id=` + alias + `.user_id AND cp.conference_id::text=` + alias + `.payload->>'conferenceId'

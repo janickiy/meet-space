@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -14,14 +22,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// migration хранит неизменяемый файл и контрольную сумму его точных байтов.
+// migration — миграция содержит неизменяемый файл миграции и контрольную сумму его байтов.
 type migration struct {
 	name, checksum, sql string
 }
 
-// migrationFiles читает упорядоченный набор SQL и отклоняет пустую поставку.
-// @args dir — каталог миграций из проверенного артефакта.
-// @return файлы либо ошибка чтения; SQL и пути подключения в ошибку не включаются.
+// migrationFiles загружает упорядоченные определения миграций и их контрольные суммы.
+//
+// @Parameters:
+//   - dir: Проверенный локальный каталог.
+//
+// @returns:
+//   - result1: Собранные значения миграций.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func migrationFiles(dir string) ([]migration, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "*.up.sql"))
 	if err != nil || len(paths) == 0 {
@@ -42,9 +56,16 @@ func migrationFiles(dir string) ([]migration, error) {
 	return files, nil
 }
 
-// RunStartupMigrations применяет миграции в разработке или проверяет журнал релиза.
-// @args db — подключение; dir — каталог; AUTO_MIGRATE=false запрещает DDL при запуске.
-// @return ошибка неизвестного значения настройки, несовпадения или неприменённой миграции.
+// RunStartupMigrations запускает стартовые миграции с настроенными зависимостями и обрабатывает
+// ошибки при запуске или завершении работы.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - dir: Проверенный локальный каталог.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func RunStartupMigrations(db *gorm.DB, dir string) error {
 	automatic := true
 	if value := os.Getenv("AUTO_MIGRATE"); value != "" {
@@ -66,10 +87,16 @@ func RunStartupMigrations(db *gorm.DB, dir string) error {
 	return verifyMigrations(db.WithContext(ctx), files)
 }
 
-// verifyMigrations проверяет все известные этому артефакту миграции без DDL.
-// Более новые записи допускаются: совместимость отката отдельно проверяет оператор.
-// @args db — подключение со сроком; files — ожидаемые имена и суммы.
-// @return ошибка отсутствия журнала, файла или изменения уже применённого SQL.
+// verifyMigrations сравнивает реестр примененных миграций с зарегистрированными файлами
+// миграций.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - files: Упорядоченные файлы миграций или артефактов, включенные в эту операцию.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func verifyMigrations(db *gorm.DB, files []migration) error {
 	var rows []struct{ Name, Checksum string }
 	if err := db.Table("release_schema_migrations").Select("name, checksum").Find(&rows).Error; err != nil {
@@ -91,12 +118,16 @@ func verifyMigrations(db *gorm.DB, files []migration) error {
 	return nil
 }
 
-// RunMigrations последовательно применяет новые SQL-файлы и фиксирует их суммы.
-// Существующая БД без журнала проходит прежние идемпотентные миграции один раз;
-// запись появляется только после успешного SQL, слепое заполнение журнала запрещено.
-// Все изменения атомарны, параллельные исполнители сериализуются advisory-lock.
-// @args db — GORM-подключение; dir — каталог миграций релизного артефакта.
-// @return ошибка чтения, изменения применённого файла, блокировки или выполнения.
+// RunMigrations запускает миграцию с настроенными зависимостями и распространяет информацию о
+// сбоях при запуске или завершении работы.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - dir: Проверенный локальный каталог.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func RunMigrations(db *gorm.DB, dir string) error {
 	files, err := migrationFiles(dir)
 	if err != nil {

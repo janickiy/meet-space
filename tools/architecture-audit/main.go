@@ -1,5 +1,13 @@
-// Command architecture-audit inventories production Go declarations under
-// internal/. It measures source structure, not runtime coupling or complexity.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Архитектура команды audit inventory содержит объявления Go в каталоге internal/. Она измеряет
+// структуру исходного кода, а не связанность или сложность во время выполнения.
 package main
 
 import (
@@ -24,7 +32,7 @@ type function struct {
 	File       string
 	Line       int
 	LOC        int
-	Branches   int // if, for, range, case, comm nodes, including closures; not cyclomatic complexity
+	Branches   int // if, for, range, case, comm-узлы, включая замыкания; не цикломатическая сложность
 	Parameters int
 }
 
@@ -38,12 +46,28 @@ type packageInfo struct {
 	Functions []function
 }
 
+// expression преобразует выражение AST для инвентаризации архитектуры без его вычисления.
+//
+// @Parameters:
+//   - fset: Позиции токенов, связанные с разобранным синтаксическим деревом Go.
+//   - node: Синтаксический узел Go для проверки или преобразования.
+//
+// @returns:
+//   - result1: Преобразованное синтаксическое выражение Go.
 func expression(fset *token.FileSet, node ast.Node) string {
 	var buf bytes.Buffer
 	_ = printer.Fprint(&buf, fset, node)
 	return buf.String()
 }
 
+// fieldNames извлекает имена и типы полей, используемые при инвентаризации архитектуры.
+//
+// @Parameters:
+//   - fset: Позиции токенов, связанные с разобранным синтаксическим деревом Go.
+//   - fields: Ограниченные структурированные диагностические поля.
+//
+// @returns:
+//   - result1: Собранные строковые значения.
 func fieldNames(fset *token.FileSet, fields *ast.FieldList) []string {
 	result := []string{}
 	for _, field := range fields.List {
@@ -58,6 +82,15 @@ func fieldNames(fset *token.FileSet, fields *ast.FieldList) []string {
 	return result
 }
 
+// inventory анализирует пакеты проекта и формирует статический перечень архитектур.
+//
+// @Parameters:
+//   - root: Корневой каталог, ограничивающий работу с файловой системой.
+//
+// @returns:
+//   - result1: Собранные значения *информации о пакетах.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func inventory(root string) ([]*packageInfo, error) {
 	fset := token.NewFileSet()
 	packages := map[string]*packageInfo{}
@@ -176,6 +209,13 @@ func inventory(root string) ([]*packageInfo, error) {
 	return result, nil
 }
 
+// unique возвращает уникальные строки в детерминированном порядке.
+//
+// @Parameters:
+//   - values: Входные строки для дедупликации.
+//
+// @returns:
+//   - result1: Собранные строковые значения.
 func unique(values []string) []string {
 	sort.Strings(values)
 	result := []string{}
@@ -187,6 +227,7 @@ func unique(values []string) []string {
 	return result
 }
 
+// main запускает команду аудита архитектуры и сообщает о сбоях при запуске или выполнении.
 func main() {
 	root := flag.String("root", ".", "repository root")
 	flag.Parse()

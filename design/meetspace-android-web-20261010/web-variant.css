@@ -1,4 +1,4 @@
-/* Variant 02: visual roles taken from frontend/src/tokens.css. */
+/* Вариант 02: визуальные роли взяты из frontend/src/tokens.css. */
 :root {
   --bg: #f7f5f8;
   --surface: #fff;
@@ -437,7 +437,7 @@
   color: #28142e;
 }
 
-/* Dedicated meetings workspace, matching the structure of the web client. */
+/* Выделенное рабочее пространство для совещаний, соответствующее структуре веб-клиента. */
 .meetings-page {
   max-width: 1200px;
   margin: 0 auto;

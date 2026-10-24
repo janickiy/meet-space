@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package security
 
 import (
@@ -18,17 +26,19 @@ const (
 	keyLength    = 32
 )
 
-// PasswordHasher предоставляет хеширование и проверку пароля без хранения открытого текста.
+// PasswordHasher хеширует и проверяет пароли, не сохраняя учетные данные в открытом виде.
 type PasswordHasher struct{}
 
-// Hash вычисляет защищённый хеш пароля для сохранения вместо открытого текста.
+// Hash — хеширование хеширует пароль для безопасного хранения учетных данных.
 //
-// @args
-//   - password (string): открытый пароль для хеширования или проверки; не предназначен для журналирования.
+// @Parameters:
+//   - password: Пароль в виде обычного текста принимается только для проверки или хеширования.
 //
-// @return:
-//   - результат 1 (string): строка Argon2id с версией, фиксированными параметрами, случайной солью и хешем.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Защищенный хеш пароля или дайджест содержимого, согласно требованиям этого
+//     компонента.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (PasswordHasher) Hash(password string) (string, error) {
 	salt := make([]byte, saltLength)
 	if _, err := rand.Read(salt); err != nil {
@@ -39,18 +49,22 @@ func (PasswordHasher) Hash(password string) (string, error) {
 		argonMemory, argonTime, argonThreads, base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
 
-// Verify сравнивает открытый пароль с сохранённым защищённым хешем.
+// Функция Verify сравнивает пароль в открытом виде с сохраненным хешем в кодировке, используя
+// поддерживаемые параметры хеширования.
 //
-// @args
-//   - password (string): открытый пароль для хеширования или проверки; не предназначен для журналирования.
-//   - encoded (string): сохранённая строка Argon2id с параметрами, солью и ожидаемым хешем.
+// @Parameters:
+//   - password: Пароль в виде обычного текста принимается только для проверки или хеширования.
+//   - encoded: Сохраненный хеш пароля в кодировке или значение токена.
 //
-// @return:
-//   - результат 1 (bool): true при совпадении пароля с хешем; сравнение выполняется за постоянное время.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (PasswordHasher) Verify(password, encoded string) (bool, error) {
 	parts := strings.Split(encoded, "$")
-	// Фиксированные параметры и версия не позволяют повреждённому хешу вызвать чрезмерное выделение памяти.
+	// Фиксированные параметры и проверка версии предотвращают чрезмерное выделение памяти при
+	// повреждении хеша.
 	if len(parts) != 6 || parts[1] != "argon2id" || parts[2] != "v=19" || parts[3] != "m=65536,t=3,p=4" {
 		return false, fmt.Errorf("invalid password hash format")
 	}

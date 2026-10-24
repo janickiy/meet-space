@@ -1,0 +1,17 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  conferences["conferences<br/>PK: id"]
+  record["record<br/>PK: id"]
+  record_event["record_event<br/>PK: id"]
+  record_file["record_file<br/>PK: id"]
+  record_segment["record_segment<br/>PK: id"]
+  recording_outbox["recording_outbox<br/>PK: id"]
+  users["users<br/>PK: id"]
+  record -->|"platform_conference_id; DELETE RESTRICT"| conferences
+  record_event -->|"record_id; DELETE CASCADE"| record
+  record_event -->|"segment_id; DELETE SET NULL"| record_segment
+  record_file -->|"record_id; DELETE CASCADE"| record
+  record_segment -->|"record_id; DELETE CASCADE"| record
+  recording_outbox -->|"record_id; DELETE CASCADE"| record
+  record -.->|"conference_id; без FK"| conferences
+  record -.->|"requested_by; без FK"| users

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { captureErrorMessage } from "./prejoinDevices";
 
-/** Local-only preview. Each effect owns its tracks, including late permission results. */
+/** Предварительный просмотр только для локального использования. Каждому эффекту принадлежат свои треки, включая результаты позднего разрешения. */
 export function useCallPreview(
   kind: "audio" | "video",
   enabled: boolean,

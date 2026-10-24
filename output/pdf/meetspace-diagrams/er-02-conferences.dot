@@ -1,0 +1,21 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Конференции и участники", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "conference_invitations" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>conference_invitations</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: requested_by</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">9 полей</TD></TR></TABLE>>];
+  "conference_moderation_audit" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>conference_moderation_audit</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: actor_id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: participant_id</TD></TR><TR><TD ALIGN="LEFT">8 полей</TD></TR></TABLE>>];
+  "conference_participants" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>conference_participants</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">20 полей</TD></TR></TABLE>>];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: owner_id</TD></TR><TR><TD ALIGN="LEFT">17 полей</TD></TR></TABLE>>];
+  "participant_sessions" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>participant_sessions</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: conference_id</TD></TR><TR><TD ALIGN="LEFT">FK: participant_id</TD></TR><TR><TD ALIGN="LEFT">FK: user_id</TD></TR><TR><TD ALIGN="LEFT">13 полей</TD></TR></TABLE>>];
+  "users" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>users</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "conference_invitations" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "conference_invitations" -> "users" [label="requested_by → id\nDELETE RESTRICT"];
+  "conference_invitations" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "conference_moderation_audit" -> "conference_participants" [label="actor_id → id\nDELETE NO ACTION"];
+  "conference_moderation_audit" -> "conferences" [label="conference_id → id\nDELETE CASCADE"];
+  "conference_moderation_audit" -> "conference_participants" [label="participant_id → id\nDELETE NO ACTION"];
+  "conference_participants" -> "conferences" [label="conference_id → id\nDELETE RESTRICT"];
+  "conference_participants" -> "users" [label="user_id → id\nDELETE RESTRICT"];
+  "conferences" -> "users" [label="owner_id → id\nDELETE RESTRICT"];
+  "participant_sessions" -> "conference_participants" [label="participant_id, conference_id, user_id → id, conference_id, user_id\nDELETE CASCADE"];
+}

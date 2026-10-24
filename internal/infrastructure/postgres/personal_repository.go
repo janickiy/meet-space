@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -16,9 +24,28 @@ import (
 
 type PersonalRepository struct{ db *gorm.DB }
 
+// NewPersonalRepository создаёт личный репозиторий с зависимостями и ограничениями,
+// необходимыми для личных и групповых диалогов.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный личный репозиторий.
 func NewPersonalRepository(db *gorm.DB) *PersonalRepository {
 	return &PersonalRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
 }
+
+// Account проверяет, является ли действующий аккаунт зарегистрированным и не является ли он
+// гостевым.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) Account(ctx context.Context, user string) error {
 	var n int64
 	err := r.db.WithContext(ctx).Table("users").Where("id=? AND guest_conference_id IS NULL AND password_hash<>''", user).Count(&n).Error
@@ -30,6 +57,22 @@ func (r *PersonalRepository) Account(ctx context.Context, user string) error {
 	}
 	return nil
 }
+
+// GetOrCreate возвращает существующий прямой диалог или создает уникальный диалог между двумя
+// учетными записями.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) GetOrCreate(ctx context.Context, user, target string) (personal.Conversation, bool, error) {
 	if user == target {
 		return personal.Conversation{}, false, apperrors.New(apperrors.ErrInvalidInput, "self messaging is unavailable")
@@ -74,7 +117,8 @@ func (r *PersonalRepository) GetOrCreate(ctx context.Context, user, target strin
 	return item, created, err
 }
 
-// A bounded page uses one projection (including sender/member count/unread), not per-row calls.
+// Ограниченная страница использует одну проекцию (включая количество
+// отправителей/участников/непрочитанных сообщений), а не отдельные запросы для каждой строки.
 const personalUnreadPredicate = `x.conversation_id=c.id AND x.sequence>GREATEST(m.last_read_sequence,m.history_cleared_through) AND x.sender_user_id<>m.user_id AND x.deleted_at IS NULL`
 const personalUnreadSQL = `(SELECT count(*) FROM conversation_messages x WHERE ` + personalUnreadPredicate + `)`
 const personalActivitySQL = `COALESCE(lm.created_at,c.created_at)`
@@ -105,6 +149,11 @@ type personalRow struct {
 	HistoryClearedThrough                                                  int64
 }
 
+// view формирует общедоступное представление сохраненного ресурса с учетом конкретного
+// участника.
+//
+// @returns:
+//   - result1: Полученная беседа.
 func (row personalRow) view() personal.Conversation {
 	item := personal.Conversation{ID: row.ID, Type: row.Type, Name: row.Name, Description: row.Description,
 		CreatedBy: row.CreatedBy, UpdatedAt: row.UpdatedAt, MemberCount: row.MemberCount, AvatarVersion: row.AvatarVersion,
@@ -122,12 +171,36 @@ func (row personalRow) view() personal.Conversation {
 	}
 	return item
 }
+
+// Get загружает запрошенные личные данные в рамках полномочий пользователя.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) Get(ctx context.Context, user, id string) (personal.Conversation, error) {
 	return personalView(r.db.WithContext(ctx), user, id)
 }
 
-// A write response is projected while its conversation lock is still held. A
-// subsequent revoke cannot turn a committed mutation into an apparent failure.
+// personalView формирует ответ с персональным диалогом с учетом конкретного участника.
+//
+// A ответ на запрос записи формируется, пока удерживается блокировка диалога.  Последующий
+// запрос на отмену не может превратить зафиксированное изменение в явный сбой.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func personalView(db *gorm.DB, user, id string) (personal.Conversation, error) {
 	var row personalRow
 	result := db.Raw(personalProjection+" AND c.id=?", user, id).Scan(&row)
@@ -147,9 +220,37 @@ type personalCursor struct {
 	Filter personal.ListFilter
 }
 
+// List возвращает ограниченную страницу с персональными данными, используя заданную разбивку на
+// страницы и фильтры.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) List(ctx context.Context, user, cursor string, limit int) (personal.Page, error) {
 	return r.ListFiltered(ctx, user, cursor, limit, personal.ListFilter{})
 }
+
+// ListFiltered возвращает страницу с диалогами с учетом конкретного участника, используя
+// проверенные фильтры по персональным данным, группам или непрочитанным сообщениям.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - filter: Проверенные фильтры, ограничивающие набор результатов.
+//
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) ListFiltered(ctx context.Context, user, cursor string, limit int, filter personal.ListFilter) (personal.Page, error) {
 	page := personal.Page{Items: []personal.Conversation{}}
 	if limit < 1 || limit > 100 {
@@ -166,8 +267,8 @@ func (r *PersonalRepository) ListFiltered(ctx context.Context, user, cursor stri
 		args = append(args, filter.Type)
 	}
 	if filter.UnreadOnly {
-		// Filtering needs only the first visible unread message, not a full count
-		// for every candidate conversation. Numeric projections stay unchanged.
+		// Для фильтрации требуется только первое непрочитанное сообщение, а не полный список
+		// всех возможных диалогов.  Числовые проекции остаются без изменений.
 		query += " AND EXISTS(SELECT 1 FROM conversation_messages x WHERE " + personalUnreadPredicate + ")"
 	}
 	if filter.Search != "" {
@@ -202,15 +303,40 @@ func (r *PersonalRepository) ListFiltered(ctx context.Context, user, cursor stri
 	for _, row := range rows {
 		page.Items = append(page.Items, row.view())
 	}
-	// The sidebar badge stays the total across all active direct/group conversations.
+	// Значок на боковой панели отображает общее количество всех активных прямых и групповых
+	// диалогов.
 	err = r.db.WithContext(ctx).Raw(`SELECT count(*) FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id AND c.deleted_at IS NULL JOIN conversation_messages x ON x.conversation_id=m.conversation_id AND x.sequence>GREATEST(m.last_read_sequence,m.history_cleared_through) AND x.sender_user_id<>m.user_id AND x.deleted_at IS NULL WHERE m.user_id=? AND m.left_at IS NULL AND m.hidden_at IS NULL`, user).Scan(&page.UnreadCount).Error
 	return page, err
 }
+
+// Members возвращает текущие идентификаторы участников или их представления для авторизованного
+// диалога.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Собранные строковые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) Members(ctx context.Context, id string) ([]string, error) {
 	ids := []string{}
 	err := r.db.WithContext(ctx).Table("conversation_members m").Joins("JOIN conversations c ON c.id=m.conversation_id").Where("m.conversation_id=? AND m.left_at IS NULL AND c.deleted_at IS NULL", id).Order("m.user_id").Pluck("m.user_id", &ids).Error
 	return ids, err
 }
+
+// ConversationType возвращает информацию о том, является ли сохраненный диалог прямым или
+// групповым.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Тип сохраненного диалога: прямой или групповой.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) ConversationType(ctx context.Context, id string) (string, error) {
 	var row struct{ Type string }
 	err := r.db.WithContext(ctx).Table("conversations").Select("type").Where("id=?", id).Take(&row).Error
@@ -219,11 +345,38 @@ func (r *PersonalRepository) ConversationType(ctx context.Context, id string) (s
 	}
 	return row.Type, nil
 }
+
+// HasActiveMembership проверяет текущий статус участия в диалоге учетной записи непосредственно
+// перед предоставлением защищенного доступа или отправкой данных.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) HasActiveMembership(ctx context.Context, id, user string) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Table("conversation_members m").Joins("JOIN conversations c ON c.id=m.conversation_id").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND c.deleted_at IS NULL AND c.type IN('direct','group') AND u.guest_conference_id IS NULL AND u.password_hash<>''", id, user).Count(&count).Error
 	return count == 1, err
 }
+
+// Search — выполняет поиск в личных и групповых диалогах с использованием ограниченных входных данных и
+// фильтров видимости, заданных вызывающей стороной.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - query: Текст для поиска или валидированные фильтры запросов.
+//
+// @returns:
+//   - result1: Собранные значения peer.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) Search(ctx context.Context, user, query string) ([]personal.Peer, error) {
 	query = strings.TrimSpace(query)
 	if !utf8.ValidString(query) || utf8.RuneCountInString(query) < 2 || utf8.RuneCountInString(query) > 100 || strings.ContainsRune(query, 0) {

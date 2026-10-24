@@ -1,0 +1,17 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  conference_analytics["conference_analytics<br/>PK: conference_id"]
+  conference_participants["conference_participants<br/>PK: id"]
+  conferences["conferences<br/>PK: id"]
+  live_caption_segments["live_caption_segments<br/>PK: id"]
+  live_transcription_sessions["live_transcription_sessions<br/>PK: id"]
+  participant_analytics["participant_analytics<br/>PK: participant_id"]
+  record["record<br/>PK: id"]
+  conference_analytics -->|"conference_id; DELETE RESTRICT"| conferences
+  live_caption_segments -->|"conference_id; DELETE RESTRICT"| conferences
+  live_caption_segments -->|"participant_id; DELETE RESTRICT"| conference_participants
+  live_caption_segments -->|"session_id; DELETE RESTRICT"| live_transcription_sessions
+  live_transcription_sessions -->|"canonical_recording_id; DELETE RESTRICT"| record
+  live_transcription_sessions -->|"conference_id; DELETE RESTRICT"| conferences
+  participant_analytics -->|"conference_id; DELETE RESTRICT"| conferences
+  participant_analytics -->|"participant_id; DELETE RESTRICT"| conference_participants

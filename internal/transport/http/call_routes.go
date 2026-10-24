@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -7,6 +15,16 @@ import (
 	"time"
 )
 
+// RegisterCallRoutes регистрирует конечные точки вызовов с предоставленными средствами
+// аутентификации и промежуточным ПО для обработки запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - h: Адаптер обработчика HTTP для регистрации или привязки к клиенту.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - accountOnly: Промежуточное ПО, отклоняющее гостевые идентификаторы для операций,
+//     доступных только для зарегистрированных учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterCallRoutes(router gin.IRouter, h *app.Handler, auth, accountOnly gin.HandlerFunc, limiter middleware.Limiter) {
 	rules := []middleware.Rule{
 		{Method: "POST", Path: APIV1Prefix + "/calls", Scope: "call_create", Limit: 15, Window: time.Minute, Key: middleware.UserID},

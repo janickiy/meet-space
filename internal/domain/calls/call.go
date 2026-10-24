@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package calls
 
 import "time"
@@ -10,8 +18,6 @@ type Peer struct {
 	DisplayName string `json:"displayName"`
 }
 
-// Call is durable signalling state. Client IDs identify the tab owning media;
-// they do not replace authentication or either account's membership.
 type Call struct {
 	ID                 string     `json:"id"`
 	ConversationID     string     `json:"conversationId"`
@@ -34,21 +40,68 @@ type Call struct {
 	DurationSec        int64      `json:"durationSec" gorm:"-"`
 }
 
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
+//
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Call) TableName() string { return "direct_calls" }
-func (c Call) Active() bool    { return c.Status == "ringing" || c.Status == "accepted" }
+
+// Active сообщает, находится ли прямой вызов в нетерминальном состоянии.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+func (c Call) Active() bool { return c.Status == "ringing" || c.Status == "accepted" }
+
+// IsParticipant проверяет, является ли учетная запись одним из двух участников прямого вызова.
+//
+// @Parameters:
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c Call) IsParticipant(user string) bool {
 	return user == c.CallerUserID || user == c.CalleeUserID
 }
+
+// OwnsMedia проверяет, принадлежат ли учетная запись и физический клиент активному
+// медиасоединению прямого вызова.
+//
+// @Parameters:
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - client: Идентификация медиа-клиента браузера или зависимость от транспорта, определяемая
+//     его типом.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c Call) OwnsMedia(user, client string) bool {
 	return client != "" && ((user == c.CallerUserID && client == c.CallerClientID) ||
 		(user == c.CalleeUserID && c.AcceptedByClientID != nil && client == *c.AcceptedByClientID))
 }
+
+// Expired проверяет, не истек ли срок действия прямого вызова.
+//
+// @Parameters:
+//   - now: Время, используемое для расчета срока действия или продолжительности.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (c Call) Expired(now time.Time) bool {
 	if c.Status == "ringing" {
 		return !now.Before(c.ExpiresAt)
 	}
 	return c.Status == "accepted" && ((c.CallerLeaseUntil != nil && !now.Before(*c.CallerLeaseUntil)) || (c.CalleeLeaseUntil != nil && !now.Before(*c.CalleeLeaseUntil)))
 }
+
+// SetDuration вычисляет неотрицательную продолжительность принятого вызова, исходя из
+// сохраненного времени окончания или текущего времени.
+//
+// @Parameters:
+//   - now: Время, используемое для расчета срока действия или продолжительности.
 func (c *Call) SetDuration(now time.Time) {
 	if c.AcceptedAt == nil {
 		return

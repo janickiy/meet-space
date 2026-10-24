@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package s3
 
 import (
@@ -9,8 +17,17 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-// recordingPrefixes derives narrow namespaces from canonical UUIDs, never from
-// an arbitrary stored object key. This excludes chat attachments and other rooms.
+// recordingPrefixes получает узкие пространства имен из канонического UUIDs, а не из
+// произвольного сохраненного ключа объекта.  Это исключает вложения в чатах и в других
+// комнатах.
+//
+// @Parameters:
+//   - record: Запись и сохраненные метаданные ее жизненного цикла.
+//
+// @returns:
+//   - result1: Собранные строковые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func recordingPrefixes(record records.Record) ([]string, error) {
 	rid, err := uuid.Parse(record.UUID)
 	if err != nil || rid.String() != record.UUID {
@@ -27,8 +44,17 @@ func recordingPrefixes(record records.Record) ([]string, error) {
 	return prefixes, nil
 }
 
-// RemoveRecording removes every artifact generation, including historical object
-// versions. Missing objects are safe on retry; listing/deletion failures propagate.
+// RemoveRecording удаляет все артефакты, включая исторические версии объектов.  При повторной
+// попытке отсутствующие объекты не будут затронуты; ошибки при извлечении и удалении
+// распространяются.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - record: Запись и сохраненные метаданные ее жизненного цикла.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) RemoveRecording(ctx context.Context, record records.Record) error {
 	if record.StorageBucket != nil && *record.StorageBucket != c.bucket {
 		return fmt.Errorf("recording storage bucket mismatch")

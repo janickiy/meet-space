@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package recorder
 
 import (
@@ -7,15 +15,16 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 )
 
-// ReadComposite читает карточку общей записи после проверки доступа на уровне сценария конференции.
+// ReadComposite загружает авторизованную карту составной записи.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// @return:
-//   - результат 1 (records.RecordCard): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Полученная карта записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) ReadComposite(ctx context.Context, id string) (records.RecordCard, error) {
 	details, err := s.repository.FindDetailsByUUID(ctx, id)
 	if err != nil {
@@ -27,10 +36,30 @@ func (s *Service) ReadComposite(ctx context.Context, id string) (records.RecordC
 	return s.recordCard(ctx, details)
 }
 
-// ReadComposites builds an already-authorized page while retaining the single
-// record availability and mode checks. Older repository adapters keep working.
+// ReadComposites формирует уже авторизованную страницу, сохраняя при этом проверку доступности
+// и режима для одной записи. Старые адаптеры репозиториев продолжают работать.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
+//
+// @returns:
+//   - result1: Собранные значения карты записи.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) ReadComposites(ctx context.Context, ids []string) ([]records.RecordCard, error) {
 	batch, ok := s.repository.(interface {
+		// FindDetailsByUUIDs загружает данные по uui ds из репозитория записей.
+		//
+		// @Parameters:
+		//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+		//   операции.
+		//   - arg2: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
+		//
+		// @returns:
+		//   - result1: Собранные сведения о записях.
+		//   - result2: nil — в случае успеха; в противном случае — ошибка валидации,
+		//   доступа, передачи данных или сохранения.
 		FindDetailsByUUIDs(context.Context, []string) ([]records.RecordDetails, error)
 	})
 	if !ok {

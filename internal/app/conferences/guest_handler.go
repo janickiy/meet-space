@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package conferencesapp
 
 import (
@@ -16,6 +24,10 @@ type GuestHandler struct {
 	Tokens  httpmiddleware.SessionVerifier
 }
 
+// Метод Join создает или возобновляет авторизованное членство или подключение к медиакомнате, сохраняя его текущую идентификацию.
+//
+// @Parameters:
+// - c: контекст запроса и ответа Gin, включая аутентифицированную идентификацию.
 func (h *GuestHandler) Join(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	var request struct {

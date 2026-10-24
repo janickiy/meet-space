@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -10,17 +18,35 @@ import (
 	"time"
 )
 
-// AnalyticsRepository хранит агрегаты без отдельных строк SQL для частых кадров RTP и детекции речи.
+// AnalyticsRepository сохраняет агрегированные данные, а не по одной строке SQL на каждый кадр
+// RTP или выборку для распознавания речи.
 type AnalyticsRepository struct{ db *gorm.DB }
 
-// NewAnalyticsRepository связывает техническую аналитику с постоянным хранилищем.
-// @args db — SQL pool.
-// @return repository агрегатов.
+// NewAnalyticsRepository создает аналитический репозиторий с зависимостями и ограничениями,
+// необходимыми для технических агрегированных данных конференции.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный аналитический репозиторий.
 func NewAnalyticsRepository(db *gorm.DB) *AnalyticsRepository { return &AnalyticsRepository{db} }
 
-// Source читает ограниченный набор интервалов подключений, отсекая время до допуска из зала ожидания.
-// @args ctx — срок выполнения; job — конференция и аренда.
-// @return начало/конец встречи, интервалы и ошибка.
+// Source загружает сохраненные входные данные, необходимые для обработки технических
+// агрегированных данных конференции.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//
+// @returns:
+//   - result1: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result2: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result3: Собранные значения интервалов.
+//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *AnalyticsRepository) Source(ctx context.Context, job jobs.Job) (time.Time, time.Time, []domain.Interval, error) {
 	var bounds struct{ Start, End time.Time }
 	rows := []domain.Interval{}
@@ -37,9 +63,16 @@ func (r *AnalyticsRepository) Source(ctx context.Context, job jobs.Job) (time.Ti
 	return bounds.Start, bounds.End, rows, err
 }
 
-// Save сохраняет snapshot присутствия, не перезаписывая одновременно накопленную речь и демонстрацию экрана.
-// @args ctx — срок выполнения; job — актуальная аренда; value — рассчитанные агрегаты.
-// @return ошибка commit.
+// Save сохраняет результаты анализа, проверяя текущий идентификатор задания или ресурса.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - value: Значение для проверки, нормализации или преобразования.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *AnalyticsRepository) Save(ctx context.Context, job jobs.Job, value domain.Conference) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := contentLease(tx, job); err != nil {
@@ -60,9 +93,17 @@ func (r *AnalyticsRepository) Save(ctx context.Context, job jobs.Job, value doma
 	})
 }
 
-// Read повторно проверяет доступ к истории в обоих запросах и возвращает только технические значения.
-// @args ctx — срок выполнения; user,cid — актор/встреча.
-// @return snapshot с понятной приближённостью speaking-time.
+// Read считывает состояние или поток аналитических данных, необходимые вызывающей стороне.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *AnalyticsRepository) Read(ctx context.Context, user, cid string) (domain.Conference, error) {
 	if _, err := findConference(r.db.WithContext(ctx), cid, false); err != nil {
 		return domain.Conference{}, err
@@ -102,9 +143,15 @@ func (r *AnalyticsRepository) Read(ctx context.Context, user, cid string) (domai
 	return result, err
 }
 
-// Tick ставит coarse пересчёт каждые 30 секунд для активных и недавно завершённых встреч.
-// @args ctx — короткий срок выполнения планировщика.
-// @return ошибка очереди; payload не содержит персональные данные.
+// Tick — тик выполняет одну ограниченную итерацию обслуживания или доставки после получения доступного
+// сохраненного состояния.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *AnalyticsRepository) Tick(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,dedup_key,max_attempts)
  SELECT 'analytics.aggregate',id,id,1,'analytics:'||id::text||':'||floor(extract(epoch FROM clock_timestamp())/30)::text,3

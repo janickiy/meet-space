@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -5,18 +13,18 @@ import (
 	engagementapp "github.com/janickiy/meet-space/internal/app/engagement"
 )
 
-// RegisterEngagementRoutes регистрирует HTTP-маршруты соответствующего сценария и подключает авторизацию и ограничения запросов.
+// RegisterEngagementRoutes регистрирует конечные точки для взаимодействия с предоставленными
+// промежуточными модулями аутентификации и обработки запросов.
 //
-// @args
-//   - router (gin.IRouter): значение router типа gin.IRouter, используемое согласно назначению этой операции.
-//   - handler (*engagementapp.Handler): обработчик вызываемой команды или маршрута.
-//   - auth (gin.HandlerFunc): значение auth типа gin.HandlerFunc, используемое согласно назначению этой операции.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
 func RegisterEngagementRoutes(router gin.IRouter, handler *engagementapp.Handler, auth gin.HandlerFunc) {
-	group := router.Group(APIV1Prefix+"/conferences/:id", auth, /* Вложенный обработчик выполняет выделенный шаг обработки во временных реакциях участников, используя состояние окружающей функции.
+	group := router.Group(APIV1Prefix+"/conferences/:id", auth,
 
-		@args
-		  - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
-		*/func(c *gin.Context) {
+		func(c *gin.Context) {
 			c.Header("Cache-Control", "private, no-store")
 			c.Header("X-Content-Type-Options", "nosniff")
 			c.Next()

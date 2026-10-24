@@ -1,6 +1,7 @@
--- Conference recording pages and history summaries filter by the platform FK.
--- Legacy conference_id and status-specific partial indexes do not serve this
--- predicate. Keep the index narrow; retention remains a query-time check.
+-- Страницы с записями конференций и сводные отчёты по истории фильтруются по платформе FK.
+-- Устаревшие conference_id и частичные индексы, привязанные к статусу, не подходят для этого
+-- предиката. Индекс должен быть узким; проверка на сохранение данных выполняется во время
+-- запроса.
 CREATE INDEX IF NOT EXISTS idx_record_platform_page
     ON record(platform_conference_id, created_at DESC, id DESC)
     WHERE deleted_at IS NULL

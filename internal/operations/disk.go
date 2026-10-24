@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package operations
 
 import (
@@ -7,8 +15,16 @@ import (
 	"os"
 )
 
-// ValidateStorage проверяет существование, права записи и запас диска в path.
-// minimum — обязательный запас в байтах; пробный файл удаляется сразу.
+// ValidateStorage проверяет, доступен ли настроенный каталог для записи, перед началом
+// обработки.
+//
+// @Parameters:
+//   - path: Проверенный путь к локальной файловой системе или объекту.
+//   - minimum: Минимально необходимый объем свободной памяти в байтах.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ValidateStorage(path string, minimum uint64) error {
 	if path == "" {
 		return fmt.Errorf("STORAGE_PATH must not be empty")
@@ -25,8 +41,15 @@ func ValidateStorage(path string, minimum uint64) error {
 	return DiskCheck(path, minimum)(context.Background())
 }
 
-// DiskCheck создаёт readiness-проверку локального диска. path — каталог записи,
-// minimum — минимальный запас; контекст проверяется до короткого Statfs.
+// DiskCheck создает проверку готовности для настроенного резервирования свободного места в
+// памяти.
+//
+// @Parameters:
+//   - path: Проверенный путь к локальной файловой системе или объекту.
+//   - minimum: Минимально необходимый объем свободной памяти в байтах.
+//
+// @returns:
+//   - result1: Результат проверки.
 func DiskCheck(path string, minimum uint64) Check {
 	return func(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {

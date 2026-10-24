@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -7,8 +15,15 @@ import (
 	"time"
 )
 
-// RegisterCaptionRoutes защищает чтение и ограничивает частоту переключения платного распознавания.
-// @args router — HTTP; handler — сценарии; auth — JWT; limiter — общая Redis квота.
+// RegisterCaptionRoutes регистрирует конечные точки с заголовками с предоставленными средствами
+// аутентификации и промежуточным ПО для обработки запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterCaptionRoutes(router gin.IRouter, handler *app.Handler, auth gin.HandlerFunc, limiter middleware.Limiter) {
 	base := APIV1Prefix + "/conferences/:id/captions"
 	limited := middleware.RateLimit(limiter, middleware.RateLimitConfig{Enabled: limiter != nil, Rules: []middleware.Rule{{Method: "PUT", Path: base, Scope: "live_caption_control", Limit: 6, Window: time.Minute, Key: func(c *gin.Context) string { return middleware.UserID(c) }}}})

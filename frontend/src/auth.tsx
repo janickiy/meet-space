@@ -46,7 +46,7 @@ const Context = createContext<Auth | null>(null);
 const RENEW_BEFORE_MS = 60_000;
 const RETRY_MS = 30_000;
 
-/** The account persists on the server; an expiring JWT only limits one access token. */
+/** Учетная запись сохраняется на сервере; истекающий срок действия JWT ограничивает срок действия только одного токена доступа. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const client = useQueryClient();
   const [session, setSession] = useState<Session | null>(readSession);
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [client],
   );
 
-  /** A renewal never resets queries, loading, or the mounted conference. */
+  /** При обновлении не сбрасываются запросы, загрузка или подключенная конференция. */
   const applySession = useCallback(
     (result: LoginResponse, expected: number) => {
       if (generation.current !== expected || loggedOut.current) return false;
@@ -168,7 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else if (!userRef.current) {
             setStartupError(true);
           }
-          // A transport failure cannot invalidate an account or its cached token.
+          // Сбой при передаче данных не может привести к аннулированию учетной записи или ее
+          // кэшированного токена.
           return false;
         })
         .finally(() => {
@@ -194,7 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStartupError(false);
       if (loggedOut.current) {
         clear();
-        // Retry an offline logout before ever attempting cookie restoration.
+        // При повторном выходе из системы в автономном режиме не следует пытаться восстановить
+        // cookie-файл.
         await api.logout(null, selectedAccountID()).catch(() => {});
         return;
       }
@@ -220,7 +222,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             saveSession(next);
             setSession(next);
           } else {
-            // Migrate users already signed in before persistent cookies existed.
+            // Переносите данные пользователей, которые вошли в систему до появления постоянных
+            // cookie-файлов.
             const account = await api.establishSession(controller.signal);
             applySession(account, expected);
           }
@@ -346,7 +349,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await client.cancelQueries();
     if (generation.current !== expected) return false;
     client.clear();
-    // A new identity fences retries belonging to the previous account.
+    // При смене учетной записи все повторные попытки, связанные с предыдущей учетной записью,
+    // блокируются.
     configureAuth(null);
     loggedOut.current = false;
     if (!result.user.guestConferenceId) {
@@ -396,7 +400,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function deleteAccount(password: string) {
     await api.deleteAccount(password);
-    // The deletion is already committed. A failed switch must never restore it.
+    // Удаление уже завершено.  При неудачном переключении система не должна его
+    // восстанавливать.
     try {
       const remaining = await api.accounts();
       if (remaining.items[0]) {
@@ -404,7 +409,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
     } catch {
-      /* Logout also fences outstanding responses. */
+      /* При выходе из системы все незавершенные ответы также блокируются. */
     }
     await logout();
     announceAccount(null);
@@ -459,7 +464,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     renewal.current = null;
     markLogout();
     clear();
-    // The tombstone survives a failed request and a browser restart.
+    // «Надгробие» сохраняется после неудачного запроса и перезапуска браузера.
     await api.logout(token, id).catch(() => {});
   }
 

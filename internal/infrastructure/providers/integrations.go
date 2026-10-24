@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package providers
 
 import (
@@ -17,7 +25,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/jobs"
 )
 
-// AdapterConfig задаёт режим доставки и доверенный endpoint серверного gateway; пользовательские URL не принимаются.
+// AdapterConfig выбирает режим доставки и доверенную конечную точку серверного шлюза; введенные
+// пользователем URLs отклоняются.
 type AdapterConfig struct {
 	Mode      string
 	Endpoint  string
@@ -26,7 +35,7 @@ type AdapterConfig struct {
 	AllowHTTP bool
 }
 
-// IntegrationConfig объединяет независимые конфигурации каналов и OAuth внешнего календаря.
+// IntegrationConfig группирует независимые настройки каналов доставки и календаря OAuth.
 type IntegrationConfig struct {
 	Email, Push, Calendar AdapterConfig
 	SMTP                  SMTPConfig
@@ -34,9 +43,16 @@ type IntegrationConfig struct {
 	MockConnectAllowed    bool
 }
 
-// NewIntegrations создаёт заменяемые mock/noop/HTTP/SMTP адаптеры, валидируя конфигурацию до запуска worker.
-// @args cfg — серверные настройки каналов, разрешённых сетевых схем и OAuth.
-// @return: набор провайдеров либо ошибка небезопасной конфигурации.
+// NewIntegrations создает интеграции с зависимостями и ограничениями, необходимыми для
+// ограниченных внешних интеграций.
+//
+// @Parameters:
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
+//
+// @returns:
+//   - result1: Результирующие провайдеры.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewIntegrations(cfg IntegrationConfig) (d.Providers, error) {
 	var email d.EmailProvider
 	emailMode := cfg.Email.Mode
@@ -73,7 +89,8 @@ func NewIntegrations(cfg IntegrationConfig) (d.Providers, error) {
 	return result, nil
 }
 
-// gateway выполняет ограниченный JSON HTTP вызов или детерминированную имитацию без сетевого доступа.
+// gateway — шлюз выполняет ограниченные вызовы JSON HTTP или имитирует детерминированное поведение без
+// доступа к сети.
 type gateway struct {
 	mode     string
 	endpoint string
@@ -81,9 +98,16 @@ type gateway struct {
 	client   *http.Client
 }
 
-// newGateway проверяет фиксированный адрес и запрещает перенаправление, способное раскрыть секрет провайдера.
-// @args cfg — режим, endpoint, секрет, timeout и явное разрешение HTTP для тестового окружения.
-// @return: настроенный gateway либо ошибка конфигурации.
+// newGateway создает ограниченный шлюз HTTP для конечной точки интеграции, настраиваемой
+// оператором.
+//
+// @Parameters:
+//   - cfg: Ограничения конфигурации и обработки, контролируемые оператором.
+//
+// @returns:
+//   - result1: Созданный или загруженный шлюз.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func newGateway(cfg AdapterConfig) (*gateway, error) {
 	mode := cfg.Mode
 	if mode == "" {
@@ -111,9 +135,19 @@ func newGateway(cfg AdapterConfig) (*gateway, error) {
 	return g, nil
 }
 
-// call отправляет только заданную операцию с ключом идемпотентности; ответ и тело ошибки ограничены.
-// @args ctx — отмена; operation — доверенная операция; key — стабильный ключ; input/output — JSON запрос и результат.
-// @return: классифицированная ошибка, не включающая response body или credentials.
+// call — вызов выполняет ограниченный запрос к настроенному провайдеру и возвращает только безопасные
+// классификации ошибок.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - operation: Фиксированный провайдер из списка разрешенных или операция протокола.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - input: Входные данные, необходимые для этой операции.
+//   - output: Целевой или сгенерированный результат, необходимый для выполнения этой операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (g *gateway) call(ctx context.Context, operation, key string, input, output any) error {
 	if g.mode == "noop" {
 		return jobs.ErrSkip
@@ -162,38 +196,68 @@ func (g *gateway) call(ctx context.Context, operation, key string, input, output
 	return nil
 }
 
-// EmailAdapter реализует EmailProvider через серверный шлюз или явно обозначенные подставной и отключённый режимы.
+// EmailAdapter реализует EmailProvider через серверный шлюз или в явно обозначенном режиме
+// имитации или отключения.
 type EmailAdapter struct{ gateway *gateway }
 
-// Send доставляет письмо с идемпотентностью на стороне провайдера.
-// @args ctx — отмена; message — минимальное письмо с экранированием и ключ доставки.
-// @return: ошибка провайдера либо ErrSkip при noop.
+// Send доставляет ограниченное электронное письмо со стабильным идентификатором сообщения;
+// настроенное транспортное средство определяет возможность дедупликации при повторных попытках
+// доставки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - message: Ограниченное содержимое электронного письма, получатель и стабильная
+//     идентификация доставки.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *EmailAdapter) Send(ctx context.Context, message d.EmailMessage) error {
 	return a.gateway.call(ctx, "email/send", message.IdempotencyKey, message, nil)
 }
 
-// PushAdapter реализует безопасную доставку push через заменяемый gateway.
+// PushAdapter обеспечивает безопасную push-доставку через заменяемый шлюз.
 type PushAdapter struct{ gateway *gateway }
 
-// Send отправляет push, не передавая полный transcript или OAuth-секреты.
-// @args ctx — отмена; message — токен устройства, краткий текст и стабильный ключ.
-// @return: ошибка либо ErrSkip при отключённом канале.
+// Send доставляет минимальное уведомление на выбранное зарегистрированное устройство без
+// расшифровки текста и без использования секретов провайдера.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - message: Минимальное push-уведомление и зарегистрированное устройство-получатель.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *PushAdapter) Send(ctx context.Context, message d.PushMessage) error {
 	return a.gateway.call(ctx, "push/send", message.IdempotencyKey, message, nil)
 }
 
-// CalendarAdapter сохраняет постоянный ID внешнего события и выполняет операции его жизненного цикла через шлюз.
+// CalendarAdapter сохраняет стабильный внешний идентификатор события и выполняет операции
+// жизненного цикла через шлюз.
 type CalendarAdapter struct{ gateway *gateway }
 
-// calendarInput сериализует credentials только в защищённый запрос доверенного gateway, не в API/logs.
+// calendarInput сериализует учетные данные только в защищенный запрос к доверенному шлюзу, а не
+// в общедоступные ответы или логи API.
 type calendarInput struct {
 	Event       d.CalendarEvent `json:"event"`
 	AccessToken string          `json:"accessToken"`
 }
 
-// invoke выполняет операцию календаря; подставной режим возвращает одинаковый детерминированный ID при повторном создании.
-// @args ctx — отмена; operation — фиксированная операция; credentials — серверный токен; event — vendor-neutral event.
-// @return: безопасный event либо классифицированная ошибка.
+// invoke выполняет настроенную календарную операцию, используя детерминированную
+// идемпотентность в явно разрешенном режиме имитации.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - operation: Фиксированный провайдер из списка разрешенных или операция протокола.
+//   - credentials: Учетные данные провайдера только для сервера; никогда не раскрывайте их в
+//     логах или публичных ответах.
+//   - event: Доверенное событие для публикации или обработки.
+//
+// @returns:
+//   - result1: Результирующее календарное событие.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *CalendarAdapter) invoke(ctx context.Context, operation string, credentials d.CalendarCredentials, event d.CalendarEvent) (d.CalendarEvent, error) {
 	if a.gateway.mode == "mock" {
 		if event.ID == "" {
@@ -213,23 +277,47 @@ func (a *CalendarAdapter) invoke(ctx context.Context, operation string, credenti
 	return out, nil
 }
 
-// CreateEvent создаёт событие, требуя от адаптера сохранения ключа идемпотентности.
-// @args ctx — отмена; credentials — OAuth разрешение; event — расписание и стабильный ключ.
-// @return: сохранённый внешний event либо ошибка.
+// CreateEvent создает идемпотентное календарное событие с помощью настроенного провайдера.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - c: Значение учетных данных календаря, обрабатываемое этой операцией.
+//   - e: Состояние события календаря, обрабатываемое этой операцией.
+//
+// @returns:
+//   - result1: Результирующее календарное событие.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *CalendarAdapter) CreateEvent(ctx context.Context, c d.CalendarCredentials, e d.CalendarEvent) (d.CalendarEvent, error) {
 	return a.invoke(ctx, "create", c, e)
 }
 
-// UpdateEvent обновляет ранее сохранённый внешний event, не создавая второй.
-// @args ctx — отмена; c — OAuth разрешение; e — существующий id и новое расписание.
-// @return: актуальный event либо ошибка.
+// UpdateEvent обновляет сопоставленное внешнее календарное событие для текущего расписания
+// конференции.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - c: Значение учетных данных календаря, обрабатываемое этой операцией.
+//   - e: Состояние события календаря, обрабатываемое этой операцией.
+//
+// @returns:
+//   - result1: Результирующее календарное событие.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *CalendarAdapter) UpdateEvent(ctx context.Context, c d.CalendarCredentials, e d.CalendarEvent) (d.CalendarEvent, error) {
 	return a.invoke(ctx, "update", c, e)
 }
 
-// CancelEvent отменяет событие с тем же ключом идемпотентности.
-// @args ctx — отмена; c — OAuth разрешение; e — существующий event.
-// @return: ошибка отмены либо nil.
+// CancelEvent отменяет внешнее календарное событие, связанное с сохранённым сопоставлением.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - c: Значение учетных данных календаря, обрабатываемое этой операцией.
+//   - e: Состояние события календаря, обрабатываемое этой операцией.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *CalendarAdapter) CancelEvent(ctx context.Context, c d.CalendarCredentials, e d.CalendarEvent) error {
 	if a.gateway.mode == "mock" {
 		return nil
@@ -237,9 +325,17 @@ func (a *CalendarAdapter) CancelEvent(ctx context.Context, c d.CalendarCredentia
 	return a.gateway.call(ctx, "calendar/cancel", e.IdempotencyKey+":cancel", calendarInput{e, c.AccessToken}, nil)
 }
 
-// GetEvent читает событие для диагностики или восстановления соответствия внешнего ресурса.
-// @args ctx — отмена; c — OAuth разрешение; e — внешний идентификатор.
-// @return: актуальный event либо ошибка.
+// GetEvent считывает сопоставленное внешнее календарное событие для сверки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - c: Значение учетных данных календаря, обрабатываемое этой операцией.
+//   - e: Состояние события календаря, обрабатываемое этой операцией.
+//
+// @returns:
+//   - result1: Результирующее календарное событие.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *CalendarAdapter) GetEvent(ctx context.Context, c d.CalendarCredentials, e d.CalendarEvent) (d.CalendarEvent, error) {
 	return a.invoke(ctx, "get", c, e)
 }

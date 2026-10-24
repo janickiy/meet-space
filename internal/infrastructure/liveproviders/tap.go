@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package liveproviders
 
 import (
@@ -13,21 +21,41 @@ import (
 	"time"
 )
 
-// Registry разрешает только адрес текущего владельца комнаты из доверенного внутреннего реестра.
+// Registry — реестр извлекает адрес текущего владельца комнаты только из доверенного внутреннего реестра.
 type Registry interface {
+	// GetOwner загружает текущую версию медиакомнаты с распределенным владельцем и защитой от
+	// несанкционированного доступа.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор конференции, ограничивающий область действия операции.
+	//
+	// @returns:
+	//   - result1: Результирующий маршрут.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	GetOwner(context.Context, string) (media.Route, error)
 }
 
-// Tap открывает отдельный HTTP-поток без проксирования медиа через API и RabbitMQ.
+// Tap открывает отдельный поток HTTP без проксирования медиа через API или RabbitMQ.
 type Tap struct {
 	Registry Registry
 	Secret   string
 	Client   *http.Client
 }
 
-// NewTap создаёт внутренний клиент с ограниченным установлением соединения и без redirects.
-// @args registry — реестр SFU; secret — независимый service credential.
-// @return аудиоподписка, поток которой ограничен временем жизни контекста.
+// NewTap создает ответвление с зависимостями и ограничениями, необходимыми для провайдеров
+// прямой речи.
+//
+// @Parameters:
+//   - registry: Реестр зависимостей или метрик, используемый для поиска или регистрации
+//     компонента.
+//   - secret: Материал для создания закрытого ключа или необработанный секретный ключ; его
+//     нельзя регистрировать или раскрывать.
+//
+// @returns:
+//   - result1: Созданное или загруженное ответвление.
 func NewTap(registry Registry, secret string) *Tap {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.ResponseHeaderTimeout = 5 * time.Second
@@ -35,9 +63,18 @@ func NewTap(registry Registry, secret string) *Tap {
 	return &Tap{registry, secret, &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
-// Open получает владельца и открывает только назначение captions.
-// @args ctx — отмена потока; cid,id — конференция и серверная сессия.
-// @return закрываемое NDJSON тело либо безопасная ошибка без endpoint/секрета.
+// Open открывает доступ к медиафайлам, записям или сеансам, необходимым для работы этого
+// компонента.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Результирующий считывающий модуль.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (t *Tap) Open(ctx context.Context, cid, id string) (io.ReadCloser, error) {
 	op, cancel := context.WithTimeout(ctx, 5*time.Second)
 	route, err := t.Registry.GetOwner(op, cid)

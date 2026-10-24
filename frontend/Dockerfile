@@ -1,4 +1,5 @@
 FROM --platform=$BUILDPLATFORM node:24-alpine AS build
+ARG NODE_OPTIONS
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -17,7 +18,7 @@ ENV VITE_PUBLIC_SITE_URL=$PUBLIC_SITE_URL
 ENV VITE_BUILD_VERSION=$BUILD_VERSION VITE_BUILD_COMMIT=$BUILD_COMMIT VITE_BUILD_TIME=$BUILD_TIME VITE_CLIENT_TELEMETRY_ENABLED=$CLIENT_TELEMETRY_ENABLED
 RUN npm run build
 
-FROM nginx:1.30.5-alpine AS runtime
+FROM nginx:1.30.6-alpine@sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951 AS runtime
 # Исправления системных библиотек устанавливаются до фиксации digest готового образа.
 RUN apk upgrade --no-cache
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template

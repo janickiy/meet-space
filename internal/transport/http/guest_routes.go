@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -7,6 +15,14 @@ import (
 	"time"
 )
 
+// RegisterGuestRoutes регистрирует конечные точки для работы с гостевыми аккаунтами с
+// предоставленными промежуточными модулями аутентификации и обработки запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterGuestRoutes(router gin.IRouter, handler *conferencesapp.GuestHandler, limiter httpmiddleware.Limiter) {
 	path := APIV1Prefix + "/conference-invites/:code/guest"
 	limit := httpmiddleware.RateLimit(limiter, httpmiddleware.RateLimitConfig{Enabled: limiter != nil, Rules: []httpmiddleware.Rule{

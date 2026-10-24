@@ -40,7 +40,7 @@ function SearchExcerpt({ text, query }: { text: string; query: string }) {
   );
 }
 
-/** Searches the authorised history without marking results read or replacing a draft. */
+/** Выполняет поиск в авторизованной истории, не помечая прочитанные результаты и не заменяя черновики. */
 export function PersonalChatSearchModal({
   conversationId,
   conversationName,

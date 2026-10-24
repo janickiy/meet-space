@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package content
 
 import (
@@ -14,11 +22,18 @@ import (
 	"unicode/utf8"
 )
 
-// ChunkSegments детерминированно разбивает текст UTF-8 с сохранением исходных ID.
-// Длинный сегмент делится на части без создания вымышленных ID источника.
-// @args segments — хронологический transcript; maximum — rune-budget;
-// maxChunks — абсолютный предел стоимости.
-// @return ограниченный набор фрагментов либо ошибку превышения бюджета.
+// ChunkSegments разбивает проверенные сегменты расшифровки на ограниченные сводные сводки,
+// сохраняя их порядок.
+//
+// @Parameters:
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - maxChunks: Максимальное количество обрабатываемых фрагментов.
+//
+// @returns:
+//   - result1: Собранные значения сегментов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ChunkSegments(segments []domain.Segment, maximum, maxChunks int) ([][]domain.Segment, error) {
 	if maximum < 1 || maxChunks < 1 {
 		return nil, fmt.Errorf("invalid chunk budget")
@@ -60,9 +75,16 @@ func ChunkSegments(segments []domain.Segment, maximum, maxChunks int) ([][]domai
 	return chunks, nil
 }
 
-// ValidateSummary проверяет JSON-схему, refs и отсутствие выдуманных assignee/date.
-// @args data — недоверенный результат провайдера; source — разрешённые исходные сегменты.
-// @return нормализованный результат; сомнительные необязательные факты очищаются до null.
+// ValidateSummary проверяет схему сводной сводки и сверяет ссылки с исходной расшифровкой.
+//
+// @Parameters:
+//   - data: Входные байты или структурированная полезная информация о событии.
+//   - source: Медиа или источник контента, связанный с текущей операцией.
+//
+// @returns:
+//   - result1: Результирующая сводная сводка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ValidateSummary(data json.RawMessage, source []domain.Segment) (domain.SummaryOutput, error) {
 	var out domain.SummaryOutput
 	if len(data) > 256<<10 {
@@ -130,9 +152,17 @@ func ValidateSummary(data json.RawMessage, source []domain.Segment) (domain.Summ
 	return out, nil
 }
 
-// explicitAssignee требует явную отметку назначения исполнителя, а не простое упоминание имени.
-// @args evidence — цитируемый недоверенный текст; name — предлагаемый исполнитель.
-// @return true при буквальном маркере «ответственный/исполнитель/assignee: NAME».
+// explicitAssignee принимает данные о назначении исполнителя только в том случае, если это явно
+// указано в исходном тексте.
+//
+// @Parameters:
+//   - evidence: Исходный текст, в котором должно быть явно указано, что извлечение допустимо.
+//   - name: Имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется
+//     обращение.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func explicitAssignee(evidence, name string) bool {
 	text := strings.ToLower(evidence)
 	name = strings.ToLower(strings.TrimSpace(name))
@@ -144,9 +174,17 @@ func explicitAssignee(evidence, name string) bool {
 	return false
 }
 
-// explicitDeadline требует явную отметку срока с датой ISO, а не дату обычной встречи.
-// @args evidence — cited text; date — YYYY-MM-DD из проверяемого JSON.
-// @return true для «срок/deadline/due: DATE» или «до DATE».
+// explicitDeadline принимает данные о сроках выполнения только в том случае, если это явно
+// указано в исходном тексте.
+//
+// @Parameters:
+//   - evidence: Исходный текст, в котором должно быть явно указано, что извлечение допустимо.
+//   - date: Предлагаемый текст со сроками выполнения для проверки на соответствие исходным
+//     данным.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func explicitDeadline(evidence, date string) bool {
 	text := strings.ToLower(evidence)
 	for _, marker := range []string{"срок:", "deadline:", "due:"} {
@@ -157,16 +195,33 @@ func explicitDeadline(evidence, date string) bool {
 	return strings.Contains(text, "до "+date)
 }
 
-// validText ограничивает строку UTF-8 и запрещает встроенный NUL для PostgreSQL.
-// @args text — проверяемая строка; maximum — rune-limit; empty — допустимость пустоты.
-// @return true для безопасного строкового значения.
+// validText проверяет, что текст соответствует требованиям UTF-8 и не выходит за рамки
+// допустимого объёма.
+//
+// @Parameters:
+//   - text: Текст UTF-8 для проверки, нормализации или обработки.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - empty: Допустимо ли использование пустого текстового значения.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func validText(text string, maximum int, empty bool) bool {
 	return utf8.ValidString(text) && !strings.ContainsRune(text, 0) && utf8.RuneCountInString(text) <= maximum && (empty || strings.TrimSpace(text) != "")
 }
 
-// summarize выполняет ограниченную обработку частей и иерархическое объединение, отделяя инструкции от входных данных.
-// @args ctx — общий срок выполнения ИИ; key — стабильный ключ идемпотентности; segments — исходные данные.
-// @return проверенный результат либо ошибку с возможностью повтора или без неё.
+// summarize — обобщение процессов с использованием ограниченных фрагментов транскрипта и иерархических
+// слияний с разделением инструкций модели и исходных данных.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
+//
+// @returns:
+//   - result1: Результирующая сводная сводка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) summarize(ctx context.Context, key string, segments []domain.Segment) (domain.SummaryOutput, error) {
 	chunks, err := ChunkSegments(segments, s.cfg.ChunkRunes, s.cfg.MaxChunks)
 	if err != nil {
@@ -206,8 +261,8 @@ schedule:
 	if len(results) == 1 {
 		return results[0], nil
 	}
-	// Группы объединения ограничены тем же входным бюджетом. Если провайдер
-	// чрезмерно расширил текст, обработка завершается без неограниченных платных вызовов.
+	// Группы слияния используют один и тот же входной бюджет.  Если провайдер чрезмерно
+	// расширяет текст, остановите процесс, не отправляя неограниченные платные запросы.
 	for level := 0; len(results) > 1; level++ {
 		if level > 16 {
 			return domain.SummaryOutput{}, &jobs.Error{Code: "ai_merge_limit", Retryable: false}
@@ -248,10 +303,20 @@ schedule:
 	return results[0], nil
 }
 
-// aiCall передаёт недоверенный JSON отдельно от неизменного запроса к модели и строго проверяет ответ.
-// @args ctx — срок выполнения; key — ключ дедупликации фрагмента; input — ограниченный JSON;
-// merge задаёт стадию объединения; source содержит разрешённый список исходных ссылок.
-// @return результат, проверенный по схеме и подтверждающим фрагментам, или классифицированную ошибку.
+// aiCall отправляет недоверенные данные JSON отдельно от фиксированных инструкций модели и
+// строго проверяет схему ответа.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - input: Входные данные, необходимые для этой операции.
+//   - merge: Объединяет ли запрос сводные данные, а не исходные сегменты.
+//   - source: Медиа или источник контента, связанный с текущей операцией.
+//
+// @returns:
+//   - result1: Результирующая сводная сводка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) aiCall(ctx context.Context, key, input string, merge bool, source []domain.Segment) (domain.SummaryOutput, error) {
 	data, err := s.ai.Summarize(ctx, domain.AIRequest{PromptVersion: PromptVersion, SchemaVersion: SchemaVersion, Instructions: SummaryInstructions, InputJSON: input, IdempotencyKey: key, Merge: merge})
 	if err != nil {

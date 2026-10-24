@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package conferences
 
 import (
@@ -37,33 +45,21 @@ const (
 
 var ErrInviteCollision = errors.New("invite code collision")
 
-// CanTransition проверяет, допустим ли переход жизненного цикла конференции между двумя состояниями.
+// CanTransition проверяет, разрешён ли запрошенный переход между состояниями жизненного цикла
+// из текущего состояния.
 //
-// @args
-//   - from (Status): исходное состояние или нижняя граница диапазона.
-//   - to (Status): целевое состояние или верхняя граница диапазона.
+// @Parameters:
+//   - from: Исходное состояние предлагаемого перехода между состояниями жизненного цикла.
+//   - to: Конечное состояние или получатель операции.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func CanTransition(from, to Status) bool {
 	return ((from == Created || from == Scheduled) && (to == Active || to == Cancelled)) || (from == Active && to == Finished)
 }
 
-// Conference сохраняет конференцию, её владельца, жизненный цикл и расписание.
-//
-//	@params
-//	 - ID: уникальный идентификатор данной сущности.
-//	 - OwnerID: идентификатор организатора или владельца ресурса.
-//	 - Title: отображаемое название встречи.
-//	 - InviteCode: криптографически случайный код приглашения, не заменяющий авторизацию.
-//	 - Status: состояние ресурса, ответа или фильтра выборки.
-//	 - CreatedAt: время создания значения.
-//	 - UpdatedAt: время последнего сохранённого изменения.
-//	 - StartedAt: момент начала обработки или записи.
-//	 - FinishedAt: время завершения конференции.
-//	 - WaitingRoomEnabled: требует решения организатора перед входом нового участника в комнату.
-//	 - ScheduledAt: однозначное запланированное время встречи.
-//	 - PlannedDurationMin: необязательная длительность в минутах.
+// Conference сохраняет данные о владельце, состоянии жизненного цикла и расписании.
 type Conference struct {
 	ID                 string `gorm:"type:uuid;primaryKey"`
 	OwnerID            string `gorm:"column:owner_id;type:uuid"`
@@ -80,34 +76,15 @@ type Conference struct {
 	PlannedDurationMin *int
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Conference) TableName() string { return "conferences" }
 
-// Participant сохраняет членство пользователя в конференции отдельно от физических соединений, допуск и ограничения медиа.
-// @params
-//   - ID: уникальный идентификатор данной сущности.
-//   - ConferenceID: идентификатор конференции, ограничивающий область операции.
-//   - UserID: идентификатор пользователя, для которого выполняется операция.
-//   - DisplayName: имя пользователя, отображаемое участникам встречи.
-//   - Role: роль участника, определяющая полномочия.
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - JoinedAt: время присоединения членства.
-//   - LeftAt: время последнего выхода участника.
-//   - CreatedAt: время создания значения.
-//   - UpdatedAt: время последнего сохранённого изменения.
-//   - MicrophoneEnabled: сохранённый признак включённого микрофона.
-//   - CameraEnabled: сохранённый признак включённой камеры.
-//   - ScreenSharing: сохранённый признак демонстрации экрана.
-//   - MicrophoneBlocked: серверный запрет микрофона.
-//   - CameraBlocked: серверный запрет камеры.
-//   - ScreenBlocked: серверный запрет экрана.
-//   - MediaPolicyVersion: версия сохранённой политики медиа.
-//   - AdmissionState: состояние ожидания, допуска, отклонения либо исключения.
-//   - AdmissionDecidedAt: время сохранённого решения о допуске.
-//   - AdmissionVersion: монотонная версия решения допуска.
+// Participant сохраняет данные о членстве в учётных записях, ограничениях доступа и
+// медиаконтенте независимо от физических подключений.
 type Participant struct {
 	ID                 string  `gorm:"type:uuid;primaryKey"`
 	ConferenceID       string  `gorm:"column:conference_id;type:uuid"`
@@ -132,27 +109,14 @@ type Participant struct {
 	ChatLeft           bool  `json:"-" gorm:"column:chat_left;->;-:migration"`
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (Participant) TableName() string { return "conference_participants" }
 
-// View представляет безопасную публичную проекцию доменной модели для API.
-// @params:
-//   - ID: уникальный идентификатор данной сущности.
-//   - OwnerID: идентификатор организатора или владельца ресурса.
-//   - Title: отображаемое название встречи.
-//   - InviteCode: криптографически случайный код приглашения, не заменяющий авторизацию.
-//   - InviteURL: ссылка приглашения на встречу.
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - CreatedAt: время создания значения.
-//   - UpdatedAt: время последнего сохранённого изменения.
-//   - StartedAt: момент начала обработки или записи.
-//   - FinishedAt: время завершения конференции.
-//   - WaitingRoomEnabled: требует решения организатора перед входом нового участника в комнату.
-//   - ScheduledAt: однозначное запланированное время встречи.
-//   - PlannedDurationMin: необязательная длительность в минутах.
+// View — это безопасная публичная проекция API конференции.
 type View struct {
 	ID                 string     `json:"id"`
 	OwnerID            string     `json:"ownerId"`
@@ -169,10 +133,10 @@ type View struct {
 	PlannedDurationMin *int       `json:"plannedDurationMin"`
 }
 
-// View собирает публичное представление модели для ответа API.
+// View создает публичное представление API, не раскрывая приватные поля персистентности.
 //
-// @return:
-//   - результат 1 (View): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Результирующее представление.
 func (c Conference) View() View {
 	return View{ID: c.ID, OwnerID: c.OwnerID, Title: c.Title, InviteCode: c.InviteCode,
 		InviteURL: "/api/v1/conference-invites/" + c.InviteCode, Status: c.Status,
@@ -180,13 +144,8 @@ func (c Conference) View() View {
 		WaitingRoomEnabled: c.WaitingRoomEnabled, ScheduledAt: c.ScheduledAt, PlannedDurationMin: c.PlannedDurationMin}
 }
 
-// InviteView передаёт ограниченные сведения встречи по приглашению без доступа к защищённым данным комнаты.
-// @params
-//   - ID: уникальный идентификатор данной сущности.
-//   - Title: отображаемое название встречи.
-//   - Status: состояние ресурса, ответа или фильтра выборки.
-//   - WaitingRoomEnabled: требует решения организатора перед входом нового участника в комнату.
-//   - ScheduledAt: однозначное запланированное время встречи.
+// InviteView предоставляет ограниченную информацию о приглашениях, не предоставляя доступа к
+// защищенным данным о комнатах.
 type InviteView struct {
 	ID                 string     `json:"id"`
 	Title              string     `json:"title"`
@@ -195,29 +154,7 @@ type InviteView struct {
 	ScheduledAt        *time.Time `json:"scheduledAt,omitempty"`
 }
 
-// ParticipantView передаёт разрешённые внешнему клиенту сведения о членстве и состоянии участника.
-//
-//	@params
-//	 - ID: уникальный идентификатор данной сущности.
-//	 - ConferenceID: идентификатор конференции, ограничивающий область операции.
-//	 - UserID: идентификатор пользователя, для которого выполняется операция.
-//	 - DisplayName: имя пользователя, отображаемое участникам встречи.
-//	 - Role: роль участника, определяющая полномочия.
-//	 - Status: состояние ресурса, ответа или фильтра выборки.
-//	 - JoinedAt: время присоединения членства.
-//	 - LeftAt: время последнего выхода участника.
-//	 - CreatedAt: время создания значения.
-//	 - UpdatedAt: время последнего сохранённого изменения.
-//	 - MicrophoneEnabled: сохранённый признак включённого микрофона.
-//	 - CameraEnabled: сохранённый признак включённой камеры.
-//	 - ScreenSharing: сохранённый признак демонстрации экрана.
-//	 - MicrophoneBlocked: серверный запрет микрофона.
-//	 - CameraBlocked: серверный запрет камеры.
-//	 - ScreenBlocked: серверный запрет экрана.
-//	 - MediaPolicyVersion: версия сохранённой политики медиа.
-//	 - AdmissionState: состояние ожидания, допуска, отклонения либо исключения.
-//	 - AdmissionDecidedAt: время сохранённого решения о допуске.
-//	 - AdmissionVersion: монотонная версия решения допуска.
+// ParticipantView содержит информацию о членстве и участниках, доступную внешнему клиенту.
 type ParticipantView struct {
 	ID                 string            `json:"id"`
 	ConferenceID       string            `json:"conferenceId"`
@@ -242,21 +179,16 @@ type ParticipantView struct {
 	ChatLeft           bool              `json:"-"`
 }
 
-// View собирает публичное представление модели для ответа API.
+// View создает публичное представление API, не раскрывая приватные поля персистентности.
 //
-// @return:
-//   - результат 1 (ParticipantView): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Полученное представление участника.
 func (p Participant) View() ParticipantView {
 	return ParticipantView(p)
 }
 
-// CreateRequest передаёт входные параметры создания конференции, включая расписание и зал ожидания.
-//
-//	@params
-//	 - Title: отображаемое название встречи.
-//	 - WaitingRoomEnabled: требует решения организатора перед входом нового участника в комнату.
-//	 - ScheduledAt: однозначное запланированное время встречи.
-//	 - PlannedDurationMin: необязательная длительность в минутах.
+// CreateRequest содержит настройки создания конференции, включая расписание и конфигурацию
+// комнаты ожидания.
 type CreateRequest struct {
 	Title              string     `json:"title"`
 	WaitingRoomEnabled bool       `json:"waitingRoomEnabled"`
@@ -264,20 +196,20 @@ type CreateRequest struct {
 	PlannedDurationMin *int       `json:"plannedDurationMin"`
 }
 
-// JoinRequest передаёт сведения запроса присоединения к конференции.
-//   - InviteCode: криптографически случайный код приглашения, не заменяющий авторизацию.
+// JoinRequest содержит информацию об участниках, указанную при присоединении к конференции.
 type JoinRequest struct {
 	InviteCode string `json:"inviteCode"`
 }
 
-// NormalizeTitle обрезает лишние пробелы и проверяет допустимую длину названия встречи.
+// NormalizeTitle обрезает и проверяет название конференции перед сохранением.
 //
-// @args
-//   - value (string): значение для проверки, нормализации или преобразования.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Проверенное нормализованное название конференции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeTitle(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if !utf8.ValidString(value) || value == "" || utf8.RuneCountInString(value) > 200 {

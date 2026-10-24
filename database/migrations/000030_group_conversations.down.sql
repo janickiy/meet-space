@@ -1,4 +1,5 @@
--- A downgrade is only safe before any group data exists. Never discard group history.
+-- Переход на более раннюю версию безопасен только до того, как будут созданы какие-либо
+-- групповые данные.  Никогда не удаляйте историю группы.
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM conversations WHERE type='group') THEN
   RAISE EXCEPTION 'group conversations exist; retain schema and use a compatible forward fix';

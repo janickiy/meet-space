@@ -1,0 +1,21 @@
+digraph ER {
+graph [rankdir=LR, bgcolor="white", pad=0.16, margin=0, nodesep=0.25, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="DejaVu Sans", fontsize=18, labelloc=t, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Конференции и участники</B></TD></TR><TR><TD><FONT POINT-SIZE="13" COLOR="#36566f">━━▶ FK в PostgreSQL</FONT>   <FONT POINT-SIZE="13" COLOR="#94661d">┄┄▶ связь без FK</FONT></TD></TR><TR><TD><FONT POINT-SIZE="12" COLOR="#666666">Серые таблицы — соседняя подсистема; стрелка указывает на родителя</FONT></TD></TR></TABLE>>];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=16, margin="0.13,0.10", penwidth=1.2, color="#527087", fillcolor="#e9f1f7"];
+edge [color="#36566f", penwidth=1.25, arrowsize=0.70];
+"conference_invitations" [label="conference_\ninvitations", tooltip="conference_invitations", fillcolor="#e9f1f7", color="#527087"];
+"conference_moderation_audit" [label="conference_\nmoderation_audit", tooltip="conference_moderation_audit", fillcolor="#e9f1f7", color="#527087"];
+"conference_participants" [label="conference_\nparticipants", tooltip="conference_participants", fillcolor="#e9f1f7", color="#527087"];
+"conferences" [label="conferences", tooltip="conferences", fillcolor="#e9f1f7", color="#527087"];
+"participant_sessions" [label="participant_\nsessions", tooltip="participant_sessions", fillcolor="#e9f1f7", color="#527087"];
+"users" [label="users", tooltip="users", fillcolor="#f2f2f2", color="#a4a9ad"];
+"conference_invitations" -> "conferences" [tooltip="conference_invitations_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"conference_invitations" -> "users" [tooltip="conference_invitations_requested_by_fkey: FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT"];
+"conference_invitations" -> "users" [tooltip="conference_invitations_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"conference_moderation_audit" -> "conference_participants" [tooltip="conference_moderation_audit_actor_id_fkey: FOREIGN KEY (actor_id) REFERENCES conference_participants(id)"];
+"conference_moderation_audit" -> "conferences" [tooltip="conference_moderation_audit_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE CASCADE"];
+"conference_moderation_audit" -> "conference_participants" [tooltip="conference_moderation_audit_participant_id_fkey: FOREIGN KEY (participant_id) REFERENCES conference_participants(id)"];
+"conference_participants" -> "conferences" [tooltip="conference_participants_conference_id_fkey: FOREIGN KEY (conference_id) REFERENCES conferences(id) ON DELETE RESTRICT"];
+"conference_participants" -> "users" [tooltip="conference_participants_user_id_fkey: FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"conferences" -> "users" [tooltip="conferences_owner_id_fkey: FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT"];
+"participant_sessions" -> "conference_participants" [tooltip="participant_sessions_identity_fk: FOREIGN KEY (participant_id, conference_id, user_id) REFERENCES conference_participants(id, conference_id, user_id) ON DELETE CASCADE"];
+}

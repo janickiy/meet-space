@@ -1,0 +1,27 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  chat_attachments["chat_attachments<br/>PK: id"]
+  chat_messages["chat_messages<br/>PK: id"]
+  chat_notification_jobs["chat_notification_jobs<br/>PK: message_id"]
+  chat_read_states["chat_read_states<br/>PK: conference_id, user_id"]
+  conference_chat_pins["conference_chat_pins<br/>PK: conference_id, user_id, message_id"]
+  conference_chat_preferences["conference_chat_preferences<br/>PK: conference_id, user_id"]
+  conference_participants["conference_participants<br/>PK: id"]
+  conferences["conferences<br/>PK: id"]
+  users["users<br/>PK: id"]
+  chat_attachments -->|"conference_id; DELETE RESTRICT"| conferences
+  chat_attachments -->|"message_id; DELETE RESTRICT"| chat_messages
+  chat_attachments -->|"owner_user_id; DELETE RESTRICT"| users
+  chat_messages -->|"conference_id; DELETE RESTRICT"| conferences
+  chat_messages -->|"reply_to_id; DELETE RESTRICT"| chat_messages
+  chat_messages -->|"sender_user_id; DELETE RESTRICT"| users
+  chat_notification_jobs -->|"conference_id; DELETE RESTRICT"| conferences
+  chat_notification_jobs -->|"message_id; DELETE RESTRICT"| chat_messages
+  chat_read_states -->|"conference_id; DELETE RESTRICT"| conferences
+  chat_read_states -->|"last_read_message_id; DELETE RESTRICT"| chat_messages
+  chat_read_states -->|"user_id; DELETE RESTRICT"| users
+  conference_chat_pins -->|"conference_id, message_id; DELETE RESTRICT"| chat_messages
+  conference_chat_pins -->|"user_id; DELETE RESTRICT"| users
+  conference_chat_preferences -->|"conference_id; DELETE CASCADE"| conferences
+  conference_chat_preferences -->|"user_id; DELETE RESTRICT"| users
+  chat_notification_jobs -.->|"cursor_participant_id; без FK"| conference_participants

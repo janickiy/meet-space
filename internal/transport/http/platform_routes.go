@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -7,13 +15,16 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/conferences"
 )
 
-// RegisterPlatformRoutes регистрирует HTTP-маршруты соответствующего сценария и подключает авторизацию и ограничения запросов.
+// RegisterPlatformRoutes регистрирует платформенные конечные точки доступа с использованием
+// предоставленного промежуточного программного обеспечения для аутентификации и обработки
+// запросов.
 //
-// @args
-//   - router (gin.IRouter): значение router типа gin.IRouter, используемое согласно назначению этой операции.
-//   - auth (*authapp.Handler): значение auth типа *authapp.Handler, используемое согласно назначению этой операции.
-//   - conference (*conferencesapp.Handler): конференция либо её идентификатор, ограничивающий область операции.
-//   - authentication (gin.HandlerFunc): значение authentication типа gin.HandlerFunc, используемое согласно назначению этой операции.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - conference: обработчик конференции HTTP, конечные точки которого регистрируются.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
 func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conference *conferencesapp.Handler, authentication gin.HandlerFunc) {
 	public := router.Group(APIV1Prefix + "/auth")
 	public.POST("/register", auth.Register)
@@ -49,18 +60,23 @@ func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conferenc
 	conferenceRoutes.GET("/:id/history", conference.History)
 	router.GET(APIV1Prefix+"/me/conferences", authentication, conference.Timeline)
 
-	// Отдельный префикс предотвращает конфликт шаблонов :id/:inviteCode и открывает только ограниченное представление.
+	// Отдельный префикс позволяет избежать конфликтов с шаблонами маршрутов :id и :inviteCode и
+	// предоставляет доступ только к ограниченному представлению приглашений.
 	invites := router.Group(APIV1Prefix + "/conference-invites")
 	invites.GET("/:code", conference.LookupInvite)
 	invites.POST("/:code/join", authentication, conference.JoinInvite)
 }
 
-// RegisterControlRoutes регистрирует HTTP-маршруты соответствующего сценария и подключает авторизацию и ограничения запросов.
+// RegisterControlRoutes регистрирует управляющие конечные точки доступа с использованием
+// предоставленного промежуточного программного обеспечения для аутентификации и обработки
+// запросов.
 //
-// @args
-//   - router (gin.IRouter): значение router типа gin.IRouter, используемое согласно назначению этой операции.
-//   - handler (*conferencesapp.ControlHandler): обработчик вызываемой команды или маршрута.
-//   - authentication (gin.HandlerFunc): значение authentication типа gin.HandlerFunc, используемое согласно назначению этой операции.
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
+//     аутентификацию.
 func RegisterControlRoutes(router gin.IRouter, handler *conferencesapp.ControlHandler, authentication gin.HandlerFunc) {
 	routes := router.Group(APIV1Prefix+"/conferences", authentication)
 	routes.PUT("/:id/participants/me/media", handler.Media)

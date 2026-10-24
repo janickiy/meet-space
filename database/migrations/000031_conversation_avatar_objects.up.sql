@@ -1,4 +1,4 @@
--- Object metadata survives an interrupted upload; bytes stay in the private bucket.
+-- Метаданные объекта сохраняются при прерванной загрузке; байты остаются в приватном хранилище.
 CREATE TABLE conversation_avatar_objects (
  id UUID PRIMARY KEY,
  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE RESTRICT,

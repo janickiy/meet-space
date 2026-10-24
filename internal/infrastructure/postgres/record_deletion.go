@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -10,8 +18,20 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// Delete checks the same ownership policy as Stop and serializes with recording
-// workers, retention, and conference moderation before touching storage.
+// Delete проверяет ту же политику владения, что и Stop, и сериализует данные с помощью
+// записывающих модулей, сохранения и модерации конференций, прежде чем обращаться к хранилищу.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
+//   - remove: Обратный вызов, удаляющий объекты хранения, принадлежащие авторизованной записи.
+//
+// @returns:
+//   - result1: Результирующая запись.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) Delete(ctx context.Context, userID, conferenceID, recordID string, remove func(context.Context, records.Record) error) (records.Record, error) {
 	var record records.Record
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -47,7 +67,7 @@ func (r *ConferenceRecordingRepository) Delete(ctx context.Context, userID, conf
 			return err
 		}
 		if state.Deleted {
-			return nil // Repeat requests after a lost response are safe.
+			return nil // Повторные запросы после получения неверного ответа безопасны.
 		}
 		if !records.IsTerminalStatus(record.Status) || state.Leased {
 			return apperrors.New(apperrors.ErrConflict, "recording is still being processed")

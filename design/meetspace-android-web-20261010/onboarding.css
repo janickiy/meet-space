@@ -1,4 +1,4 @@
-/* Scoped first-run and self-hosted installer layouts. */
+/* Макеты для первого запуска и самостоятельного размещения в установщике. */
 .on-layout {
   min-height: 100%;
   display: grid;
@@ -1631,7 +1631,7 @@
     transition: none;
   }
 }
-/* Theme parity for the design review toggle. */
+/* Выбор темы для включения в обзор дизайна. */
 :root[data-theme="dark"] .on-side {
   background: #322736;
   border-color: #46394a;
@@ -1814,7 +1814,7 @@
 :root[data-theme="dark"] .on-complete-orbit {
   border-color: #466d52;
 }
-/* Phone form readability and full-size touch targets. */
+/* Удобочитаемость формы на телефоне и полноразмерные сенсорные объекты. */
 @media (max-width: 759px) {
   .on-layout .on-field input {
     font-size: 16px;
@@ -1843,7 +1843,7 @@
     margin-top: 0;
   }
 }
-/* Light blue actions in dark mode need dark foregrounds. */
+/* Для светло-синих действий в темном режиме требуется темный передний план. */
 :root[data-theme="dark"] .on-layout .on-choice-main,
 :root[data-theme="dark"] .on-layout .button.primary {
   background: var(--accent);

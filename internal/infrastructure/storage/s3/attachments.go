@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package s3
 
 import (
@@ -13,13 +21,15 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-// CheckAttachmentPrivacy проверяет отсутствие публичной политики бакета для приватных вложений.
+// CheckAttachmentPrivacy отклоняет настройки объектного хранилища, которые раскрывают приватные
+// вложения чатов через публичную политику bucket.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) CheckAttachmentPrivacy(ctx context.Context) error {
 	policy, err := c.minio.GetBucketPolicy(ctx, c.bucket)
 	if err != nil {
@@ -31,18 +41,20 @@ func (c *Client) CheckAttachmentPrivacy(ctx context.Context) error {
 	return nil
 }
 
-// PutAttachment сохраняет байты вложения по ключу, сформированному сервером.
+// PutAttachment сохраняет байты вложений под сгенерированным сервером приватным ключом объекта.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
-//   - reader (io.Reader): источник содержимого либо читатель карточек записи согласно типу.
-//   - size (int64): размер содержимого в байтах.
-//   - contentType (string): значение contentType типа string, используемое согласно назначению этой операции.
-//   - checksum (string): контрольная сумма содержимого для проверки неизменности передачи.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - reader: Поток исходного контента или устройство чтения карт памяти, в зависимости от его
+//     типа.
+//   - size: Размер контента в байтах или запрошенная ограниченная емкость.
+//   - contentType: Объявленный или обнаруженный тип контента MIME.
+//   - checksum: Ожидаемый дайджест содержимого, используемый для проверки целостности передачи.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) PutAttachment(ctx context.Context, key string, reader io.Reader, size int64, contentType, checksum string) error {
 	if !attachmentKey(key) {
 		return fmt.Errorf("invalid attachment key")
@@ -51,17 +63,19 @@ func (c *Client) PutAttachment(ctx context.Context, key string, reader io.Reader
 	return err
 }
 
-// StatAttachment читает фактический размер и метаданные объекта перед финализацией.
+// StatAttachment считывает фактический размер объекта и метаданные перед завершением загрузки.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// @return:
-//   - результат 1 (int64): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 3 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 4 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: Фактический тип хранимого содержимого объекта.
+//   - result3: Сохраненный дайджест содержимого SHA-256, используемый для завершения
+//     загрузки.
+//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) StatAttachment(ctx context.Context, key string) (int64, string, string, error) {
 	if !attachmentKey(key) {
 		return 0, "", "", fmt.Errorf("invalid attachment key")
@@ -73,17 +87,19 @@ func (c *Client) StatAttachment(ctx context.Context, key string) (int64, string,
 	return object.Size, object.ContentType, object.UserMetadata["Sha256"], nil
 }
 
-// AttachmentDownloadURL создаёт краткоживущую подписанную ссылку с принудительным скачиванием файла.
+// AttachmentDownloadURL создает недолговечный подписанный URL, который запрашивает загрузку
+// вложения.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
-//   - filename (string): проверяемое или формируемое имя файла без управляемого пользователем пути.
-//   - expiry (time.Duration): значение expiry типа time.Duration, используемое согласно назначению этой операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - filename: Безопасное имя файла для загрузки, указанное в заголовке Content-Disposition.
+//   - expiry: Срок действия или интервал действительности, определяемый типом.
 //
-// @return:
-//   - результат 1 (string): адрес разрешённого чтения или целевого ресурса.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Недолговечный подписанный URL для загрузки вложения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) AttachmentDownloadURL(ctx context.Context, key, filename string, expiry time.Duration) (string, error) {
 	if !attachmentKey(key) || expiry <= 0 || expiry > 5*time.Minute {
 		return "", fmt.Errorf("invalid attachment download parameters")
@@ -103,22 +119,24 @@ func (c *Client) AttachmentDownloadURL(ctx context.Context, key, filename string
 	return objectURL.String(), nil
 }
 
-// CleanAttachmentObjects удаляет объекты точного префикса вложения, сохраняя выигравший прикреплённый объект.
+// CleanAttachmentObjects удаляет только те объекты с префиксом вложения, которые не являются
+// сохраненным финализированным объектом.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - prefix (string): ограниченный префикс объектов, относящихся к одной операции.
-//   - keep (string): объект или значение, которое необходимо сохранить при очистке.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - prefix: Объект или префикс ключа, управляемый сервером.
+//   - keep: Точный ключ финализированного объекта, который должен быть сохранен при очистке.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Client) CleanAttachmentObjects(ctx context.Context, prefix, keep string) error {
 	parts := attachmentParts(strings.TrimSuffix(prefix, "/"))
 	if len(parts) != 3 || parts[0] != "attachments" || !attachmentID(parts[1]) || !attachmentID(parts[2]) || !strings.HasSuffix(prefix, "/") || (keep != "" && (!attachmentKey(keep) || !strings.HasPrefix(keep, prefix))) {
 		return fmt.Errorf("invalid attachment cleanup prefix")
 	}
-	// Синхронный итератор завершается вместе с вызывающим кодом: ошибка
-	// удаления не оставляет фоновый producer SDK на заполненном канале.
+	// Синхронный итератор завершает работу вместе с вызвавшим его объектом.  Ошибка удаления не
+	// должна приводить к блокировке производителя SDK на заполненном канале.
 	for object := range c.minio.ListObjectsIter(ctx, c.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
 		if object.Err != nil {
 			return object.Err
@@ -133,31 +151,42 @@ func (c *Client) CleanAttachmentObjects(ctx context.Context, prefix, keep string
 	return ctx.Err()
 }
 
-// attachmentID проверяет канонический UUID для безопасного построения ключа объекта.
+// attachmentID проверяет идентификатор вложения перед формированием пути к объекту.
 //
-// @args
-//   - value (string): значение для проверки, нормализации или преобразования.
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func attachmentID(value string) bool {
 	id, err := uuid.Parse(value)
 	return err == nil && id != uuid.Nil && id.String() == value
 }
 
-// attachmentKey проверяет структуру серверного пути вложения и идентификаторы его сегментов.
+// attachmentKey формирует принадлежащий серверу приватный ключ объекта для вложения.
 //
-// @args
-//   - key (string): ключ ограничителя, блокировки или объекта в соответствующем хранилище.
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func attachmentKey(key string) bool {
 	parts := attachmentParts(key)
 	return len(parts) == 4 && parts[0] == "attachments" && attachmentID(parts[1]) && attachmentID(parts[2]) && attachmentID(parts[3])
 }
 
-// Direct files have a distinct prefix; both scopes still require canonical UUIDs.
+// attachmentParts проверяет и разбивает ключ объекта вложения на ожидаемые компоненты пути.
+//
+// Прямые файлы имеют отдельный префикс; для обеих областей по-прежнему требуется канонический
+// UUIDs.
+//
+// @Parameters:
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//
+// @returns:
+//   - result1: Собранные строковые значения.
 func attachmentParts(key string) []string {
 	parts := strings.Split(key, "/")
 	if len(parts) > 1 && parts[1] == "direct" {

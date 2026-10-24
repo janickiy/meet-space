@@ -52,7 +52,7 @@ export function usePersonalChatPins(scopeId: string, enabled: boolean) {
   };
 }
 
-/** Pins use the same message-context navigation as search, including older history. */
+/** Для закрепления сообщений используется та же навигация по контексту, что и для поиска, включая более раннюю историю. */
 export function PersonalChatPins({
   items,
   onSelect,
@@ -148,7 +148,8 @@ export function PersonalChatPins({
                     title="Открепить сообщение"
                     aria-label={`Открепить сообщение от ${message.senderName}`}
                     onClick={(event) => {
-                      // The row may disappear; keep keyboard focus inside the dialog.
+                      // Строка может исчезнуть; удерживайте фокус клавиатуры внутри диалогового
+                      // окна.
                       event.currentTarget
                         .closest('[role="dialog"]')
                         ?.querySelector<HTMLButtonElement>("button")

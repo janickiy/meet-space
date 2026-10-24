@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -8,6 +16,16 @@ import (
 	"time"
 )
 
+// RegisterPersonalRoutes регистрирует персональные конечные точки доступа с использованием
+// предоставленного промежуточного программного обеспечения для аутентификации и обработки
+// запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - h: Адаптер обработчика HTTP для регистрации или привязки к клиенту.
+//   - chat: обработчик чата HTTP зарегистрирован для персональных чатов.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *chatapp.Handler, auth gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	rules := []httpmiddleware.Rule{}
 	for _, v := range []struct {
@@ -49,6 +67,6 @@ func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *ch
 	g.POST("/conversations/:id/leave", h.LeaveGroup)
 	g.POST("/conversations/:id/ownership", h.TransferGroupOwnership)
 	g.POST("/conversations/:id/read", chat.MarkRead)
-	// AccountOnly is also applied to all shared message/file routes.
+	// AccountOnly также применяется ко всем общим маршрутам для сообщений и файлов.
 	registerMessageRoutes(router, chat, auth, limiter, "conversations", h.AccountOnly)
 }

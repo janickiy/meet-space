@@ -251,10 +251,11 @@ export function ActiveConferenceRoom(props: ActiveConferenceViewProps) {
       </footer>
       {utility && (utility !== "recording" || recordingAccess) && (
         <Modal
+          className={utility === "invite" ? "conference-invite-modal" : ""}
           title={
             utility === "recording"
               ? "Записи конференции"
-              : "Пригласить участников"
+              : "Поделиться встречей"
           }
           onClose={() => {
             if (!invitationBusy) setUtility(null);

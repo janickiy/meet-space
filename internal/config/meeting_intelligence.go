@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package config
 
 import (
@@ -9,8 +17,9 @@ import (
 	"time"
 )
 
-// StageEightConfig ограничивает вспомогательную обработку речи, векторов и аналитики.
-// Передача аудио и текста провайдерам требует явного включения; имитация запрещена в рабочей среде.
+// StageEightConfig ограничивает вспомогательную обработку речи, векторов и аналитических
+// данных.  Для отправки аудио- или текстовых данных провайдерам требуется явное согласие
+// пользователя; использование симулированных результатов в производственной среде запрещено.
 type StageEightConfig struct {
 	LiveEnabled, EmbeddingsEnabled, AnalyticsEnabled                           bool
 	Live, Embeddings                                                           ProviderConfig
@@ -21,9 +30,16 @@ type StageEightConfig struct {
 	LiveMaxDuration, ProviderTimeout, EmbeddingTimeout                         time.Duration
 }
 
-// LoadStageEight читает операторские настройки без вывода токенов в ошибки.
-// @args local — разрешение локальных HTTP/WebSocket и тестовых адаптеров.
-// @return конфигурация с конечными пределами либо ошибка.
+// LoadStageEight загружает ограничения и настройки для транскрипции, реферирования, встраивания
+// и аналитики.
+//
+// @Parameters:
+//   - local: разрешено ли явное использование только локального режима.
+//
+// @returns:
+//   - result1: итоговая конфигурация восьмого этапа.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func LoadStageEight(local bool) (StageEightConfig, error) {
 	c := StageEightConfig{}
 	var err error

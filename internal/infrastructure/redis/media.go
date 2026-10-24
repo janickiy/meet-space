@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package redis
 
 import (
@@ -14,8 +22,9 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// Активность воркера и захват владения используют общие часы Redis и атомарные операции.
-// ID аренды не позволяет прежнему владельцу продлевать или удалять новое назначение.
+// Для подтверждения присутствия и права собственности на ресурсы используются общие временные и
+// атомарные операции Redis.  Идентификатор аренды не позволяет предыдущему владельцу продлить
+// или удалить своего преемника.
 var mediaRegistryScript = goredis.NewScript(`
 local prefix,op,id = ARGV[1],ARGV[2],ARGV[3]
 local index=prefix..':workers'
@@ -89,61 +98,66 @@ end
 return 0
 `)
 
-// MediaRegistry регистрирует медиа-воркеры и версионные аренды владения конференциями в Redis.
-//   - client: клиент внешнего сервиса или транспорта компонента.
-//   - prefix: ограниченный префикс объектов, относящихся к одной операции.
+// MediaRegistry хранит в Redis информацию о медиа-воркерах и версиях аренды прав собственности
+// на конференции.
 type MediaRegistry struct {
 	client *goredis.Client
 	prefix string
 }
 
-// NewMediaRegistry создаёт и связывает зависимости компонента MediaRegistry, используемого в защищённом управлении медиа-комнатой.
+// NewMediaRegistry создает реестр медиа с зависимостями и ограничениями, необходимыми для
+// распределенного подтверждения присутствия и права собственности.
 //
-// @args
-//   - client (*goredis.Client): клиент внешнего сервиса или транспорта компонента.
-//   - prefix (string): ограниченный префикс объектов, относящихся к одной операции.
+// @Parameters:
+//   - client: Идентификация медиа-клиента браузера или зависимость от транспорта, определяемая
+//     его типом.
+//   - prefix: Объект или префикс ключа, управляемый сервером.
 //
-// @return:
-//   - результат 1 (*MediaRegistry): созданный компонент с переданными зависимостями.
+// @returns:
+//   - result1: Созданный или загруженный реестр медиа.
 func NewMediaRegistry(client *goredis.Client, prefix string) *MediaRegistry {
 	return &MediaRegistry{client: client, prefix: prefix}
 }
 
-// action вызывает соответствующий Lua-сценарий Redis для атомарной работы с распределённым состоянием.
+// action атомарно выполняет выбранную операцию Redis Lua в пространстве имен компонента.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - op (string): значение op типа string, используемое согласно назначению этой операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - op: Атомарная операция или команда, выбранная компонентом.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// @return:
-//   - результат 1 (*goredis.Cmd): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Созданная или загруженная команда cmd.
 func (s *MediaRegistry) action(ctx context.Context, op, id, raw string, ttl time.Duration) *goredis.Cmd {
 	return mediaRegistryScript.Run(ctx, s.client, []string{s.prefix + ":workers"}, s.prefix, op, id, raw, ttl.Milliseconds())
 }
 
-// validWorkerID проверяет идентификатор воркера перед включением в распределённые ключи.
+// validWorkerID проверяет, что идентификатор медиа-воркера безопасен для пространства ключей
+// реестра.
 //
-// @args
-//   - id (string): идентификатор обрабатываемого ресурса.
+// @Parameters:
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func validWorkerID(id string) bool {
 	return id != "" && len(id) <= 128 && !strings.ContainsAny(id, ":/\r\n \t")
 }
 
-// RegisterWorker сохраняет сведения и срок присутствия доступного медиа-воркера.
+// RegisterWorker сохраняет текущий адрес медиа-воркера, его мощность и ограниченный срок
+// присутствия.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - worker (media.Worker): значение worker типа media.Worker, используемое согласно назначению этой операции.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - worker: Текущие метаданные медиа-воркера и информация о владельце.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaRegistry) RegisterWorker(ctx context.Context, worker media.Worker, ttl time.Duration) error {
 	if !validWorkerID(worker.ID) || config.ValidateMediaEndpoint(worker.Endpoint) != nil || ttl < time.Millisecond {
 		return media.ErrInvalid
@@ -156,14 +170,15 @@ func (s *MediaRegistry) RegisterWorker(ctx context.Context, worker media.Worker,
 	return err
 }
 
-// Workers возвращает действующие медиа-воркеры для распределения комнаты.
+// Workers возвращает список активных медиа-воркеров, которые могут владеть комнатой.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// @return:
-//   - результат 1 ([]media.Worker): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Собранные значения для воркера.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaRegistry) Workers(ctx context.Context) ([]media.Worker, error) {
 	raws, err := s.action(ctx, "workers", "", "", 0).StringSlice()
 	if err != nil {
@@ -177,28 +192,24 @@ func (s *MediaRegistry) Workers(ctx context.Context) ([]media.Worker, error) {
 		}
 		workers = append(workers, w)
 	}
-	sort.Slice(workers, /* Вложенный обработчик выполняет выделенный шаг обработки в защищённом управлении медиа-комнатой, используя состояние окружающей функции.
+	sort.Slice(workers,
 
-		@args
-		  - i (int): значение i типа int, используемое согласно назначению этой операции.
-		  - j (int): значение j типа int, используемое согласно назначению этой операции.
-
-		@return:
-		  - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния. */func(i, j int) bool { return workers[i].ID < workers[j].ID })
+		func(i, j int) bool { return workers[i].ID < workers[j].ID })
 	return workers, nil
 }
 
-// Claim пытается закрепить распределённое владение ресурсом за указанным воркером.
+// Claim — запрос атомарно получает текущую аренду Redis или запись о владельце.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - workerID (string): идентификатор воркера-владельца операции.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - workerID: Идентификатор работника, которому принадлежит эта операция.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// @return:
-//   - результат 1 (media.Route): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующий маршрут.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaRegistry) Claim(ctx context.Context, conferenceID, workerID string, ttl time.Duration) (media.Route, error) {
 	if _, err := uuid.Parse(conferenceID); err != nil || !validWorkerID(workerID) || ttl < time.Millisecond {
 		return media.Route{}, media.ErrInvalid
@@ -215,14 +226,15 @@ func (s *MediaRegistry) Claim(ctx context.Context, conferenceID, workerID string
 	return decodeMediaRoute(value)
 }
 
-// decodeMediaRoute разбирает Redis-представление владельца медиа-комнаты и проверяет необходимые поля.
+// decodeMediaRoute декодирует и проверяет распределённую запись о владельце медиа-комнаты.
 //
-// @args
-//   - raw (string): исходные байты JSON, пакета или сериализованного значения.
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
 //
-// @return:
-//   - результат 1 (media.Route): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующий маршрут.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func decodeMediaRoute(raw string) (media.Route, error) {
 	var route media.Route
 	if json.Unmarshal([]byte(raw), &route) != nil {
@@ -235,15 +247,17 @@ func decodeMediaRoute(raw string) (media.Route, error) {
 	return route, nil
 }
 
-// GetOwner читает актуального владельца медиа-комнаты и его версию владения.
+// GetOwner загружает текущую версию медиакомнаты с распределенным владельцем и защитой от
+// несанкционированного доступа.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// @return:
-//   - результат 1 (media.Route): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующий маршрут.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaRegistry) GetOwner(ctx context.Context, conferenceID string) (media.Route, error) {
 	value, err := s.action(ctx, "get", conferenceID, "", 0).Text()
 	if errors.Is(err, goredis.Nil) || (err == nil && value == "") {
@@ -255,16 +269,18 @@ func (s *MediaRegistry) GetOwner(ctx context.Context, conferenceID string) (medi
 	return decodeMediaRoute(value)
 }
 
-// Renew продлевает владение только при совпадении идентичности текущего владельца.
+// Renew — продление аренды Redis возможно только в том случае, если владелец и идентификатор ограждения
+// совпадают.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - route (media.Route): адрес и версия действующего владельца медиа-комнаты.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - route: Текущий владелец медиа-комнаты и версия ограждения.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaRegistry) Renew(ctx context.Context, conferenceID string, route media.Route, ttl time.Duration) error {
 	if ttl < time.Millisecond {
 		return media.ErrInvalid
@@ -277,29 +293,32 @@ func (s *MediaRegistry) Renew(ctx context.Context, conferenceID string, route me
 	return err
 }
 
-// Release освобождает ресурс только при совпадении сохранённого владельца или токена.
+// Release — при освобождении освобождается только ресурс Redis, принадлежащий соответствующей операции
+// или токену.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - route (media.Route): адрес и версия действующего владельца медиа-комнаты.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - route: Текущий владелец медиа-комнаты и версия ограждения.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaRegistry) Release(ctx context.Context, conferenceID string, route media.Route) error {
 	raw, _ := json.Marshal(route)
 	return s.action(ctx, "release", conferenceID, string(raw), 0).Err()
 }
 
-// RemoveWorker удаляет присутствие воркера из реестра.
+// RemoveWorker удаляет данные о присутствии указанного медиа-воркера из реестра.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - workerID (string): идентификатор воркера-владельца операции.
-//   - endpoint (string): адрес конечной точки вызываемого сервиса.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - workerID: Идентификатор работника, которому принадлежит эта операция.
+//   - endpoint: Конечная точка сервиса, настраиваемая оператором.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *MediaRegistry) RemoveWorker(ctx context.Context, workerID, endpoint string) error {
 	return s.action(ctx, "remove", workerID, endpoint, 0).Err()
 }

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package webrtc
 
 import (
@@ -22,19 +30,11 @@ import (
 	pionwebrtc "github.com/pion/webrtc/v4"
 )
 
-// ErrNoMedia is retained for compatibility with legacy ingest callers.
+// ErrNoMedia сохранено для совместимости с устаревшими вызовами приема данных.
 var ErrNoMedia = records.ErrNoMedia
 
-// Options собирает зависимости и настройки создания компонента.
-// @params
-//   - StoragePath: корневой каталог локального хранения артефактов записи.
-//   - FFmpegPath: значение FFmpegPath типа string, используемое согласно назначению этой операции.
-//   - UDPPort: значение UDPPort типа int, используемое согласно назначению этой операции.
-//   - TCPPort: значение TCPPort типа int, используемое согласно назначению этой операции.
-//   - NATIPs: набор значений NATIPs для последовательной или пакетной обработки.
-//   - Logger: значение Logger типа *log.Logger, используемое согласно назначению этой операции.
-//   - OnStarted: операция OnStarted с контрактом, описанным у метода.
-//   - OnFailed: операция OnFailed с контрактом, описанным у метода.
+// Options содержит зависимости, связанные с записью и приемом данных, настройки мультимедиа и
+// ограничения жизненного цикла.
 type Options struct {
 	StoragePath string
 	FFmpegPath  string
@@ -44,21 +44,12 @@ type Options struct {
 	Logger      *log.Logger
 	OnStarted   func(context.Context, string)
 	OnFailed    func(context.Context, string, error)
-	MaxSessions int // Максимум одновременных legacy-записей; 0 выбирает безопасный предел 2.
+	MaxSessions int // Максимальное количество одновременных устаревших записей; при значении 0 по умолчанию
+	// используется безопасное значение 2.
 }
 
-// Manager владеет локальными медиа-ресурсами и синхронизирует их создание, использование и завершение.
-// @params
-//   - api: значение api типа *pionwebrtc.API, используемое согласно назначению этой операции.
-//   - storage: хранилище приватных файлов и метаданных объектов.
-//   - recorder: значение recorder типа *ffmpeg.SegmentRecorder, используемое согласно назначению этой операции.
-//   - logger: значение logger типа *log.Logger, используемое согласно назначению этой операции.
-//   - iceConn: значение iceConn типа net.PacketConn, используемое согласно назначению этой операции.
-//   - iceTCP: значение iceTCP типа net.Listener, используемое согласно назначению этой операции.
-//   - onStarted: операция onStarted с контрактом, описанным у метода.
-//   - onFailed: операция onFailed с контрактом, описанным у метода.
-//   - mu: блокировка согласованного доступа к разделяемому состоянию.
-//   - sessions: хранилище и авторизация физических сессий подключения.
+// Manager — менеджер управляет ресурсами мультимедиа для записи и приема данных и синхронизирует их
+// создание и удаление.
 type Manager struct {
 	api      *pionwebrtc.API
 	storage  string
@@ -77,13 +68,23 @@ type Manager struct {
 	shutdownDone chan struct{}
 }
 
-// Active возвращает число сессий записи, которые требуют завершения перед обновлением.
+// Active возвращает количество операций, принадлежащих компоненту, которые необходимо завершить
+// до завершения работы.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
 func (m *Manager) Active() int { m.mu.Lock(); defer m.mu.Unlock(); return len(m.sessions) }
 
-// NewManager создаёт менеджер WebRTC на основе Pion.
-// @args
-// - options: хранилище, FFmpeg, ICE и обработчики событий.
-// @return Manager или ошибку настройки ICE.
+// NewManager создает менеджер с зависимостями и ограничениями, необходимыми для приема данных
+// при записи WebRTC.
+//
+// @Parameters:
+//   - options: Проверенные параметры создания или выполнения компонентов.
+//
+// @returns:
+//   - result1: Созданный или загруженный менеджер.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewManager(options Options) (*Manager, error) {
 	if options.MaxSessions <= 0 {
 		options.MaxSessions = 2
@@ -131,8 +132,8 @@ func NewManager(options Options) (*Manager, error) {
 		settingEngine.SetNetworkTypes(networkTypes)
 	}
 	if len(options.NATIPs) > 0 {
-		// Сохраняем как обычные внешние IP, так и старый формат external/local.
-		// Replace переписывает host-адреса только настроенного семейства IP.
+		// Принимает обычные общедоступные IPs и устаревшие внешние/локальные форматы.  Заменяет
+		// перезаписанные адреса хостов только для настроенного семейства IP.
 		rules := make([]pionwebrtc.ICEAddressRewriteRule, 0, len(options.NATIPs)+1)
 		externalIPs := make([]string, 0, len(options.NATIPs))
 		for _, address := range options.NATIPs {
@@ -182,11 +183,16 @@ func NewManager(options Options) (*Manager, error) {
 	}, nil
 }
 
-// Prepare создаёт сессию приёма для будущего SDP-предложения.
-// @args
-// - recordID: UUID записи.
-// - segmentDurationSec: длительность сегмента.
-// @return ошибку подготовки директории.
+// Prepare — подготавливает авторизованное состояние сеанса приема данных при записи до начала
+// согласования мультимедиа.
+//
+// @Parameters:
+//   - recordID: Внешняя запись UUID.
+//   - segmentDurationSec: Запрошенная продолжительность сегмента в секундах.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) Prepare(recordID string, segmentDurationSec int) error {
 	if segmentDurationSec <= 0 {
 		segmentDurationSec = 5
@@ -203,7 +209,7 @@ func (m *Manager) Prepare(recordID string, segmentDurationSec int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.sessions[recordID]; ok {
-		// Повторные команды запуска не меняют конфигурацию действующей сессии.
+		// Repeated Команды start не изменяют конфигурацию уже активного сеанса.
 		return nil
 	}
 	if m.closed || (m.maxSessions > 0 && len(m.sessions) >= m.maxSessions) {
@@ -224,12 +230,18 @@ func (m *Manager) Prepare(recordID string, segmentDurationSec int) error {
 	return nil
 }
 
-// HandleOffer принимает SDP-предложение браузера и возвращает SDP-ответ.
-// @args
-// - ctx: контекст HTTP-запроса.
-// - recordID: UUID записи.
-// - request: SDP-предложение.
-// @return SDP answer или ошибку signaling.
+// HandleOffer передает предложение SDP для записи менеджеру приема данных и возвращает
+// согласованный ответ.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordID: Внешняя запись UUID.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//
+// @returns:
+//   - result1: Итоговый ответ веб-RTC.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) HandleOffer(ctx context.Context, recordID string, request records.WebRTCOfferRequest) (records.WebRTCAnswerResponse, error) {
 	s, err := m.session(recordID)
 	if err != nil {
@@ -239,16 +251,22 @@ func (m *Manager) HandleOffer(ctx context.Context, recordID string, request reco
 	return s.handleOffer(ctx, request)
 }
 
-// Stop завершает WebRTC/FFmpeg сессию.
-// @args
-// - recordID: UUID записи.
-// @return ошибку остановки или ErrNoMedia.
+// Stop останавливает активный сеанс приема данных с записывающего устройства и освобождает
+// принадлежащие ему ресурсы.
+//
+// @Parameters:
+//   - recordID: Внешняя запись UUID.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) Stop(recordID string) error {
 	m.mu.Lock()
 	s, ok := m.sessions[recordID]
 	if ok {
-		// Keep the session owned until its transport and process have stopped:
-		// Shutdown and the admission limit must also see draining recordings.
+		// Сессия остается в собственности до тех пор, пока не будут остановлены ее транспортный
+		// и процессный компоненты: при завершении работы и достижении лимита приема данных
+		// также должны учитываться записи, которые не были приняты.
 		s.mu.Lock()
 		s.stopRequested = true
 		s.mu.Unlock()
@@ -268,15 +286,16 @@ func (m *Manager) Stop(recordID string) error {
 	return s.stop()
 }
 
-// session находит подготовленную WebRTC-сессию записи по её идентификатору.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// session — сессия находит или создает состояние приема данных с записывающего устройства, связанное с
+// запрошенной записью.
 //
-// @args
-//   - recordID (string): внешний UUID задачи записи.
+// @Parameters:
+//   - recordID: Внешняя запись UUID.
 //
-// @return:
-//   - результат 1 (*session): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Сессия, созданная или загруженная.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) session(recordID string) (*session, error) {
 	m.mu.Lock()
 	s, ok := m.sessions[recordID]
@@ -288,27 +307,7 @@ func (m *Manager) session(recordID string) (*session, error) {
 	return s, nil
 }
 
-// session задаёт согласованное представление данных «сессия» для WebRTC-приёме медиа для записи.
-// @params:
-//   - recordID: внешний UUID задачи записи.
-//   - ctx: контекст отмены, дедлайна и времени жизни операции.
-//   - cancel: отмена контекста, завершающая принадлежащие ресурсу операции.
-//   - manager: значение manager типа *Manager, используемое согласно назначению этой операции.
-//   - recordDir: каталог локальных артефактов конкретной записи.
-//   - tempDir: значение tempDir типа string, используемое согласно назначению этой операции.
-//   - segmentDurationSec: плановая длительность сегмента записи в секундах.
-//   - mu: блокировка согласованного доступа к разделяемому состоянию.
-//   - pc: значение pc типа *pionwebrtc.PeerConnection, используемое согласно назначению этой операции.
-//   - process: значение process типа *ffmpeg.SegmentProcess, используемое согласно назначению этой операции.
-//   - tracks: набор дорожек, входящих в операцию.
-//   - expected: индекс значений expected для поиска и согласования состояния.
-//   - received: индекс значений received для поиска и согласования состояния.
-//   - processSince: временная отметка processSince; указатель допускает отсутствие значения.
-//   - waitTimer: временная отметка waitTimer; указатель допускает отсутствие значения.
-//   - processReady: канал «процесс готовность» для передачи данных или завершения ожидания.
-//   - startOnce: значение startOnce типа sync.Once, используемое согласно назначению этой операции.
-//   - failOnce: значение failOnce типа sync.Once, используемое согласно назначению этой операции.
-//   - failed: логический признак failed, управляющий соответствующей веткой обработки.
+// session — сессия хранит данные, используемые для приема данных с записывающего устройства WebRTC.
 type session struct {
 	recordID           string
 	ctx                context.Context
@@ -335,16 +334,17 @@ type session struct {
 	stopRequested bool
 }
 
-// handleOffer устанавливает удалённое SDP-описание и формирует ответ текущей WebRTC-сессии записи.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// handleOffer согласовывает предложение SDP записывающего устройства и настраивает ожидаемые
+// медиапотоки.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - request (records.WebRTCOfferRequest): входные параметры соответствующего прикладного запроса.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
 //
-// @return:
-//   - результат 1 (records.WebRTCAnswerResponse): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Итоговый ответ веб-RTC.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *session) handleOffer(ctx context.Context, request records.WebRTCOfferRequest) (records.WebRTCAnswerResponse, error) {
 	if request.Type == "" {
 		request.Type = "offer"
@@ -376,19 +376,14 @@ func (s *session) handleOffer(ctx context.Context, request records.WebRTCOfferRe
 		_ = previous.Close()
 	}
 
-	pc.OnTrack( /* Вложенный обработчик выполняет выделенный шаг обработки в WebRTC-приёме медиа для записи, используя состояние окружающей функции.
+	pc.OnTrack(
 
-		@args
-		  - track (*pionwebrtc.TrackRemote): медиа-дорожка, которую обрабатывает или подписывает компонент.
-		  - _ (*pionwebrtc.RTPReceiver): неиспользуемый аргумент, сохранённый для совместимости с контрактом вызова.
-		*/func(track *pionwebrtc.TrackRemote, _ *pionwebrtc.RTPReceiver) {
+		func(track *pionwebrtc.TrackRemote, _ *pionwebrtc.RTPReceiver) {
 			s.handleTrack(pc, track)
 		})
-	pc.OnConnectionStateChange( /* Вложенный обработчик выполняет выделенный шаг обработки в WebRTC-приёме медиа для записи, используя состояние окружающей функции.
+	pc.OnConnectionStateChange(
 
-		@args
-		  - state (pionwebrtc.PeerConnectionState): значение state типа pionwebrtc.PeerConnectionState, используемое согласно назначению этой операции.
-		*/func(state pionwebrtc.PeerConnectionState) {
+		func(state pionwebrtc.PeerConnectionState) {
 			s.manager.logger.Printf("record %s WebRTC state: %s", s.recordID, state.String())
 			if state == pionwebrtc.PeerConnectionStateFailed {
 				s.mu.Lock()
@@ -442,11 +437,11 @@ func (s *session) handleOffer(ctx context.Context, request records.WebRTCOfferRe
 	return records.WebRTCAnswerResponse{Type: "answer", SDP: local.SDP}, nil
 }
 
-// handleTrack обрабатывает появление входящей дорожки и подключает её к записи.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// handleTrack начинает прием данных с одного согласованного входящего записывающего устройства.
 //
-// @args
-//   - track (*pionwebrtc.TrackRemote): медиа-дорожка, которую обрабатывает или подписывает компонент.
+// @Parameters:
+//   - pc: Одноранговое соединение, к которому подключено записывающее устройство.
+//   - track: Метаданные медиадорожки или согласованный экземпляр дорожки.
 func (s *session) handleTrack(pc *pionwebrtc.PeerConnection, track *pionwebrtc.TrackRemote) {
 	port, err := reserveUDPPort()
 	if err != nil {
@@ -482,9 +477,9 @@ func (s *session) handleTrack(pc *pionwebrtc.PeerConnection, track *pionwebrtc.T
 	s.requestVideoKeyframes(track)
 
 	if ready {
-		s.startOnce.Do( /* Вложенный обработчик выполняет выделенный шаг обработки в WebRTC-приёме медиа для записи, используя состояние окружающей функции.
+		s.startOnce.Do(
 
-			 */func() {
+			func() {
 				if err := s.startFFmpeg(); err != nil {
 					s.fail(err)
 				}
@@ -492,11 +487,12 @@ func (s *session) handleTrack(pc *pionwebrtc.PeerConnection, track *pionwebrtc.T
 	}
 }
 
-// startFFmpeg запускает процесс сегментной записи после готовности ожидаемых входных дорожек.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// startFFmpeg запускает ограниченный процесс записи FFmpeg после получения необходимых
+// медиапотоков.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *session) startFFmpeg() error {
 	s.mu.Lock()
 	if s.failed || s.stopping || s.ctx.Err() != nil {
@@ -553,17 +549,16 @@ func (s *session) startFFmpeg() error {
 	return nil
 }
 
-// requestVideoKeyframes периодически запрашивает ключевые видеокадры для декодирования и записи.
+// requestVideoKeyframes запрашивает периодические ключевые кадры видео для сеанса приема данных
+// с записывающего устройства.
 //
-// @args
-//   - track (*pionwebrtc.TrackRemote): медиа-дорожка, которую обрабатывает или подписывает компонент.
+// @Parameters:
+//   - track: Метаданные медиадорожки или согласованный экземпляр дорожки.
 func (s *session) requestVideoKeyframes(track *pionwebrtc.TrackRemote) {
 	if track.Kind() != pionwebrtc.RTPCodecTypeVideo {
 		return
 	}
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в WebRTC-приёме медиа для записи, используя состояние окружающей функции.
-
-	 */func() {
+	go func() {
 		select {
 		case <-s.processReady:
 		case <-s.ctx.Done():
@@ -588,14 +583,15 @@ func (s *session) requestVideoKeyframes(track *pionwebrtc.TrackRemote) {
 	}()
 }
 
-// writePLI отправляет RTCP PLI-запрос ключевого видеокадра.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// writePLI записывает информацию о потере изображения, чтобы запросить у отправителя видео
+// новый ключевой кадр.
 //
-// @args
-//   - track (*pionwebrtc.TrackRemote): медиа-дорожка, которую обрабатывает или подписывает компонент.
+// @Parameters:
+//   - track: Метаданные медиадорожки или согласованный экземпляр дорожки.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *session) writePLI(track *pionwebrtc.TrackRemote) error {
 	s.mu.Lock()
 	pc := s.pc
@@ -609,11 +605,12 @@ func (s *session) writePLI(track *pionwebrtc.TrackRemote) error {
 	})
 }
 
-// forwardRTP пересылает входящие RTP-пакеты на локальный UDP-вход FFmpeg.
+// forwardRTP пересылает закодированный RTP с согласованной дорожки на локальный транспортный
+// канал записи.
 //
-// @args
-//   - track (*pionwebrtc.TrackRemote): медиа-дорожка, которую обрабатывает или подписывает компонент.
-//   - port (int): локальный сетевой порт передачи RTP.
+// @Parameters:
+//   - track: Метаданные медиадорожки или согласованный экземпляр дорожки.
+//   - port: Настроенный порт прослушивателя TCP или UDP.
 func (s *session) forwardRTP(track *pionwebrtc.TrackRemote, port int) {
 	addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
@@ -646,10 +643,12 @@ func (s *session) forwardRTP(track *pionwebrtc.TrackRemote, port int) {
 	}
 }
 
-// minStopDelay вычисляет минимальную задержку остановки, необходимую для появления пригодного сегмента.
+// minStopDelay вычисляет минимальную задержку, необходимую для прекращения приема данных при
+// записи.
 //
-// @return:
-//   - результат 1 (time.Duration): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Продолжительность или ограниченный интервал ожидания, вычисленный в ходе
+//     операции.
 func (s *session) minStopDelay() time.Duration {
 	duration := time.Duration(s.segmentDurationSec) * time.Second
 	if duration < 2*time.Second {
@@ -662,10 +661,11 @@ func (s *session) minStopDelay() time.Duration {
 	return duration
 }
 
-// waitBeforeStop ожидает минимальную длительность записи перед безопасной остановкой.
+// waitBeforeStop ожидает окончания задержки перед прекращением приема данных, если только его
+// контекст не будет отменен.
 //
-// @args
-//   - startedAt (time.Time): момент начала обработки или записи.
+// @Parameters:
+//   - startedAt: Отметка времени начала используется для расчета минимального времени записи.
 func (s *session) waitBeforeStop(startedAt time.Time) {
 	if startedAt.IsZero() {
 		return
@@ -683,11 +683,12 @@ func (s *session) waitBeforeStop(startedAt time.Time) {
 	}
 }
 
-// stop останавливает активную обработку ресурсов компонента и освобождает связанные ресурсы.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// stop останавливает активный сеанс приема данных при записи и освобождает принадлежащие ему
+// ресурсы.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *session) stop() error {
 	s.mu.Lock()
 	s.stopRequested = true
@@ -701,8 +702,8 @@ func (s *session) stop() error {
 	}
 	s.mu.Unlock()
 	if !hasProcess {
-		// An already accepted PeerConnection may still deliver its first track.
-		// Fence new offers while preserving the original bounded media grace.
+		// PeerConnection, который уже был принят, может все равно передать свой первый трек.
+		// Блокирует новые предложения, сохраняя исходные ограничения на передачу медиаданных.
 		timer := time.NewTimer(s.minStopDelay())
 		select {
 		case <-s.processReady:
@@ -717,7 +718,8 @@ func (s *session) stop() error {
 	s.mu.Unlock()
 	if process == nil {
 		s.cancel()
-		// Startup owns an unregistered child until its completion is joined.
+		// Startup владеет незарегистрированным дочерним процессом до тех пор, пока не
+		// завершится его завершение.
 		if startDone != nil {
 			<-startDone
 		}
@@ -742,16 +744,15 @@ func (s *session) stop() error {
 	return nil
 }
 
-// fail фиксирует ошибочное завершение и запускает предусмотренную очистку ресурса.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// fail фиксирует сбой безопасного сеанса приема данных при записи и запускает процесс очистки
+// принадлежащих ресурсов.
 //
-// @args
-//   - err (error): ошибка, которую необходимо классифицировать, сохранить или вернуть клиенту.
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 func (s *session) fail(err error) {
-	s.failOnce.Do( /* Вложенный обработчик выполняет выделенный шаг обработки в WebRTC-приёме медиа для записи, используя состояние окружающей функции.
-		Синхронизирует доступ к разделяемому состоянию блокировкой.
+	s.failOnce.Do(
 
-		*/func() {
+		func() {
 			s.mu.Lock()
 			if s.failed || s.stopping || s.ctx.Err() != nil {
 				s.mu.Unlock()
@@ -766,7 +767,8 @@ func (s *session) fail(err error) {
 				s.waitTimer = nil
 			}
 			s.mu.Unlock()
-			// В обработчике сбоя останавливаем медиа до освобождения блокировки конференции.
+			// В случае сбоя остановите воспроизведение мультимедиа, прежде чем снять блокировку
+			// записи конференции.
 			s.cancel()
 			if pc != nil {
 				_ = pc.Close()
@@ -790,21 +792,19 @@ func (s *session) fail(err error) {
 		})
 }
 
-// armTrackWaitTimeout запускает таймер отказа, если ожидаемые медиа-дорожки не появились вовремя.
-// Синхронизирует доступ к разделяемому состоянию блокировкой.
+// armTrackWaitTimeout запускает ограниченное ожидание медиапотоков, обещанных предложением SDP.
 //
-// @args
-//   - timeout (time.Duration): максимальное время ожидания операции.
+// @Parameters:
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
 func (s *session) armTrackWaitTimeout(timeout time.Duration) {
 	s.mu.Lock()
 	if s.failed || s.stopRequested || s.stopping || s.ctx.Err() != nil || s.waitTimer != nil || s.process != nil {
 		s.mu.Unlock()
 		return
 	}
-	s.waitTimer = time.AfterFunc(timeout, /* Вложенный обработчик выполняет выделенный шаг обработки в WebRTC-приёме медиа для записи, используя состояние окружающей функции.
-		Синхронизирует доступ к разделяемому состоянию блокировкой.
+	s.waitTimer = time.AfterFunc(timeout,
 
-		*/func() {
+		func() {
 			s.mu.Lock()
 			hasProcess := s.process != nil
 			s.mu.Unlock()
@@ -815,10 +815,12 @@ func (s *session) armTrackWaitTimeout(timeout time.Duration) {
 	s.mu.Unlock()
 }
 
-// hasExpectedTracksLocked проверяет готовность ожидаемых дорожек при удерживаемой блокировке сессии.
+// hasExpectedTracksLocked проверяет, все ли ожидаемые медиапотоки получены, пока состояние
+// сеанса заблокировано.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func (s *session) hasExpectedTracksLocked() bool {
 	if len(s.expected) == 0 {
 		return len(s.tracks) > 0
@@ -832,13 +834,13 @@ func (s *session) hasExpectedTracksLocked() bool {
 	return true
 }
 
-// offerMediaKinds подсчитывает виды медиа-секций в предложенном SDP.
+// offerMediaKinds извлекает ожидаемые типы аудио- и видеопотоков из предложения SDP.
 //
-// @args
-//   - sdp (string): описание согласуемого WebRTC-сеанса в формате SDP.
+// @Parameters:
+//   - sdp: Описание удаленного сеанса для проверки.
 //
-// @return:
-//   - результат 1 (map[string]int): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Результирующая карта [строка] int.
 func offerMediaKinds(sdp string) map[string]int {
 	result := make(map[string]int)
 	for _, rawLine := range strings.Split(sdp, "\n") {
@@ -858,13 +860,13 @@ func offerMediaKinds(sdp string) map[string]int {
 	return result
 }
 
-// codecKind преобразует вид кодека Pion в строковое представление.
+// codecKind сопоставляет согласованный кодек с типом аудио- или видеопотока.
 //
-// @args
-//   - kind (pionwebrtc.RTPCodecType): тип события, ошибки или медиа, определяющий ветку обработки.
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Нормализованный тип аудио- или видеоданных.
 func codecKind(kind pionwebrtc.RTPCodecType) string {
 	if kind == pionwebrtc.RTPCodecTypeAudio {
 		return "audio"
@@ -873,11 +875,12 @@ func codecKind(kind pionwebrtc.RTPCodecType) string {
 	return "video"
 }
 
-// reserveUDPPort выбирает доступный локальный UDP-порт для RTP-входа.
+// reserveUDPPort резервирует доступный локальный порт UDP для входа RTP-to-FFmpeg.
 //
-// @return:
-//   - результат 1 (int): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func reserveUDPPort() (int, error) {
 	addr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:0")
 	if err != nil {
@@ -892,14 +895,15 @@ func reserveUDPPort() (int, error) {
 	return conn.LocalAddr().(*net.UDPAddr).Port, nil
 }
 
-// writeRTPPacket сериализует RTP-пакет и передаёт его в UDP-соединение.
+// writeRTPPacket записывает один полный пакет RTP в выбранный локальный транспорт.
 //
-// @args
-//   - conn (*net.UDPConn): действующее сетевое соединение операции.
-//   - packet (*pionrtp.Packet): закодированный RTP- или управляющий пакет.
+// @Parameters:
+//   - conn: Подключение, принадлежащее текущей операции.
+//   - packet: Закодированный RTP или медиапакет.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func writeRTPPacket(conn *net.UDPConn, packet *pionrtp.Packet) error {
 	raw, err := packet.Marshal()
 	if err != nil {

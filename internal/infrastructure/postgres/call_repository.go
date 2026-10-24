@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -18,8 +26,27 @@ import (
 
 type CallRepository struct{ db *gorm.DB }
 
+// NewCallRepository создает репозиторий вызовов с зависимостями и ограничениями, необходимыми
+// для вызова.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный репозиторий вызовов.
 func NewCallRepository(db *gorm.DB) *CallRepository { return &CallRepository{db: db} }
 
+// callView формирует общедоступное представление прямого вызова, включая его текущую
+// продолжительность и состояние участников.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - call: Сохраненное состояние жизненного цикла прямого вызова.
+//
+// @returns:
+//   - result1: Результирующий вызов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func callView(tx *gorm.DB, call calls.Call) (calls.Call, error) {
 	var peers []users.User
 	if err := tx.Select("id", "display_name").Where("id IN ?", []string{call.CallerUserID, call.CalleeUserID}).Find(&peers).Error; err != nil {
@@ -36,6 +63,18 @@ func callView(tx *gorm.DB, call calls.Call) (calls.Call, error) {
 	call.SetDuration(time.Now().UTC())
 	return call, nil
 }
+
+// Get загружает запрошенный вызов в рамках авторизованной области действия вызывающей стороны.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Результирующий вызов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *CallRepository) Get(ctx context.Context, actor, id string) (calls.Call, error) {
 	var c calls.Call
 	err := r.db.WithContext(ctx).Where("id=? AND (caller_user_id=? OR callee_user_id=?)", id, actor, actor).Take(&c).Error
@@ -44,6 +83,17 @@ func (r *CallRepository) Get(ctx context.Context, actor, id string) (calls.Call,
 	}
 	return callView(r.db.WithContext(ctx), c)
 }
+
+// Active возвращает текущий неконечный прямой вызов аккаунта, если таковой имеется.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//
+// @returns:
+//   - result1: Сформированный или загруженный вызов.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *CallRepository) Active(ctx context.Context, actor string) (*calls.Call, error) {
 	var c calls.Call
 	err := r.db.WithContext(ctx).Table("direct_calls c").Select("c.*").Joins("JOIN direct_call_slots s ON s.call_id=c.id").Where("s.user_id=? AND c.status IN ('ringing','accepted')", actor).Take(&c).Error
@@ -57,8 +107,26 @@ func (r *CallRepository) Active(ctx context.Context, actor string) (*calls.Call,
 	return &c, err
 }
 
-// Create locks both registered accounts in a stable order before checking slots.
-// This serializes crossed calls as well as callers racing for the same callee.
+// Create — перед проверкой слотов создайте блокировки для обоих зарегистрированных аккаунтов в
+// стабильном порядке. Это позволяет сериализовать пересекающиеся вызовы, а также вызовы, в
+// которых несколько пользователей пытаются получить доступ к одному и тому же вызываемому
+// объекту.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
+//   - requestID: Предоставленный клиентом ключ идемпотентности для операции с возможностью
+//     повторных попыток.
+//   - clientID: Идентификатор физического браузера или сокетного клиента.
+//
+// @returns:
+//   - result1: Результирующий вызов.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *CallRepository) Create(ctx context.Context, actor, target, requestID, clientID string) (calls.Call, bool, error) {
 	var c calls.Call
 	created := false
@@ -137,8 +205,23 @@ func (r *CallRepository) Create(ctx context.Context, actor, target, requestID, c
 	return c, created, err
 }
 
-// Change serializes every state transition on the call. The first accept wins;
-// retries by that same client are idempotent and other devices cannot take over.
+// Change — изменение сериализует каждый переход между состояниями в вызове. Побеждает тот, кто первым
+// получит подтверждение. Повторные попытки того же клиента являются идемпотентными, и другие
+// устройства не могут перехватить управление.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - action: Запрошенное действие по управлению жизненным циклом или модерации.
+//   - clientID: Идентификатор физического браузера или сокетного клиента.
+//
+// @returns:
+//   - result1: Результирующий вызов.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *CallRepository) Change(ctx context.Context, actor, id, action, clientID string) (calls.Call, bool, error) {
 	var c calls.Call
 	changed := false
@@ -182,8 +265,8 @@ func (r *CallRepository) Change(ctx context.Context, actor, id, action, clientID
 			c.CallerLeaseUntil = &until
 			c.CalleeLeaseUntil = &until
 			c.Version++
-			// A random unused invite satisfies the conference schema; public access is
-			// explicitly rejected for kind=direct_call throughout conference APIs.
+			// Случайное неиспользуемое приглашение соответствует схеме конференции; публичный
+			// доступ явно запрещён для kind=direct_call на протяжении всей конференции APIs.
 			invite := strings.ReplaceAll(uuid.NewString(), "-", "")
 			if err := tx.Exec(`INSERT INTO conferences(id,owner_id,title,invite_code,status,kind,started_at,waiting_room_enabled)
     VALUES(?,?,'Личный звонок',?,'active','direct_call',?,false)`, conference, c.CallerUserID, invite, now).Error; err != nil {
@@ -257,9 +340,32 @@ func (r *CallRepository) Change(ctx context.Context, actor, id, action, clientID
 	c, err = callView(r.db.WithContext(ctx), c)
 	return c, changed, err
 }
+
+// updateCallHistory обновляет элемент истории чата, связанный с изменением жизненного цикла
+// прямого вызова.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - c: Значение вызова, обработанное в ходе этой операции.
+//   - now: Время, используемое для расчета срока действия или продолжительности.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func updateCallHistory(tx *gorm.DB, c calls.Call, now time.Time) error {
 	return tx.Exec("UPDATE conversation_messages SET version=version+1,updated_at=? WHERE call_id=?", now, c.ID).Error
 }
+
+// finishCall записывает состояние прямого вызова терминала и его конечную продолжительность.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - c: Значение вызова, обработанное в ходе этой операции.
+//   - now: Время, используемое для расчета срока действия или продолжительности.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func finishCall(tx *gorm.DB, c *calls.Call, now time.Time) error {
 	c.EndedAt = &now
 	c.Version++
@@ -279,6 +385,17 @@ func finishCall(tx *gorm.DB, c *calls.Call, now time.Time) error {
 	}
 	return updateCallHistory(tx, *c, now)
 }
+
+// Expiring возвращает прямые вызовы, которые могут быть обработаны по истечении времени
+// ожидания.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: Собранные строковые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *CallRepository) Expiring(ctx context.Context) ([]string, error) {
 	var ids []string
 	err := r.db.WithContext(ctx).Table("direct_calls").Where("(status='ringing' AND expires_at<=clock_timestamp()) OR (status='accepted' AND (caller_lease_until<=clock_timestamp() OR callee_lease_until<=clock_timestamp()))").Order("created_at,id").Limit(100).Pluck("id", &ids).Error

@@ -21,9 +21,7 @@ export function useConferenceRoomControls(
   const focusMessageId = params.get("message") || undefined;
   const showChat = params.get("chat") === "1";
   const [stagePanel, setStagePanel] = useState<ConferenceStagePanel>("chat");
-  const [panelOpen, setPanelOpen] = useState(
-    () => showChat || typeof window === "undefined" || window.innerWidth > 900,
-  );
+  const [panelOpen, setPanelOpen] = useState(showChat);
   const panelTrigger = useRef<HTMLButtonElement | null>(null);
   const [reconnectTarget, setReconnectTarget] = useState<HTMLDivElement | null>(
     null,

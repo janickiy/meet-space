@@ -23,7 +23,7 @@ export function callHistoryResult(call: DirectCallHistory, outgoing: boolean) {
   }
 }
 
-/** Incoming/outgoing is viewer-relative; a status update never adds a duplicate row. */
+/** Входящие и исходящие данные зависят от пользователя; обновление статуса никогда не приводит к дублированию строк. */
 export function CallHistoryMessage({ call }: { call: DirectCallHistory }) {
   const { user } = useAuth();
   const outgoing = call.callerUserId === user?.id;

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -22,9 +30,32 @@ type ChatRepository struct {
 	direct bool
 }
 
+// NewChatRepository создаёт репозиторий чатов с зависимостями и ограничениями, необходимыми для
+// хранения сообщений в чатах и приватных вложений.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный репозиторий чатов.
 func NewChatRepository(db *gorm.DB) *ChatRepository {
 	return &ChatRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
 }
+
+// authorizeChat проверяет сохранённые данные о членстве и состоянии конференции перед доступом
+// к ресурсам чата конференции.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - locked: Указывает, должен ли запрос блокировать выбранную строку перед изменением.
+//   - write: Выполняет ли этот доступ мутацию и требует ли авторизации на запись.
+//
+// @returns:
+//   - result1: Полученный участник.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func authorizeChat(tx *gorm.DB, userID, conferenceID string, locked, write bool) (conferences.Participant, error) {
 	c, err := findConference(tx, conferenceID, locked)
 	if err != nil {
@@ -52,9 +83,29 @@ func authorizeChat(tx *gorm.DB, userID, conferenceID string, locked, write bool)
 	}
 	return p, nil
 }
+
+// chatCursor кодирует стабильную границу разбивки истории сообщений на страницы.
+//
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - sequence: Стабильная последовательность упорядочивания сообщений или событий.
+//
+// @returns:
+//   - result1: Непрозрачный курсор продолжения истории сообщений.
 func chatCursor(conferenceID string, sequence int64) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(conferenceID + ":" + strconv.FormatInt(sequence, 10)))
 }
+
+// parseChatCursor декодирует и проверяет границу разбивки истории сообщений на страницы.
+//
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func parseChatCursor(conferenceID, cursor string) (int64, error) {
 	if cursor == "" {
 		return 0, nil
@@ -76,12 +127,34 @@ func parseChatCursor(conferenceID, cursor string) (int64, error) {
 	}
 	return n, nil
 }
+
+// messageQuery формирует запрос к сообщениям с привязкой к авторизованному диалогу.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//
+// @returns:
+//   - result1: Созданная или загруженная база данных.
 func (r *ChatRepository) messageQuery(tx *gorm.DB) *gorm.DB {
 	if r.direct {
 		return r.messages(tx).Select("conversation_messages.*, COALESCE(NULLIF(u.display_name,''),'Пользователь') AS sender_name").Joins("JOIN users u ON u.id=conversation_messages.sender_user_id")
 	}
 	return r.messages(tx).Select("chat_messages.*, p.display_name AS sender_name").Joins(r.sql("JOIN conference_participants p ON p.conference_id=chat_messages.conference_id AND p.user_id=chat_messages.sender_user_id"))
 }
+
+// loadMessage загружает сообщение вместе с сопутствующими метаданными, необходимыми вызывающей
+// стороне.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) loadMessage(tx *gorm.DB, conferenceID, id, userID string) (chat.Message, error) {
 	var message chat.Message
 	cutoff, err := r.historyCutoff(tx, userID, conferenceID)
@@ -96,6 +169,18 @@ func (r *ChatRepository) loadMessage(tx *gorm.DB, conferenceID, id, userID strin
 	err = r.decorateMessages(tx, rows, cutoff)
 	return rows[0], err
 }
+
+// decorateMessages загружает сопутствующие метаданные о вложениях и вызовах для страницы
+// сообщений.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - items: Ограниченная коллекция записей для обработки.
+//   - cutoffs: Необязательные границы истории для конкретного участника.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) decorateMessages(tx *gorm.DB, items []chat.Message, cutoffs ...int64) error {
 	if len(items) == 0 {
 		return nil
@@ -158,6 +243,19 @@ func (r *ChatRepository) decorateMessages(tx *gorm.DB, items []chat.Message, cut
 	}
 	return nil
 }
+
+// readState загружает сохранённую границу прочитанных сообщений и количество непрочитанных
+// сообщений для авторизованной области чата.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Полученное состояние чтения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) readState(tx *gorm.DB, userID, conferenceID string) (chat.ReadState, error) {
 	var state chat.ReadState
 	if err := tx.Table(r.readTable()).Select("last_read_message_id,last_read_sequence").Where(r.sql("conference_id=? AND user_id=?"), conferenceID, userID).Scan(&state).Error; err != nil {
@@ -176,6 +274,21 @@ func (r *ChatRepository) readState(tx *gorm.DB, userID, conferenceID string) (ch
 	}
 	return state, err
 }
+
+// List возвращает страницу с ограниченным количеством записей чата с использованием заданных
+// параметров разбивки на страницы и фильтров.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) List(ctx context.Context, userID, conferenceID, cursor string, limit int) (chat.Page, error) {
 	page := chat.Page{Items: []chat.Message{}}
 	before, err := parseChatCursor(conferenceID, cursor)
@@ -221,8 +334,19 @@ func (r *ChatRepository) List(ctx context.Context, userID, conferenceID, cursor 
 	return page, err
 }
 
-// markImportant projects personal bookmarks only into authenticated REST reads.
-// Conference broadcasts and stored messages never carry another member's marker.
+// markImportant проецирует персональные закладки только в аутентифицированные чтения REST.  В
+// рассылках конференций и сохранённых сообщениях никогда не используется маркер другого
+// участника.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - items: Ограниченная коллекция записей для обработки.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) markImportant(tx *gorm.DB, userID, conferenceID string, items []chat.Message) error {
 	if r.direct || len(items) == 0 {
 		return nil
@@ -244,6 +368,24 @@ func (r *ChatRepository) markImportant(tx *gorm.DB, userID, conferenceID string,
 	}
 	return nil
 }
+
+// Send проверяет ссылки на доступ, ответы и вложения и сохраняет сообщение чата с защитой от
+// повторяющихся идентичных запросов.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//   - fingerprint: Стабильный отпечаток запроса, используемый для обнаружения повторяющихся
+//     идентичных запросов.
+//
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) Send(ctx context.Context, userID, conferenceID string, request chat.SendRequest, fingerprint string) (chat.Message, bool, error) {
 	var message chat.Message
 	created := false
@@ -331,6 +473,21 @@ func (r *ChatRepository) Send(ctx context.Context, userID, conferenceID string, 
 	}
 	return message, created, nil
 }
+
+// Edit — при редактировании существующий текст сообщения автора изменяется после проверки видимости и
+// возможности редактирования.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - text: Текст UTF-8 для проверки, нормализации или обработки.
+//
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) Edit(ctx context.Context, userID, conferenceID, id, text string) (chat.Message, error) {
 	var item chat.Message
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -374,6 +531,20 @@ func (r *ChatRepository) Edit(ctx context.Context, userID, conferenceID, id, tex
 	}
 	return item, nil
 }
+
+// Delete удаляет запрошенный чат, используя область видимости вызывающей стороны и правила
+// жизненного цикла ресурса.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Полученное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) Delete(ctx context.Context, userID, conferenceID, id string) (chat.Message, error) {
 	var item chat.Message
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -413,6 +584,19 @@ func (r *ChatRepository) Delete(ctx context.Context, userID, conferenceID, id st
 	}
 	return item, nil
 }
+
+// ReadState возвращает сохраненную границу прочитанных сообщений участника и количество видимых
+// непрочитанных сообщений.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Полученное состояние чтения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ReadState(ctx context.Context, userID, conferenceID string) (chat.ReadState, error) {
 	var state chat.ReadState
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -426,6 +610,20 @@ func (r *ChatRepository) ReadState(ctx context.Context, userID, conferenceID str
 	})
 	return state, err
 }
+
+// MarkRead перемещает сохраненную границу прочитанных сообщений, не позволяя поздним или
+// повторным запросам сдвигать ее назад.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
+//
+// @returns:
+//   - result1: Полученное состояние чтения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) MarkRead(ctx context.Context, userID, conferenceID, messageID string) (chat.ReadState, error) {
 	var state chat.ReadState
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

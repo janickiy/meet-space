@@ -1,4 +1,4 @@
-/* Responsive account settings, aligned with the web account dialog. */
+/* Адаптивные настройки аккаунта, соответствующие диалоговому окну веб-аккаунта. */
 .tm-shell.screen-settings .app-header { display:flex; }
 .tm-shell.screen-settings .statusbar { background:var(--bg); }
 .tm-shell.screen-settings .account-content { padding:0; }

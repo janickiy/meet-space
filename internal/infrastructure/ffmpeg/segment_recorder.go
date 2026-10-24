@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package ffmpeg
 
 import (
@@ -14,15 +22,7 @@ import (
 	"time"
 )
 
-// RTPTrack описывает кодек и локальный RTP-вход одной записываемой дорожки.
-// @params
-//   - Kind: тип события, ошибки или медиа, определяющий ветку обработки.
-//   - MimeType: заявленный либо проверенный MIME-тип содержимого.
-//   - PayloadType: значение PayloadType типа uint8, используемое согласно назначению этой операции.
-//   - ClockRate: значение ClockRate типа uint32, используемое согласно назначению этой операции.
-//   - Channels: значение Channels типа uint16, используемое согласно назначению этой операции.
-//   - Port: локальный сетевой порт передачи RTP.
-//   - FmtpLine: значение FmtpLine типа string, используемое согласно назначению этой операции.
+// RTPTrack описывает кодек и локальный входной сигнал RTP для одной записанной дорожки.
 type RTPTrack struct {
 	Kind        string
 	MimeType    string
@@ -33,23 +33,13 @@ type RTPTrack struct {
 	FmtpLine    string
 }
 
-// SegmentRecorder настраивает и запускает FFmpeg для сегментной записи RTP-потоков.
-// @params
-//   - path: путь к локальному файлу или каталогу операции.
-//   - logger: значение logger типа *log.Logger, используемое согласно назначению этой операции.
+// SegmentRecorder настраивает и запускает захват сегментов FFmpeg из потоков RTP.
 type SegmentRecorder struct {
 	path   string
 	logger *log.Logger
 }
 
-// SegmentProcess владеет запущенным процессом сегментной записи и его завершением.
-// @params
-//   - cmd: значение cmd типа *exec.Cmd, используемое согласно назначению этой операции.
-//   - cancel: отмена контекста, завершающая принадлежащие ресурсу операции.
-//   - done: канал уведомления о завершении ресурса.
-//   - stderr: значение stderr типа logTail, используемое согласно назначению этой операции.
-//   - stdin: значение stdin типа io.WriteCloser, используемое согласно назначению этой операции.
-//   - logger: значение logger типа *log.Logger, используемое согласно назначению этой операции.
+// SegmentProcess управляет процессом записи сегментов и отслеживает его завершение.
 type SegmentProcess struct {
 	cmd      *exec.Cmd
 	cancel   context.CancelFunc
@@ -61,11 +51,15 @@ type SegmentProcess struct {
 	logger   *log.Logger
 }
 
-// NewSegmentRecorder создаёт компонент записи сегментов FFmpeg.
-// @args
-// - path: путь к ffmpeg.
-// - logger: журнал записывающего воркера.
-// @return SegmentRecorder.
+// NewSegmentRecorder создаёт модуль записи сегментов с зависимостями и ограничениями,
+// необходимыми для записи и постобработки FFmpeg.
+//
+// @Parameters:
+//   - path: Проверенный путь к локальной файловой системе или объекту.
+//   - logger: Ограниченный диагностический логгер.
+//
+// @returns:
+//   - result1: Созданный или загруженный модуль записи сегментов.
 func NewSegmentRecorder(path string, logger *log.Logger) *SegmentRecorder {
 	if path == "" {
 		path = "ffmpeg"
@@ -77,15 +71,21 @@ func NewSegmentRecorder(path string, logger *log.Logger) *SegmentRecorder {
 	return &SegmentRecorder{path: path, logger: logger}
 }
 
-// Start создаёт SDP и запускает мультиплексор сегментов FFmpeg.
-// @args
-// - ctx: context записи.
-// - recordID: UUID записи.
-// - tracks: входящие RTP-треки.
-// - workDir: директория для input.sdp.
-// - outputDir: директория segment_*.mkv.
-// - segmentDurationSec: длительность сегмента.
-// @return процесс FFmpeg или ошибку запуска.
+// Start запускает запись и постобработку FFmpeg и подготавливает ресурсы, необходимые для этой
+// операции.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - recordID: Внешняя запись UUID.
+//   - tracks: Согласованные или архивированные дорожки, включенные в эту операцию.
+//   - workDir: Проверенный рабочий каталог процесса.
+//   - outputDir: Проверенный каталог для сгенерированных артефактов.
+//   - segmentDurationSec: Запрошенная продолжительность сегмента в секундах.
+//
+// @returns:
+//   - result1: Процесс создания или загрузки сегмента.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *SegmentRecorder) Start(ctx context.Context, recordID string, tracks []RTPTrack, workDir string, outputDir string, segmentDurationSec int) (*SegmentProcess, error) {
 	if len(tracks) == 0 {
 		return nil, fmt.Errorf("ffmpeg needs at least one RTP track")
@@ -146,9 +146,7 @@ func (r *SegmentRecorder) Start(ctx context.Context, recordID string, tracks []R
 		cancel()
 		return nil, fmt.Errorf("start ffmpeg segment recorder: %w", err)
 	}
-	go /* Вложенный обработчик выполняет выделенный шаг обработки в сборке и проверке аудио- и видеозаписи, используя состояние окружающей функции.
-
-	 */func() {
+	go func() {
 		process.waitErr = cmd.Wait()
 		close(process.done)
 	}()
@@ -164,17 +162,22 @@ func (r *SegmentRecorder) Start(ctx context.Context, recordID string, tracks []R
 		return process, nil
 	case <-ctx.Done():
 		cancel()
-		// Startup owns the child until it hands a process to the session. Join
-		// Wait here so a cancelled startup cannot outlive Stop/Shutdown.
+		// Дочерний процесс принадлежит программе Startup до тех пор, пока она не передаст его
+		// процессу сеанса.  Присоединиться к ожиданию здесь, чтобы отменённый процесс Startup
+		// не пережил остановку/завершение работы.
 		<-process.done
 		return nil, ctx.Err()
 	}
 }
 
-// Stop плавно завершает FFmpeg, чтобы мультиплексор сегментов закрыл текущий файл.
-// @args
-// - timeout: время ожидания плавной остановки.
-// @return nil; незавершенный хвостовой сегмент отфильтрует post-processing.
+// Stop останавливает активную операцию ffmpeg и освобождает принадлежащие ей ресурсы.
+//
+// @Parameters:
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *SegmentProcess) Stop(timeout time.Duration) error {
 	if p == nil || p.cmd == nil || p.cmd.Process == nil {
 		return nil
@@ -186,6 +189,10 @@ func (p *SegmentProcess) Stop(timeout time.Duration) error {
 	return nil
 }
 
+// stop останавливает активную операцию ffmpeg и освобождает принадлежащие ей ресурсы.
+//
+// @Parameters:
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
 func (p *SegmentProcess) stop(timeout time.Duration) {
 	defer p.cancel()
 	select {
@@ -232,15 +239,25 @@ func (p *SegmentProcess) stop(timeout time.Duration) {
 	}
 }
 
-// Done broadcasts completion after cmd.Wait has reaped the process and closed its pipes.
+// Done сигнализирует о завершении после того, как cmd.Wait завершает процесс и закрывает его
+// каналы.
+//
+// @returns:
+//   - result1: Ограниченное событие или медиаканал, принадлежащий этой операции.
 func (p *SegmentProcess) Done() <-chan struct{} { return p.done }
 
-// WaitErr returns the process result; callers must first observe Done.
+// WaitErr возвращает результат процесса; вызывающие функции должны сначала дождаться сигнала
+// Done.
+//
+// @returns:
+//   - result1: Ошибка завершения собственного процесса или подписки, либо nil после
+//     нормального завершения.
 func (p *SegmentProcess) WaitErr() error { return p.waitErr }
 
-// Stderr возвращает поток ошибок stderr процесса FFmpeg.
-// @args нет.
-// @return строку stderr без крайних пробелов.
+// Stderr возвращает ограниченный диагностический хвост, полученный от процесса записи.
+//
+// @returns:
+//   - result1: Ограниченный хвост диагностических данных процесса записи.
 func (p *SegmentProcess) Stderr() string {
 	if p == nil {
 		return ""
@@ -249,14 +266,16 @@ func (p *SegmentProcess) Stderr() string {
 	return strings.TrimSpace(p.stderr.String())
 }
 
-// buildRTPInputSDP формирует локальное SDP-описание RTP-входов FFmpeg для выбранных дорожек.
+// buildRTPInputSDP формирует локальное описание SDP, используемое для передачи захваченных
+// данных RTP в FFmpeg.
 //
-// @args
-//   - tracks ([]RTPTrack): набор дорожек, входящих в операцию.
+// @Parameters:
+//   - tracks: Согласованные или архивированные дорожки, включенные в эту операцию.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: SDP описывает локальные входы RTP, используемые FFmpeg.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func buildRTPInputSDP(tracks []RTPTrack) (string, error) {
 	var b strings.Builder
 	b.WriteString("v=0\n")
@@ -293,13 +312,13 @@ func buildRTPInputSDP(tracks []RTPTrack) (string, error) {
 	return b.String(), nil
 }
 
-// sdpCodecName преобразует имя кодека в форму, требуемую SDP.
+// sdpCodecName сопоставляет согласованный кодек с его названием в кодировке SDP.
 //
-// @args
-//   - mime (string): тип содержимого объекта.
+// @Parameters:
+//   - mime: Тип медиа MIME или метка кодека.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Название кодировки SDP для медиакодека.
 func sdpCodecName(mime string) string {
 	switch strings.ToLower(mime) {
 	case "video/vp8":
@@ -319,13 +338,13 @@ func sdpCodecName(mime string) string {
 	}
 }
 
-// defaultClockRate выбирает стандартную частоту RTP-часов для типа кодека.
+// defaultClockRate возвращает тактовую частоту RTP по умолчанию для выбранного медиакодека.
 //
-// @args
-//   - kind (string): тип события, ошибки или медиа, определяющий ветку обработки.
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
 //
-// @return:
-//   - результат 1 (uint32): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Результирующее значение типа uint32.
 func defaultClockRate(kind string) uint32 {
 	if kind == "audio" {
 		return 48000

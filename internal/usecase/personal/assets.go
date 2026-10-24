@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package personal
 
 import (
@@ -22,7 +30,8 @@ import (
 const MaxAvatarBytes int64 = 2 << 20
 const AssetStreamTimeout = 30 * time.Second
 
-// Asset keys are server-only data and never part of a public DTO.
+// Asset — ключи активов — это данные, доступные только на сервере, и они никогда не являются частью
+// публичного DTO.
 type Asset struct {
 	Version, ConversationID, Key, ContentType, Filename, Checksum string
 	Size                                                          int64
@@ -30,24 +39,202 @@ type Asset struct {
 }
 
 type AssetRepository interface {
+	// BeginAvatar создает ожидающую публикации публикацию с аватаром после блокировки
+	// авторизованной группы.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg4: Личные метаданные аватара или вложения.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	BeginAvatar(context.Context, string, string, Asset) error
+	// ActivateAvatar атомарно делает текущий загруженный аватар видимым в групповом чате.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg4: Версия или значение ограждения, используемое для предотвращения
+	//   устаревания прав собственности.
+	//
+	// @returns:
+	//   - result1: Полученная беседа.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ActivateAvatar(context.Context, string, string, string) (domain.Conversation, error)
+	// ClearAvatar очищает активные метаданные аватара группы и определяет устаревшие объекты
+	// для удаления.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор ресурса, к которому обращается данная операция.
+	//
+	// @returns:
+	//   - result1: Полученная беседа.
+	//   - result2: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ClearAvatar(context.Context, string, string) (domain.Conversation, bool, error)
+	// GroupAttachment загружает завершенное вложение только в том случае, если на него
+	// ссылается видимое групповое сообщение.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
+	//   доступа.
+	//   - arg3: Идентификатор чата, ограничивающий область действия операции.
+	//   - arg4: Идентификатор ресурса, к которому обращается данная операция.
+	//
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result2: Результирующий актив.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	GroupAttachment(context.Context, string, string, string) (bool, Asset, error)
-	// The callback runs under a conversation share lock. Membership mutations
-	// lock that conversation exclusively, so removal cannot commit mid-stream.
+	// VisitAsset выполняет операцию с активом в рамках области видимости, пока актив и его
+	// идентификационные данные действительны.
+	//
+	// Обратный вызов выполняется под блокировкой общего доступа к диалогу.  Мутации членства
+	// блокируют доступ к диалогу, поэтому удаление не может быть выполнено в процессе.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор аккаунта, запрашивающего приватный актив.
+	//   - arg3: Идентификатор группового диалога, содержащего актив.
+	//   - arg4: Идентификатор вложения или селектор аватара, ожидаемый репозиторием.
+	//   - arg5: Обратный вызов вызывается до тех пор, пока сохраняется право владения и
+	//   авторизации на использование ресурсов операции.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	VisitAsset(context.Context, string, string, string, func(Asset) error) error
+	// AvatarCleanupCandidates возвращает пакет устаревших объектов групповых аватаров.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Максимальное количество результатов или операций в этом пакете.
+	//
+	// @returns:
+	//   - result1: Собранные строковые значения.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	AvatarCleanupCandidates(context.Context, int) ([]string, error)
+	// ClaimAvatarCleanup запрашивает один устаревший объект-аватар, чтобы параллельные рабочие
+	// процессы не могли удалить текущий аватар.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Версия или значение ограждения, используемое для предотвращения
+	//   устаревания прав собственности.
+	//
+	// @returns:
+	//   - result1: Созданный или загруженный ресурс.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	ClaimAvatarCleanup(context.Context, string) (*Asset, error)
+	// FinishAvatarCleanup записывает, был ли успешно удалён запрошенный объект-аватар.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Значение актива, требуемое контрактом.
+	//   - arg3: Успешно ли завершена очистка запрошенного объекта.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	FinishAvatarCleanup(context.Context, Asset, bool) error
 }
 type AssetStorage interface {
+	// CheckAttachmentPrivacy отклоняет настройки объектного хранилища, которые раскрывают
+	// приватные вложения чатов через публичную политику bucket.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	CheckAttachmentPrivacy(context.Context) error
+	// PutPersonalAvatar сохраняет нормализованные байты аватара под ключом для приватных
+	// объектов, принадлежащих серверу, для группового аватара.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+	//   - arg3: Поток исходного контента или устройство чтения карт памяти, в зависимости
+	//   от его типа.
+	//   - arg4: Размер контента в байтах или запрошенная ограниченная емкость.
+	//   - arg5: Объявленный или обнаруженный тип контента MIME.
+	//   - arg6: Ожидаемый дайджест содержимого, используемый для проверки целостности
+	//   передачи.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	PutPersonalAvatar(context.Context, string, io.Reader, int64, string, string) error
+	// OpenPersonalAsset открывает приватный групповой аватар или вложение с фактическими
+	// метаданными объекта.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+	//
+	// @returns:
+	//   - result1: Результирующий считывающий модуль.
+	//   - result2: Возвращает количество, размер или числовое значение.
+	//   - result3: Обнаружен тип содержимого ресурса.
+	//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	OpenPersonalAsset(context.Context, string) (io.ReadCloser, int64, string, error)
+	// DeletePersonalAvatar удаляет только приватный объект, идентифицируемый по устаревшему
+	// ключу аватара.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	DeletePersonalAvatar(context.Context, string) error
 }
 type AssetEvents interface {
+	// PublishConversation публикует зафиксированное изменение в диалоге для авторизованных
+	// текущих участников.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg3: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+	//   - arg4: Входные байты или структурированная полезная информация о событии.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	PublishConversation(context.Context, string, string, any) error
 }
 type AssetService struct {
@@ -57,6 +244,19 @@ type AssetService struct {
 	uploads, streams chan struct{}
 }
 
+// NewAssetService создает сервис управления активами с зависимостями и ограничениями,
+// необходимыми для личных и групповых диалогов.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - repo: Зависимость персистентности, используемая операцией приложения.
+//   - storage: Зависимость от приватного объекта или хранилища файлов.
+//   - events: Место назначения для зафиксированных событий жизненного цикла или чатов.
+//
+// @returns:
+//   - result1: Созданный или загруженный сервис управления активами.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewAssetService(ctx context.Context, repo AssetRepository, storage AssetStorage, events AssetEvents) (*AssetService, error) {
 	if repo == nil || storage == nil {
 		return nil, fmt.Errorf("personal assets dependencies are required")
@@ -69,6 +269,16 @@ func NewAssetService(ctx context.Context, repo AssetRepository, storage AssetSto
 	return &AssetService{repo: repo, storage: storage, events: events, uploads: make(chan struct{}, 2), streams: make(chan struct{}, 8)}, nil
 }
 
+// assetIDs проверяет идентификаторы учетной записи и диалога перед выполнением частных операций
+// с активами.
+//
+// @Parameters:
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func assetIDs(user, conversation string) error {
 	if _, err := chat.UUID(user); err != nil {
 		return err
@@ -76,6 +286,17 @@ func assetIDs(user, conversation string) error {
 	_, err := chat.UUID(conversation)
 	return err
 }
+
+// acquireAssetSlot ожидает выделенного слота для обработки активов или завершает работу при
+// отмене контекста.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - slots: Ограниченный семафор, контролирующий параллельную обработку активов.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func acquireAssetSlot(ctx context.Context, slots chan struct{}) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -88,6 +309,20 @@ func acquireAssetSlot(ctx context.Context, slots chan struct{}) error {
 	}
 }
 
+// PutAvatar проверяет и сохраняет нормализованный групповой аватар, а затем публикует
+// зафиксированное изменение в диалоге.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//   - contentType: Объявленный или обнаруженный тип контента MIME.
+//   - body: Поток входного контента или сериализованное тело запроса.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *AssetService) PutAvatar(ctx context.Context, user, conversation, contentType string, body io.Reader) (domain.Conversation, error) {
 	if err := assetIDs(user, conversation); err != nil {
 		return domain.Conversation{}, err
@@ -105,8 +340,9 @@ func (s *AssetService) PutAvatar(ctx context.Context, user, conversation, conten
 	version := uuid.NewString()
 	sum := sha256.Sum256(data)
 	asset := Asset{Version: version, ConversationID: conversation, Key: "avatars/conversations/" + conversation + "/" + version, ContentType: typ, Size: int64(len(data)), Checksum: hex.EncodeToString(sum[:])}
-	// Persist before uploading: crashes or an ambiguous object-store response
-	// leave a durable pending row that the cleanup worker can recover.
+	// Сохраняется перед загрузкой: в случае сбоя или неоднозначного ответа хранилища объектов
+	// остается устойчивая ожидающая обработки строка, которую может восстановить процесс
+	// очистки.
 	if err = s.repo.BeginAvatar(ctx, user, conversation, asset); err != nil {
 		return domain.Conversation{}, err
 	}
@@ -120,6 +356,19 @@ func (s *AssetService) PutAvatar(ctx context.Context, user, conversation, conten
 	s.changed(ctx, conversation)
 	return item, nil
 }
+
+// DeleteAvatar очищает авторизованный групповой аватар и планирует очистку устаревших частных
+// объектов.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *AssetService) DeleteAvatar(ctx context.Context, user, conversation string) (domain.Conversation, error) {
 	if err := assetIDs(user, conversation); err != nil {
 		return domain.Conversation{}, err
@@ -135,12 +384,31 @@ func (s *AssetService) DeleteAvatar(ctx context.Context, user, conversation stri
 	}
 	return item, nil
 }
+
+// changed уведомляет наблюдателя компонента об изменениях в локальном или сохранённом
+// состоянии.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
 func (s *AssetService) changed(ctx context.Context, conversation string) {
 	if s.events != nil {
 		_ = s.events.PublishConversation(ctx, conversation, "conversation.updated", map[string]any{"conversationId": conversation, "type": "group"})
 	}
 }
 
+// normalizeAvatar декодирует ограниченное изображение и перекодирует нормализованный аватар, не
+// полагаясь на метаданные загрузки.
+//
+// @Parameters:
+//   - body: Поток входного контента или сериализованное тело запроса.
+//   - contentType: Объявленный или обнаруженный тип контента MIME.
+//
+// @returns:
+//   - result1: Собранные байтовые значения.
+//   - result2: Канонический тип содержимого изображения после перекодирования.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func normalizeAvatar(body io.Reader, contentType string) ([]byte, string, error) {
 	typ := strings.TrimSpace(strings.Split(contentType, ";")[0])
 	if typ != "image/jpeg" && typ != "image/png" {
@@ -161,7 +429,8 @@ func normalizeAvatar(body io.Reader, contentType string) ([]byte, string, error)
 	if err != nil {
 		return nil, "", apperrors.ErrInvalidInput
 	}
-	// Canonical re-encoding strips embedded metadata and trailing/polyglot data.
+	// При каноническом перекодировании удаляются встроенные метаданные и завершающие данные, а
+	// также полиглоты.
 	var out avatarBuffer
 	if format == "jpeg" {
 		err = jpeg.Encode(&out, img, &jpeg.Options{Quality: 85})
@@ -174,10 +443,20 @@ func normalizeAvatar(body io.Reader, contentType string) ([]byte, string, error)
 	return out.Bytes(), typ, nil
 }
 
-// Encoding may expand a small compressed input. Bound its output allocation as
-// well as the input and decoded dimensions.
+// При кодировании сжатый входной файл может увеличиться в размере.  Ограничьте объем выделяемой
+// памяти, а также размеры входного и декодированного файлов.
 type avatarBuffer struct{ bytes.Buffer }
 
+// Функция Write принимает выходные байты через контракт io.Writer, соблюдая правила буферизации
+// компонента.
+//
+// @Parameters:
+//   - data: Входные байты или структурированная полезная информация о событии.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (b *avatarBuffer) Write(data []byte) (int, error) {
 	if int64(b.Len()+len(data)) > MaxAvatarBytes {
 		return 0, apperrors.ErrInvalidInput
@@ -185,7 +464,23 @@ func (b *avatarBuffer) Write(data []byte) (int, error) {
 	return b.Buffer.Write(data)
 }
 
-// GroupDownload returns a non-capability URL; each byte request reauthorizes.
+// GroupDownload возвращает ошибку URL, не связанную с возможностями; при каждом запросе байта
+// происходит повторная авторизация.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//   - attachment: Идентификатор личного вложения или метаданные, в зависимости от его типа.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: Временная авторизованная загрузка прикрепленного файла URL.
+//   - result3: Временная метка или граница допустимого срока действия, связанная с
+//     результатом.
+//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *AssetService) GroupDownload(ctx context.Context, user, conversation, attachment string) (bool, string, time.Time, error) {
 	if err := assetIDs(user, conversation); err != nil {
 		return true, "", time.Time{}, err
@@ -202,8 +497,21 @@ func (s *AssetService) GroupDownload(ctx context.Context, user, conversation, at
 	return true, "/api/v1/conversations/" + conversation + "/attachments/" + attachment + "/content", time.Now().UTC().Add(5 * time.Minute), nil
 }
 
-// Stream holds fresh membership authorization and the repository's share lock
-// until the object reader closes. An empty attachment selects the current avatar.
+// Stream сохраняет свежую авторизацию членства и блокировку общего доступа к репозиторию до тех
+// пор, пока не будет закрыт объект чтения.  Пустое прикрепленное изображение выбирает текущий
+// аватар.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conversation: Идентификатор чата, ограничивающий область действия операции.
+//   - attachment: Идентификатор личного вложения или метаданные, в зависимости от его типа.
+//   - deliver: Обратный вызов доставки вызывается только до тех пор, пока действителен
+//     получатель или авторизация ресурса.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *AssetService) Stream(ctx context.Context, user, conversation, attachment string, deliver func(Asset, io.Reader) error) error {
 	if err := assetIDs(user, conversation); err != nil {
 		return err
@@ -232,6 +540,15 @@ func (s *AssetService) Stream(ctx context.Context, user, conversation, attachmen
 	})
 }
 
+// CleanAvatars запрашивает устаревшие объекты аватаров и удаляет только те ресурсы, которые
+// больше не используются группой.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *AssetService) CleanAvatars(ctx context.Context) error {
 	ids, err := s.repo.AvatarCleanupCandidates(ctx, 25)
 	if err != nil {
@@ -260,6 +577,12 @@ func (s *AssetService) CleanAvatars(ctx context.Context) error {
 	}
 	return nil
 }
+
+// Run ведет личные и групповые беседы до тех пор, пока контекст не будет отменен или пока не
+// произойдет сбой обработки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 func (s *AssetService) Run(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()

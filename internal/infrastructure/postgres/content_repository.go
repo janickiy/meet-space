@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -14,17 +22,35 @@ import (
 	"time"
 )
 
-// ContentRepository хранит расшифровки и AI-результаты, проверяя доступ по истории.
+// ContentRepository сохраняет расшифровки и валидированные результаты AI, проверяя доступ к
+// историческим конференциям.
 type ContentRepository struct{ db *gorm.DB }
 
-// NewContentRepository связывает репозиторий с GORM без изменения схемы или состояния медиа.
-// @args db — постоянное подключение с общим пулом соединений и сроком выполнения операций БД.
-// @return repository для HTTP-сценариев и leased product jobs.
+// NewContentRepository создает хранилище контента с зависимостями и ограничениями, необходимыми
+// для записи стенограмм и кратких обзоров.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданное или загруженное хранилище контента.
 func NewContentRepository(db *gorm.DB) *ContentRepository { return &ContentRepository{db: db} }
 
-// contentAccess проверяет текущие права, строгую готовность и удаление записи.
-// @args db — запрос/транзакция; userID — актор; cid/rid — связанные UUID.
-// @return приватный источник, право владельца или соведущего на повторную обработку и ошибку доступа.
+// contentAccess проверяет членство в конференции и видимость записей перед чтением
+// сгенерированного контента.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//
+// @returns:
+//   - result1: Результирующий источник записи.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func contentAccess(db *gorm.DB, userID, cid, rid string) (domain.RecordingSource, bool, error) {
 	p, err := findMembership(db, cid, userID)
 	if err != nil {
@@ -41,9 +67,21 @@ func contentAccess(db *gorm.DB, userID, cid, rid string) (domain.RecordingSource
 	return source, p.Role == conferences.Owner || p.Role == conferences.CoHost, err
 }
 
-// Transcript возвращает nullable состояние после проверки действующей истории.
-// @args ctx — срок выполнения; userID/cid/rid — актор, конференция и запись.
-// @return состояние, право reprocess и ошибка; nil item не является ошибкой доступа.
+// Transcript возвращает текущие метаданные стенограммы и возможности провайдера без запуска
+// процесса расшифровки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//
+// @returns:
+//   - result1: Созданная или загруженная стенограмма.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) Transcript(ctx context.Context, userID, cid, rid string) (*domain.Transcript, bool, error) {
 	db := r.db.WithContext(ctx)
 	_, manage, err := contentAccess(db, userID, cid, rid)
@@ -60,9 +98,21 @@ func (r *ContentRepository) Transcript(ctx context.Context, userID, cid, rid str
 	return &t, manage, err
 }
 
-// Segments выдаёт страницу только ready расшифровки; порядок ordinal стабилен.
-// @args ctx — срок выполнения; userID/cid/rid — область доступа; limit/offset — границы страницы.
-// @return plain-text сегменты с timestamp, количество и ошибка.
+// Segments возвращает страницу с ограниченным количеством сохраненных сегментов стенограммы для
+// навигации по временным меткам.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
+//
+// @returns:
+//   - result1: Результирующая страница с сегментами.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) Segments(ctx context.Context, userID, cid, rid string, limit, offset int) (domain.SegmentPage, error) {
 	page := domain.SegmentPage{Items: []domain.Segment{}, Limit: limit, Offset: offset}
 	t, _, err := r.Transcript(ctx, userID, cid, rid)
@@ -75,7 +125,8 @@ func (r *ContentRepository) Segments(ctx context.Context, userID, cid, rid strin
 	if t.Status != domain.Ready {
 		return page, apperrors.ErrConflict
 	}
-	// Повторная проверка политики EXISTS защищает страницу даже при удалении участника или записи после чтения метаданных.
+	// Повторная проверка политики доступа через EXISTS, чтобы удаление участника или записи
+	// после поиска метаданных не привело к раскрытию страницы.
 	db := r.db.WithContext(ctx).Table("transcript_segments s").Joins("JOIN transcripts t ON t.id=s.transcript_id JOIN record r ON r.uuid=t.recording_id").
 		Where("s.transcript_id=? AND t.status='ready' AND r.deleted_at IS NULL", t.ID).
 		Where("EXISTS(SELECT 1 FROM conference_participants p WHERE p.conference_id=t.conference_id AND p.user_id=? AND p.admission_state='admitted' AND p.status IN ('joined','left'))", userID)
@@ -86,9 +137,20 @@ func (r *ContentRepository) Segments(ctx context.Context, userID, cid, rid strin
 	return page, err
 }
 
-// Summary возвращает только результат для текущего поколения расшифровки.
-// @args ctx — срок выполнения; userID/cid/rid — пользователь и связанные ресурсы.
-// @return nullable summary, право regenerate и ошибка доступа.
+// Summary возвращает текущее сохраненное краткое резюме без обращения к внешнему провайдеру.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//
+// @returns:
+//   - result1: Созданное или загруженное краткое резюме.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) Summary(ctx context.Context, userID, cid, rid string) (*domain.Summary, bool, error) {
 	t, manage, err := r.Transcript(ctx, userID, cid, rid)
 	if err != nil || t == nil {
@@ -107,10 +169,23 @@ func (r *ContentRepository) Summary(ctx context.Context, userID, cid, rid string
 	return &s, manage, err
 }
 
-// insertContentJob добавляет стабильное дедуплицированное задание в исходящую очередь текущей транзакции.
-// @args tx — транзакция; kind/entity/cid — операция/ресурс; version — поколение;
-// payload — идентификаторы без приватного текста; attempts — ограниченное число попыток.
-// @return ошибка фиксации job; duplicate является успешной операцией.
+// insertContentJob добавляет задание по созданию контента без дублирования существующего
+// запроса.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - entity: Идентификатор сущности или категория сущности, связанные с заданием на обработку.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - version: Версия или значение ограждения, используемое для предотвращения устаревания прав
+//     собственности.
+//   - payload: Структурированная полезная информация о событии или команде.
+//   - attempts: Максимально допустимое количество попыток выполнения задания или текущее
+//     количество повторных попыток.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func insertContentJob(tx *gorm.DB, kind, entity, cid string, version int64, payload any, attempts int) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -119,10 +194,23 @@ func insertContentJob(tx *gorm.DB, kind, entity, cid string, version int64, payl
 	return tx.Exec(`INSERT INTO background_jobs(kind,entity_id,conference_id,version,payload,dedup_key,max_attempts) VALUES (?,?,?,?,?::jsonb,?,?) ON CONFLICT(dedup_key) DO NOTHING`, kind, entity, cid, version, string(data), fmt.Sprintf("%s:%s:%d", kind, entity, version), attempts).Error
 }
 
-// QueueTranscript разрешает владельцу или соведущему создать ограниченное поколение повторного распознавания после сбоя.
-// @args ctx — срок выполнения; userID/cid/rid — область доступа; maximum — число повторных обработок;
-// cooldown — минимальный интервал; attempts — бюджет повторов воркера.
-// @return метаданные поставленного в очередь задания или конфликт без запуска внешнего провайдера.
+// QueueTranscript ставит в очередь авторизованную генерацию транскрипции с ограничениями на
+// дедупликацию и повторные попытки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - cooldown: Минимальный интервал между дорогостоящими запросами на повторную обработку.
+//   - attempts: Максимально допустимое количество попыток выполнения задания или текущее
+//     количество повторных попыток.
+//
+// @returns:
+//   - result1: Созданная или загруженная стенограмма.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) QueueTranscript(ctx context.Context, userID, cid, rid string, maximum int, cooldown time.Duration, attempts int) (*domain.Transcript, error) {
 	var t domain.Transcript
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -169,9 +257,23 @@ func (r *ContentRepository) QueueTranscript(ctx context.Context, userID, cid, ri
 	return &t, err
 }
 
-// QueueSummary создаёт новое поколение сводки ИИ для готовой расшифровки с ограничением затрат.
-// @args ctx — срок выполнения; userID/cid/rid — область доступа; maximum/cooldown/attempts — бюджеты.
-// @return queued summary либо безопасный конфликт.
+// QueueSummary ставит в очередь авторизованную генерацию сводной информации с ограничениями на
+// дедупликацию и повторные попытки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - cid: Идентификатор конференции, ограничивающий область действия операции.
+//   - rid: Идентификатор записи, используемый текущей операцией.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - cooldown: Минимальный интервал между дорогостоящими запросами на повторную обработку.
+//   - attempts: Максимально допустимое количество попыток выполнения задания или текущее
+//     количество повторных попыток.
+//
+// @returns:
+//   - result1: Созданное или загруженное краткое резюме.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ContentRepository) QueueSummary(ctx context.Context, userID, cid, rid string, maximum int, cooldown time.Duration, attempts int) (*domain.Summary, error) {
 	var s domain.Summary
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

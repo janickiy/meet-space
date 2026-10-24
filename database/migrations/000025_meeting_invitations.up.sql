@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS conference_invitations (
 );
 CREATE INDEX IF NOT EXISTS idx_conference_invitations_user ON conference_invitations(conference_id,user_id);
 
--- Explicit invitations already save the personal notification and durable email job
--- in their transaction. Enrollment must not create a second announcement.
+-- Явные приглашения уже сохраняют личное уведомление и задание по отправке письма в рамках
+-- транзакции. При регистрации не должно создаваться второе объявление.
 CREATE OR REPLACE FUNCTION enqueue_enrollment_integration() RETURNS TRIGGER AS $$
 BEGIN
  IF current_setting('meetrix.explicit_invitation',TRUE)='true' THEN RETURN NEW; END IF;

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package personalapp
 
 import (
@@ -11,13 +19,10 @@ import (
 	personalusecase "github.com/janickiy/meet-space/internal/usecase/personal"
 )
 
-// PeerPresence читает присутствие только собеседника доступного личного чата.
-// Сначала проверяет членство через репозиторий, затем читает серверный идентификатор
-// собеседника из хранилища присутствия без продления его сессии. Произвольные
-// идентификаторы пользователя из query-параметров не используются.
-// При сбое, отмене или неполном ответе хранилища возвращает недоступность, а не офлайн.
-// @args c — запрос Gin с UUID переписки и подтверждённой middleware идентичностью аккаунта.
-// @return JSON с PeerPresence либо безопасная ошибка без статуса присутствия.
+// PeerPresence возвращает текущее онлайн-состояние пирингового узла только в рамках авторизованного прямого диалога.
+//
+// @Parameters:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) PeerPresence(c *gin.Context) {
 	id, err := chat.UUID(c.Param("id"))
 	if err != nil {

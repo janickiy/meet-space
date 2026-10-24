@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -8,19 +16,49 @@ import (
 	"gorm.io/gorm"
 )
 
-// PlatformRepository читает глобальные полномочия и операционные данные без приватного содержимого.
+// PlatformRepository считывает глобальные привилегии и операционные агрегированные данные без
+// доступа к личному пользовательскому контенту.
 type PlatformRepository struct{ db *gorm.DB }
 
+// NewPlatformRepository создает репозиторий платформы с зависимостями и ограничениями,
+// необходимыми для доступа только для чтения к возможностям продукта и его операционному
+// статусу.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный репозиторий платформы.
 func NewPlatformRepository(db *gorm.DB) *PlatformRepository { return &PlatformRepository{db: db} }
 
-// IsAdmin проверяет текущие сохранённые полномочия, поэтому отзыв роли лишает доступа и с действующим JWT.
+// IsAdmin проверяет настроенные административные идентификационные данные, не раскрывая
+// конфигурацию администратора.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PlatformRepository) IsAdmin(ctx context.Context, userID string) (bool, error) {
 	var allowed bool
 	err := r.db.WithContext(ctx).Raw(`SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND is_admin)`, userID).Scan(&allowed).Error
 	return allowed, err
 }
 
-// Summary читает ограниченные агрегаты и недавние безопасные коды сбоев, без полезной нагрузки и содержимого.
+// Summary возвращает ограниченные операционные агрегированные данные, доступные только
+// администратору, и безопасные коды ошибок без пользовательского контента.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: Полученная сводная таблица.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PlatformRepository) Summary(ctx context.Context) (platform.Summary, error) {
 	var counts struct {
 		ActiveConferences       int64 `gorm:"column:active_conferences"`
@@ -67,7 +105,14 @@ func (r *PlatformRepository) Summary(ctx context.Context) (platform.Summary, err
 	return value, nil
 }
 
-// safeOperationCode не позволяет некорректному сохранённому значению стать произвольным сообщением интерфейса.
+// safeOperationCode ограничивает код операционного статуса, прежде чем отобразить его в ответе
+// администратора.
+//
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//
+// @returns:
+//   - result1: Код ограниченного рабочего состояния из списка разрешенных.
 func safeOperationCode(value string) string {
 	if len(value) == 0 || len(value) > 64 {
 		return "failed"

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package composite
 
 import (
@@ -8,9 +16,17 @@ import (
 	"strings"
 )
 
-// audioArguments собирает только аудиофильтры: видеодекодеры и кодировщики не запускаются.
-// @args dir — приватный каталог; chunk — закрытые источники; output — серверный путь результата.
-// @return аргументы FFmpeg с фиксированными кодеком и лимитами либо ошибка пути.
+// audioArguments формирует аудиовходы и фильтры FFmpeg для составной временной шкалы.
+//
+// @Parameters:
+//   - dir: Проверенный локальный каталог.
+//   - chunk: Ограниченный входной фрагмент и его метаданные для временной шкалы.
+//   - output: Целевой или сгенерированный результат, необходимый для выполнения этой операции.
+//
+// @returns:
+//   - result1: Собранные строковые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (c *Composer) audioArguments(dir string, chunk Chunk, output string) ([]string, error) {
 	duration := strconv.FormatFloat(chunk.Duration, 'f', 6, 64)
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-filter_complex_threads", "1"}

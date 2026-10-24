@@ -1,0 +1,20 @@
+digraph ER {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=16, label="Запись и артефакты", labelloc=t, nodesep=0.35, ranksep=0.75, splines=polyline];
+  node [shape=plain, fontname="Arial", fontsize=12];
+  edge [fontname="Arial", fontsize=12, color="#36566f", arrowsize=0.7];
+  "conferences" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>conferences</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "record" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>record</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: platform_conference_id</TD></TR><TR><TD ALIGN="LEFT">40 полей</TD></TR></TABLE>>];
+  "record_event" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>record_event</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: record_id</TD></TR><TR><TD ALIGN="LEFT">FK: segment_id</TD></TR><TR><TD ALIGN="LEFT">11 полей</TD></TR></TABLE>>];
+  "record_file" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>record_file</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: record_id</TD></TR><TR><TD ALIGN="LEFT">16 полей</TD></TR></TABLE>>];
+  "record_segment" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>record_segment</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: record_id</TD></TR><TR><TD ALIGN="LEFT">21 полей</TD></TR></TABLE>>];
+  "recording_outbox" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#e9f1f7"><B>recording_outbox</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR><TR><TD ALIGN="LEFT">FK: record_id</TD></TR><TR><TD ALIGN="LEFT">8 полей</TD></TR></TABLE>>];
+  "users" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#f2f2f2"><B>users</B></TD></TR><TR><TD ALIGN="LEFT">PK: id</TD></TR></TABLE>>];
+  "record" -> "conferences" [label="platform_conference_id → id\nDELETE RESTRICT"];
+  "record_event" -> "record" [label="record_id → id\nDELETE CASCADE"];
+  "record_event" -> "record_segment" [label="segment_id → id\nDELETE SET NULL"];
+  "record_file" -> "record" [label="record_id → id\nDELETE CASCADE"];
+  "record_segment" -> "record" [label="record_id → id\nDELETE CASCADE"];
+  "recording_outbox" -> "record" [label="record_id → uuid\nDELETE CASCADE"];
+  "record" -> "conferences" [style=dashed, color="#a06b20", label="conference_id → id\nбез FK"];
+  "record" -> "users" [style=dashed, color="#a06b20", label="requested_by → id\nбез FK"];
+}

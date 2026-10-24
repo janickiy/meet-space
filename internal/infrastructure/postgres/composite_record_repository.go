@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -10,32 +18,37 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// ListActiveComposite возвращает активные задачи общей записи для восстановления обработки.
+// ListActiveComposite возвращает активные составные записи, чтобы работник мог сверить их или
+// восстановить процесс обработки.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// @return:
-//   - результат 1 ([]records.Record): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Собранные значения записей.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ListActiveComposite(ctx context.Context) ([]records.Record, error) {
 	var result []records.Record
 	err := r.db.WithContext(ctx).Where("mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status IN ?", []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).Order("created_at ASC").Limit(100).Find(&result).Error
 	return result, err
 }
 
-// ClaimComposite захватывает версионную аренду задачи общей записи за конкретным воркером.
+// ClaimComposite запрашивает аренду составной записи с версионным доступом для одного
+// работника.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - token (string): подписанный токен или токен владения, который необходимо проверить.
-//   - workerID (string): идентификатор воркера-владельца операции.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - workerID: Идентификатор работника, которому принадлежит эта операция.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ClaimComposite(ctx context.Context, id, token, workerID string, ttl time.Duration) (bool, error) {
 	result := r.db.WithContext(ctx).Model(&records.Record{}).
 		Where("uuid = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status IN ?", id, []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).
@@ -44,17 +57,20 @@ func (r *RecordRepository) ClaimComposite(ctx context.Context, id, token, worker
 	return result.RowsAffected == 1, result.Error
 }
 
-// RenewComposite продлевает аренду общей записи при совпадении владельца и версии.
+// RenewComposite продлевает аренду составной записи только в том случае, если её работник и
+// версия аренды по-прежнему совпадают.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - token (string): подписанный токен или токен владения, который необходимо проверить.
-//   - ttl (time.Duration): срок жизни сохраняемого значения или выданного разрешения.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - ttl: Срок действия, назначенный для временного значения или записи о владельце.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) RenewComposite(ctx context.Context, id, token string, ttl time.Duration) (bool, error) {
 	result := r.db.WithContext(ctx).Model(&records.Record{}).
 		Where("uuid = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus') AND recorder_token = ? AND recorder_lease_until > clock_timestamp() AND status IN ?", id, token, []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).
@@ -62,30 +78,33 @@ func (r *RecordRepository) RenewComposite(ctx context.Context, id, token string,
 	return result.RowsAffected == 1, result.Error
 }
 
-// ReleaseComposite освобождает только действующую аренду общей записи.
+// ReleaseComposite освобождает только ту аренду составной записи, которой он владеет в данный
+// момент.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - token (string): подписанный токен или токен владения, который необходимо проверить.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) ReleaseComposite(ctx context.Context, id, token string) error {
 	return r.db.WithContext(ctx).Model(&records.Record{}).Where("uuid = ? AND recorder_token = ?", id, token).Updates(map[string]any{"recorder_token": nil, "recorder_lease_until": nil}).Error
 }
 
-// TransitionComposite условно меняет состояние общей записи, проверяя владельца и версию аренды.
+// TransitionComposite изменяет состояние составной записи только для текущей аренды.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - token (string): подписанный токен или токен владения, который необходимо проверить.
-//   - status (string): состояние ресурса, ответа или фильтра выборки.
-//   - cause (error): значение cause типа error, используемое согласно назначению этой операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
+//   - cause: Основная ошибка, из-за которой операция завершилась неудачно.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) TransitionComposite(ctx context.Context, id, token, status string, cause error) error {
 	var from []string
 	updates := map[string]any{"status": status}
@@ -116,27 +135,24 @@ func (r *RecordRepository) TransitionComposite(ctx context.Context, id, token, s
 	return nil
 }
 
-// SaveCompositeArtifacts сохраняет итоговые артефакты общей записи с защитой от устаревшего воркера.
-// Операции с базой данных объединяет в транзакцию.
+// SaveCompositeArtifacts коммитит составные артефакты только для той генерации записи, которой
+// по-прежнему владеет работник.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - id (string): идентификатор обрабатываемого ресурса.
-//   - token (string): подписанный токен или токен владения, который необходимо проверить.
-//   - final (records.RecordFile): значение final типа records.RecordFile, используемое согласно назначению этой операции.
-//   - preview (*records.RecordFile): значение preview типа *records.RecordFile, используемое согласно назначению этой операции.
-//   - segments ([]records.RecordSegment): доступные сегменты записи для итоговой сборки.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - final: состояние файла записи, обработанное в ходе этой операции.
+//   - preview: Необязательные метаданные файла предварительного просмотра, связанные с записью.
+//   - segments: Упорядоченная расшифровка или сегменты медиаданных.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *RecordRepository) SaveCompositeArtifacts(ctx context.Context, id, token string, final records.RecordFile, preview *records.RecordFile, segments []records.RecordSegment) error {
-	return r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	return r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			var record records.Record
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("uuid = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus') AND recorder_token = ? AND recorder_lease_until > clock_timestamp() AND status = ?", id, token, records.StatusUploading).First(&record).Error; err != nil {
 				if err == gorm.ErrRecordNotFound {

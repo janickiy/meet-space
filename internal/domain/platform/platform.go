@@ -1,9 +1,19 @@
-// Пакет platform описывает безопасные возможности продукта и доступные только для чтения операционные сводки.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Платформа пакета определяет безопасные возможности продукта и сводные операционные данные
+// только для чтения.
 package platform
 
 import "time"
 
-// Capabilities описывает серверные возможности без адресов провайдеров, токенов и секретов.
+// Capabilities описывает функции сервера без указания адресов провайдеров, токенов или
+// секретных данных.
 type Capabilities struct {
 	LiveCaptions     bool     `json:"liveCaptions"`
 	Transcription    bool     `json:"transcription"`
@@ -13,14 +23,15 @@ type Capabilities struct {
 	RecordingModes   []string `json:"recordingModes"`
 }
 
-// Failure представляет ограниченное операционное событие без ID пользователей, встреч и содержимого.
+// Failure — это ограниченное операционное событие без идентификаторов пользователя или
+// конференции, а также без пользовательского контента.
 type Failure struct {
 	Kind string    `json:"kind"`
 	Code string    `json:"code"`
 	At   time.Time `json:"at"`
 }
 
-// Summary содержит агрегированный снимок для администратора с глобальными полномочиями.
+// Summary содержит сводный моментальный снимок для администратора с глобальными правами.
 type Summary struct {
 	AsOf                    time.Time       `json:"asOf"`
 	ActiveConferences       int64           `json:"activeConferences"`

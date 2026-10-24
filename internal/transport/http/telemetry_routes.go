@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -8,8 +16,14 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// RegisterClientErrorRoutes ограничивает приём ошибок браузера на уровне IP и всего API.
-// @args router — маршрутизатор; handler — проверяющий обработчик; limiter — общий Redis-ограничитель.
+// RegisterClientErrorRoutes регистрирует конечные точки обработки ошибок клиента с
+// предоставленными модулями аутентификации и промежуточным ПО для обработки запросов.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterClientErrorRoutes(router gin.IRouter, handler *telemetry.Handler, limiter middleware.Limiter) {
 	path := APIV1Prefix + "/client-errors"
 	router.POST(path, middleware.RateLimit(limiter, middleware.RateLimitConfig{

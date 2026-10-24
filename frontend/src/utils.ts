@@ -3,19 +3,8 @@ import type { User } from "./types";
 export const SESSION_KEY = "meet.session.v1";
 export const LOGOUT_KEY = "meet.auth.logout.v1";
 export const ACCOUNT_CHANGE_KEY = "meet.auth.account-change.v1";
-
-/**
- * Return the client-side access-token lifetime cap without extending server validity.
- * @param user User returned by authentication or restored from the session cache.
- * @returns Three hours for meeting guests, one hour for registered accounts, in seconds.
- */
-export function accessTokenTTLSeconds(
-  user?: Pick<User, "guestConferenceId">,
-): number {
-  return user?.guestConferenceId ? 3 * 60 * 60 : 60 * 60;
-}
-
-// Only a public user ID and nonce are shared across tabs; never credentials.
+// Доступ к вкладкам предоставляется только общедоступным пользователям ID и nonce; учетные
+// данные не предоставляются.
 export function announceAccount(id: string | null) {
   try {
     localStorage.setItem(
@@ -23,7 +12,7 @@ export function announceAccount(id: string | null) {
       JSON.stringify({ id, nonce: crypto.randomUUID() }),
     );
   } catch {
-    /* Memory still works. */
+    /* Память все еще работает. */
   }
 }
 export function selectedAccountID(): string | undefined {
@@ -71,7 +60,8 @@ export function readSession(): Session | null {
       "expiresAt" in data &&
       typeof data.expiresAt === "number" &&
       Number.isFinite(data.expiresAt) &&
-      data.expiresAt > 0
+      data.expiresAt > 0 &&
+      data.expiresAt <= Date.now() + 3600000
     ) {
       const session: Session = { token: data.token, expiresAt: data.expiresAt };
       if ("user" in data && data.user && typeof data.user === "object") {
@@ -85,12 +75,9 @@ export function readSession(): Session | null {
         )
           session.user = user as User;
       }
-      // An expired access token is only a cache. The HttpOnly cookie restores the session.
-      if (
-        session.expiresAt <=
-        Date.now() + accessTokenTTLSeconds(session.user) * 1000
-      )
-        return session;
+      // Токен доступа с истекшим сроком действия - это всего лишь кэш. Файл cookie HttpOnly
+      // восстанавливает сеанс.
+      return session;
     }
     sessionStorage.removeItem(SESSION_KEY);
   } catch {
@@ -119,7 +106,7 @@ export function saveSession(session: Session | null) {
   }
 }
 
-/** Contains only an explicit logout marker; credentials never enter localStorage. */
+/** Содержит только явный маркер выхода из системы; учетные данные никогда не вводятся в localStorage. */
 export function hasLogoutMarker(): boolean {
   try {
     return localStorage.getItem(LOGOUT_KEY) !== null;
@@ -132,7 +119,7 @@ export function markLogout(): void {
   try {
     localStorage.setItem(LOGOUT_KEY, `${Date.now()}:${crypto.randomUUID()}`);
   } catch {
-    /* The current tab still clears its in-memory session. */
+    /* Текущая вкладка по-прежнему очищает свой сеанс в памяти. */
   }
 }
 
@@ -140,7 +127,7 @@ export function clearLogoutMarker(): void {
   try {
     localStorage.removeItem(LOGOUT_KEY);
   } catch {
-    /* Storage may be unavailable. */
+    /* Хранилище может быть недоступно. */
   }
 }
 /**

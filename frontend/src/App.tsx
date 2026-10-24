@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, startTransition, Suspense } from "react";
 import {
   Navigate,
   Outlet,
@@ -11,10 +11,6 @@ import { useAuth } from "./auth";
 import { Brand, Button, ErrorNotice, Loading } from "./components/ui";
 import { Layout } from "./components/Layout";
 import { Landing } from "./pages/Landing";
-import { DocumentationPage } from "./pages/DocumentationPage";
-import { DOC_SLUGS } from "./landing/docs";
-import { DownloadPage, SelfHostedOverview } from "./pages/MarketingPages";
-import { PublicMetadata } from "./landing/PublicMetadata";
 import { AuthPage, RegistrationSuccess } from "./pages/AuthPages";
 import { Link } from "react-router";
 import { CalendarCallback } from "./components/IntegrationsSettings";
@@ -106,9 +102,7 @@ function SettingsRoute() {
 function Protected() {
   const auth = useAuth();
   const location = useLocation();
-  // Public content remains available while a visitor's session is restored.
-  // Existing authenticated users retain their dashboard at the same route.
-  if (location.pathname === "/" && !auth.user) return <Landing />;
+  const navigate = useNavigate();
   if (auth.loading)
     return (
       <div className="page-center">
@@ -126,23 +120,12 @@ function Protected() {
           <Button onClick={auth.retry}>Попробовать снова</Button>
           <Button
             variant="secondary"
-            onClick={
-              /**
-               * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-               *
-               *
-               * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
-               */ () => {
-                void auth.logout().catch(
-                  /**
-                   * Обработчик catch выполняет переданный шаг вызова catch в интерфейсе Meet.
-                   *
-                   *
-                   * @returns значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
-                   */ () => {},
-                );
-              }
-            }
+            onClick={() => {
+              startTransition(() => {
+                void auth.logout().catch(() => {});
+                navigate("/", { replace: true });
+              });
+            }}
           >
             Выйти
           </Button>
@@ -205,82 +188,63 @@ function NotFound() {
  * @returns JSX-представление компонента для текущих свойств и состояния.
  */
 export function App() {
-  const { user } = useAuth();
   return (
-    <>
-      <PublicMetadata authenticated={Boolean(user)} />
-      <Routes>
-        <Route path="/welcome" element={<Landing />} />
-        <Route path="/download" element={<DownloadPage />} />
-        <Route path="/self-hosted" element={<SelfHostedOverview />} />
-        <Route path="/docs" element={<DocumentationPage slug="overview" />} />
-        {DOC_SLUGS.map((slug) => (
+    <Routes>
+      <Route path="/app" element={<HomeRedirect />} />
+      <Route path="/login" element={<AuthPage />} />
+      <Route path="/register" element={<AuthPage register />} />
+      <Route path="/register/success" element={<RegistrationSuccess />} />
+      <Route
+        path="/i/:code"
+        element={
+          <Suspense
+            fallback={
+              <div className="page-center">
+                <Loading />
+              </div>
+            }
+          >
+            <InvitePage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/app/settings/calendar/:provider/callback"
+        element={<CalendarCallback />}
+      />
+      <Route element={<Protected />}>
+        <Route element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="/folders" element={<FoldersPage />} />
+          <Route path="/folders/:id" element={<FoldersPage />} />
+          <Route path="/personal" element={<PersonalPage />} />
+          <Route path="/personal/:id" element={<PersonalPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/meetings" element={<Dashboard all />} />
+          <Route path="/meetings/new" element={<Dashboard create />} />
+          <Route path="/meetings/:id" element={<ConferencePage />} />
+          <Route path="/meetings/:id/join" element={<PreJoinPage />} />
+          <Route path="/conferences" element={<Dashboard all />} />
+          <Route path="/conferences/new" element={<Dashboard create />} />
+          <Route path="/conferences/:id" element={<ConferencePage />} />
+          <Route path="/conferences/:id/join" element={<PreJoinPage />} />
+          <Route path="/app/settings" element={<SettingsRoute />} />
+          <Route path="/settings" element={<SettingsRoute />} />
+          <Route path="/app/recordings" element={<RecordingsPage />} />
+          <Route path="/recordings" element={<RecordingsPage />} />
+          <Route path="/recordings/:id" element={<RecordingDetailPage />} />
           <Route
-            key={slug}
-            path={`/docs/${slug}`}
-            element={<DocumentationPage slug={slug} />}
+            path="/history/*"
+            element={<Navigate to={PAST_CONFERENCES_PATH} replace />}
           />
-        ))}
-        <Route
-          path="/docs/self-hosted"
-          element={<DocumentationPage slug="installation" />}
-        />
-        <Route path="/app" element={<HomeRedirect />} />
-        <Route path="/login" element={<AuthPage />} />
-        <Route path="/register" element={<AuthPage register />} />
-        <Route path="/register/success" element={<RegistrationSuccess />} />
-        <Route
-          path="/i/:code"
-          element={
-            <Suspense
-              fallback={
-                <div className="page-center">
-                  <Loading />
-                </div>
-              }
-            >
-              <InvitePage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/app/settings/calendar/:provider/callback"
-          element={<CalendarCallback />}
-        />
-        <Route element={<Protected />}>
-          <Route element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="/folders" element={<FoldersPage />} />
-            <Route path="/folders/:id" element={<FoldersPage />} />
-            <Route path="/personal" element={<PersonalPage />} />
-            <Route path="/personal/:id" element={<PersonalPage />} />
-            <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/meetings" element={<Dashboard all />} />
-            <Route path="/meetings/new" element={<Dashboard create />} />
-            <Route path="/meetings/:id" element={<ConferencePage />} />
-            <Route path="/meetings/:id/join" element={<PreJoinPage />} />
-            <Route path="/conferences" element={<Dashboard all />} />
-            <Route path="/conferences/new" element={<Dashboard create />} />
-            <Route path="/conferences/:id" element={<ConferencePage />} />
-            <Route path="/conferences/:id/join" element={<PreJoinPage />} />
-            <Route path="/app/settings" element={<SettingsRoute />} />
-            <Route path="/settings" element={<SettingsRoute />} />
-            <Route path="/app/recordings" element={<RecordingsPage />} />
-            <Route path="/recordings" element={<RecordingsPage />} />
-            <Route path="/recordings/:id" element={<RecordingDetailPage />} />
-            <Route
-              path="/history/*"
-              element={<Navigate to={PAST_CONFERENCES_PATH} replace />}
-            />
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/app/search" element={<Navigate to="/" replace />} />
-            <Route path="/search" element={<Navigate to="/" replace />} />
-            <Route path="/admin" element={<AdminPage />} />
-          </Route>
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/app/search" element={<Navigate to="/" replace />} />
+          <Route path="/search" element={<Navigate to="/" replace />} />
+          <Route path="/admin" element={<AdminPage />} />
         </Route>
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </>
+      </Route>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }

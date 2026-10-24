@@ -1,4 +1,4 @@
-/* Call controls sit above the same three destinations used by the workspace. */
+/* Элементы управления вызовами расположены над теми же тремя пунктами, что и в рабочем пространстве. */
 .call-body { position: relative; }
 .call-heading { min-width: 0; flex: 1; }
 .call-heading h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

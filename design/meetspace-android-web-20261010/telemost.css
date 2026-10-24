@@ -1,4 +1,4 @@
-/* Shared mobile shell and chat/profile styles. Primary navigation: meetings, chats, profile. */
+/* Общие стили мобильной оболочки и чата/профиля. Основная навигация: встречи, чаты, профиль. */
 :root[data-theme="dark"] {
   --bg: #141416;
   --surface: #232326;
@@ -983,7 +983,7 @@
   }
 }
 
-/* The preserved home uses its existing composition inside the new shell. */
+/* Сохранённый домашний экран использует существующую компоновку внутри новой оболочки. */
 .tm-shell .content.home-content {
   padding: 0;
 }
@@ -1038,7 +1038,7 @@
   }
 }
 
-/* Groups and one-to-one conversations share the All list. */
+/* Группы и личные беседы используют общий список «Все». */
 .chat-avatar {
   position: relative;
   display: inline-flex;

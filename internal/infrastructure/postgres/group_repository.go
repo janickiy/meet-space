@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -11,7 +19,21 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// Every mutation takes this row lock before a fresh membership/role query.
+// lockGroup блокирует групповой диалог и действующего участника перед изменением состава
+// участников.
+//
+// При каждой мутации эта блокировка строки устанавливается перед новым запросом на получение
+// информации о членстве и ролях.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Полученная роль.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func lockGroup(tx *gorm.DB, actor, id string) (personal.Role, error) {
 	var row struct {
 		ID, Type  string
@@ -34,11 +56,42 @@ func lockGroup(tx *gorm.DB, actor, id string) (personal.Role, error) {
 	}
 	return member.Role, err
 }
+
+// groupManager проверяет, может ли текущий участник управлять группой.
+//
+// @Parameters:
+//   - role: Запрошенная роль участника или члена группы.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func groupManager(role personal.Role) bool { return role == personal.Owner || role == personal.Admin }
+
+// groupTouch обновляет метаданные ревизии группы после зафиксированных изменений.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func groupTouch(tx *gorm.DB, id string) error {
 	return tx.Table("conversations").Where("id=?", id).Updates(map[string]any{"updated_at": gorm.Expr("clock_timestamp()"), "metadata_version": gorm.Expr("metadata_version+1")}).Error
 }
 
+// groupWriteView загружает обновленный ответ о членстве конкретного участника в рамках
+// транзакции.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - item: Состояние диалога, обработанное в ходе этой операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func groupWriteView(tx *gorm.DB, actor, id string, item *personal.Conversation) error {
 	view, err := personalView(tx, actor, id)
 	if err == nil {
@@ -46,6 +99,17 @@ func groupWriteView(tx *gorm.DB, actor, id string, item *personal.Conversation) 
 	}
 	return err
 }
+
+// registeredGroupUsers разрешает регистрацию учетных записей, не являющихся гостевыми, для
+// членства в группе.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func registeredGroupUsers(tx *gorm.DB, ids []string) error {
 	var rows []struct{ ID string }
 	if err := tx.Table("users").Select("id").Clauses(clause.Locking{Strength: "KEY SHARE"}).Where("id IN ? AND guest_conference_id IS NULL AND password_hash<>''", ids).Order("id").Find(&rows).Error; err != nil {
@@ -57,6 +121,20 @@ func registeredGroupUsers(tx *gorm.DB, ids []string) error {
 	return nil
 }
 
+// CreateGroup создает групповой чат с проверенными зарегистрированными участниками и
+// владельцем.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: Указывает, создал ли этот запрос новое состояние или повторно использовал
+//     идемпотентный результат.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) CreateGroup(ctx context.Context, actor string, request personal.CreateGroupRequest) (personal.Conversation, bool, error) {
 	request, fingerprint, err := personal.NormalizeCreateGroup(actor, request)
 	if err != nil {
@@ -100,8 +178,9 @@ func (r *PersonalRepository) CreateGroup(ctx context.Context, actor string, requ
 			members[i].UserID = user
 			members[i].Role = role
 		}
-		// All accounts are already locked and validated. One bounded insert keeps
-		// creation atomic without a database round trip for every participant.
+		// Все учетные записи уже заблокированы и проверены.  Одна ограниченная вставка
+		// обеспечивает атомарность создания без необходимости повторного обращения к базе
+		// данных для каждого участника.
 		if err := tx.Table("conversation_members").Create(&members).Error; err != nil {
 			return err
 		}
@@ -113,6 +192,18 @@ func (r *PersonalRepository) CreateGroup(ctx context.Context, actor string, requ
 	return item, created, nil
 }
 
+// UpdateGroup обновляет проверенные метаданные группы после проверки прав администратора.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) UpdateGroup(ctx context.Context, actor, id string, request personal.UpdateGroupRequest) (personal.Conversation, error) {
 	request, err := personal.NormalizeUpdateGroup(request)
 	if err != nil {
@@ -145,6 +236,17 @@ func (r *PersonalRepository) UpdateGroup(ctx context.Context, actor, id string, 
 	return item, nil
 }
 
+// GroupMembers возвращает список участников группы, доступных для действующей учетной записи.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Собранные значения участников.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) GroupMembers(ctx context.Context, actor, id string) ([]personal.Member, error) {
 	items := []personal.Member{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -156,6 +258,20 @@ func (r *PersonalRepository) GroupMembers(ctx context.Context, actor, id string)
 	return items, err
 }
 
+// AddGroupMembers добавляет проверенные зарегистрированные учетные записи после проверки
+// членства в группе и правил администрирования.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - rawIDs: Недоверенные идентификаторы участников для проверки и дедупликации.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: Собранные значения участников.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) AddGroupMembers(ctx context.Context, actor, id string, rawIDs []string) (personal.Conversation, []personal.Member, error) {
 	ids, err := personal.NormalizeMemberIDs(rawIDs)
 	if err != nil || len(ids) == 0 {
@@ -195,7 +311,8 @@ func (r *PersonalRepository) AddGroupMembers(ctx context.Context, actor, id stri
 			if seen[user] {
 				continue
 			}
-			// New members start at the current history frontier. Returning members retain their read cursor.
+			// Новые участники добавляются с текущего рубежа истории.  Возвращаемые участники
+			// сохраняют свой курсор чтения.
 			err = tx.Exec(`INSERT INTO conversation_members(conversation_id,user_id,role,last_read_message_id,last_read_sequence)
 			 SELECT ?,?,'member',lm.id,COALESCE(lm.sequence,0) FROM (SELECT 1) seed
 			 LEFT JOIN LATERAL(SELECT id,sequence FROM conversation_messages WHERE conversation_id=? ORDER BY sequence DESC LIMIT 1) lm ON true
@@ -219,6 +336,22 @@ func (r *PersonalRepository) AddGroupMembers(ctx context.Context, actor, id stri
 	return item, added, nil
 }
 
+// RemoveGroupMember удаляет участника группы, соблюдая ограничения на владение и
+// администрирование.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) RemoveGroupMember(ctx context.Context, actor, id, target string) (personal.Conversation, bool, error) {
 	changed := false
 	var item personal.Conversation
@@ -265,6 +398,21 @@ func (r *PersonalRepository) RemoveGroupMember(ctx context.Context, actor, id, t
 	return item, changed, nil
 }
 
+// ChangeGroupRole изменяет роль участника группы в рамках полномочий действующего
+// администратора.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
+//   - newRole: Проверенная роль, которую можно назначить целевому участнику группы.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) ChangeGroupRole(ctx context.Context, actor, id, target string, newRole personal.Role) (personal.Conversation, error) {
 	if newRole != personal.Admin && newRole != personal.MemberRole {
 		return personal.Conversation{}, apperrors.ErrInvalidInput
@@ -303,6 +451,20 @@ func (r *PersonalRepository) ChangeGroupRole(ctx context.Context, actor, id, tar
 	return item, nil
 }
 
+// TransferGroupOwnership атомарно передает право собственности на группу текущему участнику,
+// соответствующему требованиям.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
+//
+// @returns:
+//   - result1: Полученная беседа.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) TransferGroupOwnership(ctx context.Context, actor, id, target string) (personal.Conversation, error) {
 	var item personal.Conversation
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -337,6 +499,17 @@ func (r *PersonalRepository) TransferGroupOwnership(ctx context.Context, actor, 
 	return item, nil
 }
 
+// LeaveGroup покидает группу только в том случае, если правила владения группой позволяют
+// действующему участнику выйти из нее.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) LeaveGroup(ctx context.Context, actor, id string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		role, err := lockGroup(tx, actor, id)
@@ -362,6 +535,18 @@ func (r *PersonalRepository) LeaveGroup(ctx context.Context, actor, id string) e
 	})
 }
 
+// DeleteGroup удаляет группу для ее авторизованного владельца и возвращает затронутых
+// получателей для доставки событий.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Собранные строковые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) DeleteGroup(ctx context.Context, actor, id string) ([]string, error) {
 	former := []string{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

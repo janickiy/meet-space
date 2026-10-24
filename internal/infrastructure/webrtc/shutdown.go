@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package webrtc
 
 import (
@@ -7,9 +15,15 @@ import (
 	"time"
 )
 
-// Shutdown прекращает приём записей и закрывает WebRTC, FFmpeg и ICE ресурсы.
-// ctx ограничивает суммарное ожидание; завершённые фрагменты сохраняются.
-// Возвращает ошибку дедлайна, если процессы не успели завершиться.
+// Shutdown останавливает выполнение новых задач и ожидает завершения закрытия ресурсов,
+// принадлежащих компоненту.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()
 	if done := m.shutdownDone; done != nil {

@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package recorder
 
 import (
@@ -15,15 +23,56 @@ import (
 )
 
 type compositeArtifactStorage interface {
+	// UploadFile загружает локальный артефакт записи и возвращает метаданные сохраненного
+	// объекта.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Сгенерированный сервером закрытый ключ для хранения объектов.
+	//   - arg3: Проверенный путь к локальной файловой системе или объекту.
+	//   - arg4: Объявленный или обнаруженный тип контента MIME.
+	//
+	// @returns:
+	//   - result1: Результирующий загруженный объект.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	UploadFile(context.Context, string, string, string) (s3storage.UploadedObject, error)
+	// RemovePrefix удаляет объекты только в пределах валидированного префикса записи,
+	// принадлежащего серверу.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Объект или префикс ключа, управляемый сервером.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	RemovePrefix(context.Context, string) error
 }
 
 type compositeArtifactRepository interface {
+	// SaveCompositeArtifacts коммитит составные артефакты только для той генерации записи,
+	// которой по-прежнему владеет работник.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Идентификатор ресурса, к которому обращается данная операция.
+	//   - arg3: Подписанные учетные данные или токен владения операцией для проверки.
+	//   - arg4: Определяет, является ли этот файл последним и нужно ли закрыть архив.
+	//   - arg5: Необязательные метаданные файла предварительного просмотра, связанные с
+	//   записью.
+	//   - arg6: Упорядоченная расшифровка или сегменты медиаданных.
+	//
+	// @returns:
+	//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	SaveCompositeArtifacts(context.Context, string, string, records.RecordFile, *records.RecordFile, []records.RecordSegment) error
 }
 
-// compositeArtifactPublisher binds publication dependencies, not capture or leases.
+// compositeArtifactPublisher связывает зависимости публикации, а не захвата или аренды.
 type compositeArtifactPublisher struct {
 	storage    compositeArtifactStorage
 	repository compositeArtifactRepository
@@ -37,9 +86,9 @@ type compositeArtifactCommand struct {
 	result ffmpeg.Result
 }
 
-// compositeArtifactPublication owns one attempt's remote staging prefix and ZIP.
-// The recording goroutine calls Publish once and defers Close until its operation
-// ends, including post-commit events and local cleanup. It is not shared.
+// compositeArtifactPublication владеет префиксом удаленной подготовки одной попытки и ZIP.
+// Горутина записи вызывает Publish один раз и откладывает вызов Close до завершения своей
+// операции, включая события после коммита и локальную очистку.  Она не является общей.
 type compositeArtifactPublication struct {
 	publisher compositeArtifactPublisher
 	command   compositeArtifactCommand
@@ -50,18 +99,33 @@ type compositeArtifactPublication struct {
 	closed    bool
 }
 
+// begin создает состояние публикации артефакта, привязанное к текущей команде записи.
+//
+// @Parameters:
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
+//
+// @returns:
+//   - result1: Созданная или загруженная публикация составного артефакта.
 func (p compositeArtifactPublisher) begin(command compositeArtifactCommand) *compositeArtifactPublication {
 	return &compositeArtifactPublication{publisher: p, command: command}
 }
 
-// Publish stages immutable artifacts and commits their metadata under the lease.
-// Close owns rollback on every pre-commit failure; no retry is performed here.
+// Publish подготавливает неизменяемые артефакты и фиксирует их метаданные в рамках аренды.
+// Close отвечает за откат при каждой неудачной попытке коммита; повторных попыток не
+// предусмотрено.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *compositeArtifactPublication) Publish(ctx context.Context) error {
 	if p.publisher.storage == nil {
 		return fmt.Errorf("recording storage is unavailable")
 	}
 	record, result := p.command.record, p.command.result
-	// A late former owner can neither overwrite nor clean another attempt's files.
+	// Прежний владелец не может ни перезаписать, ни очистить файлы другой попытки.
 	p.base = filepath.ToSlash(filepath.Join("recordings", record.ConferenceID, record.UUID, "artifacts", p.command.token))
 	p.armed = true
 	audioOnly := record.Mode == records.ModeAudioOnly || record.Mode == records.ModeIndividualTracks
@@ -104,8 +168,9 @@ func (p *compositeArtifactPublication) Publish(ctx context.Context) error {
 	return nil
 }
 
-// Close is idempotent and preserves the former deferred cleanup order: ZIP first,
-// then best-effort rollback of this attempt's prefix, only before a fenced commit.
+// Close является идемпотентной и сохраняет прежний порядок отложенной очистки: сначала ZIP,
+// затем откат префикса этой попытки с максимальной эффективностью, и только после этого —
+// зафиксированный коммит.
 func (p *compositeArtifactPublication) Close() {
 	if p.closed {
 		return

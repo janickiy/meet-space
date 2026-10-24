@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package local
 
 import (
@@ -6,10 +14,15 @@ import (
 	"path/filepath"
 )
 
-// RemoveEmptyTrees удаляет переданные директории только если они пустые.
-// @args
-// - paths: пути к директориям, внутри которых нужно удалить пустые поддиректории.
-// @return ошибку чтения или удаления директории.
+// RemoveEmptyTrees удаляет пустые каталоги под проверенным корневым каталогом локальных
+// записей.
+//
+// @Parameters:
+//   - paths: Проверенные локальные пути, задействованные в этой операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func RemoveEmptyTrees(paths ...string) error {
 	for _, path := range paths {
 		if err := removeEmptyTree(path); err != nil {
@@ -20,13 +33,15 @@ func RemoveEmptyTrees(paths ...string) error {
 	return nil
 }
 
-// removeEmptyTree рекурсивно проверяет каталог и удаляет его только после опустошения дочерних каталогов.
+// removeEmptyTree просматривает локальное поддерево и удаляет каталоги только после того, как
+// их содержимое становится пустым.
 //
-// @args
-//   - path (string): путь к локальному файлу или каталогу операции.
+// @Parameters:
+//   - path: Проверенный путь к локальной файловой системе или объекту.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func removeEmptyTree(path string) error {
 	entries, err := os.ReadDir(path)
 	if os.IsNotExist(err) {

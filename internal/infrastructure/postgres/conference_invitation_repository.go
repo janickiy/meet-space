@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -5,6 +13,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -19,11 +28,31 @@ import (
 
 type ConferenceInvitationRepository struct{ db *gorm.DB }
 
+// NewConferenceInvitationRepository создаёт репозиторий приглашений на конференцию с
+// зависимостями и ограничениями, необходимыми для приглашения на конференцию.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный репозиторий приглашений на конференцию.
 func NewConferenceInvitationRepository(db *gorm.DB) *ConferenceInvitationRepository {
 	return &ConferenceInvitationRepository{db: db}
 }
 
-// invitationActor checks both the account and room authority before returning directory data.
+// invitationActor проверяет права доступа как к аккаунту, так и к комнате, прежде чем вернуть
+// данные из каталога.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - lock: Режим блокировки или требование блокировки для операции с базой данных.
+//
+// @returns:
+//   - result1: Результирующая конференция.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func invitationActor(tx *gorm.DB, actor, conference string, lock bool) (d.Conference, error) {
 	var c d.Conference
 	q := tx.Where("id=? AND kind='meeting'", conference)
@@ -58,26 +87,53 @@ func invitationActor(tx *gorm.DB, actor, conference string, lock bool) (d.Confer
 	return c, nil
 }
 
+// SearchInvitationUsers возвращает ограниченный список зарегистрированных кандидатов на
+// получение приглашения, доступных действующему организатору.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - query: Текст для поиска или валидированные фильтры запросов.
+//
+// @returns:
+//   - result1: Собранные значения пользователей, которым было отправлено приглашение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceInvitationRepository) SearchInvitationUsers(ctx context.Context, actor, conference, query string) ([]d.InvitationUser, error) {
 	items := []d.InvitationUser{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := invitationActor(tx, actor, conference, false); err != nil {
 			return err
 		}
-		// Escape LIKE operators: the input is a literal fragment, never a directory wildcard.
+		// Экранирование операторов LIKE: входные данные представляют собой литеральную часть, а
+		// не подстановочный знак каталога.
 		query = strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(query)
 		return tx.Model(&users.User{}).Select("id,email,display_name").Where("guest_conference_id IS NULL AND password_hash<>'' AND (email ILIKE ? OR display_name ILIKE ?)", "%"+query+"%", "%"+query+"%").Order("email,id").Limit(20).Scan(&items).Error
 	})
 	return items, err
 }
 
+// Invite создаёт или обновляет приглашения на конференцию для подтверждённых получателей.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - conference: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//
+// @returns:
+//   - result1: Собранные значения результатов приглашения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conference string, request d.InvitationRequest) ([]d.InvitationResult, error) {
 	items := []d.InvitationResult{}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := invitationActor(tx, actor, conference, true); err != nil {
 			return err
 		}
-		// Serialization on the room prevents duplicate sends from concurrent organizer clicks.
+		// Сериализация данных в комнате предотвращает повторную отправку приглашений из-за
+		// одновременных действий нескольких организаторов.
 		if err := tx.Exec("SET LOCAL meetrix.explicit_invitation='true'").Error; err != nil {
 			return err
 		}
@@ -114,8 +170,9 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 		}
 		sort.Strings(emails)
 		for _, email := range emails {
-			// Account addresses are resolved after API validation; validate them too,
-			// without changing the registered account or enqueueing unusable mail.
+			// Адреса аккаунтов определяются после проверки API; проверьте их тоже, не изменяя
+			// зарегистрированный аккаунт и не отправляя в очередь письма, которые не будут
+			// доставлены.
 			if err := d.ValidateInvitationEmail(email); err != nil {
 				return err
 			}
@@ -151,7 +208,8 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 					return err
 				}
 				if left > 0 {
-					// Only the former member may restore chat access via explicit Join.
+					// Только бывший участник может восстановить доступ к чату, явно
+					// присоединившись к нему.
 					items = append(items, d.InvitationResult{Email: email, UserID: userID, Status: "left_chat"})
 					continue
 				}
@@ -200,7 +258,16 @@ func (r *ConferenceInvitationRepository) Invite(ctx context.Context, actor, conf
 	return items, err
 }
 
-// InvitationDelivery performs live authorization and lease checks immediately before SMTP.
+// InvitationDelivery выполняет проверку авторизации и аренды непосредственно перед SMTP.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//
+// @returns:
+//   - result1: В результате доставки приглашения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs.Job) (u.InvitationDelivery, error) {
 	var delivery u.InvitationDelivery
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -216,8 +283,17 @@ func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs
 		if err := tx.Table("users").Select("COALESCE(NULLIF(display_name,''),email)").Where("id=?", delivery.Conference.OwnerID).Scan(&delivery.Organizer).Error; err != nil {
 			return err
 		}
-		if delivery.Invitation.Status != "queued" || (delivery.Conference.Status != "created" && delivery.Conference.Status != "scheduled" && delivery.Conference.Status != "active") {
-			return nil
+		reminder := job.Kind == "integrations.invitation_reminder"
+		if reminder {
+			if delivery.Invitation.Status != "sent" || delivery.Conference.Status != "scheduled" ||
+				delivery.Conference.IntegrationVersion != job.Version || delivery.Conference.ScheduledAt == nil ||
+				!delivery.Conference.ScheduledAt.After(time.Now()) {
+				return nil
+			}
+		} else {
+			if delivery.Invitation.Status != "queued" || (delivery.Conference.Status != "created" && delivery.Conference.Status != "scheduled" && delivery.Conference.Status != "active") {
+				return nil
+			}
 		}
 		if delivery.Invitation.UserID != nil {
 			var allowed int64
@@ -228,6 +304,15 @@ func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs
 			if allowed == 0 {
 				return nil
 			}
+			if reminder {
+				var disabled int64
+				if err := tx.Table("notification_preferences").Where("user_id=? AND NOT reminder", *delivery.Invitation.UserID).Count(&disabled).Error; err != nil {
+					return err
+				}
+				if disabled > 0 {
+					return nil
+				}
+			}
 		}
 		delivery.Allowed = true
 		return nil
@@ -235,6 +320,18 @@ func (r *IntegrationRepository) InvitationDelivery(ctx context.Context, job jobs
 	return delivery, err
 }
 
+// CompleteInvitation запись о доставке приглашения сохраняется только для текущего
+// идентификатора задания.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - job: Зарезервированное фоновое задание и токен его генерации или владельца.
+//   - status: Состояние жизненного цикла или статус ответа на запись.
+//   - code: Ограниченный публичный статус или код ошибки.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *IntegrationRepository) CompleteInvitation(ctx context.Context, job jobs.Job, status, code string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := integrationLease(tx, job); err != nil {

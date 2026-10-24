@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -20,15 +28,34 @@ import (
 
 type FolderRepository struct{ db *gorm.DB }
 
+// NewFolderRepository создаёт репозиторий папок с зависимостями и ограничениями, необходимыми
+// для работы с папками.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//
+// @returns:
+//   - result1: Созданный или загруженный репозиторий папок.
 func NewFolderRepository(db *gorm.DB) *FolderRepository {
 	return &FolderRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
 }
+
+// Account проверяет, является ли действующий аккаунт зарегистрированным и не является ли он
+// гостевым.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) Account(ctx context.Context, actor string) error {
 	return NewPersonalRepository(r.db).Account(ctx, actor)
 }
 
-// These are the canonical eligible sets for counts, items and picker. Inactive
-// mappings remain stored, but never become authorization grants.
+// These канонические допустимые наборы для подсчётов, элементов и выбора.  Неактивные
+// сопоставления сохраняются, но никогда не становятся объектами авторизации.
 const folderConversationsSQL = `SELECT c.id, COALESCE(lm.created_at,c.created_at) AS activity_at,
  CASE WHEN c.type='group' THEN c.name ELSE COALESCE(NULLIF(peer.display_name,''),'Пользователь') END AS label
  FROM conversation_members m JOIN conversations c ON c.id=m.conversation_id
@@ -51,6 +78,20 @@ type folderRow struct {
 	ItemContains   bool
 }
 
+// folderRows формирует запрос к папке с областью видимости владельца, используемый при работе с
+// папками.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - itemKind: Проверенный тип ресурса, связанного с папкой.
+//   - itemID: Идентификатор ресурса, связанного с папкой.
+//
+// @returns:
+//   - result1: Собранные значения для папки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func folderRows(db *gorm.DB, actor, id, itemKind, itemID string) ([]folders.Folder, error) {
 	query := folderEligibleSQL + folderCountProjection
 	args := []any{actor, actor}
@@ -80,6 +121,18 @@ func folderRows(db *gorm.DB, actor, id, itemKind, itemID string) ([]folders.Fold
 	}
 	return items, nil
 }
+
+// folderView формирует ответ для папки с текущим количеством элементов.
+//
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Полученная папка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func folderView(db *gorm.DB, actor, id string) (folders.Folder, error) {
 	items, err := folderRows(db, actor, id, "", "")
 	if err != nil {
@@ -91,8 +144,19 @@ func folderView(db *gorm.DB, actor, id string) (folders.Folder, error) {
 	return items[0], nil
 }
 
-// NO KEY UPDATE serializes account-local mutations without conflicting with
-// key-share locks held by existing FK-based conversation/member writes.
+// lockFolderActor блокирует и проверяет учетную запись, в которой изменяется коллекция папок.
+//
+// NO KEY UPDATE сериализует локальные изменения в учетной записи, не вступая в конфликт с
+// блокировками на основе общего ключа, которые удерживаются при записи сообщений и участников
+// на основе FK.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func lockFolderActor(tx *gorm.DB, actor string) error {
 	var id string
 	result := tx.Raw(`SELECT id FROM users WHERE id=? AND guest_conference_id IS NULL AND password_hash<>'' FOR NO KEY UPDATE`, actor).Scan(&id)
@@ -104,6 +168,18 @@ func lockFolderActor(tx *gorm.DB, actor string) error {
 	}
 	return nil
 }
+
+// lockOwnedFolder блокирует папку только в том случае, если она принадлежит действующей учетной
+// записи.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func lockOwnedFolder(tx *gorm.DB, actor, id string) error {
 	var found string
 	result := tx.Raw(`SELECT id FROM folders WHERE id=? AND user_id=? FOR UPDATE`, id, actor).Scan(&found)
@@ -115,6 +191,15 @@ func lockOwnedFolder(tx *gorm.DB, actor, id string) error {
 	}
 	return nil
 }
+
+// folderConflict сопоставляет нарушение уникальности папки с ошибкой публичного конфликта.
+//
+// @Parameters:
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func folderConflict(err error) error {
 	var pgError *pgconn.PgError
 	if errors.As(err, &pgError) && pgError.Code == "23505" && pgError.ConstraintName == "folders_owner_name_key" {
@@ -122,8 +207,30 @@ func folderConflict(err error) error {
 	}
 	return err
 }
+
+// folderID проверяет идентификатор папки перед сохранением доступа.
+//
+// @Parameters:
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func folderID(id string) error { _, err := chat.UUID(id); return err }
 
+// List возвращает ограниченную страницу записей о папках с использованием заданных параметров
+// разбивки на страницы и фильтров.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - itemKind: Проверенный тип ресурса, связанного с папкой.
+//   - itemID: Идентификатор ресурса, связанного с папкой.
+//
+// @returns:
+//   - result1: Собранные значения для папки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) List(ctx context.Context, actor, itemKind, itemID string) ([]folders.Folder, error) {
 	if itemKind != "" || itemID != "" {
 		if !folders.ValidKind(itemKind) || folderID(itemID) != nil {
@@ -135,6 +242,18 @@ func (r *FolderRepository) List(ctx context.Context, actor, itemKind, itemID str
 	}
 	return folderRows(r.db.WithContext(ctx), actor, "", itemKind, itemID)
 }
+
+// Get загружает запрошенную папку в рамках полномочий вызывающей стороны.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: Полученная папка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) Get(ctx context.Context, actor, id string) (folders.Folder, error) {
 	if err := folderID(id); err != nil {
 		return folders.Folder{}, err
@@ -144,6 +263,19 @@ func (r *FolderRepository) Get(ctx context.Context, actor, id string) (folders.F
 	}
 	return folderView(r.db.WithContext(ctx), actor, id)
 }
+
+// Create создаёт и сохраняет новую папку для действующей учётной записи.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - name: Имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется
+//     обращение.
+//
+// @returns:
+//   - result1: Полученная папка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) Create(ctx context.Context, actor, name string) (folders.Folder, error) {
 	name, key, err := folders.NormalizeName(name)
 	if err != nil {
@@ -171,6 +303,21 @@ func (r *FolderRepository) Create(ctx context.Context, actor, name string) (fold
 	})
 	return item, folderConflict(err)
 }
+
+// Rename нормализует имя новой папки и обновляет папку, принадлежащую действующей учётной
+// записи.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - name: Имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется
+//     обращение.
+//
+// @returns:
+//   - result1: Полученная папка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) Rename(ctx context.Context, actor, id, name string) (folders.Folder, error) {
 	if err := folderID(id); err != nil {
 		return folders.Folder{}, err
@@ -196,6 +343,18 @@ func (r *FolderRepository) Rename(ctx context.Context, actor, id, name string) (
 	})
 	return item, folderConflict(err)
 }
+
+// Delete удаляет запрошенную папку, используя область видимости вызывающей стороны и правила
+// жизненного цикла ресурса.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) Delete(ctx context.Context, actor, id string) error {
 	if err := folderID(id); err != nil {
 		return err
@@ -213,6 +372,18 @@ func (r *FolderRepository) Delete(ctx context.Context, actor, id string) error {
 		return tx.Exec(`UPDATE folders f SET position=ranked.position FROM (SELECT id,(row_number() OVER(ORDER BY position,id)-1)::integer AS position FROM folders WHERE user_id=?) ranked WHERE f.id=ranked.id`, actor).Error
 	})
 }
+
+// В Order хранится валидированный порядок расположения личных папок действующего аккаунта.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
+//
+// @returns:
+//   - result1: Собранные значения для папки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) Order(ctx context.Context, actor string, ids []string) ([]folders.Folder, error) {
 	if len(ids) > folders.MaxFolders {
 		return nil, apperrors.ErrInvalidInput
@@ -241,7 +412,8 @@ func (r *FolderRepository) Order(ctx context.Context, actor string, ids []string
 				return apperrors.New(apperrors.ErrConflict, "folder order does not match the current account")
 			}
 		}
-		// At most 100 folders; one VALUES update avoids a query for each position.
+		// Не более 100 папок; одно обновление VALUES позволяет избежать запроса для каждой
+		// позиции.
 		if len(ids) > 0 {
 			values := make([]string, 0, len(ids))
 			args := make([]any, 0, len(ids)*2)
@@ -260,6 +432,18 @@ func (r *FolderRepository) Order(ctx context.Context, actor string, ids []string
 	return items, err
 }
 
+// lockFolderTarget блокирует и проверяет ресурс, добавляемый в личную папку или удаляемый из
+// неё.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func lockFolderTarget(tx *gorm.DB, actor, kind, id string) error {
 	table := "conversations"
 	eligible := folderConversationsSQL
@@ -275,8 +459,9 @@ func lockFolderTarget(tx *gorm.DB, actor, kind, id string) error {
 	if result.RowsAffected != 1 {
 		return apperrors.ErrForbidden
 	}
-	// This statement has a fresh snapshot after acquiring the shared target
-	// lock; a concurrent revoke cannot use an earlier membership predicate.
+	// После получения общей блокировки целевого объекта этот оператор делает новый снимок. При
+	// параллельном отзыве прав доступа нельзя использовать более ранний предикат
+	// принадлежности.
 	var count int64
 	if err := tx.Raw(`SELECT count(*) FROM (`+eligible+`) eligible WHERE id=?`, actor, id).Scan(&count).Error; err != nil {
 		return err
@@ -286,6 +471,21 @@ func lockFolderTarget(tx *gorm.DB, actor, kind, id string) error {
 	}
 	return nil
 }
+
+// SetItem обновляет элемент для папки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - folder: Идентификатор личной папки действующего аккаунта.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - add: Указывает, нужно ли добавить целевой элемент, а не удалить его.
+//
+// @returns:
+//   - result1: Полученная папка.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) SetItem(ctx context.Context, actor, folder, kind, id string, add bool) (folders.Folder, error) {
 	if !folders.ValidKind(kind) || folderID(folder) != nil || folderID(id) != nil {
 		return folders.Folder{}, apperrors.ErrInvalidInput
@@ -295,7 +495,8 @@ func (r *FolderRepository) SetItem(ctx context.Context, actor, folder, kind, id 
 		if err := NewPersonalRepository(tx).Account(ctx, actor); err != nil {
 			return err
 		}
-		// Reject an owner-scope mismatch before touching or locking its target.
+		// Отклоняет запрос при несовпадении владельца и области видимости, прежде чем
+		// обращаться к целевому объекту или блокировать его.
 		var owned int64
 		if err := tx.Table("folders").Where("id=? AND user_id=?", folder, actor).Count(&owned).Error; err != nil {
 			return err
@@ -350,8 +551,8 @@ type folderItemRow struct {
 	InFolder   bool
 }
 
-// Full chat metadata is projected only for the bounded selected page. The
-// membership predicate is still in this same statement, before LIMIT.
+// Полные метаданные чата отображаются только для выбранной страницы.  Предикат принадлежности
+// по-прежнему используется в этом же операторе, до LIMIT.
 const folderPersonalJSON = `jsonb_build_object('id',p.id,'type',p.type,'peer',CASE WHEN p.type='direct' THEN jsonb_build_object('id',p.peer_id,'displayName',p.peer_name) ELSE NULL END,
  'name',p.name,'description',p.description,'createdBy',p.created_by,'updatedAt',p.updated_at,'memberCount',p.member_count,'myRole',CASE WHEN p.type='group' THEN p.my_role ELSE '' END,
  'avatarVersion',p.avatar_version,'lastSender',CASE WHEN p.last_sender_id IS NULL THEN NULL ELSE jsonb_build_object('id',p.last_sender_id,'displayName',p.last_sender_name) END,
@@ -362,18 +563,65 @@ const folderConferenceJSON = `jsonb_build_object('id',c.id,'ownerId',c.owner_id,
  'scheduledAt',c.scheduled_at,'plannedDurationMin',c.planned_duration_min,'participantCount',CASE WHEN p.admission_state='admitted' AND p.status IN('joined','left') THEN
  (SELECT count(*) FROM conference_participants cp WHERE cp.conference_id=c.id AND cp.admission_state='admitted' AND cp.status IN('joined','left')) ELSE NULL END)`
 
+// Items возвращает отфильтрованную страницу с ограниченным количеством ресурсов, связанных с
+// принадлежащей учетной записи папкой.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - folder: Идентификатор личной папки действующего аккаунта.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - filter: Проверенные фильтры, ограничивающие набор результатов.
+//
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) Items(ctx context.Context, actor, folder, cursor string, limit int, filter folders.Filter) (folders.Page, error) {
 	if folderID(folder) != nil {
 		return folders.Page{}, apperrors.ErrInvalidInput
 	}
 	return r.itemPage(ctx, actor, folder, "items", cursor, limit, filter)
 }
+
+// Candidates возвращает доступные ресурсы, которые можно связать с папкой действующей учетной
+// записи.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - folder: Идентификатор личной папки действующего аккаунта.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - filter: Проверенные фильтры, ограничивающие набор результатов.
+//
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) Candidates(ctx context.Context, actor, folder, cursor string, limit int, filter folders.Filter) (folders.Page, error) {
 	if folder != "" && folderID(folder) != nil {
 		return folders.Page{}, apperrors.ErrInvalidInput
 	}
 	return r.itemPage(ctx, actor, folder, "candidates", cursor, limit, filter)
 }
+
+// itemPage формирует авторизованную страницу с элементами папки или потенциальными ресурсами.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - folder: Идентификатор личной папки действующего аккаунта.
+//   - scope: Авторизованный диалог или область доступа к ресурсу.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - filter: Проверенные фильтры, ограничивающие набор результатов.
+//
+// @returns:
+//   - result1: Полученная страница.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *FolderRepository) itemPage(ctx context.Context, actor, folder, scope, cursor string, limit int, filter folders.Filter) (folders.Page, error) {
 	page := folders.Page{Items: []folders.Item{}}
 	if limit < 1 || limit > 100 {
@@ -395,8 +643,8 @@ func (r *FolderRepository) itemPage(ctx context.Context, actor, folder, scope, c
 	query := folderEligibleSQL + `, eligible AS (SELECT id,'conversation'::text AS kind,activity_at,label FROM eligible_conversations UNION ALL SELECT id,'conference'::text AS kind,activity_at,label FROM eligible_conferences), selected AS (SELECT e.* FROM eligible e WHERE true`
 	args := []any{actor, actor}
 	if folder != "" {
-		// Owner scope is repeated in the projection, so a racing deletion cannot
-		// reuse a successful preliminary detail check.
+		// Область доступа владельца повторяется в проекции, поэтому при одновременном удалении
+		// не может быть повторно использована успешная предварительная проверка детализации.
 		query += ` AND EXISTS(SELECT 1 FROM folders f WHERE f.id=? AND f.user_id=?)`
 		args = append(args, folder, actor)
 	}

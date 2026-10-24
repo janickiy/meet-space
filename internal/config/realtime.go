@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package config
 
 import (
@@ -12,26 +20,12 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 )
 
-// PresenceTimeout ограничивает время отсутствия подтверждённой связи: после пяти
-// секунд без pong физическое соединение больше не считается действующим.
+// PresenceTimeout ограничение неподтвержденной возможности подключения: физическое подключение
+// становится неактивным через пять секунд без подтвержденного подтверждения приема данных.
 const PresenceTimeout = 5 * time.Second
 
-// RealtimeConfig задаёт лимиты, сроки жизни, допустимые источники и параметры WebSocket-подключений.
-//   - PingInterval: значение PingInterval типа time.Duration, используемое согласно назначению этой операции.
-//   - PongTimeout: значение PongTimeout типа time.Duration, используемое согласно назначению этой операции.
-//   - WriteTimeout: значение WriteTimeout типа time.Duration, используемое согласно назначению этой операции.
-//   - SessionTTL: значение SessionTTL типа time.Duration, используемое согласно назначению этой операции.
-//   - TicketTTL: значение TicketTTL типа time.Duration, используемое согласно назначению этой операции.
-//   - QueueSize: значение QueueSize типа int, используемое согласно назначению этой операции.
-//   - MessageBytes: значение MessageBytes типа int64, используемое согласно назначению этой операции.
-//   - OutboundBytes: значение OutboundBytes типа int, используемое согласно назначению этой операции.
-//   - SDPBytes: значение SDPBytes типа int, используемое согласно назначению этой операции.
-//   - ICEBytes: значение ICEBytes типа int, используемое согласно назначению этой операции.
-//   - MessagesPerSecond: значение MessagesPerSecond типа int, используемое согласно назначению этой операции.
-//   - Burst: значение Burst типа int, используемое согласно назначению этой операции.
-//   - Namespace: пространство изолированных ключей и каналов Redis.
-//   - AllowedOrigins: набор значений AllowedOrigins для последовательной или пакетной обработки.
-//   - ICE: значение ICE типа realtime.ICEConfig, используемое согласно назначению этой операции.
+// RealtimeConfig ограничивает время WebSocket, присутствие, одноразовые билеты, очереди,
+// сообщения, источники и настройки ICE.
 type RealtimeConfig struct {
 	PingInterval      time.Duration
 	PongTimeout       time.Duration
@@ -52,11 +46,13 @@ type RealtimeConfig struct {
 	MaxConnections    int
 }
 
-// LoadRealtime читает и проверяет ограничения WebSocket, присутствия, сроков и очередей.
+// LoadRealtime загружает и проверяет ограничения WebSocket, сроки доступности и connection-ticket
+// настройки.
 //
-// @return:
-//   - результат 1 (RealtimeConfig): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: итоговая конфигурация реального времени.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func LoadRealtime() (RealtimeConfig, error) {
 	c := RealtimeConfig{
 		PingInterval:      envDuration("WS_PING_INTERVAL", time.Second),
@@ -89,10 +85,11 @@ func LoadRealtime() (RealtimeConfig, error) {
 	return c, c.Validate()
 }
 
-// Validate проверяет ограничения и согласованность полей текущего значения перед его использованием.
+// Validate отклоняет несогласованные или выходящие за пределы допустимых значений поля realtime.go перед использованием значения.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, передачи или сохранения данных.
+//     ошибка.
 func (c RealtimeConfig) Validate() error {
 	if c.MaxConnections < 0 || c.MaxConnections > 100000 {
 		return fmt.Errorf("invalid WS_MAX_CONNECTIONS")

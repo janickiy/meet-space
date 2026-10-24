@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package personalapp
 
 import (
@@ -11,7 +19,10 @@ import (
 	middleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// Pins lists shared pins using the current member's visible message history.
+// Pins отображает общие пины с использованием видимой истории сообщений текущего участника.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Pins(c *gin.Context) {
 	id, ok := uuidParameter(c, "id")
 	if !ok {
@@ -34,8 +45,14 @@ func (h *Handler) Pins(c *gin.Context) {
 	c.JSON(http.StatusOK, page)
 }
 
-// SetPin persists shared pin state before telling current members to refresh it.
-// The event contains no message ID, text or preview from another member's history.
+// SetPin сохраняет общее состояние закрепления, прежде чем предложить текущим участникам обновить его.
+// Событие не содержит идентификатора сообщения, текста или предварительного просмотра из истории другого участника.
+//
+// @Parameters:
+//   - pinned: нужно ли закрепить выбранное сообщение.
+//
+// @returns:
+//   - result1: обработчик HTTP для регистрации этой операции.
 func (h *Handler) SetPin(pinned bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := uuidParameter(c, "id")

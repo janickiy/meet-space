@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -14,10 +22,15 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// Connect открывает подключение к PostgreSQL через GORM.
-// @args
-// - dsn: строка подключения PostgreSQL.
-// @return *gorm.DB или ошибку подключения.
+// Connect открывает настроенную зависимость или запускает авторизованный процесс подключения.
+//
+// @Parameters:
+//   - dsn: Строка подключения к базе данных, управляемая оператором.
+//
+// @returns:
+//   - result1: Созданная или загруженная база данных.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func Connect(dsn string) (*gorm.DB, error) {
 	cfg, err := pgx.ParseConfig(dsn)
 	if err != nil {

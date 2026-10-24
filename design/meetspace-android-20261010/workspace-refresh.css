@@ -1,4 +1,4 @@
-/* Shared visual language from the Windows reference, adapted to touch. */
+/* Общий визуальный язык из справочника по Windows, адаптированный для сенсорного ввода. */
 :root{--bg:#f7f8fc;--surface:#fff;--surface2:#f0f1f7;--ink:#292b3b;--muted:#727687;--line:#e7e8f0;--accent:#6264d9;--accent-soft:#eeeffe;--green:#25836c;--shadow:0 8px 24px #24254b08}
 :root[data-theme="dark"]{--bg:#171821;--surface:#21232f;--surface2:#2b2e3e;--ink:#f3f3fa;--muted:#b0b3c7;--line:#36394c;--accent:#aaaaff;--accent-soft:#343452;--green:#83d9bb}
 .tm-shell .app-header{border-bottom:1px solid var(--line);height:75px;padding-bottom:0;background:var(--surface)}

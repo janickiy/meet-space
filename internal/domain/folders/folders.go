@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package folders
 
 import (
@@ -26,7 +34,7 @@ type Folder struct {
 	Contains          *bool     `json:"contains,omitempty" gorm:"-"`
 }
 
-// Invite fields are always empty here; a folder never grants invitation access.
+// Поля приглашения всегда пусты, так как папка никогда не предоставляет доступ по приглашению.
 type ConferenceView struct {
 	conferences.View
 	ParticipantCount *int64 `json:"participantCount,omitempty"`
@@ -45,6 +53,17 @@ type Filter struct {
 	Search string
 }
 
+// NormalizeName нормализует имя папки и ключ сравнения для обеспечения соблюдения ограничений
+// на использование имен.
+//
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
+//
+// @returns:
+//   - name: Проверенное нормализованное отображаемое имя папки.
+//   - key: Канонический ключ сравнения, используемый для обеспечения уникальности имени.
+//   - err: nil — в случае успеха; в противном случае — ошибка валидации, доступа, передачи
+//     данных или сохранения.
 func NormalizeName(raw string) (name, key string, err error) {
 	name, err = normalizeText(raw, 50, true)
 	if err != nil {
@@ -52,6 +71,17 @@ func NormalizeName(raw string) (name, key string, err error) {
 	}
 	return name, norm.NFC.String(cases.Fold().String(name)), nil
 }
+
+// NormalizeFilter нормализует и проверяет фильтры, используемые для вывода списка элементов
+// папки.
+//
+// @Parameters:
+//   - filter: Проверенные фильтры, ограничивающие набор результатов.
+//
+// @returns:
+//   - result1: Результирующий фильтр.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NormalizeFilter(filter Filter) (Filter, error) {
 	if filter.Type == "" {
 		filter.Type = "all"
@@ -63,8 +93,29 @@ func NormalizeFilter(filter Filter) (Filter, error) {
 	filter.Search, err = normalizeText(filter.Search, 100, false)
 	return filter, err
 }
+
+// ValidKind сообщает, поддерживаются ли папки для того или иного типа элементов.
+//
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func ValidKind(kind string) bool { return kind == "conversation" || kind == "conference" }
 
+// normalizeText нормализует текст UTF-8 и обеспечивает соблюдение заданных ограничений по длине
+// и наличию.
+//
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
+//   - maximum: Максимально допустимый размер или количество символов.
+//   - required: Нужно ли отклонять пустое значение.
+//
+// @returns:
+//   - result1: Валидированный нормализованный текст UTF-8.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func normalizeText(raw string, maximum int, required bool) (string, error) {
 	if !utf8.ValidString(raw) {
 		return "", apperrors.ErrInvalidInput

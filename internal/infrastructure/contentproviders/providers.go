@@ -1,5 +1,14 @@
-// Пакет contentproviders содержит заменяемые отключённые, подставные и HTTP-адаптеры распознавания и ИИ.
-// Универсальный контракт HTTP описан отдельно; SDK конкретных поставщиков не входят в домен.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Пакет contentproviders содержит заменяемые отключенные, фиктивные и HTTP-адаптеры для
+// транскрипции и AI-адаптеры.  Общий контракт HTTP описан отдельно; провайдер SDKs не входит в
+// доменный уровень.
 package contentproviders
 
 import (
@@ -18,16 +27,26 @@ import (
 	"time"
 )
 
-// provider содержит только серверные настройки; token не возвращается и не логируется.
+// provider — провайдер содержит настройки только для сервера; токен не возвращается и не регистрируется.
 type provider struct {
 	mode, endpoint, token, model string
 	client                       *http.Client
 }
 
-// newProvider проверяет доверенный endpoint и отключает redirects с credentials.
-// @args mode — noop/mock/http; endpoint/token — серверные secrets/config;
-// model — техническое имя; timeout — конечный срок выполнения внешнего вызова.
-// @return адаптер либо bootstrap error без раскрытия значения credential.
+// newProvider создает ограниченного внешнего клиента-провайдера на основе настроек, управляемых
+// оператором.
+//
+// @Parameters:
+//   - mode: Проверенная операция или режим записи.
+//   - endpoint: Конечная точка сервиса, настраиваемая оператором.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - model: Настроенный идентификатор модели провайдера.
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
+//
+// @returns:
+//   - result1: Созданный или загруженный провайдер.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func newProvider(mode, endpoint, token, model string, timeout time.Duration) (*provider, error) {
 	if mode != "noop" && mode != "mock" && mode != "http" {
 		return nil, fmt.Errorf("invalid content provider mode")
@@ -47,9 +66,19 @@ func newProvider(mode, endpoint, token, model string, timeout time.Duration) (*p
 	return &provider{mode: mode, endpoint: endpoint, token: token, model: model, client: &http.Client{Timeout: timeout, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
-// NewTranscriptionProvider создаёт адаптер распознавания без сетевого вызова при запуске.
-// @args mode — явный режим; endpoint/token — доверенная настройка; timeout — конечное ограничение времени.
-// @return заменяемый TranscriptionProvider либо config error.
+// NewTranscriptionProvider создает провайдера транскрипции с зависимостями и ограничениями,
+// необходимыми для провайдеров транскрипции, реферирования и встраивания.
+//
+// @Parameters:
+//   - mode: Проверенная операция или режим записи.
+//   - endpoint: Конечная точка сервиса, настраиваемая оператором.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
+//
+// @returns:
+//   - result1: Результирующий провайдер транскрипции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewTranscriptionProvider(mode, endpoint, token string, timeout time.Duration) (domain.TranscriptionProvider, error) {
 	p, e := newProvider(mode, endpoint, token, "", timeout)
 	if e != nil {
@@ -58,9 +87,20 @@ func NewTranscriptionProvider(mode, endpoint, token string, timeout time.Duratio
 	return &transcription{p}, e
 }
 
-// NewAIProvider создаёт адаптер ИИ; подставной режим служит демонстрации и не выполняет реальный анализ.
-// @args mode/endpoint/token/model — серверная настройка; timeout — конечное ограничение времени.
-// @return заменяемый AIProvider либо config error.
+// NewAIProvider создает провайдера искусственного интеллекта с зависимостями и ограничениями,
+// необходимыми для провайдеров транскрипции, реферирования и встраивания.
+//
+// @Parameters:
+//   - mode: Проверенная операция или режим записи.
+//   - endpoint: Конечная точка сервиса, настраиваемая оператором.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - model: Настроенный идентификатор модели провайдера.
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
+//
+// @returns:
+//   - result1: Результирующий провайдер искусственного интеллекта.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewAIProvider(mode, endpoint, token, model string, timeout time.Duration) (domain.AIProvider, error) {
 	p, e := newProvider(mode, endpoint, token, model, timeout)
 	if e != nil {
@@ -69,16 +109,27 @@ func NewAIProvider(mode, endpoint, token, model string, timeout time.Duration) (
 	return &intelligence{p}, e
 }
 
-// transcription реализует универсальный контракт распознавания; подставной режим выдаёт явно тестовый текст.
+// transcription — транскрипция реализует общий контракт распознавания речи; в тестовом режиме генерируется
+// текст, предназначенный исключительно для тестирования.
 type transcription struct{ *provider }
 
-// Name возвращает режим для честной маркировки mock в UI.
-// @return noop, mock или http.
+// Name возвращает настроенный идентификатор провайдера, используемый для маркировки и проверки
+// сгенерированного контента.
+//
+// @returns:
+//   - result1: Настроенный идентификатор провайдера.
 func (p *transcription) Name() string { return p.mode }
 
-// Transcribe передаёт ограниченный WAV потоковым multipart без видео и URL.
-// @args ctx — срок выполнения; request — ограниченный поток чтения и стабильный ключ дедупликации.
-// @return непроверенный результат распознавания речи; схема и временные границы проверяются прикладной логикой.
+// Transcribe отправляет ограниченный объём аудиозаписи настроенный провайдер транскрипции.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//
+// @returns:
+//   - result1: Результат транскрипции.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *transcription) Transcribe(ctx context.Context, request domain.TranscriptionRequest) (domain.TranscriptionResult, error) {
 	if p.mode == "noop" {
 		return domain.TranscriptionResult{}, jobs.ErrSkip
@@ -126,15 +177,22 @@ func (p *transcription) Transcribe(ctx context.Context, request domain.Transcrip
 	return out, nil
 }
 
-// intelligence реализует ИИ с ответом только в JSON, без инструментов, функций и сетевых действий.
+// intelligence — интеллектуальные запросы JSON — только вывод AI без использования инструментов, вызовов
+// функций или сетевых действий.
 type intelligence struct{ *provider }
 
-// Name возвращает публичное имя режима без endpoint/credential.
-// @return noop, mock или http.
+// Name возвращает настроенный идентификатор провайдера, используемый для маркировки и проверки
+// сгенерированного контента.
+//
+// @returns:
+//   - result1: Настроенный идентификатор провайдера.
 func (p *intelligence) Name() string { return p.mode }
 
-// Model возвращает воспроизводимое имя модели для метаданных.
-// @return configured name или явное deterministic mock обозначение.
+// Model возвращает настроенный идентификатор модели, используемый для маркировки и проверки
+// сгенерированного контента.
+//
+// @returns:
+//   - result1: Настроенный идентификатор модели провайдера.
 func (p *intelligence) Model() string {
 	if p.mode == "mock" {
 		return "deterministic-demo"
@@ -142,9 +200,17 @@ func (p *intelligence) Model() string {
 	return p.model
 }
 
-// Summarize передаёт неизменные инструкции отдельно от недоверенного JSON.
-// @args ctx — срок выполнения; request — ограниченные входные данные и версии схемы и инструкции.
-// @return необработанный JSON, обязательно проверяемый прикладной логикой перед сохранением.
+// Summarize создает сводную информацию с ограничениями по схеме на основе переданного
+// транскрипта.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//
+// @returns:
+//   - result1: Результирующее необработанное сообщение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *intelligence) Summarize(ctx context.Context, request domain.AIRequest) (json.RawMessage, error) {
 	if p.mode == "noop" {
 		return nil, jobs.ErrSkip
@@ -167,10 +233,18 @@ func (p *intelligence) Summarize(ctx context.Context, request domain.AIRequest) 
 	return p.call(req, request.IdempotencyKey, 256<<10)
 }
 
-// call ограничивает время и объём ответа и возвращает только безопасные коды ошибок.
-// @args request — серверный HTTP-запрос; key — стабильный ключ идемпотентности;
-// maximum — максимальный размер ответа, не сохраняемого в logs.
-// @return ограниченный набор байтов или классификацию ошибки с возможностью повтора или без неё.
+// call — вызов выполняет ограниченный запрос к настроенному провайдеру и возвращает только безопасные
+// классификации ошибок.
+//
+// @Parameters:
+//   - request: Входящий запрос HTTP.
+//   - key: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+//   - maximum: Максимально допустимый размер или количество символов.
+//
+// @returns:
+//   - result1: Собранные байтовые значения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *provider) call(request *http.Request, key string, maximum int64) ([]byte, error) {
 	request.Header.Set("Authorization", "Bearer "+p.token)
 	request.Header.Set("Idempotency-Key", key)
@@ -197,9 +271,15 @@ func (p *provider) call(request *http.Request, key string, maximum int64) ([]byt
 	return data, nil
 }
 
-// retryAfter ограничивает Retry-After, не позволяя внешнему API навсегда отложить задание.
-// @args value — HTTP header в seconds или HTTP-date.
-// @return пауза от нуля до часа; неизвестное значение означает обычный backoff.
+// retryAfter интерпретирует задержку повторных попыток провайдера, не допуская неограниченного
+// ожидания.
+//
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//
+// @returns:
+//   - result1: Продолжительность или ограниченный интервал ожидания, вычисленный в ходе
+//     операции.
 func retryAfter(value string) time.Duration {
 	value = strings.TrimSpace(value)
 	if seconds, e := strconv.Atoi(value); e == nil {

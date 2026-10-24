@@ -1,14 +1,16 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package conferences
 
 import "github.com/janickiy/meet-space/internal/domain/apperrors"
 
-// MediaState описывает заявленную активность микрофона, камеры и экрана участника.
-// @params
-//   - ConnectionID: идентификатор физического медиа-соединения.
-//   - Sequence: серверный монотонный номер сообщения или команды.
-//   - MicrophoneEnabled: сохранённый признак включённого микрофона.
-//   - CameraEnabled: сохранённый признак включённой камеры.
-//   - ScreenSharing: сохранённый признак демонстрации экрана.
+// MediaState описывает заявленную участником активность микрофона, камеры и экрана.
 type MediaState struct {
 	ConnectionID      string `json:"connectionId"`
 	Sequence          int64  `json:"sequence"`
@@ -17,26 +19,25 @@ type MediaState struct {
 	ScreenSharing     bool   `json:"screenSharing"`
 }
 
-// ModerationRequest передаёт действие модерации и его дополнительные параметры.
-// @params
-//   - Action: действие управления, которое необходимо проверить или исполнить.
-//   - Blocked: значение Blocked типа *bool, используемое согласно назначению этой операции.
-//   - Role: роль участника, определяющая полномочия.
+// ModerationRequest содержит действие по модерации и его дополнительные валидированные
+// параметры.
 type ModerationRequest struct {
 	Action  string `json:"action"`
 	Blocked *bool  `json:"blocked,omitempty"`
 	Role    Role   `json:"role,omitempty"`
 }
 
-// CanModerate сопоставляет роли и состояния инициатора и цели; защищает владельца и ограничивает действия соорганизатора.
+// CanModerate проверяет, может ли субъект применить действие по модерации к целевому участнику.
 //
-// @args
-//   - actor (Participant): участник, от имени которого проверяются полномочия действия.
-//   - target (Participant): целевой объект, участник или состояние операции.
-//   - action (string): действие управления, которое необходимо проверить или исполнить.
+// @Parameters:
+//   - actor: Идентификатор учетной записи, выполняющей операцию.
+//   - target: Целевое состояние, учетная запись или декодированное значение в соответствии с
+//     типом.
+//   - action: Запрошенное действие по управлению жизненным циклом или модерации.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func CanModerate(actor, target Participant, action string) bool {
 	switch action {
 	case "mute", "camera", "screen", "kick", "role":
@@ -46,9 +47,10 @@ func CanModerate(actor, target Participant, action string) bool {
 	if !actor.CanParticipate() || actor.ConferenceID != target.ConferenceID || target.Role == Owner || actor.ID == target.ID {
 		return false
 	}
-	// Ожидающие участники видны только в зале ожидания и обрабатываются через
-	// admit/reject. Общие события модерации доступны допущенным участникам комнаты.
-	// Повтор уже выполненного удаления участника остаётся идемпотентным.
+	// Ожидание участников отображается только в комнате ожидания и обрабатывается с помощью
+	// функции «принять» или «отклонить».  Общие события модерации отображаются для участников,
+	// допущенных в комнату.  Повторное удаление участника, которое уже было выполнено, остается
+	// идемпотентным.
 	if !target.CanReadHistory() && !(action == "kick" && target.Status == Kicked) {
 		return false
 	}
@@ -58,10 +60,12 @@ func CanModerate(actor, target Participant, action string) bool {
 	return actor.Role == CoHost && target.Role == ParticipantRole && (action == "mute" || action == "screen" || action == "kick")
 }
 
-// Validate проверяет ограничения и согласованность полей текущего значения перед его использованием.
+// Validate отклоняет несогласованные или выходящие за пределы допустимых значений поля
+// конференции до того, как значение будет использовано.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r ModerationRequest) Validate() error {
 	switch r.Action {
 	case "mute", "camera", "screen":

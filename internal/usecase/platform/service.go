@@ -1,4 +1,13 @@
-// Пакет platform собирает доступные только для чтения возможности продукта и операционные данные.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Платформа пакетов собирает данные о возможностях продукта, доступных только для чтения, и
+// рабочие данные.
 package platform
 
 import (
@@ -11,22 +20,55 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 )
 
-// ReleaseVersion задаётся при сборке релиза через -ldflags и не содержит секретов.
+// ReleaseVersion вводится во время сборки с помощью -ldflags и не содержит секретов.
 var ReleaseVersion string
 
 type Repository interface {
+	// Summary возвращает ограниченные операционные агрегированные данные, доступные только
+	// администратору, и безопасные коды ошибок без пользовательского контента.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//
+	// @returns:
+	//   - result1: Полученная сводная таблица.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Summary(context.Context) (domain.Summary, error)
 }
 
 type VectorAvailability interface {
+	// Available проверяет, можно ли использовать возможности поддержки, необходимые для доступа
+	// только для чтения к функциям продукта и его рабочему состоянию.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
+	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	Available(context.Context) (bool, error)
 }
 
 type ReadyProbe interface {
+	// Ready сообщает, можно ли в данный момент использовать компонент или настроенную
+	// зависимость.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//
+	// @returns:
+	//   - result1: Указывает, выполняется ли задокументированное условие операции и
+	//   произошло ли успешное изменение ее условного состояния.
 	Ready(context.Context) bool
 }
 
-// Service исключает учётные данные и внутренние адреса из публичных ответов.
+// Service — сервис исключает учетные данные и внутренние адреса из общедоступных ответов.
 type Service struct {
 	Repo               Repository
 	Vector             VectorAvailability
@@ -37,7 +79,13 @@ type Service struct {
 	StageEight         config.StageEightConfig
 }
 
-// Capabilities возвращает фактически включённые оператором функции; векторный поиск также требует pgvector.
+// Capabilities возвращает возможности продукта или интеграции, фактически доступные оператору.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: Результирующие возможности.
 func (s *Service) Capabilities(ctx context.Context) domain.Capabilities {
 	semantic := false
 	if s.StageEight.EmbeddingsEnabled && s.Vector != nil {
@@ -54,7 +102,16 @@ func (s *Service) Capabilities(ctx context.Context) domain.Capabilities {
 	}
 }
 
-// Summary дополняет снимок БД ограниченным набором признаков работоспособности.
+// Summary возвращает ограниченные операционные агрегированные данные, доступные только
+// администратору, и безопасные коды ошибок без пользовательского контента.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//
+// @returns:
+//   - result1: Полученная сводная таблица.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (s *Service) Summary(ctx context.Context) (domain.Summary, error) {
 	value, err := s.Repo.Summary(ctx)
 	if err != nil {
@@ -75,7 +132,11 @@ func (s *Service) Summary(ctx context.Context) (domain.Summary, error) {
 	return value, nil
 }
 
-// BuildVersion возвращает только версию или короткий хеш коммита, без путей и флагов сборки.
+// BuildVersion возвращает ограниченный идентификатор общедоступной сборки без указания путей и
+// флагов сборки.
+//
+// @returns:
+//   - result1: Ограниченный идентификатор общедоступной сборки.
 func BuildVersion() string {
 	if safeBuildVersion(ReleaseVersion) {
 		return ReleaseVersion
@@ -98,7 +159,14 @@ func BuildVersion() string {
 	return "dev"
 }
 
-// safeBuildVersion ограничивает публичные сведения о сборке одним коротким непрозрачным идентификатором.
+// safeBuildVersion проверяет и ограничивает идентификатор общедоступной сборки.
+//
+// @Parameters:
+//   - value: Значение для проверки, нормализации или преобразования.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func safeBuildVersion(value string) bool {
 	if len(value) < 1 || len(value) > 64 {
 		return false

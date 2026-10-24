@@ -1,4 +1,13 @@
-// Пакет telemetry принимает обезличенные технические ошибки браузера.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Пакет телеметрии принимает очищенные от конфиденциальных данных отчеты о технических ошибках
+// браузера.
 package telemetry
 
 import (
@@ -19,17 +28,17 @@ const maxBodyBytes = 8192
 var versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,79}$`)
 var assetPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8,}\.js$`)
 
-// Frame указывает только позицию в собранном ресурсе, без URL, имени функции и текста ошибки.
-// @params: File — имя ресурса; Line и Column — положительные координаты в нём.
+// Frame содержит только позицию в связанном ресурсе, а не URL, имя функции или сообщение об
+// ошибке.  Файл — это имя ресурса; строка и столбец — это положительные позиции.
 type Frame struct {
 	File   string `json:"file"`
 	Line   int    `json:"line"`
 	Column int    `json:"column"`
 }
 
-// Report содержит разрешённый набор диагностических полей без пользовательского содержимого.
-// @params: Version — версия интерфейса; Route — шаблон маршрута; Code — класс ошибки;
-// Browser — семейство браузера; Stack — до пяти позиций в собранных ресурсах.
+// Report содержит только разрешенные диагностические поля: версия фронтенда, шаблон маршрута,
+// категория ошибки, семейство браузеров и не более пяти позиций связанных ресурсов.  Не
+// содержит пользовательского контента.
 type Report struct {
 	Version string  `json:"version"`
 	Route   string  `json:"route"`
@@ -38,17 +47,26 @@ type Report struct {
 	Stack   []Frame `json:"stack"`
 }
 
-// Handler принимает только строго проверенные отчёты и считает ошибки без меток высокой кардинальности.
-// @params: enabled включает приём; logger получает обезличенные поля; errors считает ограниченные категории.
+// Handler — обработчик принимает строго валидированные отчеты и подсчитывает количество сбоев с
+// ограниченными метками.  Включен контроль приема данных; логгер получает очищенные от лишних
+// данных поля; ошибки подсчитываются по фиксированным категориям.
 type Handler struct {
 	enabled bool
 	logger  *slog.Logger
 	errors  *prometheus.CounterVec
 }
 
-// NewHandler создаёт обработчик и регистрирует отдельный счётчик клиентских ошибок.
-// @args enabled — явное включение; logger — журнал приложения; registry — реестр API.
-// @return обработчик, по умолчанию закрывающий маршрут при выключенной настройке.
+// NewHandler создает обработчик с зависимостями и ограничениями, необходимыми для очистки
+// телеметрии об ошибках клиента.
+//
+// @Parameters:
+//   - enabled: Включает или отключает запрошенную функцию или настройку.
+//   - logger: Ограниченный диагностический логгер.
+//   - registry: Реестр зависимостей или метрик, используемый для поиска или регистрации
+//     компонента.
+//
+// @returns:
+//   - result1: Сконструированный или загруженный обработчик.
 func NewHandler(enabled bool, logger *slog.Logger, registry prometheus.Registerer) *Handler {
 	counter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "recorder_client_errors_total",
@@ -58,8 +76,11 @@ func NewHandler(enabled bool, logger *slog.Logger, registry prometheus.Registere
 	return &Handler{enabled: enabled, logger: logger, errors: counter}
 }
 
-// Receive проверяет размер, формат и все поля до журналирования или обновления метрик.
-// @args c — HTTP-запрос без обязательной авторизации, чтобы учитывать ошибки экрана входа.
+// Receive проверяет и записывает ограниченные отчеты о технических ошибках клиента, не принимая
+// конфиденциальные данные из браузера.
+//
+// @Parameters:
+//   - c: Контекст запроса и ответа Gin, включая аутентифицированные идентификационные данные.
 func (h *Handler) Receive(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
@@ -95,9 +116,14 @@ func (h *Handler) Receive(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-// validReport запрещает свободный текст, полные маршруты, адреса и неизвестные категории.
-// @args report — ещё не доверенный результат разбора JSON.
-// @return true только для ограниченного технического отчёта.
+// validReport проверяет схему телеметрии клиента и его ограниченные разрешенные поля.
+//
+// @Parameters:
+//   - report: Валидированный отчет о технических ошибках клиента.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func validReport(report Report) bool {
 	if !versionPattern.MatchString(report.Version) || len(report.Stack) > 5 {
 		return false

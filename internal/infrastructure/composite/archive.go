@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package composite
 
 import (
@@ -13,9 +21,16 @@ import (
 	"sort"
 )
 
-// TimelineOrigin читает начало общей шкалы записи из первого устойчивого фрагмента.
-// @args dir — приватный каталог записи.
-// @return Unix nanoseconds либо ошибка неполного/повреждённого манифеста.
+// TimelineOrigin выбирает общую точку отсчета медиавремени, используемую для выравнивания
+// составных дорожек записи.
+//
+// @Parameters:
+//   - dir: Проверенный локальный каталог.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func TimelineOrigin(dir string) (int64, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, "chunk_000000.json"))
 	if err != nil {
@@ -28,7 +43,8 @@ func TimelineOrigin(dir string) (int64, error) {
 	return chunk.StartedAtNS, nil
 }
 
-// TrackFragment указывает на закрытый исходный фрагмент дорожки и его положение в записи.
+// TrackFragment идентифицирует закрытый фрагмент исходной дорожки и его положение на временной
+// шкале записи.
 type TrackFragment struct {
 	TrackInstanceID string `json:"trackInstanceId"`
 	ParticipantID   string `json:"participantId"`
@@ -39,16 +55,28 @@ type TrackFragment struct {
 	EndMS           int64  `json:"endMs"`
 }
 
-// TrackManifest описывает отдельные экземпляры дорожек без объединения разных подключений.
-// Нулевая точка совпадает с началом аудиомикса; исходные файлы — Ogg/Opus и IVF/VP8.
+// TrackManifest описывает отдельные экземпляры дорожек без объединения различных соединений.
+// Его источник совпадает с аудиомиксом; в исходных файлах используются форматы Ogg/Opus и
+// IVF/VP8.
 type TrackManifest struct {
 	Version   int             `json:"version"`
 	Fragments []TrackFragment `json:"fragments"`
 }
 
-// ArchiveTracks упаковывает проверенные исходники и манифест в приватный ZIP без перекодирования.
-// @args ctx — отмена; dir — каталог записи; maximum — предел суммарных исходных байт.
-// @return путь временного архива, размер, SHA-256 и ошибка; успешный файл удаляет вызывающая сторона.
+// ArchiveTracks считывает записанный архив дорожек в ограниченные метаданные для последующей
+// компоновки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - dir: Проверенный локальный каталог.
+//   - maximum: Максимально допустимый размер или количество символов.
+//
+// @returns:
+//   - result1: Путь к завершенному локальному архиву дорожек.
+//   - result2: Размер архива в байтах.
+//   - result3: Шестнадцатеричное представление SHA-256 байтов архива.
+//   - result4: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func ArchiveTracks(ctx context.Context, dir string, maximum int64) (string, int64, string, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "chunk_*.json"))
 	if err != nil {
@@ -154,14 +182,24 @@ func ArchiveTracks(ctx context.Context, dir string, maximum int64) (string, int6
 	return output.Name(), stat.Size(), hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-// archiveReader проверяет отмену между ограниченными чтениями большого исходника.
+// archiveReader проверяет отмену операций между ограниченными операциями чтения большого
+// исходного файла.
 type archiveReader struct {
 	ctx    context.Context
 	source io.Reader
 }
 
-// Read прерывает копирование при остановке worker и не читает более размера буфера.
-// @args p — буфер io.Copy; @return число байт и причина завершения.
+// Read — прочитанные копии имеют размер, не превышающий размер буфера назначения, и извлекаются из
+// потока, при этом сохраняются ограничения на количество прочитанных данных и возможность
+// отмены операции.
+//
+// @Parameters:
+//   - p: Целевой байтовый буфер заполняется данными из потока.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *archiveReader) Read(p []byte) (int, error) {
 	if err := r.ctx.Err(); err != nil {
 		return 0, err

@@ -1,8 +1,17 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package personal
 
 import "time"
 
-// Peer содержит публичную информацию собеседника без email, ролей и данных сессии.
+// Peer содержит общедоступную информацию о собеседниках без указания электронной почты, ролей
+// или данных о сеансе.
 type Peer struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`

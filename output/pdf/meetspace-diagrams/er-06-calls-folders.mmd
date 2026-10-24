@@ -1,0 +1,24 @@
+flowchart LR
+  %% Сплошная стрелка = FK в PostgreSQL; пунктир = связь кода без FK.
+  conferences["conferences<br/>PK: id"]
+  conversation_members["conversation_members<br/>PK: conversation_id, user_id"]
+  conversations["conversations<br/>PK: id"]
+  direct_call_slots["direct_call_slots<br/>PK: user_id"]
+  direct_calls["direct_calls<br/>PK: id"]
+  folder_conferences["folder_conferences<br/>PK: folder_id, conference_id"]
+  folder_conversations["folder_conversations<br/>PK: folder_id, conversation_id"]
+  folders["folders<br/>PK: id"]
+  users["users<br/>PK: id"]
+  direct_call_slots -->|"call_id; DELETE RESTRICT"| direct_calls
+  direct_call_slots -->|"user_id; DELETE RESTRICT"| users
+  direct_calls -->|"callee_user_id; DELETE RESTRICT"| users
+  direct_calls -->|"caller_user_id; DELETE RESTRICT"| users
+  direct_calls -->|"conference_id; DELETE RESTRICT"| conferences
+  direct_calls -->|"conversation_id, callee_user_id; DELETE NO ACTION"| conversation_members
+  direct_calls -->|"conversation_id, caller_user_id; DELETE NO ACTION"| conversation_members
+  direct_calls -->|"conversation_id; DELETE RESTRICT"| conversations
+  folder_conferences -->|"conference_id; DELETE CASCADE"| conferences
+  folder_conferences -->|"folder_id; DELETE CASCADE"| folders
+  folder_conversations -->|"conversation_id; DELETE CASCADE"| conversations
+  folder_conversations -->|"folder_id; DELETE CASCADE"| folders
+  folders -->|"user_id; DELETE CASCADE"| users

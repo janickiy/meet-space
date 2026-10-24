@@ -1,21 +1,33 @@
-// Пакет analytics описывает технические агрегаты встреч без оценки личности или продуктивности.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Пакетная аналитика определяет агрегированные показатели технической конференции без оценки
+// идентичности или продуктивности.
 package analytics
 
 import "time"
 
-// Interval хранит наблюдаемое присутствие; пересекающиеся подключения одного участника объединяются.
+// Interval содержит данные о присутствии участников; перекрывающиеся подключения, принадлежащие
+// одному участнику, объединяются.
 type Interval struct {
 	ParticipantID string
 	Start, End    time.Time
 }
 
-// Point задаёт число одновременно присутствующих участников на общей шкале времени встречи.
+// Point фиксирует количество одновременно присутствующих участников на временной шкале
+// конференции.
 type Point struct {
 	AtMS  int64 `json:"atMs"`
 	Count int   `json:"count"`
 }
 
-// Participant содержит объективные счётчики и приблизительную активность аудио.
+// Participant содержит объективные счетчики активности и приблизительные данные об
+// аудиоактивности.
 type Participant struct {
 	ParticipantID   string `json:"participantId"`
 	DisplayName     string `json:"displayName"`
@@ -26,7 +38,8 @@ type Participant struct {
 	MessageCount    int64  `json:"messageCount"`
 }
 
-// Conference возвращает агрегаты с явным указанием приближённости речевой активности.
+// Conference содержит агрегированные показатели, которые явно помечают речевую активность как
+// приблизительную.
 type Conference struct {
 	ConferenceID        string        `json:"conferenceId"`
 	Enabled             bool          `json:"enabled"`

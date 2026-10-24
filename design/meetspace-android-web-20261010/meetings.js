@@ -1,4 +1,4 @@
-/* Interactive meeting-list prototype. Fixtures and created meetings stay in memory. */
+/* Прототип интерактивного списка собраний. Назначенные мероприятия и созданные собрания сохраняются в памяти. */
 (() => {
   const M = window.MS,
     I = (name) => M.icon(name),

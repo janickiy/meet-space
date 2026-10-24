@@ -1,4 +1,12 @@
-// Пакет buildinfo раскрывает только проверенные публичные сведения об артефакте.
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
+// Пакет buildinfo предоставляет только проверенные общедоступные метаданные артефакта.
 package buildinfo
 
 import (
@@ -8,19 +16,25 @@ import (
 	"time"
 )
 
-// Version, Commit и BuildTime задаются при сборке через -ldflags -X.
+// Version — версия, коммит и BuildTime указываются во время сборки с помощью -ldflags -X.
 var Version, Commit, BuildTime string
 
-// Info содержит версию релиза, SHA исходников и время сборки без окружения и путей.
+// Info содержит информацию о версии релиза, коммите исходного кода и времени сборки, а не о
+// значениях переменных среды или путях к файлам в файловой системе.
 type Info struct {
 	Version   string `json:"version"`
 	Commit    string `json:"commit"`
 	BuildTime string `json:"buildTime"`
 }
 
-// ValidVersion допускает короткий идентификатор релиза без управляющих символов.
-// @args value — версия или идентификатор сборки.
-// @return true только для безопасного значения длиной до 64 байт.
+// ValidVersion проверяет, можно ли безопасно указывать версию сборки в общедоступных метаданных.
+//
+// @Parameters:
+//   - value: значение для проверки, нормализации или преобразования.
+//
+// Возвращаемое значение:
+//   - result1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func ValidVersion(value string) bool {
 	if len(value) < 1 || len(value) > 64 {
 		return false
@@ -34,8 +48,10 @@ func ValidVersion(value string) bool {
 	return true
 }
 
-// Current проверяет внедрённые метаданные; при отсутствии SHA использует VCS stamp.
-// @return безопасные поля, где dev/unknown обозначают неполную локальную сборку.
+// Возвращает проверенные метаданные сборки без значений окружения или локальных путей.
+//
+// @returns:
+//   - result1: итоговая информация.
 func Current() Info {
 	i := Info{Version: "dev", Commit: "unknown", BuildTime: "unknown"}
 	if ValidVersion(Version) {
@@ -64,8 +80,12 @@ func Current() Info {
 	return i
 }
 
-// Handler возвращает сведения о сборке без секретов, флагов компилятора и внутренних адресов.
-// @args w — ответ; r — запрос, содержимое которого не используется.
+// Handler предоставляет проверенные общедоступные метаданные сборки без секретных данных,
+// флагов компилятора или внутренних адресов.
+//
+// @Parameters:
+//   - w: Ответ HTTP для назначения.
+//   - r: Входящий запрос HTTP.
 func Handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

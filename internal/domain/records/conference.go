@@ -1,31 +1,35 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package records
 
 import "time"
 
-// ConferenceStartRequest передаёт настройки общей записи защищённой конференции.
-//   - SegmentDurationSec: плановая длительность сегмента записи в секундах.
+// ConferenceStartRequest содержит настройки записи для авторизованной конференции.
 type ConferenceStartRequest struct {
 	SegmentDurationSec int    `json:"segmentDurationSec,omitempty"`
 	Mode               string `json:"mode,omitempty"`
 }
 
-// ValidConferenceMode ограничивает стратегии записи серверным перечнем.
-// @args mode — запрошенный режим.
-// @return true для поддерживаемой стратегии.
+// ValidConferenceMode проверяет, поддерживается ли запрошенный режим записи конференции.
+//
+// @Parameters:
+//   - mode: Проверенная операция или режим записи.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func ValidConferenceMode(mode string) bool {
 	return mode == ModeComposite || mode == ModeAudioOnly || mode == ModeIndividualTracks || mode == ModeScreenFocus
 }
 
-// OutboxCommand сохраняет команду записи для надёжной доставки из PostgreSQL в RabbitMQ с арендами повторных попыток.
-// @params
-//   - ID: уникальный идентификатор данной сущности.
-//   - RecordID: внешний UUID задачи записи.
-//   - CommandType: значение CommandType типа string, используемое согласно назначению этой операции.
-//   - Reason: причина завершения, отказа или изменения состояния.
-//   - ClaimToken: значение ClaimToken типа *string, используемое согласно назначению этой операции.
-//   - ClaimedUntil: временная отметка ClaimedUntil; указатель допускает отсутствие значения.
-//   - PublishedAt: момент подтверждённой публикации; nil сохраняет необходимость доставки.
-//   - CreatedAt: время создания значения.
+// OutboxCommand обеспечивает надежную доставку записей от PostgreSQL к RabbitMQ с
+// использованием версионных повторных попыток.
 type OutboxCommand struct {
 	ID           int64
 	RecordID     string
@@ -37,30 +41,33 @@ type OutboxCommand struct {
 	CreatedAt    time.Time
 }
 
-// TableName возвращает точное имя таблицы для GORM, чтобы модель не зависела от автоматического образования имени.
+// TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
+// другую форму множественного числа.
 //
-// @return:
-//   - результат 1 (string): имя таблицы, используемое ORM.
+// @returns:
+//   - result1: Точное имя таблицы базы данных, используемое GORM.
 func (OutboxCommand) TableName() string { return "recording_outbox" }
 
-// IsComposite определяет, относится ли задача к общей записи конференции через SFU.
+// IsComposite сообщает, относится ли запись к составному конвейеру записи конференций.
 //
-// @args
-//   - record (Record): задача записи с её сохранённым состоянием.
+// @Parameters:
+//   - record: Запись и сохраненные метаданные ее жизненного цикла.
 //
-// @return:
-//   - результат 1 (bool): признак выполнения проверяемого условия или изменения состояния.
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func IsComposite(record Record) bool {
 	return ValidConferenceMode(record.Mode) || record.SourceType == "conference" || record.PlatformConferenceID != nil
 }
 
-// PublicStatus переводит внутреннее состояние записи в состояние, используемое внешним API.
+// PublicStatus преобразует сохраненный статус записи в состояние жизненного цикла, видимое для
+// клиента.
 //
-// @args
-//   - status (string): состояние ресурса, ответа или фильтра выборки.
+// @Parameters:
+//   - status: Состояние жизненного цикла или статус ответа на запись.
 //
-// @return:
-//   - результат 1 (string): значение, подготовленное операцией для вызывающей стороны.
+// @returns:
+//   - result1: Статус жизненного цикла записи, видимый для клиента.
 func PublicStatus(status string) string {
 	if status == StatusFinalizing || status == StatusUploading {
 		return "processing"

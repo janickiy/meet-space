@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package conferencesapp
 
 import (
@@ -13,10 +21,10 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// Self возвращает собственное членство пользователя, включая состояние ожидания и решение о допуске.
+// Self возвращает информацию о членстве действующего аккаунта, включая статус ожидания и допуск.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// @Parameters:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Self(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -30,10 +38,10 @@ func (h *Handler) Self(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Admission обрабатывает решение о допуске или отказе с проверкой полномочий организатора.
+// Admission принимает или отклоняет запрос на вход в зал ожидания после проверки полномочий действующего участника.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// @Parameters:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Admission(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -56,10 +64,10 @@ func (h *Handler) Admission(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Schedule обновляет расписание запланированной встречи с проверкой полномочий владельца.
+// Schedule обновляет запланированное расписание конференции после проверки прав собственности и временных ограничений.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// @Parameters:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Schedule(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -77,10 +85,10 @@ func (h *Handler) Schedule(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// History собирает сведения завершённой встречи, историю участников и сводку записей с проверкой доступа.
+// History формирует авторизованное представление о завершенной конференции с историей участников и записями резюме.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// @Parameters:
+// - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) History(c *gin.Context) {
 	id, ok := conferenceID(c)
 	if !ok {
@@ -94,10 +102,10 @@ func (h *Handler) History(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "item": item})
 }
 
-// Timeline возвращает страницу встреч текущего пользователя с фильтрами будущих, активных и прошедших встреч.
+// Timeline возвращает разбитую на страницы ленту предстоящих, текущих и прошедших конференций аккаунта.
 //
-// @args
-//   - c (*gin.Context): контекст HTTP-запроса Gin с параметрами, авторизацией и ответом.
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Timeline(c *gin.Context) {
 	query := conferences.TimelineQuery{View: c.DefaultQuery("view", "upcoming"), Scope: c.DefaultQuery("scope", "all"), Status: conferences.Status(c.Query("status")), Cursor: c.Query("cursor"), Limit: 20}
 	if raw, exists := c.GetQuery("limit"); exists {

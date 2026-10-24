@@ -1,8 +1,16 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package config
 
 import (
 	"crypto/hmac"
-	"crypto/sha1" // Совместимость с Coturn REST; не используется для хеширования паролей.
+	"crypto/sha1" // совместимость с Coturn REST; не используется для хеширования паролей.
 	"encoding/base64"
 	"fmt"
 	"net/url"
@@ -16,9 +24,9 @@ import (
 	"github.com/pion/stun/v3"
 )
 
-// TURNConfig хранит общий серверный секрет, адреса TURN и срок временных
-// credentials. ForceRelay применяется только к новым браузерным соединениям.
-// Secret не сериализуется в HTTP и не включается в логи.
+// TURNConfig содержит общий секретный ключ сервера, конечные точки TURN и время действия
+// временных учетных данных. ForceRelay влияет только на новые подключения через браузер.
+// Секретный ключ никогда не сериализуется в ответах HTTP или в логах.
 type TURNConfig struct {
 	URLs       []string
 	Secret     string `json:"-"`
@@ -26,9 +34,13 @@ type TURNConfig struct {
 	ForceRelay bool
 }
 
-// LoadTURN читает TURN_URLS (через запятую), TURN_SHARED_SECRET и TTL из env.
-// Возвращает отключённую конфигурацию, если URLs отсутствуют; relay без TURN
-// запрещён. Неверный URL или слабый ключ приводит к отказу запуска.
+// LoadTURN загружает и проверяет конечные точки TURN, общий секретный ключ и временные учетные данные
+// на время жизни.
+//
+// @returns:
+//   - result1: результирующая конфигурация turn.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка при проверке, доступе, передаче или сохранении
+//     данных.
 func LoadTURN() (TURNConfig, error) {
 	if v := strings.ToLower(os.Getenv("TURN_FORCE_RELAY")); v != "" && !strings.Contains("|true|false|1|0|yes|no|on|off|", "|"+v+"|") {
 		return TURNConfig{}, fmt.Errorf("TURN_FORCE_RELAY must be boolean")
@@ -59,10 +71,14 @@ func LoadTURN() (TURNConfig, error) {
 	return c, nil
 }
 
-// ClientICE создаёт отдельные краткоживущие credentials для одного подключения.
-// base — существующие STUN/ICE адреса, now — текущее время для проверяемого TTL.
-// Возвращает копию списка: изменение ответа не меняет настройки процесса.
-// Username содержит срок истечения и случайный UUID, без идентификатора пользователя.
+// ClientICE формирует настройки ICE для браузера, включая временные учетные данные TURN, если функция TURN включена.
+//
+// @Parameters:
+//   - base: базовая конфигурация или значение, на основе которого формируется результат.
+//   - now: эталонное время, используемое для расчета срока действия или продолжительности.
+//
+// Возвращаемое значение:
+//   - result1: результирующая конфигурация ICE.
 func (c TURNConfig) ClientICE(base realtime.ICEConfig, now time.Time) realtime.ICEConfig {
 	result := realtime.ICEConfig{ICEServers: append([]realtime.ICEServer{}, base.ICEServers...), ICETransportPolicy: "all"}
 	for i := range result.ICEServers {

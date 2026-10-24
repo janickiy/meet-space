@@ -2,7 +2,7 @@ import type { Conference } from "./types";
 
 export const PAST_CONFERENCES_PATH = "/conferences?view=past";
 
-/** Completed meetings share the Past list; open meetings keep their room link. */
+/** Завершённые совещания отображаются в списке «Прошлые», а открытые совещания сохраняют ссылку на комнату. */
 export function conferenceLink(
   conference: Pick<Conference, "id" | "status">,
 ): string {

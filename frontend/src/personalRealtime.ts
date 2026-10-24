@@ -20,7 +20,7 @@ import {
 } from "./directConversations";
 import type { ChatMessage, PersonalConversation, PersonalPage } from "./types";
 
-/** A revoke removes previews immediately, even when REST recovery is offline. */
+/** При отзыве предварительные просмотры удаляются немедленно, даже если восстановление REST происходит в автономном режиме. */
 export function revokePersonalConversation(
   client: QueryClient,
   id: string,
@@ -126,7 +126,8 @@ export interface PersonalEvent {
     item?: PersonalConversation;
   };
 }
-// A bounded identity/version window suppresses duplicate notices, including send retries.
+// Ограниченное окно идентификации/версии подавляет дублирующиеся уведомления, в том числе
+// повторные попытки отправки.
 export function acceptPersonalEvent(
   raw: string,
   seen: Map<string, number>,
@@ -286,7 +287,8 @@ export function usePersonalRealtime(userId?: string) {
           void client.invalidateQueries({ queryKey: ["personal-chat"] });
           void client.invalidateQueries({ queryKey: ["personal-chat-read"] });
           void client.resetQueries({ queryKey: ["personal-chat-pins"] });
-          // Reconnect can follow missed deletion or membership events; discard stale snippets first.
+          // Повторное подключение может быть выполнено после пропущенных событий удаления или
+          // выхода из группы; сначала удалите устаревшие фрагменты.
           void client.resetQueries({
             queryKey: ["personal-chat-search"],
             predicate: (query) => query.queryKey[2] === userId,
@@ -431,7 +433,8 @@ export function usePersonalRealtime(userId?: string) {
             queryKey: ["personal-chat-read", id],
           });
           if (["message.updated", "message.deleted"].includes(event.type))
-            // Invalidation retains old data on a failed refetch; reset removes edited/deleted text immediately.
+            // При неудачной повторной выборке старые данные сохраняются; при сбросе
+            // отредактированный или удалённый текст удаляется сразу.
             void client.resetQueries({
               queryKey: ["personal-chat-search", id, userId],
             });

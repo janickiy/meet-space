@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package sfu
 
 import (
@@ -5,9 +13,18 @@ import (
 	"github.com/pion/sdp/v3"
 )
 
-// receiveVideoPreference controls only this peer's incoming video. Keeping the
-// negotiated senders intact allows resuming camera/screen reception without
-// stopping local publications or audio and without allocating new receivers.
+// receiveVideoPreference управляет только входящим видео от этого однорангового узла.
+// Сохранение согласованных отправителей позволяет возобновить прием видео с камеры и экрана, не
+// прерывая локальные публикации и аудио, а также не выделяя новых получателей.
+//
+// @Parameters:
+//   - raw: Недоверенное сериализованное значение для декодирования или проверки.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func receiveVideoPreference(raw string) (bool, error) {
 	var description sdp.SessionDescription
 	if err := description.UnmarshalString(raw); err != nil {

@@ -1,9 +1,22 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package app
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/janickiy/meet-space/internal/config"
 	"github.com/janickiy/meet-space/internal/infrastructure/ffmpeg"
 	"github.com/janickiy/meet-space/internal/infrastructure/liveproviders"
@@ -11,14 +24,14 @@ import (
 	redisinfra "github.com/janickiy/meet-space/internal/infrastructure/redis"
 	"github.com/janickiy/meet-space/internal/operations"
 	live "github.com/janickiy/meet-space/internal/usecase/captions"
-	"net/http"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
-// RunLiveWorker изолирует decoder/STT в отдельном процессе с независимыми ресурсными пределами.
-// @return ошибка запуска/завершения без содержимого речи или токенов.
+// RunLiveWorker запускает live-воркер с настроенными зависимостями и сообщает о сбоях при запуске или
+// завершении работы.
+//
+// @returns:
+//   - result1: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func RunLiveWorker() error {
 	cfg, err := config.Load()
 	if err != nil {

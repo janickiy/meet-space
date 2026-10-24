@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package contentproviders
 
 import (
@@ -16,20 +24,39 @@ import (
 	"unicode"
 )
 
-// embeddings использует общий защищённый HTTP клиент без redirects и вывода ответа в логи.
+// embeddings использует общий защищенный клиент HTTP без редиректов и логирования содержимого
+// ответа.
 type embeddings struct{ *provider }
 
-// NewEmbeddingProvider создаёт noop/mock/http адаптер без вызова платного сервиса.
-// @args mode,endpoint,token — операторские настройки; timeout — конечный срок выполнения.
-// @return интерфейс провайдера либо ошибка конфигурации.
+// NewEmbeddingProvider создает провайдер встраивания с зависимостями и ограничениями,
+// необходимыми для провайдеров транскрипции, резюмирования и встраивания.
+//
+// @Parameters:
+//   - mode: Проверенная операция или режим записи.
+//   - endpoint: Конечная точка сервиса, настраиваемая оператором.
+//   - token: Подписанные учетные данные или токен владения операцией для проверки.
+//   - timeout: Максимальное время, отведенное на выполнение этой операции.
+//
+// @returns:
+//   - result1: Результирующий провайдер встраивания.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func NewEmbeddingProvider(mode, endpoint, token string, timeout time.Duration) (domain.EmbeddingProvider, error) {
 	p, e := newProvider(mode, endpoint, token, "", timeout)
 	return &embeddings{p}, e
 }
 
-// Embed отправляет порцию текста и возвращает только числовые векторы; schema проверяется строго.
-// @args ctx — срок выполнения; request — версия модели и ограниченные входные данные.
-// @return векторы либо безопасная ошибка.
+// Embed вычисляет ограниченный пакет текстовых векторов с помощью настроенной модели
+// встраивания.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//
+// @returns:
+//   - result1: Собранные значения []float32.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (p *embeddings) Embed(ctx context.Context, request domain.EmbeddingRequest) ([][]float32, error) {
 	if p.mode == "noop" {
 		return nil, jobs.ErrSkip
@@ -68,9 +95,15 @@ func (p *embeddings) Embed(ctx context.Context, request domain.EmbeddingRequest)
 	return result.Vectors, nil
 }
 
-// mockEmbedding создаёт детерминированный тестовый вектор с небольшим словарём синонимов, а не настоящую семантическую модель.
-// @args text — тестовый текст; dimensions — размерность фикстуры.
-// @return нормированный feature-hash вектор для воспроизводимых интеграционных тестов.
+// mockEmbedding создает детерминированные фиктивные векторы для явно разрешенного режима
+// локального провайдера.
+//
+// @Parameters:
+//   - text: Текст UTF-8 для проверки, нормализации или обработки.
+//   - dimensions: Ожидаемое количество измерений вектора встраивания.
+//
+// @returns:
+//   - result1: Собранные значения float32.
 func mockEmbedding(text string, dimensions int) []float32 {
 	vector := make([]float32, dimensions)
 	groups := map[string]string{"бюджет": "budget", "стоимость": "budget", "cost": "budget", "budget": "budget", "запуск": "launch", "релиз": "launch", "launch": "launch", "release": "launch", "встреча": "meeting", "совещание": "meeting", "meeting": "meeting"}

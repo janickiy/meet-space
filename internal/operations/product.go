@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package operations
 
 import (
@@ -8,19 +16,29 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/jobs"
 )
 
-// productKind допускает только категории, заданные исходным кодом, а не пользовательскими данными.
-// @args kind — технический вид задания.
-// @return признак принадлежности ограниченному набору меток.
+// productKind сопоставляет тип задания продукта с ограниченной меткой, используемой для
+// операционных показателей.
+//
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//
+// @returns:
+//   - result1: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
 func productKind(kind string) bool {
 	switch kind {
-	case "integrations.conference", "integrations.event", "integrations.delivery", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate":
+	case "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate":
 		return true
 	}
 	return false
 }
 
-// Product учитывает исход и продолжительность законченной попытки отдельного worker.
-// @args kind — фиксированная категория; outcome — безопасное состояние; duration — время работы.
+// Product записывает ограниченный результат категории фоновых заданий продукта.
+//
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - outcome: Фиксированная метка операционного результата.
+//   - duration: Продолжительность или период действия, используемый в ходе операции.
 func Product(kind, outcome string, duration time.Duration) {
 	if !productKind(kind) {
 		return
@@ -36,8 +54,12 @@ func Product(kind, outcome string, duration time.Duration) {
 	}
 }
 
-// ProductQueue обновляет снимок очереди; идентификаторы сущностей, пользователей и URL провайдеров не становятся метками.
-// @args kind — фиксированная категория; state — queued/processing/failed; count — число заданий.
+// ProductQueue обновляет метрики глубины очереди для фиксированной категории заданий продукта.
+//
+// @Parameters:
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - state: Текущее состояние или обновлённое валидированное состояние.
+//   - count: Ожидаемое или максимальное количество элементов.
 func ProductQueue(kind, state string, count int64) {
 	if !productKind(kind) || (state != "queued" && state != "processing" && state != "failed") {
 		return
@@ -47,9 +69,14 @@ func ProductQueue(kind, state string, count int64) {
 	}
 }
 
-// ProviderCall учитывает реальную попытку адаптера без содержимого и идентификаторов встречи.
-// @args provider — один из пяти фиксированных каналов; duration — длительность;
-// err — классифицированная ошибка, текст которой не становится меткой или журналом.
+// ProviderCall записывает результат вызова провайдера, используя фиксированные технические
+// метки, а не приватные данные запроса.
+//
+// @Parameters:
+//   - provider: Идентификатор провайдера, выбранный оператором, или фиксированная техническая
+//     метка провайдера.
+//   - duration: Продолжительность или период действия, используемый в ходе операции.
+//   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 func ProviderCall(provider string, duration time.Duration, err error) {
 	switch provider {
 	case "email", "push", "calendar", "stt", "ai", "embedding", "live_stt":
@@ -83,8 +110,12 @@ func ProviderCall(provider string, duration time.Duration, err error) {
 	}
 }
 
-// Search учитывает время запроса и безопасный класс ответа без поисковой строки.
-// @args duration — полное время обработчика; failed — признак HTTP-отказа.
+// Search записывает задержку при поиске и ограниченную метку успеха или неудачи без сохранения
+// текста запроса.
+//
+// @Parameters:
+//   - duration: Продолжительность или период действия, используемый в ходе операции.
+//   - failed: Указывает, завершилась ли ограниченная операция с ошибкой.
 func Search(duration time.Duration, failed bool) {
 	outcome := "success"
 	if failed {

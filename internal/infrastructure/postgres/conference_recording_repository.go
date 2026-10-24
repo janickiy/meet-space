@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -14,59 +22,66 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// ConferenceRecordingRepository реализует постоянное хранение конференций и членств участников через GORM.
-//   - db: подключение или текущая транзакция GORM, задающая контекст доступа к базе.
+// ConferenceRecordingRepository сохраняет авторизованный жизненный цикл записи конференции и
+// состояние исходящих команд через GORM.
 type ConferenceRecordingRepository struct{ db *gorm.DB }
 
-// NewConferenceRecordingRepository создаёт и связывает зависимости компонента ConferenceRecordingRepository, используемого в жизненном цикле конференций и правах участников.
+// NewConferenceRecordingRepository создает репозиторий записей конференции с зависимостями и
+// ограничениями, необходимыми для записи конференции.
 //
-// @args
-//   - db (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
+// @Parameters:
+//   - db: Database дескриптор, используемый для операции или транзакции.
 //
-// @return:
-//   - результат 1 (*ConferenceRecordingRepository): созданный компонент с переданными зависимостями.
+// @returns:
+//   - result1: Созданный или загруженный репозиторий записей конференции.
 func NewConferenceRecordingRepository(db *gorm.DB) *ConferenceRecordingRepository {
 	return &ConferenceRecordingRepository{db: db}
 }
 
 type RecordingOutbox = records.OutboxCommand
 
-// Start запускает обработку конференций и членств участников и подготавливает связанные ресурсы.
-// Операции с базой данных объединяет в транзакцию.
+// Start запускает запись конференции и подготавливает ресурсы, необходимые для этой операции.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - segmentDuration (int): значение segmentDuration типа int, используемое согласно назначению этой операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - segmentDuration: Запрошенная продолжительность сегмента записи.
 //
-// @return:
-//   - результат 1 (records.Record): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (bool): признак выполнения проверяемого условия или изменения состояния.
-//   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующая запись.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) Start(ctx context.Context, userID, conferenceID string, segmentDuration int) (records.Record, bool, error) {
 	return r.StartMode(ctx, userID, conferenceID, segmentDuration, records.ModeComposite)
 }
 
-// StartMode создаёт запись выбранной стратегии, сериализуя её с модерацией и завершением встречи.
-// Любой допущенный участник с аккаунтом может начать запись. Гостевые сессии запрещены.
-// Любая незавершённая запись встречи,
-// включая подготовку и сохранение файлов, запрещает повторный старт во всех режимах.
-// @args ctx — срок выполнения; userID/conferenceID — актор и встреча; segmentDuration — секунды фрагмента; mode — серверная стратегия.
-// @return запись, признак создания и ошибка прав/состояния.
+// StartMode запускает запись в выбранном режиме валидированной записи конференции.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - segmentDuration: Запрошенная продолжительность сегмента записи.
+//   - mode: Проверенная операция или режим записи.
+//
+// @returns:
+//   - result1: Результирующая запись.
+//   - result2: Указывает, выполняется ли задокументированное условие операции и произошло
+//     ли успешное изменение ее условного состояния.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) StartMode(ctx context.Context, userID, conferenceID string, segmentDuration int, mode string) (records.Record, bool, error) {
 	if !records.ValidConferenceMode(mode) {
 		return records.Record{}, false, apperrors.ErrInvalidInput
 	}
 	var record records.Record
 	created := false
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			conference, err := findConference(tx, conferenceID, true)
 			if err != nil {
 				return err
@@ -104,27 +119,24 @@ func (r *ConferenceRecordingRepository) StartMode(ctx context.Context, userID, c
 	return record, created, err
 }
 
-// Stop останавливает активную обработку конференций и членств участников и освобождает связанные ресурсы.
-// Операции с базой данных объединяет в транзакцию.
+// Stop останавливает активную операцию записи конференции и освобождает принадлежащие ей
+// ресурсы.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - recordID (string): внешний UUID задачи записи.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
 //
-// @return:
-//   - результат 1 (records.Record): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующая запись.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) Stop(ctx context.Context, userID, conferenceID, recordID string) (records.Record, error) {
 	var record records.Record
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			conference, err := findConference(tx, conferenceID, true)
 			if err != nil {
 				return err
@@ -163,8 +175,16 @@ func (r *ConferenceRecordingRepository) Stop(ctx context.Context, userID, confer
 	return record, err
 }
 
-// requireRecordingAccount проверяет постоянный аккаунт в БД: гостевой JWT тоже
-// содержит userID, поэтому одного наличия сессии или членства недостаточно.
+// requireRecordingAccount отклоняет идентификационные данные гостей перед операциями записи
+// только с использованием учетной записи.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func requireRecordingAccount(tx *gorm.DB, userID string) error {
 	var user users.User
 	err := tx.Select("id", "guest_conference_id").Where("id = ?", userID).Take(&user).Error
@@ -180,17 +200,19 @@ func requireRecordingAccount(tx *gorm.DB, userID string) error {
 	return nil
 }
 
-// Accessible проверяет связь записи с конференцией и право пользователя читать её.
+// Accessible загружает запись только в рамках полномочий действующего аккаунта в рамках
+// конференции.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - recordID (string): внешний UUID задачи записи.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - recordID: Внешняя запись UUID.
 //
-// @return:
-//   - результат 1 (records.Record): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующая запись.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) Accessible(ctx context.Context, userID, conferenceID, recordID string) (records.Record, error) {
 	if err := r.authorizeRead(ctx, userID, conferenceID); err != nil {
 		return records.Record{}, err
@@ -200,18 +222,20 @@ func (r *ConferenceRecordingRepository) Accessible(ctx context.Context, userID, 
 	return record, mapNotFound(err)
 }
 
-// List возвращает ограниченный список конференций и членств участников с принятыми в данном слое фильтрами.
+// List возвращает ограниченную страницу записей конференции с использованием заданных
+// параметров разбивки на страницы и фильтров.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
-//   - limit (int): максимальное число элементов страницы или порции обработки.
-//   - offset (int): число элементов, пропускаемых перед началом страницы.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//   - offset: Количество результатов, пропущенных до перехода на запрошенную страницу.
 //
-// @return:
-//   - результат 1 ([]records.Record): собранные элементы результата; состав ограничивается параметрами операции.
-//   - результат 2 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Собранные значения записей.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) List(ctx context.Context, userID, conferenceID string, limit, offset int) ([]records.Record, error) {
 	if err := r.authorizeRead(ctx, userID, conferenceID); err != nil {
 		return nil, err
@@ -221,15 +245,16 @@ func (r *ConferenceRecordingRepository) List(ctx context.Context, userID, confer
 	return items, err
 }
 
-// authorizeRead проверяет допуск к записи конференции, не выдавая доступ по одному идентификатору.
+// authorizeRead проверяет, может ли действующий аккаунт прочитать запрошенную запись.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - userID (string): идентификатор пользователя, для которого выполняется операция.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) authorizeRead(ctx context.Context, userID, conferenceID string) error {
 	if _, err := findConference(r.db.WithContext(ctx), conferenceID, false); err != nil {
 		return err
@@ -244,36 +269,40 @@ func (r *ConferenceRecordingRepository) authorizeRead(ctx context.Context, userI
 	return nil
 }
 
-// activeRecordingStatuses возвращает состояния незавершённых записей для выборки и остановки конференции.
+// activeRecordingStatuses возвращает сохраненные состояния, которые по-прежнему относятся к
+// активной записи.
 //
-// @return:
-//   - результат 1 ([]string): собранные элементы результата; состав ограничивается параметрами операции.
+// @returns:
+//   - result1: Собранные строковые значения.
 func activeRecordingStatuses() []string {
 	return []string{records.StatusStarting, records.StatusRecording, records.StatusDegraded, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}
 }
 
-// enqueueRecording сохраняет команду записи в транзакционном журнале доставки вместе с изменением записи.
+// enqueueRecording добавляет команду жизненного цикла записи в исходящий пакет транзакций.
 //
-// @args
-//   - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-//   - recordID (string): внешний UUID задачи записи.
-//   - command (string): внутренняя команда с типом операции и серверной идентичностью ресурса.
-//   - reason (string): причина завершения, отказа или изменения состояния.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - recordID: Внешняя запись UUID.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
+//   - reason: Ограниченный жизненный цикл или причина сбоя.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func enqueueRecording(tx *gorm.DB, recordID, command, reason string) error {
 	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&RecordingOutbox{RecordID: recordID, CommandType: command, Reason: reason}).Error
 }
 
-// stopConferenceRecordings переводит активные записи закрываемой встречи в остановку и сохраняет команды завершения.
+// stopConferenceRecordings помечает активные записи конференции как подлежащие остановке и
+// помещает их команды в очередь.
 //
-// @args
-//   - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-//   - conferenceID (string): идентификатор конференции, ограничивающий область операции.
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func stopConferenceRecordings(tx *gorm.DB, conferenceID string) error {
 	var rows []records.Record
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("platform_conference_id = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status IN ?", conferenceID, []string{records.StatusStarting, records.StatusRecording, records.StatusDegraded, records.StatusStopping}).Find(&rows).Error; err != nil {
@@ -292,26 +321,23 @@ func stopConferenceRecordings(tx *gorm.DB, conferenceID string) error {
 	return nil
 }
 
-// ClaimCommand захватывает очередную команду записи с ограниченным сроком обработки и соблюдением порядка.
-// Операции с базой данных объединяет в транзакцию.
+// ClaimCommand запрашивает одну команду исходящего пакета транзакций для записи вместе с
+// текущим состоянием записи.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
 //
-// @return:
-//   - результат 1 (RecordingOutbox): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 2 (records.Record): значение, подготовленное операцией для вызывающей стороны.
-//   - результат 3 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: Результирующий исходящий пакет транзакций для записи.
+//   - result2: Результирующая запись.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) ClaimCommand(ctx context.Context) (RecordingOutbox, records.Record, error) {
 	var out RecordingOutbox
 	var record records.Record
-	err := r.db.WithContext(ctx).Transaction( /* Вложенный обработчик выполняет часть операции в текущей транзакции базы данных, сохраняя её общий результат.
+	err := r.db.WithContext(ctx).Transaction(
 
-		@args
-		  - tx (*gorm.DB): подключение или текущая транзакция GORM, задающая контекст доступа к базе.
-
-		@return:
-		  - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение. */func(tx *gorm.DB) error {
+		func(tx *gorm.DB) error {
 			err := tx.Raw(`SELECT o.* FROM recording_outbox o WHERE o.published_at IS NULL
 		AND (o.claimed_until IS NULL OR o.claimed_until < now())
 		AND NOT EXISTS (SELECT 1 FROM recording_outbox prev WHERE prev.record_id=o.record_id AND prev.id<o.id AND prev.published_at IS NULL)
@@ -334,26 +360,30 @@ func (r *ConferenceRecordingRepository) ClaimCommand(ctx context.Context) (Recor
 	return out, record, err
 }
 
-// CompleteCommand подтверждает обработку команды только для её действующего владельца.
+// CompleteCommand подтверждает команду исходящего пакета транзакций для записи только в том
+// случае, если запрос на запись актуален.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - command (RecordingOutbox): внутренняя команда с типом операции и серверной идентичностью ресурса.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) CompleteCommand(ctx context.Context, command RecordingOutbox) error {
 	return r.db.WithContext(ctx).Model(&RecordingOutbox{}).Where("id = ? AND claim_token = ?", command.ID, command.ClaimToken).Updates(map[string]any{"published_at": time.Now().UTC(), "claimed_until": nil}).Error
 }
 
-// RetryCommand назначает повторную попытку доставки команды после временной ошибки.
+// RetryCommand повторно отправляет запрос на запись с использованием политики ограниченных
+// повторных попыток.
 //
-// @args
-//   - ctx (context.Context): контекст отмены, дедлайна и времени жизни операции.
-//   - command (RecordingOutbox): внутренняя команда с типом операции и серверной идентичностью ресурса.
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
 //
-// @return:
-//   - результат 1 (error): ошибка проверки или выполнения; nil означает успешное завершение.
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) RetryCommand(ctx context.Context, command RecordingOutbox) error {
 	return r.db.WithContext(ctx).Model(&RecordingOutbox{}).Where("id = ? AND claim_token = ?", command.ID, command.ClaimToken).Updates(map[string]any{"claimed_until": time.Now().UTC().Add(time.Second)}).Error
 }

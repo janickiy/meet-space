@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package callsapp
 
 import (
@@ -11,10 +19,23 @@ import (
 
 type Handler struct{ Service *usecase.Service }
 
+// validID проверяет, является ли предоставленный идентификатор ресурса допустимым ненулевым UUID.
+//
+// @Parameters:
+//   - value: значение для проверки, нормализации или преобразования.
+//
+// @returns:
+//   - result1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func validID(value string) bool {
 	id, err := uuid.Parse(value)
 	return err == nil && id != uuid.Nil && id.String() == value
 }
+
+// Create проверяет запрос и возвращает только что созданный прямой вызов для действующего аккаунта.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Create(c *gin.Context) {
 	var body struct {
 		TargetUserID    string `json:"targetUserId"`
@@ -40,6 +61,11 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	c.JSON(code, gin.H{"status": "success", "item": item})
 }
+
+// Get обслуживает запрошенный прямой вызов в рамках полномочий вызывающей стороны.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Get(c *gin.Context) {
 	id := c.Param("id")
 	if !validID(id) {
@@ -53,6 +79,11 @@ func (h *Handler) Get(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
+
+// Active возвращает текущий нетерминальный прямой вызов аккаунта, если таковой имеется.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Active(c *gin.Context) {
 	item, err := h.Service.Active(c.Request.Context(), middleware.UserID(c))
 	if err != nil {
@@ -61,6 +92,14 @@ func (h *Handler) Active(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"status": "success", "item": item})
 }
+
+// Change применяет запрошенное действие жизненного цикла прямого вызова и возвращает обновленное состояние.
+//
+// @Parameters:
+//   - action: Запрошенное действие жизненного цикла или модерации.
+//
+// @returns:
+//   - result1: HTTP-обработчик для регистрации этой операции.
 func (h *Handler) Change(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

@@ -3,7 +3,7 @@ import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { ApiError } from "./api";
 import type { FolderPage, FolderTarget, PersonalFolder } from "./types";
 
-/** Keep counts fresh while preserving checkbox state for every other target. */
+/** Обновляет количество, сохраняя состояние флажков для всех остальных целей. */
 export function updateFolder(
   client: QueryClient,
   userId: string,
@@ -40,7 +40,7 @@ export function invalidateFolders(client: QueryClient, userId: string) {
     ),
   );
 }
-/** A confirmed write stays visible even when its follow-up refresh is offline. */
+/** Подтверждённая запись остаётся видимой, даже если последующее обновление происходит в автономном режиме. */
 export function updateFolderMapping(
   client: QueryClient,
   userId: string,
@@ -86,7 +86,7 @@ export function updateFolderMapping(
 export function folderAccessDenied(error: unknown) {
   return error instanceof ApiError && [403, 404].includes(error.status);
 }
-/** Remove known revoked previews synchronously; inaccessible counts are reset. */
+/** Синхронно удаляет известные отозванные превью; недоступные значения сбрасываются. */
 export function purgeFolderTarget(
   client: QueryClient,
   userId: string,
@@ -111,7 +111,8 @@ export function purgeFolderTarget(
           : data,
     );
   }
-  // A revoked item may belong to an unloaded folder; never invent its counts.
+  // Отмененный элемент может принадлежать к выгруженной папке; никогда не выдумывайте его
+  // количество.
   void client.resetQueries({ queryKey: ["folders", userId] });
   void client.resetQueries({ queryKey: ["folder", userId] });
   void invalidateFolders(client, userId);

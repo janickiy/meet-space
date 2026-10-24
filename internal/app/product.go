@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package app
 
 import (
@@ -26,17 +34,26 @@ import (
 	"gorm.io/gorm"
 )
 
-// productServices объединяет продуктовые сценарии, не изменяя жизненный цикл RTP/FFmpeg записи.
+// productServices группирует операции с продуктами без изменения жизненного цикла записи RTP
+// или FFmpeg.
 type productServices struct {
 	content      *content.Service
 	integrations *integrations.Service
 	search       *searchusecase.Service
 }
 
-// newProductServices создаёт одни и те же проверенные зависимости API и отдельного worker.
-// API использует только чтение/постановку задач; аудио и провайдеры вызывает worker.
-// @args cfg — серверная конфигурация; db — ограниченный SQL-пул; storage — приватный MinIO.
-// @return сценарии продукта либо безопасная ошибка конфигурации.
+// newProductServices создает общие валидированные зависимости для продуктов; API только считывает или
+// обрабатывает очереди, в то время как отдельный рабочий процесс обращается к медиа и внешним провайдерам.
+//
+// @Parameters:
+//   - cfg: управляемая оператором конфигурация и ограничения обработки.
+//   - db: дескриптор базы данных, используемый для операции или транзакции.
+//   - storage: частный объект или зависимость от файлового хранилища.
+//
+// @returns:
+//   - result1: результирующие сервисы для продуктов.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспортировки или сохранения
+//     данных.
 func newProductServices(cfg config.Config, db *gorm.DB, storage *s3.Client) (productServices, error) {
 	c := cfg.StageSeven
 	local := cfg.IsLocal() || cfg.AppEnv == "test"
@@ -92,9 +109,12 @@ func newProductServices(cfg config.Config, db *gorm.DB, storage *s3.Client) (pro
 	return productServices{contentService, integrationService, searchService}, nil
 }
 
-// RunProductWorker запускает независимый процесс медленных внешних операций с постоянными очередями.
-// Отмена останавливает новые захваты, прерывает запросы к провайдеру и ограничивает финальную запись.
-// @return ошибка конфигурации/старта либо nil после корректного завершения.
+// RunProductWorker запускает продукт-воркер с настроенными зависимостями и передает информацию о сбоях при запуске
+// или завершении работы.
+//
+// @returns:
+//   - result1: nil при успешном выполнении; в противном случае — ошибка валидации, доступа, транспорта или сохранения
+//     данных.
 func RunProductWorker() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -162,6 +182,7 @@ func RunProductWorker() error {
 		{Kind: "integrations.conference", Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout, Handler: i}, {Kind: "integrations.event", Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout, Handler: i},
 		{Kind: "integrations.delivery", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i},
 		{Kind: "integrations.invitation", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i}, {Kind: "integrations.calendar", Concurrency: s.CalendarWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout * 3, Handler: i},
+		{Kind: "integrations.invitation_reminder", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i},
 		{Kind: "content.transcribe", Concurrency: s.STTWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.STTTimeout, Handler: c}, {Kind: "content.summarize", Concurrency: s.AIWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.AITimeout, Handler: c},
 		{Kind: "content.embed", Concurrency: cfg.StageEight.EmbeddingWorkers, MaxAttempts: s.MaxAttempts, Timeout: cfg.StageEight.EmbeddingTimeout, Handler: e},
 		{Kind: "analytics.aggregate", Concurrency: 1, MaxAttempts: 3, Timeout: 15 * time.Second, Handler: a},
@@ -211,8 +232,15 @@ func RunProductWorker() error {
 	return errors.Join(serveErr, serverErr)
 }
 
-// runProductTicks создаёт наступившие напоминания и измеряет размер очереди одним общим таймером.
-// @args ctx — время жизни; service — планировщик интеграций; repo — очередь; interval — период опроса.
+// runProductTicks выполняет периодическое обслуживание продукта независимо от записи на носитель
+// жизненного цикла.
+//
+// @Parameters:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - service: сервис приложения, вызываемый этим адаптером.
+//   - repo: зависимость от персистентности, используемая операцией приложения.
+//   - interval: интервал между итерациями ограниченного обслуживания.
+//   - extra: дополнительные поля ограниченных событий или обратные вызовы.
 func runProductTicks(ctx context.Context, service *integrations.Service, repo *pg.JobRepository, interval time.Duration, extra func(context.Context)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -227,7 +255,7 @@ func runProductTicks(ctx context.Context, service *integrations.Service, repo *p
 		counts, err := repo.Counts(tickCtx)
 		cancel()
 		if err == nil {
-			for _, kind := range []string{"integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate"} {
+			for _, kind := range []string{"integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate"} {
 				for _, state := range []string{"queued", "processing", "failed"} {
 					operations.ProductQueue(kind, state, 0)
 				}

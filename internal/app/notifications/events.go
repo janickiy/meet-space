@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package notificationsapp
 
 import (
@@ -20,28 +28,53 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-// Subscriber открывает персональный канал уведомлений для SSE.
+// Subscriber открывает канал уведомлений для конкретного аккаунта, используемый SSE.
 type Subscriber interface {
-	// Subscribe использует контекст для подключения к каналу пользователя.
-	// После успешного подключения вызывающая сторона закрывает PubSub сама.
+	// Subscribe открывает подписку на события с ограниченной областью видимости, время жизни которой ограничено предоставленным контекстом.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой подписки, сроками и временем жизни операции.
+	//   - arg2: действующий идентификатор аккаунта, используемый для ограничения доступа.
+	//
+	// @returns:
+	//   - result1: созданная или загруженная подписка на рассылку.
+	//   - result2: nil в случае успеха; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
+	//
 	Subscribe(context.Context, string) (*goredis.PubSub, error)
 }
 
-// Verifier проверяет токен и определяет предельный срок SSE-подключения.
+// Verifier проверяет токен и определяет максимальное время жизни соединения SSE.
 type Verifier interface {
-	// VerifyWithExpiry принимает JWT и возвращает ID пользователя и срок действия.
+	// VerifyWithExpiry проверяет токен доступа и возвращает идентификатор учетной записи и срок действия токена.
+	//
+	// @Parameters:
+	//   - arg1: сериализованное значение, не требующее доверия, для декодирования или проверки.
+	//
+	// @returns:
+	//   - result1: аутентифицированный идентификатор учетной записи.
+	//   - result2: временная метка или граница срока действия, связанная с результатом.
+	//   - result3: nil в случае успешного выполнения; в противном случае ошибка валидации, доступа, передачи или сохранения.
 	VerifyWithExpiry(string) (string, time.Time, error)
 }
 
-// Limiter ограничивает частоту попыток открыть SSE-подключение.
+// Limiter ограничивает количество попыток открыть соединение SSE.
 type Limiter interface {
-	// Allow проверяет число обращений по ключу за указанное временное окно.
+	// Allow оценивает ограничение скорости и возвращает оставшийся бюджет и границу сброса.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: хранилище, кэш или криптографический ключ, используемый операцией.
+	//   - arg3: максимальное количество результатов или операций в этом пакете.
+	//   - arg4: продолжительность ограничения скорости или окна наблюдения.
+	//
+	// @returns:
+	//   - result1: полученный результат.
+	//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, передачи или сохранения. 	//
 	Allow(context.Context, string, int, time.Duration) (ratelimit.Result, error)
 }
 
-// eventStreams owns SSE admission limits, subscriptions and graceful draining.
-// Each serve call owns its request context, Redis subscription, write deadline
-// and keepalive ticker; completion releases capacity for the next connection.
+// eventStreams отвечает за лимиты доступа к SSE, подписки и корректное завершение работы.
+// Каждый вызов serve имеет свой контекст запроса, подписку Redis, крайний срок записи // и тикер keepalive; после завершения работы освобождается пропускная способность для следующего подключения.
 type eventStreams struct {
 	service   *usecase.Service
 	bus       Subscriber
@@ -54,6 +87,7 @@ type eventStreams struct {
 	drainOnce sync.Once
 }
 
+// beginDrain перестает принимать новые заказы, пока завершаются текущие операции.
 func (s *eventStreams) beginDrain() {
 	s.drainOnce.Do(func() {
 		if s.drain != nil {
@@ -63,7 +97,31 @@ func (s *eventStreams) beginDrain() {
 }
 
 type persistentVerifier interface {
+	// VerifyAuthorization проверяет токен авторизации и определяет его пользователя, сеанс, гостя
+	// область действия и срок действия.
+	//
+	// @Parameters:
+	// - arg1: Контекст, управляющий отменой, крайними сроками и сроком действия операции.
+	// - arg2: Ненадежное сериализованное значение для декодирования или проверки.
+	//
+	// @returns:
+	// - result1: Подтвержденный идентификатор учетной записи.
+	// - result2: Область действия гостевой конференции или пустая строка для зарегистрированной учетной записи.
+	// - result3: Постоянный идентификатор сеанса сервера или пустая строка для гостевой или устаревшей учетной записи
+	// токен.
+	// - result4: Временная метка или граница допустимости, связанная с результатом.
+	// - result5: значение "ноль" при успешном выполнении; в противном случае проверка, доступ, транспортировка или сохранение не будут выполнены
+	// ошибка.
 	VerifyAuthorization(context.Context, string) (string, string, string, time.Time, error)
+	// AuthorizeSession проверяет, что текущий сеанс на сервере не был отменен и привязан к запрошенной учетной записи.
+	//
+	// @Parameters:
+	//   - arg1: контекст, управляющий отменой, сроками и временем жизни операции.
+	//   - arg2: действующий идентификатор учетной записи, используемый для ограничения доступа.
+	//   - arg3: постоянный или физический идентификатор сеанса, определяемый операцией.
+	//
+	// @returns:
+	//   - result1: nil в случае успешного выполнения; в противном случае — ошибка проверки, доступа, передачи или сохранения.  //
 	AuthorizeSession(context.Context, string, string) error
 }
 
@@ -73,9 +131,16 @@ type streamIdentity struct {
 	expiry    time.Time
 }
 
-// authorize checks the same header credential already bound to the HTTP actor.
+// authorize проверяет те же учетные данные заголовка, которые уже привязаны к HTTP-объекту.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
+//
+// @returns:
+//   - result1: результирующий идентификатор потока.
+//   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
 func (s *eventStreams) authorize(c *gin.Context) (streamIdentity, error) {
-	// Credentials remain in the header, never in URLs or access logs.
+	// Учетные данные остаются в заголовке, а не в URLs или журналах доступа.
 	fields := strings.Fields(c.GetHeader("Authorization"))
 	if len(fields) != 2 || len(c.Request.URL.RawQuery) > 0 {
 		return streamIdentity{}, apperrors.ErrUnauthorized
@@ -98,6 +163,10 @@ func (s *eventStreams) authorize(c *gin.Context) (streamIdentity, error) {
 	return identity, nil
 }
 
+// serve обслуживает авторизованный поток событий уведомлений до момента отмены, истечения срока действия или опустошения.
+//
+// @Parameters:
+//   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (s *eventStreams) serve(c *gin.Context) {
 	identity, err := s.authorize(c)
 	if err != nil {
@@ -146,14 +215,21 @@ func (s *eventStreams) serve(c *gin.Context) {
 	s.pump(ctx, c.Writer, identity, messages)
 }
 
-// pump owns the write deadline and ticker until the stream finishes. Returning
-// unwinds serve's subscription, request context and admission-slot defers.
+// pump отвечает за запись и тикер до завершения потока. Возвращающийся
+// отменяет подписку, контекст запроса и отложенные слоты доступа.
+//
+// @Parameters:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - writer: ответное сообщение или средство записи контента.
+//   - identity: подтвержденная учетная запись и идентификатор физического сеанса.
+//   - messages: входящий поток событий с областью видимости.
 func (s *eventStreams) pump(ctx context.Context, writer gin.ResponseWriter, identity streamIdentity, messages <-chan *goredis.Message) {
 	controller := http.NewResponseController(writer)
 	defer controller.SetWriteDeadline(time.Time{})
 	write := func(value string) bool {
-		// Обёртка Gin не всегда поддерживает сроки записи. Ограниченная очередь SSE
-		// не позволяет медленному читателю блокировать сигнализацию комнаты.
+		// Оболочка Gin не всегда поддерживает ограничение времени записи.  Ограниченная очередь
+		// SSE не позволяет медленному считывающему устройству блокировать передачу сигналов о
+		// состоянии комнаты.
 		if err := controller.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil && err != http.ErrNotSupported {
 			return false
 		}
@@ -199,7 +275,15 @@ func (s *eventStreams) pump(ctx context.Context, writer gin.ResponseWriter, iden
 	}
 }
 
-// active rechecks persistent-session revocation before each delivery/keepalive.
+// active повторная проверка отзыва persistent-session перед каждой доставкой/поддержанием активности.
+//
+// @Parameters:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - identity: подтвержденная учетная запись и идентификатор физического сеанса.
+//
+// @returns:
+//   - result1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменено успешно.
 func (s *eventStreams) active(ctx context.Context, identity streamIdentity) bool {
 	if identity.sessionID == "" {
 		return true
@@ -210,8 +294,19 @@ func (s *eventStreams) active(ctx context.Context, identity streamIdentity) bool
 	return persistent.AuthorizeSession(checkContext, identity.userID, identity.sessionID) == nil
 }
 
-// visible preserves the notification event allowlist and reauthorizes created
-// notifications at delivery time, so queued events cannot bypass current ACLs.
+// visible сохраняет список разрешенных уведомлений и повторно авторизует созданные
+// уведомления во время доставки, чтобы события в очереди не могли обходить текущие списки управления доступом.
+//
+// @Parameters:
+//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
+//   - userID: действующий идентификатор учетной записи, используемый для ограничения доступа.
+//   - payload: структурированное событие или полезная нагрузка команды.
+//
+// @returns:
+//   - result1: выполняется ли задокументированное условие операции или ее условное состояние
+//     изменилось успешно.
+//   - result2: nil в случае успеха; в противном случае — ошибка валидации, доступа, передачи или сохранения
+//     данных.
 func (s *eventStreams) visible(ctx context.Context, userID, payload string) (bool, error) {
 	var event domain.Envelope
 	if len(payload) > 8192 {

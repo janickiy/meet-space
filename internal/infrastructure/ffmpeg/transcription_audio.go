@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package ffmpeg
 
 import (
@@ -11,15 +19,28 @@ import (
 	"sync"
 )
 
-// RecordingObjectReader читает только приватный объект и не принимает внешние URL.
+// RecordingObjectReader считывает только приватные сохраненные объекты и никогда не принимает
+// внешние URLs.
 type RecordingObjectReader interface {
-	// OpenRecording открывает принадлежащий серверу ключ с ограничением числа байтов.
-	// @args ctx — срок выполнения; key — проверенный ключ хранилища; maximum — предел байтов.
-	// @return поток, фактический размер и ошибку хранилища.
+	// OpenRecording открывает приватный аудиопоток или медиапоток для записи, используя
+	// сохраненный идентификатор артефакта.
+	//
+	// @Parameters:
+	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
+	//   операции.
+	//   - arg2: Хранилище, кэш или криптографический ключ, используемый в ходе операции.
+	//   - arg3: Максимально допустимый размер или количество символов.
+	//
+	// @returns:
+	//   - result1: Результирующий считывающий модуль.
+	//   - result2: Возвращает количество, размер или числовое значение.
+	//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+	//   передачи данных или сохранения.
 	OpenRecording(context.Context, string, int64) (io.ReadCloser, int64, error)
 }
 
-// TranscriptionAudio извлекает WAV отдельно от финализации записи и передачи медиа.
+// TranscriptionAudio извлекает аудио WAV независимо от завершения записи и передачи
+// медиаданных.
 type TranscriptionAudio struct {
 	objects                      RecordingObjectReader
 	binary, tempRoot             string
@@ -27,18 +48,35 @@ type TranscriptionAudio struct {
 	maxDuration                  int
 }
 
-// NewTranscriptionAudio создаёт независимый обработчик извлечения с конечными пределами объёма и длительности.
-// @args objects — private MinIO reader; binary — доверенный FFmpeg path;
-// tempRoot — приватный каталог временных файлов; maxVideoBytes/maxAudioBytes — пределы входа и выхода;
-// maxDuration — максимально допустимая длительность в секундах.
-// @return адаптер AudioSource; actual выделение ресурсов происходит только в Open.
+// NewTranscriptionAudio создает аудиозапись расшифровки с учетом зависимостей и ограничений,
+// необходимых для записи и постобработки FFmpeg.
+//
+// @Parameters:
+//   - objects: Закрытый объект для чтения записей.
+//   - binary: Путь к настроенному внешнему исполняемому файлу.
+//   - tempRoot: Корневой каталог, ограничивающий размер временных медиафайлов.
+//   - maxVideoBytes: Максимальный размер входного видеопотока в байтах.
+//   - maxAudioBytes: Максимальный размер входного аудиопотока в байтах.
+//   - maxDuration: Максимальная продолжительность медиафайлов, поддерживаемая этим путем
+//     обработки.
+//
+// @returns:
+//   - result1: Созданная или загруженная аудиозапись расшифровки.
 func NewTranscriptionAudio(objects RecordingObjectReader, binary, tempRoot string, maxVideoBytes, maxAudioBytes int64, maxDuration int) *TranscriptionAudio {
 	return &TranscriptionAudio{objects: objects, binary: binary, tempRoot: tempRoot, maxVideoBytes: maxVideoBytes, maxAudioBytes: maxAudioBytes, maxDuration: maxDuration}
 }
 
-// Open скачивает MP4 ограниченного размера и извлекает монофонический WAV с частотой 16 кГц в приватном временном каталоге.
-// @args ctx — конечный срок распознавания речи; source — серверные метаданные готовой записи.
-// @return поток чтения и идемпотентную очистку; ошибки не меняют готовую запись.
+// Open открывает доступ к медиафайлам, записям или сеансам, необходимым для работы этого
+// компонента.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - source: Медиа или источник контента, связанный с текущей операцией.
+//
+// @returns:
+//   - result1: Полученный аудиофайл.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (a *TranscriptionAudio) Open(ctx context.Context, source domain.RecordingSource) (domain.Audio, error) {
 	if a.objects == nil || a.binary == "" || a.maxVideoBytes < 1 || a.maxAudioBytes < 44 || a.maxDuration < 1 || source.DurationSec < 1 || source.DurationSec > a.maxDuration || source.SizeBytes > a.maxVideoBytes {
 		return domain.Audio{}, &jobs.Error{Code: "audio_input_limit", Retryable: false}

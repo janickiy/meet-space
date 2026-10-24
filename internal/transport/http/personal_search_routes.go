@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package httptransport
 
 import (
@@ -8,7 +16,19 @@ import (
 	httpmiddleware "github.com/janickiy/meet-space/internal/transport/http/middleware"
 )
 
-// Registered accounts and current conversation membership are required independently.
+// RegisterPersonalSearchRoutes регистрирует персональные конечные точки доступа для поиска с
+// аутентификацией.
+//
+// Для регистрации аккаунтов и текущего членства в чатах требуется отдельная процедура.
+//
+// @Parameters:
+//   - router: Маршрутизатор HTTP, в котором зарегистрированы конечные точки компонентов.
+//   - handler: Обратный вызов, отвечающий за обработку операции с ограниченной областью
+//     видимости.
+//   - auth: Промежуточное ПО для аутентификации или обработчик учётных записей.
+//   - accountOnly: Промежуточное ПО, отклоняющее гостевые идентификаторы для операций,
+//     доступных только для зарегистрированных учётных записей.
+//   - limiter: Общий ограничитель частоты запросов.
 func RegisterPersonalSearchRoutes(router gin.IRouter, handler *chatapp.SearchHandler, auth, accountOnly gin.HandlerFunc, limiter httpmiddleware.Limiter) {
 	base := APIV1Prefix + "/conversations/:id/messages"
 	rules := []httpmiddleware.Rule{}

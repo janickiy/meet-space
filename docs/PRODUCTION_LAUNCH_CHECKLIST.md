@@ -1,20 +1,18 @@
 # Решение о запуске production
 
-Это текущий go/no-go checklist, а не отчёт об успешном запуске. Реальная staging
-и production-инфраструктура ещё не предоставлена. Все пункты ниже намеренно
-не отмечены; к каждому подтверждению нужны дата, ответственный и ссылка на evidence.
-Локальная автоматизация, unit/E2E и isolated rehearsal фиксируются отдельно
-и не закрывают WAN, TURNS, реальные данные и capacity.
+Отмечайте пункты после проверки конкретного выпуска. Для каждого подтверждения
+сохраните дату, ответственного и evidence.
 
 ## Ответственность и артефакт
 
 - [ ] Назначены владелец выпуска, оператор, принимающий rollback-решение и контакты инцидента.
 - [ ] Утверждены release notes, scope, известные ограничения и окно обслуживания.
-- [ ] Registry release собран из clean commit; версия/SHA/time/source hash совпадают с manifest.
+- [ ] Registry либо archive release собран из clean commit; версия/SHA/time/source hash совпадают с manifest.
+- [ ] Зафиксирована фактическая топология: standalone мастер, classic либо hardened shared-host. Выбраны соответствующие overlays; нет случайной замены MinIO на SeaweedFS или томов/сети.
 - [ ] Все image references неизменяемы, checksum manifest проверен; предыдущий пакет доступен без пересборки.
-- [ ] CI validate/unit/race/integration/frontend lint/typecheck/unit/a11y/build/CSP прошёл для этого commit.
-- [ ] Browser E2E прошёл в Chromium и Firefox; средовые failures разобраны, а не скрыты skip.
-- [ ] govulncheck/npm audit/image scan прошли, SBOM сохранены; исключения документированы и согласованы.
+- [ ] Текущие CI gates gofmt/vet/staticcheck/build и frontend lint/typecheck/build прошли для этого commit.
+- [ ] Критические сценарии вручную проверены в Chromium и Firefox; CSP проверена в ответах и браузере, ограничения зафиксированы.
+- [ ] govulncheck/npm audit/image scan прошли, SBOM сохранены; HIGH/CRITICAL не обходятся флагом; ограничения отчётов зафиксированы.
 - [ ] Docker/registry/CI runner и `TRIVY_IMAGE` проверены; production не использует legacy `deploy-dev`.
 
 ## Инфраструктура и безопасность
@@ -22,7 +20,7 @@
 - [ ] Staging независим от production, DNS и HTTPS/WSS доступны с реальных клиентских сетей.
 - [ ] TURNS доверен браузерами; UDP/TCP/relay firewall проверен, выбранная ICE pair действительно relay при forced test.
 - [ ] SFU public IP/NAT/mux и TURN relay range согласованы с Compose/firewall; проверены корпоративная и мобильная сети.
-- [ ] PG/Redis/Rabbit/MinIO/private control/metrics/pprof не доступны публично; admin требует серверное право.
+- [ ] PG/Redis/Rabbit/S3/private control/metrics/pprof не доступны публично; admin требует серверное право.
 - [ ] Origins/CSP/CORS/trusted proxy настроены точно; IP rate limit различает клиентов и не доверяет произвольному forwarding.
 - [ ] Все secrets независимы, вне Git/образов, файлы защищены; provider encryption key включён в защищённый recovery-план.
 - [ ] Ротация JWT/service/metrics/TURN/provider secrets проверена; logout не ошибочно считается отзывом всех JWT.
@@ -42,16 +40,16 @@
 
 ## Продуктовые сценарии
 
-- [ ] Отдельный non-admin smoke account проверяет login/me/capabilities и отказ admin; секреты не попадают в отчёт.
+- [ ] Согласованный non-admin аккаунт проверяет login/me/capabilities и отказ admin; секреты не попадают в отчёт.
 - [ ] Регистрация, вход/выход, профиль и подтверждённые ограничения восстановления пароля соответствуют USER_GUIDE.
 - [ ] Создание, приглашение, prejoin, waiting room/admission, роли и reconnect прошли в браузерах.
 - [ ] Камера/микрофон/screen share проверены на реальных устройствах, разрешениях, смене сети и нескольких участниках.
-- [ ] Запись каждого включённого режима стартует/останавливается, ffprobe подтверждает media, MP4/preview доступны только разрешённым пользователям.
-- [ ] Чат/вложения/history/download защищены, работают лимиты и истечение ссылок.
+- [ ] Запись каждого включённого режима стартует/останавливается; ffprobe и playback подтверждают media. Composite/screen_focus имеют MP4/JPEG, audio_only — AAC в MP4 без preview, individual_tracks — audio MP4 и архив исходных треков. Доступ проверен.
+- [ ] Личные и групповые чаты, поиск в переписке, папки, звонки и история звонков проверены; вложения и download защищены. Завершённые встречи открываются через `/conferences?view=past`, записи — `/recordings`.
 - [ ] STT/AI/live captions/search/analytics, если включены, проверены с реальным provider и отказами; mock не используется.
 - [ ] Email/push/calendar/OAuth, если включены, проверены с реальными credentials, consent и revoke/refresh; по умолчанию остаются noop/disabled.
 - [ ] Телеметрия, если включена, не передаёт текст ошибок/контент/URL с ID/токены; backend rate limit и opt-out проверены.
-- [ ] Пользовательская доступность и адаптивность проверены вручную; автоматический a11y scan не объявлен полной сертификацией.
+- [ ] Пользовательская доступность и адаптивность проверены вручную; наличие сборки не объявлено сертификацией доступности.
 
 ## Репетиция, запуск и наблюдение
 
@@ -60,7 +58,7 @@
 - [ ] До recorder drain прекращены новые `record.start`, обработаны pending starts и штатно завершены записи; учтена возможная задержка stop из-за requeue в общей очереди.
 - [ ] Заполнено правдивое version-bound evidence, production approval равен выбранной версии.
 - [ ] Согласован объём пилота: отдельный deployment либо глобальные флаги; не обещан несуществующий cohort targeting.
-- [ ] До запуска выбраны наблюдаемые SLI, ожидаемый объём трафика и условия остановки; исторический baseline не принят за SLO.
+- [ ] До запуска выбраны наблюдаемые SLI, ожидаемый объём трафика и условия остановки; SLO основаны на измерениях целевого окружения.
 - [ ] После запуска версии/health/auth/WS/media/recordings/очереди/storage проверены; фактические counts и окно наблюдения сохранены.
 - [ ] Ответственный явно принял go/no-go; при no-go выполнен безопасный rollback/forward fix и уведомление.
 
@@ -69,16 +67,12 @@
 | Поле | Заполняется оператором |
 | --- | --- |
 | Версия / commit / hash manifest | Не заполнено |
-| Staging URL / production URL | Не предоставлены |
+| Staging URL / production URL | Заполнить для конкретного выпуска |
 | CI, scan, browser и media evidence | Не заполнено |
 | Backup / restore-check / rollback rehearsal | Не заполнено |
 | Начало / конец / число реальных операций наблюдения | Не заполнено |
-| Решение / ответственный / время | **NO-GO до закрытия обязательных внешних gates** |
+| Решение / ответственный / время | Не принято этим документом; заполнить по фактической приёмке |
 
 Процедуры: [DEPLOYMENT](DEPLOYMENT.md), [RELEASE_PROCESS](RELEASE_PROCESS.md),
 [ROLLBACK](ROLLBACK.md), [backup/restore](operations/backup-restore.md),
-[runbook](operations/README.md). Исторические отчёты этапов
-[6](operations/production-hardening-report.md) и
-[9](operations/PRODUCT_UX_RELEASE_REPORT.md), включая прежний
-[UX checklist](operations/RELEASE_CHECKLIST.md), описывают прошлые проверки,
-не заменяют текущую приёмку production.
+[runbook](operations/README.md), [продуктовый checklist](operations/RELEASE_CHECKLIST.md).

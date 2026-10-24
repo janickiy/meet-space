@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -9,8 +17,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// decorateConversationPins adds the shared marker to already-authorized message
-// projections, including history, search, context and message updates.
+// decorateConversationPins добавляет общий маркер к уже авторизованным проекциям сообщений,
+// включая историю, поиск, контекст и обновления сообщений.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - items: Ограниченная коллекция записей для обработки.
+//   - ids: Идентификаторы ресурсов для обработки в рамках ограниченного пакета.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func decorateConversationPins(tx *gorm.DB, items []chat.Message, ids []string) error {
 	var pinned []string
 	if err := tx.Table("conversation_message_pins").
@@ -28,8 +45,21 @@ func decorateConversationPins(tx *gorm.DB, items []chat.Message, ids []string) e
 	return nil
 }
 
-// ConversationPins applies exactly the same membership, hidden-chat and cleared
-// history rules as ordinary message reads. Pins do not recover cleared messages.
+// ConversationPins применяет те же правила в отношении членства в группах, скрытых чатов и
+// очищенной истории, что и при обычном чтении сообщений.  Закреплённые сообщения не
+// восстанавливаются после очистки.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//
+// @returns:
+//   - result1: Результирующая страница с сообщениями.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) ConversationPins(ctx context.Context, user, id, cursor string, limit int) (chat.MessagePage, error) {
 	page := chat.MessagePage{Items: []chat.Message{}}
 	if limit < 1 || limit > 100 {
@@ -66,9 +96,23 @@ func (r *PersonalRepository) ConversationPins(ctx context.Context, user, id, cur
 	return page, err
 }
 
-// SetConversationPin serializes pin mutations with message writes, membership
-// changes and history clearing. All current members can manage the shared pins.
-// It returns the authoritative conversation type for a minimal invalidation event.
+// SetConversationPin сериализует изменения закреплённых сообщений с записями сообщений,
+// изменениями членства в группах и очисткой истории.  Все текущие участники могут управлять
+// закреплёнными сообщениями.  Возвращает достоверный тип диалога для минимального события
+// аннулирования.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - user: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - id: Идентификатор ресурса, к которому обращается данная операция.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
+//   - pinned: Нужно ли закрепить выбранное сообщение.
+//
+// @returns:
+//   - result1: Идентификатор диалога, в котором изменилось состояние закреплённого
+//     сообщения.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *PersonalRepository) SetConversationPin(ctx context.Context, user, id, messageID string, pinned bool) (string, error) {
 	var kind string
 	repo := NewDirectChatRepository(r.db)
@@ -98,8 +142,9 @@ func (r *PersonalRepository) SetConversationPin(ctx context.Context, user, id, m
 		if existing > 0 {
 			return nil
 		}
-		// A pin that every current member has cleared must not consume capacity
-		// forever. Keep all pins still visible to at least one active account.
+		// Закрелённое сообщение, очищенное всеми текущими участниками, не должно занимать место
+		// вечно.  Все закреплённые сообщения должны быть видны хотя бы одному активному
+		// аккаунту.
 		if err := tx.Exec(`DELETE FROM conversation_message_pins pins
 			USING conversation_messages message
 			WHERE pins.conversation_id=? AND message.conversation_id=pins.conversation_id AND message.id=pins.message_id

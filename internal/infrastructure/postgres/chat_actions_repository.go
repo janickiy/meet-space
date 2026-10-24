@@ -1,3 +1,11 @@
+// MeetSpace
+// Copyright 2026 Alexander Yanitskiy
+// Author: Alexander Yanitskiy
+// Email: janickiy@mail.ru
+// Telegram: @janickiy (https://t.me/janickiy)
+// Website: https://janickiy.com/
+// Licensed under the Apache License, Version 2.0.
+
 package postgres
 
 import (
@@ -15,11 +23,33 @@ import (
 
 var chatURL = regexp.MustCompile(`(?i)https?://[^\s<>"']+`)
 
-// The item index keeps pagination inside a message with several files or links.
+// materialCursor кодирует границу продолжения материалов чата.
+//
+// Индекс элемента обеспечивает разбивку на страницы в сообщении с несколькими файлами или
+// ссылками.
+//
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - sequence: Стабильная последовательность упорядочивания сообщений или событий.
+//   - index: Индекс обрабатываемого элемента.
+//
+// @returns:
+//   - result1: Непрозрачный курсор продолжения материалов.
 func materialCursor(conferenceID string, sequence int64, index int) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(conferenceID + ":" + strconv.FormatInt(sequence, 10) + ":" + strconv.Itoa(index)))
 }
 
+// parseMaterialCursor декодирует и проверяет границу разбивки на страницы материалов.
+//
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//
+// @returns:
+//   - result1: Возвращает количество, размер или числовое значение.
+//   - result2: Возвращает количество, размер или числовое значение.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func parseMaterialCursor(conferenceID, cursor string) (int64, int, error) {
 	if cursor == "" {
 		return 0, 0, nil
@@ -46,10 +76,28 @@ func parseMaterialCursor(conferenceID, cursor string) (int64, int, error) {
 	return sequence, index, nil
 }
 
+// memberCursor кодирует границу продолжения страницы с участниками чата.
+//
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - participantID: Идентификатор участника конференции.
+//
+// @returns:
+//   - result1: Непрозрачный курсор продолжения списка участников.
 func memberCursor(conferenceID, participantID string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(conferenceID + ":" + participantID))
 }
 
+// parseMemberCursor декодирует и проверяет границу разбивки на страницы участников чата.
+//
+// @Parameters:
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//
+// @returns:
+//   - result1: Канонический идентификатор участника, декодированный из курсора.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func parseMemberCursor(conferenceID, cursor string) (string, error) {
 	if cursor == "" {
 		return "", nil
@@ -72,6 +120,18 @@ func parseMemberCursor(conferenceID, cursor string) (string, error) {
 	return id, nil
 }
 
+// chatInfo формирует метаданные конференц-чата для конкретного участника в рамках текущей
+// транзакции.
+//
+// @Parameters:
+//   - tx: Текущая транзакция в базе данных.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Полученная информация.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) chatInfo(tx *gorm.DB, userID, conferenceID string) (chat.Info, error) {
 	p, err := authorizeChat(tx, userID, conferenceID, false, false)
 	if err != nil {
@@ -104,6 +164,17 @@ func (r *ChatRepository) chatInfo(tx *gorm.DB, userID, conferenceID string) (cha
 		NotificationsEnabled: lookup.RowsAffected == 0 || pref.NotificationsEnabled, CanEdit: row.OwnerID == userID, CanInvite: canInvite}, nil
 }
 
+// ChatInfo возвращает информацию о конференц-чате для аутентифицированного участника.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Полученная информация.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ChatInfo(ctx context.Context, userID, conferenceID string) (chat.Info, error) {
 	var result chat.Info
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -114,6 +185,21 @@ func (r *ChatRepository) ChatInfo(ctx context.Context, userID, conferenceID stri
 	return result, err
 }
 
+// ChatMembers возвращает страницу участников, ограниченную курсором, которые видны в
+// авторизованном конференц-чате.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//
+// @returns:
+//   - result1: Собранные значения представления участника.
+//   - result2: Курсор для перехода к следующей странице авторизованных участников.
+//   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ChatMembers(ctx context.Context, userID, conferenceID, cursor string, limit int) ([]chat.MemberView, string, error) {
 	items := []chat.MemberView{}
 	after, err := parseMemberCursor(conferenceID, cursor)
@@ -146,6 +232,19 @@ func (r *ChatRepository) ChatMembers(ctx context.Context, userID, conferenceID, 
 	return items, next, err
 }
 
+// UpdateChatInfo обновляет авторизованные метаданные конференц-чата и возвращает их
+// представление для конкретного участника.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - request: Валидированный запрос приложения или входящие параметры операции.
+//
+// @returns:
+//   - result1: Полученная информация.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) UpdateChatInfo(ctx context.Context, userID, conferenceID string, request chat.UpdateInfoRequest) (chat.Info, error) {
 	var result chat.Info
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -179,11 +278,36 @@ func (r *ChatRepository) UpdateChatInfo(ctx context.Context, userID, conferenceI
 	return result, err
 }
 
+// ChatPreferences считывает сохраненные настройки уведомлений конференц-чата действующего
+// участника.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: Результирующие настройки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ChatPreferences(ctx context.Context, userID, conferenceID string) (chat.Preferences, error) {
 	info, err := r.ChatInfo(ctx, userID, conferenceID)
 	return chat.Preferences{NotificationsEnabled: info.NotificationsEnabled}, err
 }
 
+// SetChatPreferences сохраняет только настройки уведомлений о конференциях и чатах действующего
+// участника.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - enabled: Включает или отключает запрошенную функцию или настройку.
+//
+// @returns:
+//   - result1: Результирующие настройки.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) SetChatPreferences(ctx context.Context, userID, conferenceID string, enabled bool) (chat.Preferences, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := authorizeChat(tx, userID, conferenceID, true, false); err != nil {
@@ -196,6 +320,16 @@ func (r *ChatRepository) SetChatPreferences(ctx context.Context, userID, confere
 	return chat.Preferences{NotificationsEnabled: enabled}, err
 }
 
+// LeaveChat фиксирует выход аккаунта из чата конференции в соответствии с правилами членства.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) LeaveChat(ctx context.Context, userID, conferenceID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := findConference(tx, conferenceID, true); err != nil {
@@ -227,6 +361,20 @@ func (r *ChatRepository) LeaveChat(ctx context.Context, userID, conferenceID str
 	})
 }
 
+// ChatMaterials возвращает ограниченную страницу с видимыми вложениями и ссылками в сообщениях.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - kind: Подтвержденное событие, задание, категория медиаданных или ресурсов.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//
+// @returns:
+//   - result1: Результирующая страница с материалами.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ChatMaterials(ctx context.Context, userID, conferenceID, kind, cursor string, limit int) (chat.MaterialPage, error) {
 	page := chat.MaterialPage{Items: []chat.Material{}}
 	before, offset, err := parseMaterialCursor(conferenceID, cursor)
@@ -297,6 +445,19 @@ func (r *ChatRepository) ChatMaterials(ctx context.Context, userID, conferenceID
 	return page, err
 }
 
+// ChatPins возвращает видимые закреплённые сообщения в чате конференции.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - cursor: Непрозрачная граница продолжения с предыдущей страницы.
+//   - limit: Максимальное количество результатов или операций в этом пакете.
+//
+// @returns:
+//   - result1: Результирующая страница с сообщениями.
+//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) ChatPins(ctx context.Context, userID, conferenceID, cursor string, limit int) (chat.MessagePage, error) {
 	page := chat.MessagePage{Items: []chat.Message{}}
 	before, err := parseChatCursor(conferenceID, cursor)
@@ -327,6 +488,18 @@ func (r *ChatRepository) ChatPins(ctx context.Context, userID, conferenceID, cur
 	return page, err
 }
 
+// SetChatPin изменяет статус закрепления видимого сообщения в чате конференции.
+//
+// @Parameters:
+//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
+//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
+//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
+//   - messageID: Идентификатор сообщения в рамках авторизованного диалога.
+//   - important: Нужно ли закрепить сообщение или пометить его как важное.
+//
+// @returns:
+//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
+//     передачи данных или сохранения.
 func (r *ChatRepository) SetChatPin(ctx context.Context, userID, conferenceID, messageID string, important bool) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := authorizeChat(tx, userID, conferenceID, true, false); err != nil {
