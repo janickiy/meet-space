@@ -27,43 +27,40 @@ default application build retains its existing account behavior.
 
 ## Latest desktop download update
 
-The current release is `landing-20261024T081838Z-desktop-downloads-ssr`,
-published on 24 October 2026. Windows and Linux retain version `0.1.2-beta`
-and now use the refreshed reference interface, conference controls and invitation
-modal. All eight download records point to the immutable Desktop publication
-commit `4ca6c2eb653aabf9c2437f72a827ed7b10e0dd90` in
-`janickiy/meet-space-desktop/source`: Windows EXE and Linux DEB/RPM/AppImage,
-each for x64 and ARM64. Exact build inputs have SHA-256
-`07579126f9e501b8d8bffe0df1d99c6255abf6d03a98e5c5e6ff5023ab5d40ef`.
+The current release is `landing-20261024T085918Z-qr-caption-downloads`, published on 24 October 2026.
+Windows and Linux retain version `0.1.2-beta`. All eight packages include removal
+of the two captions below the invitation QR code. The QR code, meeting link and
+accessible QR name are retained. Windows EXE and Linux DEB/RPM/AppImage are
+available for both x64 and ARM64.
 
-All eight packages were fully downloaded from the public GitHub URLs and checked
-against their SHA-256, size and binary/archive magic. No downloaded installer was
-executed by the publication check. Both prerendered HTML and the active client
-bundle serve the new URLs and checksums. These remain unsigned beta packages;
-automatic updates are disabled.
+Immutable Desktop package commit: `791a591ff08ad179eaa34da8236a6fe63427fcd1` in
+`janickiy/meet-space-desktop/source`. Source commit:
+`b4dfeb7168b3199e013adcc5b2545ab380568f60`. The 433 exact build inputs have SHA-256
+`5823caeb099ab84cbdcb2bdc68b16483dd2c9d91ed8a1f5f8a7c50167d3cc0cc`.
+All eight public GitHub downloads passed full SHA-256, byte-size and binary/archive
+magic checks before activation. The publication check did not execute installers.
+These remain unsigned beta packages; automatic updates are disabled.
 
-The update copies the current static artifact into a new release and uses the
-immutable asset namespace `desktop-downloads-20261024t081838z`. Existing assets,
-Android 0.3.11-beta, the architecture punctuation and site verification files are
-preserved. The final HTML-only completion release changes the three prerendered
-download-card documents; it reuses the already checked client bundle. Existing
-releases remain available for rollback. No application containers, databases or
-Apache configuration changed.
+The metadata-only update copies the current published static artifact into a new
+release with immutable asset namespace `qr-caption-downloads-20261024t085918z`. Both the
+prerendered Windows x64 / Linux DEB x64 cards and all eight client-side download
+choices contain the new URLs, sizes and checksums. Android 0.3.11-beta, existing
+assets, architecture punctuation and site verification files remain byte-identical.
+The previous release `landing-20261024T081838Z-desktop-downloads-ssr` is retained for rollback.
+No application containers, databases or Apache configuration changed.
 
-`frontend/src/landing/downloads.ts` contains the same eight new Desktop records.
-Its Android record was reconciled with the already published 0.3.11-beta record
-to avoid reverting that separate update on a later source build.
+`frontend/src/landing/downloads.ts` matches the eight published Desktop records.
+Evidence is in `frontend/test-results/landing/qr-caption-downloads-20261024/`:
+full public-download verification, catalogue verification, staging and activation
+reports, and live HTTPS checks. Browser visual verification was not run because
+browser use is disabled in Work settings.
 
-Evidence: `frontend/test-results/landing/desktop-downloads-20261024/` contains the
-full public download check, live HTTP check and release switch reports. Browser
-visual verification was not run because browser use is disabled in Work settings.
-
-The changed download metadata module passes an isolated strict TypeScript check.
-A full build of the local backend/web checkout is blocked by pre-existing errors
-outside the changed files: `auth.tsx` imports the absent `accessTokenTTLSeconds`
-export and `MeetingInvitationLink.tsx` imports the missing `qrcode.react`
-dependency. Those unrelated application sources were not changed by this
-publication. The deployed static artifact was verified directly over HTTPS.
+The changed metadata module passes an isolated strict TypeScript check.
+A full build of the backend/web checkout remains blocked by pre-existing errors
+outside these files: `auth.tsx` imports the absent `accessTokenTTLSeconds` export
+and `MeetingInvitationLink.tsx` imports the missing `qrcode.react` dependency.
+Those unrelated application sources were not changed by this publication.
+The deployed static artifact was verified directly over HTTPS.
 
 ## Previous architecture punctuation update
 
