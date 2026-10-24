@@ -27,31 +27,31 @@ default application build retains its existing account behavior.
 
 ## Latest desktop download update
 
-The current release is `landing-20261024T103417Z-installer-recovery`, published on 24 October 2026.
-Windows and Linux retain version `0.1.2-beta`. All eight packages include recovery of secure credential storage after the
+The current release is `landing-20261024T110104Z-desktop-013`, published on 24 October 2026.
+Windows and Linux now publish version `0.1.3-beta`; all 18 earlier packages remain in their original version folders. All eight packages include recovery of secure credential storage after the
 keyring is unlocked and the SSH installer completion screen aligned with the
 design reference. The two captions below the invitation QR code remain removed;
 the QR code, meeting link and accessible QR name are retained. Windows EXE and Linux DEB/RPM/AppImage are
 available for both x64 and ARM64.
 
-Immutable Desktop package commit: `432fd28a6b9e984fdd4711ca92dfb8c4c7e077a0` in
+Immutable Desktop package commit: `bad70077d6950eb1c0d600186235fbfadb680b44` in
 `janickiy/meet-space-desktop/source`. Source commit:
-`dff6765b05f252be83db65b1947b36d8efcc9c96`. The 433 exact build inputs have SHA-256
-`826ac2e7f34f6ef027139e8a00e7deb69ffaf071f283a6973f4e66e108f124ed`.
+`4ec792afd31144ff2cf066ab0059278da762f558`. The 433 exact build inputs have SHA-256
+`dceb5267161cefa220cb83b54d80542d6237283a1db81dc272af29449371cee9`.
 All eight public GitHub downloads passed full SHA-256, byte-size and binary/archive
 magic checks before activation. The publication check did not execute installers.
 These remain unsigned beta packages; automatic updates are disabled.
 
 The metadata-only update copies the current published static artifact into a new
-release with immutable asset namespace `installer-recovery-20261024t103417z`. Both the
+release with immutable asset namespace `desktop-013-20261024t110104z`. Both the
 prerendered Windows x64 / Linux DEB x64 cards and all eight client-side download
-choices contain the new URLs, sizes and checksums. Android 0.3.11-beta, existing
+choices contain the new names, version, URLs, sizes and checksums. Platform links point to real immutable source directories, rather than release tags. Android 0.3.11-beta, existing
 assets, architecture punctuation and site verification files remain byte-identical.
-The previous release `landing-20261024T085918Z-qr-caption-downloads` is retained for rollback.
+The previous release `landing-20261024T103417Z-installer-recovery` is retained for rollback.
 No application containers, databases or Apache configuration changed.
 
 `frontend/src/landing/downloads.ts` matches the eight published Desktop records.
-Evidence is in `frontend/test-results/landing/installer-recovery-downloads-20261024/`:
+Evidence is in `frontend/test-results/landing/version-013-downloads-20261024/`:
 full public-download verification, catalogue verification, staging and activation
 reports, and live HTTPS checks. Browser visual verification was not run because
 browser use is disabled in Work settings.
