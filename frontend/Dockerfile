@@ -5,12 +5,15 @@ RUN npm ci
 COPY index.html tsconfig.json vite.config.ts build-metadata.ts ./
 COPY src ./src
 COPY public ./public
+COPY scripts/prerender-public.mjs ./scripts/prerender-public.mjs
 ARG BUILD_VERSION=dev
 ARG BUILD_COMMIT=unknown
 ARG BUILD_TIME=unknown
 ARG CLIENT_TELEMETRY_ENABLED=false
 ARG PRODUCT_NAME=MeetSpace
+ARG PUBLIC_SITE_URL=https://meeting.janickiy.com
 ENV VITE_PRODUCT_NAME=$PRODUCT_NAME
+ENV VITE_PUBLIC_SITE_URL=$PUBLIC_SITE_URL
 ENV VITE_BUILD_VERSION=$BUILD_VERSION VITE_BUILD_COMMIT=$BUILD_COMMIT VITE_BUILD_TIME=$BUILD_TIME VITE_CLIENT_TELEMETRY_ENABLED=$CLIENT_TELEMETRY_ENABLED
 RUN npm run build
 

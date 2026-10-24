@@ -13,6 +13,7 @@ import { api, ApiError, configureAuth } from "./api";
 import type { User, LoginResponse, Item, Participant } from "./types";
 import {
   ACCOUNT_CHANGE_KEY,
+  accessTokenTTLSeconds,
   announceAccount,
   selectedAccountID,
   clearLogoutMarker,
@@ -105,7 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new ApiError(502, "Сервер вернул некорректный ответ.");
       const next: Session = {
         token: result.accessToken,
-        expiresAt: Date.now() + Math.min(result.expiresIn, 3600) * 1000,
+        expiresAt:
+          Date.now() +
+          Math.min(result.expiresIn, accessTokenTTLSeconds(result.user)) * 1000,
         user: result.user,
       };
       sessionRef.current = next;

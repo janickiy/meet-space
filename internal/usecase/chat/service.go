@@ -514,12 +514,17 @@ func ValidateContent(data []byte, attachment domain.Attachment) error {
 	if int64(len(data)) != attachment.Size || len(data) == 0 || int64(len(data)) > domain.MaxAttachmentBytes {
 		return apperrors.New(apperrors.ErrInvalidInput, "uploaded size differs from the declared attachment size")
 	}
+	canonical, allowed := domain.AttachmentMIMEType(attachment.Filename)
+	if !allowed || canonical != attachment.MimeType {
+		return apperrors.New(apperrors.ErrInvalidInput, "filename and MIME type disagree")
+	}
 	detected := strings.Split(http.DetectContentType(data), ";")[0]
 	expected := attachment.MimeType
-	if expected == "text/csv" {
+	if expected == "text/csv" || expected == "text/tab-separated-values" || expected == "text/markdown" {
 		expected = "text/plain"
 	}
-	if detected != expected {
+	standard := expected == "image/jpeg" || expected == "image/png" || expected == "image/webp" || expected == "application/pdf" || expected == "text/plain"
+	if (standard && detected != expected) || (!standard && !documentOrArchiveContent(data, expected)) {
 		return apperrors.New(apperrors.ErrInvalidInput, "file content does not match its allowed type")
 	}
 	if expected == "text/plain" && (!utf8.Valid(data) || bytes.ContainsRune(data, 0)) {

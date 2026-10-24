@@ -1,0 +1,25 @@
+Generated with the built-in image generation tool. Final website asset: frontend/public/media/meetspace-macbook-office.webp.
+Initial reference: frontend/public/media/meetspace-group-chat-v6.webp. The first cutout generation was then edited into the office scene below.
+
+FINAL OFFICE SCENE PROMPT
+
+Use case: compositing / product-mockup.
+Edit target: the supplied generated image of a modern silver MacBook showing a four-person MeetSpace video conference.
+Primary request: place this same open MacBook ON A REAL OFFICE DESK in a bright, modern, minimal office. It must feel like a refined editorial photo that belongs on a Russian SaaS landing page using white, cool pale blue, and very light lavender.
+Keep the laptop's contemporary thin flat aluminum design, camera notch, attractive three-quarter elevated camera angle, fully visible black keyboard and large trackpad. Preserve its four-person screen grid, full heads, clothing, title "Встреча команды дизайна" and dark video call UI. The computer should be resting naturally on the desk, not hovering. Preserve realistic geometry and perspective.
+Scene: matte white or very pale gray office tabletop with subtle natural surface texture; softly blurred airy office in the background, diffused daylight from a large window, barely visible glass partition and one modest out-of-focus green plant. No people in the office, no clutter, no extra screens, no distracting props, no added labels.
+Composition: wide landscape 3:2. Whole laptop centered slightly to the right, taking 78–85% of the image width. Keep every laptop corner and the complete keyboard deck in frame. The desk remains clearly visible around and underneath it, with a believable soft contact shadow. Camera looks diagonally down from the front-left, far enough above to see the keyboard and trackpad plainly, while the screen remains the focal point.
+Art direction: high-end natural product photography. Soft cool whites, pale gray-blue and muted lavender reflections, restrained contrast, rounded modern office forms in bokeh, no dramatic black background, no intense saturation. Make the upper and peripheral background light enough to blend with a #edf2fe / white landing page section.
+No watermark, no border, no caption outside the screen. Opaque photographic background.
+
+INITIAL DEVICE PROMPT
+
+Use case: product-mockup / compositing.
+Asset type: photorealistic product cutout for the existing MeetSpace Russian landing page.
+Primary request: a modern silver MacBook laptop shown at an attractive THREE-QUARTER angle, camera looking slightly down from front left so the ENTIRE black chiclet keyboard and large trackpad are plainly visible, with the video conference from the supplied reference displayed on the screen.
+Input image 1: supporting screen-content insert. Preserve the same four people, their identities, clothing and room backgrounds, arranged 2 by 2. Show their full heads, never crop the hair.
+Device: contemporary flat thin aluminum MacBook design, rounded edges, thin black display bezels and top-center camera notch, full-height function keys and Touch ID at top right; no obsolete wedge body, no Touch Bar, no printed model name below screen. Lid open around 105 degrees. Realistic silver palm rest, black keys, broad clean trackpad. Keyboard deck must be a substantial clearly visible part of the image, not a narrow front lip.
+Screen: dark MeetSpace video-call UI framing the supplied four-person grid. Small top-left title exactly "Встреча команды дизайна". Small simple microphone, camera, screen-sharing and red leave-call controls along bottom. Keep screen content sharp, aligned to the display's natural perspective, and heads completely visible. No other readable text required.
+Style: premium natural studio product photography, elegant realistic aluminum highlights, soft diffuse lighting; no exaggerated plastic 3D toy appearance.
+Composition: one whole open laptop, centered and filling about 90% of a landscape 3:2 image. Enough breathing room to keep all four outer corners and the complete keyboard deck inside frame. Three-quarter view with one side receding naturally, not a flat straight-on laptop.
+Background: genuinely transparent alpha background with a subtle natural contact shadow. No desk, no room, no extra devices, no floating labels, no watermark.

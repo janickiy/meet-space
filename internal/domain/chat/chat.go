@@ -326,15 +326,10 @@ func NormalizeInit(request InitRequest) (InitRequest, error) {
 			return request, apperrors.New(apperrors.ErrInvalidInput, "invalid filename")
 		}
 	}
-	types := map[string]string{".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".pdf": "application/pdf", ".txt": "text/plain", ".csv": "text/csv"}
-	expected, ok := types[strings.ToLower(filepath.Ext(request.Filename))]
-	if !ok {
-		return request, apperrors.New(apperrors.ErrInvalidInput, "only JPG, PNG, WebP, PDF, TXT and CSV attachments are supported")
+	request.MimeType, err = normalizeAttachmentMIME(request.Filename, request.MimeType)
+	if err != nil {
+		return request, err
 	}
-	if request.MimeType != "" && request.MimeType != expected && !(expected == "text/csv" && request.MimeType == "text/plain") {
-		return request, apperrors.New(apperrors.ErrInvalidInput, "filename and MIME type disagree")
-	}
-	request.MimeType = expected
 	if request.Size < 1 || request.Size > MaxAttachmentBytes {
 		return request, apperrors.New(apperrors.ErrInvalidInput, fmt.Sprintf("attachment size must be between 1 and %d bytes", MaxAttachmentBytes))
 	}

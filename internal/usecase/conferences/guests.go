@@ -2,6 +2,7 @@ package conferences
 
 import (
 	"context"
+	"time"
 
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	domain "github.com/janickiy/meet-space/internal/domain/conferences"
@@ -47,5 +48,5 @@ func (s *GuestService) Join(ctx context.Context, code, name, resumeUserID string
 	if s.Observer != nil {
 		s.Observer.ConferenceChanged(ctx, participant.ConferenceID)
 	}
-	return GuestSession{LoginResponse: users.LoginResponse{Status: "success", AccessToken: token, TokenType: "Bearer", ExpiresIn: 3600, User: user.View()}, Item: participant.View()}, nil
+	return GuestSession{LoginResponse: users.LoginResponse{Status: "success", AccessToken: token, TokenType: "Bearer", ExpiresIn: int(users.GuestSessionTTL / time.Second), User: user.View()}, Item: participant.View()}, nil
 }

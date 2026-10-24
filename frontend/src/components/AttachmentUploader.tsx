@@ -11,25 +11,8 @@ import {
 import { formatBytes } from "../collaboration";
 import type { ChatAttachment } from "../types";
 import { Button, ErrorNotice } from "./ui";
-
-export const attachmentLimit = 10 * 1024 * 1024;
-/**
- * validateAttachment проверяет клиентские ограничения имени, типа и размера файла до обращения к серверу.
- *
- * @args
- *   - file (Pick<File, "name" | "size">) — выбранный пользователем файл для проверки или передачи.
- *
- * @returns string | null — текст найденного нарушения либо отсутствие ошибки для допустимого файла.
- */
-export function validateAttachment(
-  file: Pick<File, "name" | "size">,
-): string | null {
-  if (!file.size || file.size > attachmentLimit)
-    return "Размер файла должен быть от 1 байта до 10 МБ.";
-  if (!/\.(jpe?g|png|webp|pdf|txt|csv)$/i.test(file.name))
-    return "Можно прикрепить JPG, PNG, WebP, PDF, TXT или CSV.";
-  return null;
-}
+import { attachmentAccept, validateAttachment } from "../attachmentPolicy";
+export { attachmentLimit, validateAttachment } from "../attachmentPolicy";
 /**
  * UploadRow хранит состояние файла, прогресс, результат загрузки и ошибку.
  *
@@ -248,7 +231,7 @@ export function AttachmentUploader({
         ref={input}
         type="file"
         multiple
-        accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.csv"
+        accept={attachmentAccept}
         aria-label="Выбрать файлы для сообщения"
         hidden
         disabled={disabled || rows.length >= 5}

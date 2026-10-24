@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router";
+import { createRoot, hydrateRoot } from "react-dom/client";
+import { BrowserRouter, useLocation } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@fontsource/inter/latin-400.css";
 import "@fontsource/inter/latin-500.css";
@@ -15,7 +15,6 @@ import "./accessibility.css";
 import "./tokens.css";
 import "./workspace.css";
 import "./appearance.css";
-import { PRODUCT_DESCRIPTION, PRODUCT_TAGLINE } from "./brand";
 import { ApiError } from "./api";
 import { AuthProvider } from "./auth";
 import { AppearanceProvider } from "./appearance";
@@ -23,13 +22,13 @@ import { App } from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { installClientTelemetry } from "./clientTelemetry";
 import { installRecordingAudioUnlock } from "./recordingAnnouncement";
+import { PublicPage } from "./landing/PublicPage";
+import { PublicMetadata } from "./landing/PublicMetadata";
+import { publicPath } from "./landing/metadata";
+import { MARKETING_ONLY } from "./landing/application";
 
 const stopTelemetry = installClientTelemetry();
 const stopRecordingAudioUnlock = installRecordingAudioUnlock();
-document.title = PRODUCT_DESCRIPTION;
-document
-  .querySelector('meta[name="description"]')
-  ?.setAttribute("content", `${PRODUCT_DESCRIPTION} ${PRODUCT_TAGLINE}`);
 if (import.meta.hot) import.meta.hot.dispose(stopTelemetry);
 if (import.meta.hot) import.meta.hot.dispose(stopRecordingAudioUnlock);
 
@@ -56,18 +55,45 @@ const queryClient = new QueryClient({
     mutations: { retry: false },
   },
 });
-createRoot(document.getElementById("root")!).render(
+/** Public marketing pages remain usable without account recovery requests. */
+function ApplicationBootstrap() {
+  const { pathname } = useLocation();
+  const path = publicPath(pathname);
+  if (path && (MARKETING_ONLY || path !== "/")) {
+    return (
+      <>
+        <PublicMetadata />
+        <PublicPage path={path} />
+      </>
+    );
+  }
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppearanceProvider>
+          <App />
+        </AppearanceProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}
+
+const application = (
   <StrictMode>
     <AppErrorBoundary>
       <BrowserRouter>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <AppearanceProvider>
-              <App />
-            </AppearanceProvider>
-          </AuthProvider>
-        </QueryClientProvider>
+        <ApplicationBootstrap />
       </BrowserRouter>
     </AppErrorBoundary>
-  </StrictMode>,
+  </StrictMode>
 );
+const container = document.getElementById("root")!;
+if (
+  container.dataset.prerenderPath &&
+  (MARKETING_ONLY || container.dataset.prerenderPath !== "/") &&
+  container.dataset.prerenderPath === publicPath(window.location.pathname)
+) {
+  hydrateRoot(container, application);
+} else {
+  createRoot(container).render(application);
+}

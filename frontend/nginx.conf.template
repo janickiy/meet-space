@@ -81,9 +81,25 @@ server {
     # Секретные параметры OAuth не нужны для выдачи SPA и не должны попадать в журнал ошибок.
     location ~ ^/app/settings/calendar/[^/]+/callback$ {
         error_log /dev/null crit;
-        try_files /index.html =404;
+        try_files /app.html =404;
         expires -1;
     }
-    location / { try_files $uri $uri/ /index.html; }
+    # Public documents contain prerendered HTML. Private routes use a neutral,
+    # noindex SPA shell rather than inheriting landing content and canonical URL.
+    location = / { try_files /index.html =404; expires -1; }
+    location = /welcome { try_files /welcome/index.html =404; expires -1; }
+    location = /welcome/ { try_files /welcome/index.html =404; expires -1; }
+    location = /download { try_files /download/index.html =404; expires -1; }
+    location = /download/ { try_files /download/index.html =404; expires -1; }
+    location = /self-hosted { try_files /self-hosted/index.html =404; expires -1; }
+    location = /self-hosted/ { try_files /self-hosted/index.html =404; expires -1; }
+    location = /docs { try_files /docs/index.html =404; expires -1; }
+    location = /docs/ { try_files /docs/index.html =404; expires -1; }
+    location ~ ^/docs/(?<documentation_slug>[a-z0-9-]+)/?$ {
+        try_files /docs/$documentation_slug/index.html =404;
+        expires -1;
+    }
+    location / { try_files $uri $uri/ /app.html; }
     location = /index.html { expires -1; }
+    location = /app.html { expires -1; }
 }

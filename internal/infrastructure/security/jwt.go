@@ -7,6 +7,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	"github.com/janickiy/meet-space/internal/domain/users"
 )
 
 const AccessTokenTTL = time.Hour
@@ -77,10 +78,14 @@ func (s *TokenService) issue(userID, conferenceID, sessionID string) (string, er
 	if err != nil || id == uuid.Nil {
 		return "", fmt.Errorf("invalid token subject")
 	}
+	ttl := AccessTokenTTL
+	if conferenceID != "" {
+		ttl = users.GuestSessionTTL
+	}
 	now := s.now().UTC()
 	claims := sessionClaims{GuestConferenceID: conferenceID, SessionID: sessionID, RegisteredClaims: jwt.RegisteredClaims{Subject: id.String(), Issuer: tokenIssuer,
 		Audience: jwt.ClaimStrings{tokenAudience}, IssuedAt: jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(now.Add(AccessTokenTTL))}}
+		ExpiresAt: jwt.NewNumericDate(now.Add(ttl))}}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 }
 

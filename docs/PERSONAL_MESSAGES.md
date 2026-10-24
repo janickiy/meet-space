@@ -184,6 +184,8 @@ Account WebSocket публикует `conversation.pins.updated` с `{conversati
 
 Переиспользованы существующие init → upload → finalize → attach, проверка
 содержимого/MIME, upload lease, idempotency и cleanup. До пяти файлов по 10 МиБ.
+Документы, PDF, изображения и архивы используют общий
+[список поддерживаемых форматов](ATTACHMENTS.md), как в группах и чатах встреч.
 Object key формирует сервер:
 `attachments/direct/{conversationId}/{attachmentId}/{uploadToken}`.
 Префикс конференций `attachments/{conferenceId}/{attachmentId}/` сохранён.

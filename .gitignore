@@ -27,6 +27,7 @@ dockers/https/certs/*
 
 frontend/node_modules/
 frontend/dist/
+frontend/.prerender/
 frontend/test-results/
 frontend/playwright-report/
 frontend/coverage/

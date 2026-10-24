@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
-<title id="title">MeetSpace — чёрная иконка</title>
+<title id="title">MeetSpace - чёрная иконка</title>
 <defs>
 <linearGradient id="whiteBack" x1=".7" y1="0" x2=".4" y2="1">
  <stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#D2DCFF"/>
