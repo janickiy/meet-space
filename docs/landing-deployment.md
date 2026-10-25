@@ -27,31 +27,34 @@ default application build retains its existing account behavior.
 
 ## Latest desktop download update
 
-The current release is `landing-20261024T195300Z-desktop-015`, published on 24 October 2026.
-Windows and Linux now publish version `0.1.5-beta`; all 34 earlier packages remain
-in their original version folders. The installer has a compact, consistent layout
-and an explicit choice to open a saved job or begin a new setup. Saved jobs no
-longer open directly at step 5, and unknown status is not displayed as ongoing
-installation. Windows EXE and Linux DEB/RPM/AppImage remain available for x64 and ARM64.
+The current release is `landing-20261025T095000Z-desktop-016`, published on 25 October 2026 (Moscow time).
+Windows and Linux now publish version `0.1.6-beta`; all 42 earlier packages remain
+in their original version folders. The installer determines the public IPv4 from
+the verified SSH host and checks it again before preparing the plan. Step-three
+fields are grouped, Back aligns with the content, and the sidebar slogan is removed.
+Explicit saved-job recovery is preserved. Windows EXE and Linux DEB/RPM/AppImage
+remain available for x64 and ARM64. Source GUI validation covered 20 groups,
+39 captured views and 45 layout checks; this is separate from native installation
+acceptance of the published packages.
 
-Immutable Desktop package commit: `bdd27b0fbc7ac55081aa075bcbb7c141ab8d77ce` in
+Immutable Desktop package commit: `855374bfe9067dff12b44acf1b3ee646097910ef` in
 `janickiy/meet-space-desktop/source`. Source commit:
-`c7666c0f6cc35ccaa2ae0466f7f5f16b93f90f48`. The 440 exact build inputs have SHA-256
-`de97d1f5a78a39067a48cea4f5df4629ebe14f0395bd82774f5660dc3d27a215`.
+`4e3a816cb150a9e11f96972781a6b99c1a737569`. The 440 exact build inputs have SHA-256
+`3b2ff58a85b29be66f4990df5c0197dc07985d6ff7d752edb9fe785d9c4de5ad`.
 All eight public GitHub downloads passed full SHA-256, byte-size and binary/archive
 magic checks before activation. The publication check did not execute installers.
 These remain unsigned beta packages; automatic updates are disabled.
 
 The metadata-only update copies the current published static artifact into a new
-release with immutable asset namespace `desktop-015-20261024t195300z`. Both the
+release with immutable asset namespace `desktop-016-20261025t095000z`. Both the
 prerendered Windows x64 / Linux DEB x64 cards and all eight client-side download
 choices contain the new names, version, URLs, sizes and checksums. Platform links point to real immutable source directories, rather than release tags. Android 0.3.11-beta, existing
 assets, architecture punctuation and site verification files remain byte-identical.
-The previous release `landing-20261024T123600Z-desktop-014` is retained for rollback.
+The previous release `landing-20261024T195300Z-desktop-015` is retained for rollback.
 No application containers, databases or Apache configuration changed.
 
 `frontend/src/landing/downloads.ts` matches the eight published Desktop records.
-Evidence is in `frontend/test-results/landing/version-015-downloads-20261024/`:
+Evidence is in `frontend/test-results/landing/version-016-downloads-20261024/`:
 full public-download verification, catalogue verification, staging and activation
 reports, and live HTTPS checks. This evidence covers automated package and live-site metadata checks; browser visual
 acceptance is separate.
