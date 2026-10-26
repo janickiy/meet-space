@@ -1386,8 +1386,14 @@ export const api = {
   notificationEvents: async (signal: AbortSignal) => {
     const usedToken = accessToken;
     const version = identityVersion;
-    const open = () =>
-      fetch("/api/v1/notifications/events", {
+    const assertCurrent = () => {
+      signal.throwIfAborted();
+      if (version !== identityVersion)
+        throw new DOMException("Account changed", "AbortError");
+    };
+    const open = async () => {
+      assertCurrent();
+      const response = await fetch("/api/v1/notifications/events", {
         headers: {
           Accept: "text/event-stream",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
@@ -1395,16 +1401,22 @@ export const api = {
         credentials: "omit",
         signal,
       });
+      try {
+        assertCurrent();
+      } catch (error) {
+        await response.body?.cancel().catch(() => {});
+        throw error;
+      }
+      return response;
+    };
     let response = await open();
-    if (
-      response.status === 401 &&
-      usedToken &&
-      (await recoverSession(usedToken, version))
-    ) {
-      signal.throwIfAborted();
-      response = await open();
+    if (response.status === 401 && usedToken) {
+      // Release the rejected connection before recovery, including recovery failures.
+      await response.body?.cancel().catch(() => {});
+      if (await recoverSession(usedToken, version)) response = await open();
     }
     if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
       throw new ApiError(
         response.status,
         statuses[response.status] || "Уведомления временно недоступны.",
@@ -1413,8 +1425,11 @@ export const api = {
     if (
       !response.body ||
       !response.headers.get("Content-Type")?.startsWith("text/event-stream")
-    )
+    ) {
+      // Reconnect must not leave an unconsumed (possibly endless) body behind.
+      await response.body?.cancel().catch(() => {});
       throw new ApiError(502, "Некорректный поток уведомлений.");
+    }
     return response;
   },
 };

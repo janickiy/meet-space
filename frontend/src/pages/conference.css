@@ -441,6 +441,8 @@
 .conference-room-page .button-secondary:hover:not(:disabled),
 .conference-room-page .button-outline:hover:not(:disabled) {
   background: var(--room-surface-raised);
+  border-color: var(--room-border);
+  color: var(--room-text);
 }
 .conference-room-page .conference-control-bar > .button[aria-pressed="true"] {
   border-color: #c499d6;

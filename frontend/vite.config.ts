@@ -32,7 +32,9 @@ function publicPreviewPlugin(): Plugin {
         const documentationArticle = /^\/docs\/[a-z0-9-]+$/.test(normalized);
         const publicDocument =
           publicDocuments[normalized] ||
-          (documentationArticle ? `${normalized.slice(1)}/index.html` : undefined);
+          (documentationArticle
+            ? `${normalized.slice(1)}/index.html`
+            : undefined);
         if (!publicDocument && /\.[^/]+$/.test(path)) return next();
         try {
           const html = await readFile(
@@ -54,7 +56,9 @@ function publicPreviewPlugin(): Plugin {
             response.setHeader("Content-Type", "text/plain; charset=utf-8");
             response.setHeader("X-Robots-Tag", "noindex, nofollow");
             response.end(
-              request.method === "HEAD" ? undefined : "Documentation page not found",
+              request.method === "HEAD"
+                ? undefined
+                : "Documentation page not found",
             );
             return;
           }

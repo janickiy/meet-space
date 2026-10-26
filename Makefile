@@ -1,5 +1,5 @@
 DOCKER_COMPOSE ?= docker compose
-GO_IMAGE ?= golang:1.26.9-alpine3.23
+GO_IMAGE ?= golang:1.26.10-alpine3.23
 APP_NETWORK ?= go-recorder_app-network
 
 .PHONY: serve api worker media-worker product-worker live-worker migrate doctor up restart migrate-up debug-api debug-worker debug-both debug-stop docker-build docker-up docker-down docker-restart

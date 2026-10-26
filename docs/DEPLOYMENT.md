@@ -16,6 +16,12 @@ MeetSpace разворачивается на одном Docker Compose-хост
 | Общий release, `deploymentLayout=hardened-shared-host` | Production + hardened + shared-host overlay; существующий внешний TLS proxy, SeaweedFS | Release helper только после сверки внешнего proxy, подсети, портов и томов |
 | Development | `docker-compose.yml`, `.env`, локальные bind mounts | [README](../README.md); не шаблон для production |
 
+В development-конфигурации API, служебный HTTP worker, отладчики, PostgreSQL,
+Redis и MinIO опубликованы только на `127.0.0.1`. Для удалённой отладки
+используйте SSH-туннель. HTTPS и медиапорты остаются доступными для проверки
+звонков с других устройств. Не открывайте отладчик или Redis в интернет;
+production использует отдельный Compose-шаблон с приватными зависимостями.
+
 Мастер выпускает архив с `deploymentLayout=hardened-shared-host`, но при установке
 **заменяет host-specific overlay** своей конфигурацией. Поэтому одного manifest
 недостаточно для выбора Compose-файлов. `release.sh`, `backup.sh` и

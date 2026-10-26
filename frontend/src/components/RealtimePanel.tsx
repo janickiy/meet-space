@@ -624,6 +624,7 @@ export function RealtimePanel({
                      */ () => media.start(false)
                   }
                 >
+                  <VideoOff size={17} aria-hidden="true" />
                   Подключиться без камеры и микрофона
                 </Button>
               </>

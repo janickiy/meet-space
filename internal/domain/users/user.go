@@ -36,6 +36,9 @@ const (
 	MaxPasswordCharacters = 128
 )
 
+// GuestSessionTTL keeps the guest JWT expiry and join response lifetime aligned.
+const GuestSessionTTL = 3 * time.Hour
+
 // TableName возвращает явное имя таблицы базы данных, чтобы GORM не преобразовывала его в
 // другую форму множественного числа.
 //

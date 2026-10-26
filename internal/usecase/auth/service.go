@@ -128,11 +128,12 @@ type tokenIssuer interface {
 // Service — сервис координирует аутентификацию учётных записей и постоянные сеансы через настроенные
 // зависимости персистентности и транспорта.
 type Service struct {
-	repository userRepository
-	passwords  passwordHasher
-	tokens     tokenIssuer
-	sessions   SessionRepository
-	dummyHash  string
+	repository   userRepository
+	passwords    passwordHasher
+	tokens       tokenIssuer
+	sessions     SessionRepository
+	dummyHash    string
+	passwordWork chan struct{}
 }
 
 // NewService создаёт сервис с зависимостями и ограничениями, необходимыми для аутентификации
@@ -152,7 +153,7 @@ func NewService(repository userRepository, passwords passwordHasher, tokens toke
 	if err != nil {
 		return nil, fmt.Errorf("initialize authentication: %w", err)
 	}
-	return &Service{repository: repository, passwords: passwords, tokens: tokens, dummyHash: dummy}, nil
+	return &Service{repository: repository, passwords: passwords, tokens: tokens, dummyHash: dummy, passwordWork: make(chan struct{}, maxPasswordWork)}, nil
 }
 
 // Register проверяет поля регистрации, хеширует пароль и создает новую учетную запись, не
@@ -171,7 +172,7 @@ func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (
 	if err != nil {
 		return users.View{}, err
 	}
-	hash, err := s.passwords.Hash(request.Password)
+	hash, err := s.hashPassword(ctx, request.Password)
 	if err != nil {
 		return users.View{}, err
 	}
@@ -213,7 +214,7 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 	if missing || user.GuestConferenceID != nil {
 		hash = s.dummyHash
 	}
-	valid, err := s.passwords.Verify(request.Password, hash)
+	valid, err := s.verifyPassword(ctx, request.Password, hash)
 	if err != nil {
 		return users.LoginResponse{}, err
 	}

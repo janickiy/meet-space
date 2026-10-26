@@ -20,7 +20,9 @@ RUN npm run build
 
 FROM nginx:1.30.6-alpine@sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951 AS runtime
 # Исправления системных библиотек устанавливаются до фиксации digest готового образа.
-RUN apk upgrade --no-cache
+# Enforce the security floor even when an older package-upgrade layer was cached.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache 'curl>=8.23.0-r0' 'libcurl>=8.23.0-r0'
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY 15-csp-origins.envsh /docker-entrypoint.d/15-csp-origins.envsh
 RUN chmod +x /docker-entrypoint.d/15-csp-origins.envsh
