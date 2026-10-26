@@ -1,6 +1,16 @@
 # MeetSpace web audit summary
 
-Date: 2026-10-26. Baseline: `3ea9a4e83e82484c25402963b2e68a0642d986f6` on `main`, with pre-existing meeting-toolbar edits preserved. This audit produced a local, uncommitted patch. Nothing was pushed, deployed, deleted from a remote host or tested against production.
+Date: 2026-10-26. Baseline: `3ea9a4e83e82484c25402963b2e68a0642d986f6` on `main`, with pre-existing meeting-toolbar edits preserved. The original audit produced a local patch without publication, deployment, remote deletion or production testing. Repository-publication integration is recorded separately below.
+
+## Repository-publication integration, 2026-10-26
+
+At the user's subsequent request to publish the changes, `origin/main` had advanced to `d896401`. The audit and toolbar commits were rebased on that revision without dropping its landing-page, attachment-policy, guest-session or Desktop-download changes. Original audit measurements below and in the companion reports remain tied to the original baseline; they are not new measurements of the expanded upstream code.
+
+Integration exposed two existing upstream build blockers: undefined `users.GuestSessionTTL` in Go and a missing `accessTokenTTLSeconds` frontend export. Added the intended three-hour guest constant, a matching client cache ceiling, and regression tests; ordinary access tokens retain their one-hour lifetime. The client cache remains only a hint and does not replace server JWT/membership checks. Formatting-only changes in `frontend/vite.config.ts` restore the existing formatting gate.
+
+The combined tree passed `go test -race -count=1 ./...`, `go vet ./...`, `go build ./cmd/... ./tools/...`, the disposable PostgreSQL authorization suite, `govulncheck` (zero reachable advisories), and `npm run check` including 15 frontend tests, TypeScript, Vite and public-page prerendering. Raw follow-up outputs are local `tmp/web-audit-20261026/evidence/publish-*.log`. The extra tests cover guest/ordinary JWT lifetime and cache reload/ceiling rejection. The original report's 12 frontend tests and 22 Go test functions describe the earlier audit, not these additions.
+
+The browser heap/bundle profiles, Docker image scans and image IDs below were not rerun for the newer upstream landing/attachment code; those are historical audit evidence only. Server deployment, installer publication and release creation are outside this repository-publication request.
 
 ## Executive result
 
@@ -86,4 +96,4 @@ The existing edits in `frontend/src/components/RealtimePanel.tsx` and `frontend/
 - [Performance and measurement limits](WEB_PERFORMANCE_REPORT.md).
 - [Tests, environment, exact commands and unexecuted suites](WEB_TEST_REPORT.md).
 
-Raw local artifacts are under ignored `tmp/web-audit-20261026/`. They contain synthetic-test output and are not automatically included in a commit or release. Review this patch, then run the missing full-stack acceptance suite in an explicitly agreed isolated environment before publishing a release. This task stops at audit/fixes and does not deploy them.
+Raw local artifacts are under ignored `tmp/web-audit-20261026/`. They contain synthetic-test output and are not automatically included in a commit or release. Run the missing full-stack acceptance suite in an explicitly agreed isolated environment before publishing a release. Repository publication does not deploy the fixes or update the installer.

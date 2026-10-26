@@ -2,6 +2,8 @@
 
 Date: 2026-10-26. Baseline checkout: `3ea9a4e83e82484c25402963b2e68a0642d986f6`.
 
+Later repository integration is recorded in [the publication follow-up](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). The original browser profiles below were not rerun against the newer upstream landing page.
+
 ## Conclusion and scope
 
 One browser resource leak was reproduced and fixed: rejected notification-stream responses were not explicitly cancelled. An unfinished error response could keep its HTTP connection open after the caller had rejected it. Both synthetic stream tests and a loopback Chromium HTTP fixture distinguish the baseline failure from the corrected behavior.

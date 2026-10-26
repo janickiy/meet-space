@@ -1,7 +1,7 @@
 # MeetSpace web test report
 
 Audit date: 2026-10-26. Baseline commit: `3ea9a4e83e82484c25402963b2e68a0642d986f6`.
-The final result is an uncommitted working-tree patch, not a published release.
+This report records the original working-tree audit, not a published release. For the later integration with upstream `d896401` and its rerun checks, see [the publication follow-up](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). Historical image IDs and browser metrics below do not describe that newer combined tree.
 
 ## Environment and boundaries
 

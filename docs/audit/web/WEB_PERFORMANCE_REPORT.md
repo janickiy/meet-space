@@ -2,6 +2,8 @@
 
 Date: 2026-10-26. Baseline commit: `3ea9a4e83e82484c25402963b2e68a0642d986f6`.
 
+Later repository integration is recorded in [the publication follow-up](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). Bundle, browser and profile numbers below belong to the original audit builds, not the subsequently integrated upstream landing page.
+
 ## Scope and interpretation
 
 This audit used the existing dirty local checkout, not a clean release image or a production deployment. Existing changes to `frontend/src/components/RealtimePanel.tsx` and `frontend/src/pages/conference.css` were preserved in both frontend builds. Tests used loopback servers, mocked browser API responses, and synthetic backend fixtures. No production traffic, credentials, accounts, recordings, or real meetings were used.

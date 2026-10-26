@@ -39,6 +39,21 @@ export interface Session {
   expiresAt: number;
   user?: User;
 }
+
+/**
+ * Return the client-side token lifetime ceiling for the supplied user.
+ * This cache hint never replaces the server's JWT and membership checks.
+ * @param user User metadata returned by the API or validated from the session cache.
+ */
+export function accessTokenTTLSeconds(
+  user?: Pick<User, "guestConferenceId">,
+): number {
+  const scope = user?.guestConferenceId;
+  return typeof scope === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(scope)
+    ? 3 * 60 * 60
+    : 60 * 60;
+}
 /**
  * readSession читает и проверяет сохранённую клиентскую сессию и отвергает повреждённое значение.
  *
@@ -60,8 +75,7 @@ export function readSession(): Session | null {
       "expiresAt" in data &&
       typeof data.expiresAt === "number" &&
       Number.isFinite(data.expiresAt) &&
-      data.expiresAt > 0 &&
-      data.expiresAt <= Date.now() + 3600000
+      data.expiresAt > 0
     ) {
       const session: Session = { token: data.token, expiresAt: data.expiresAt };
       if ("user" in data && data.user && typeof data.user === "object") {
@@ -74,6 +88,13 @@ export function readSession(): Session | null {
           typeof user.updatedAt === "string"
         )
           session.user = user as User;
+      }
+      if (
+        data.expiresAt >
+        Date.now() + accessTokenTTLSeconds(session.user) * 1000
+      ) {
+        sessionStorage.removeItem(SESSION_KEY);
+        return null;
       }
       // Токен доступа с истекшим сроком действия - это всего лишь кэш. Файл cookie HttpOnly
       // восстанавливает сеанс.

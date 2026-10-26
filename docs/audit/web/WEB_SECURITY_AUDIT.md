@@ -2,6 +2,8 @@
 
 Audit date: 2026-10-26. Baseline commit: `3ea9a4e83e82484c25402963b2e68a0642d986f6` plus the existing working-tree changes. Findings and fixes below describe the locally audited working tree, not a deployed release.
 
+For subsequent integration with upstream `d896401`, including its expanded attachment policy and guest-session changes, see [the publication follow-up](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). Source-review observations and image scans here describe the original audit baseline and patch, not a complete re-audit of those upstream additions.
+
 ## Scope and assurance boundary
 
 The review covered the React/TypeScript web client, Go API and selected workers, authentication and authorization, attachment/recording access, outbound integrations, development networking, dependencies, and selected runtime images. It combined source review, regression tests, real PostgreSQL authorization tests, local browser fixtures, and dependency/image scanning.
