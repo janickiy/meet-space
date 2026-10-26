@@ -1,0 +1,66 @@
+name: Web regression and security checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    container: golang:1.26.10-bookworm
+    timeout-minutes: 20
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Verify dependencies and vet
+        run: |
+          go mod verify
+          go vet ./...
+      - name: Run regression tests with race detection
+        run: go test -race -count=1 ./...
+      - name: Check reachable Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+      - name: Compile all application entry points
+        run: go build ./cmd/... ./tools/...
+
+  database-authorization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check real migrations and cross-user permissions in disposable PostgreSQL
+        env:
+          AUDIT_GO_IN_DOCKER: "true"
+        run: bash scripts/audit-postgres.sh
+
+  frontend:
+    runs-on: ubuntu-24.04
+    container: node:24.19.0-bookworm
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit
+      - name: Formatting, regression tests, types and production build
+        run: npm run check
+      - name: Check known frontend dependency vulnerabilities
+        run: npm audit --audit-level=high

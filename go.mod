@@ -1,6 +1,6 @@
 module github.com/janickiy/meet-space
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/gin-gonic/gin v1.10.0
@@ -19,7 +19,7 @@ require (
 	github.com/pion/stun/v3 v3.1.5
 	github.com/pion/webrtc/v4 v4.2.12
 	github.com/prometheus/client_golang v1.23.2
-	github.com/rabbitmq/amqp091-go v1.13.0
+	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/redis/go-redis/v9 v9.19.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/sys v0.48.0

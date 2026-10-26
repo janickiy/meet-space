@@ -59,7 +59,7 @@ func (s *Service) DeleteAccount(ctx context.Context, id, password string) error 
 	if password == "" || !utf8.ValidString(password) || utf8.RuneCountInString(password) > users.MaxPasswordCharacters {
 		return apperrors.New(apperrors.ErrInvalidInput, "incorrect account password")
 	}
-	valid, err := s.passwords.Verify(password, user.PasswordHash)
+	valid, err := s.verifyPassword(ctx, password, user.PasswordHash)
 	if err != nil {
 		return err
 	}

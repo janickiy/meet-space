@@ -6,7 +6,7 @@ stages:
   - deploy
 
 variables:
-  GO_VERSION: "1.26.9"
+  GO_VERSION: "1.26.10"
   GO_ALPINE_VERSION: "3.23"
   GIT_STRATEGY: "none"
   GIT_DEPTH: "1"
@@ -49,6 +49,7 @@ validate:
   script:
     - test -z "$(gofmt -l $(rg --files cmd internal tools -g '*.go'))"
     - go vet ./...
+    - go test -race -count=1 ./...
     - go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
     - bash -n scripts/ci-deploy.sh
     - 'for script in scripts/release/*.sh; do bash -n "$script"; done'
@@ -63,6 +64,7 @@ frontend-check:
     - npm ci
     - npm run lint
     - npm run typecheck
+    - npm test
     - npm run build
 
 security-go:
