@@ -344,7 +344,9 @@ func (r *Runtime) Middleware() gin.HandlerFunc {
 //     ли успешное изменение ее условного состояния.
 func stringsHasUploadSuffix(route string) bool {
 	return route == "/api/v1/conferences/:id/attachments/:attachmentId/content" ||
-		route == "/api/v1/conversations/:id/attachments/:attachmentId/content"
+		route == "/api/v1/conversations/:id/attachments/:attachmentId/content" ||
+		route == "/api/v1/conversations/:id/avatar" ||
+		route == "/api/v1/auth/me/avatar"
 }
 
 // WithID возвращает контекст, содержащий идентификатор корреляции запроса или операции.
