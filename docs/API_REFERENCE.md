@@ -595,7 +595,7 @@
 
 - **Доступ:** Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец загрузки
 
-- **Запрос:** id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены JPG/PNG/WebP/PDF/TXT/CSV
+- **Запрос:** id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; изображения, документы и архивы из [списка поддерживаемых вложений](ATTACHMENTS.md)
 
 - **Ответ:** 201 новый/200 повтор: status,item: Attachment,uploadUrl
 
@@ -609,7 +609,7 @@
 
 - **Доступ:** Bearer аккаунта; действующий член нескрытого conversation; владелец загрузки
 
-- **Запрос:** id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены JPG/PNG/WebP/PDF/TXT/CSV
+- **Запрос:** id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; изображения, документы и архивы из [списка поддерживаемых вложений](ATTACHMENTS.md)
 
 - **Ответ:** 201 новый/200 повтор: status,item: Attachment,uploadUrl
 
