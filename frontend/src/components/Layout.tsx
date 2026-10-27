@@ -28,7 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../auth";
-import { initials } from "../utils";
+import { UserAvatar } from "./UserAvatar";
 import { Brand, Loading } from "./ui";
 import { NotificationBell } from "./NotificationBell";
 import { UnreadMessageCount } from "./UnreadMessageCount";
@@ -354,9 +354,11 @@ export function Layout() {
                   showAccountSettings(target);
                 }}
               >
-                <span className="avatar">
-                  {initials(user?.displayName || user?.email || "")}
-                </span>
+                <UserAvatar
+                  id={user?.id}
+                  name={user?.displayName || user?.email || ""}
+                  version={user?.avatarVersion}
+                />
                 <div>
                   <strong>{user?.displayName || "Мой аккаунт"}</strong>
                   <span>{user?.email}</span>
@@ -408,9 +410,11 @@ export function Layout() {
                   aria-label="Профиль и настройки аккаунта"
                   onClick={(event) => showAccountSettings(event.currentTarget)}
                 >
-                  <span className="avatar">
-                    {initials(user?.displayName || user?.email || "")}
-                  </span>
+                  <UserAvatar
+                    id={user?.id}
+                    name={user?.displayName || user?.email || ""}
+                    version={user?.avatarVersion}
+                  />
                   <span className="topbar-profile-text">
                     <strong>{user?.displayName || "Мой аккаунт"}</strong>
                     <small>{user?.email}</small>

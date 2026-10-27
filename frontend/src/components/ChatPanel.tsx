@@ -44,6 +44,7 @@ import { ItemActions, type ItemAction } from "./ItemActions";
 import { Button, ErrorNotice, Modal } from "./ui";
 import { MessagingSkeleton } from "./MessagingSkeleton";
 import { CallHistoryMessage } from "./CallHistoryMessage";
+import { UserAvatar } from "./UserAvatar";
 import { PersonalChatPins, usePersonalChatPins } from "./PersonalChatPins";
 import "./chat-design.css";
 import "./personal-messenger.css";
@@ -697,9 +698,18 @@ export function MessageThread({
       className="chat-message chat-message-own chat-message-pending"
       data-testid={`chat-pending-${pending.clientRequestId}`}
     >
-      <span className="chat-message-avatar" aria-hidden="true">
-        {initials(user?.displayName || "Вы")}
-      </span>
+      {personal ? (
+        <UserAvatar
+          id={user?.id}
+          name={user?.displayName || "Вы"}
+          version={user?.avatarVersion}
+          className="chat-message-avatar"
+        />
+      ) : (
+        <span className="chat-message-avatar" aria-hidden="true">
+          {initials(user?.displayName || "Вы")}
+        </span>
+      )}
       <div className="chat-message-content">
         <header>
           <strong>{user?.displayName || "Вы"}</strong>
@@ -866,9 +876,17 @@ export function MessageThread({
                     tabIndex={message.id === focused ? -1 : undefined}
                     aria-current={message.id === focused ? "true" : undefined}
                   >
-                    <span className="chat-message-avatar" aria-hidden="true">
-                      {initials(message.senderName)}
-                    </span>
+                    {personal ? (
+                      <UserAvatar
+                        id={message.senderId}
+                        name={message.senderName}
+                        className="chat-message-avatar"
+                      />
+                    ) : (
+                      <span className="chat-message-avatar" aria-hidden="true">
+                        {initials(message.senderName)}
+                      </span>
+                    )}
                     <div className="chat-message-content">
                       <header>
                         <strong>{message.senderName}</strong>

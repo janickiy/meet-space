@@ -64,7 +64,7 @@ func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash str
 		if err := tx.Exec(`DELETE FROM calendar_event_mappings WHERE connection_id IN (SELECT id FROM calendar_connections WHERE user_id=?)`, id).Error; err != nil {
 			return err
 		}
-		for _, table := range []string{"calendar_oauth_states", "calendar_connections", "push_devices", "notification_preferences", "integration_deliveries", "notifications", "notification_jobs", "folders"} {
+		for _, table := range []string{"user_avatars", "calendar_oauth_states", "calendar_connections", "push_devices", "notification_preferences", "integration_deliveries", "notifications", "notification_jobs", "folders"} {
 			if err := tx.Exec("DELETE FROM "+table+" WHERE user_id=?", id).Error; err != nil {
 				return err
 			}
@@ -105,6 +105,6 @@ func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash str
 		if err := tx.RollbackTo("account_erasure").Error; err != nil {
 			return err
 		}
-		return tx.Model(&users.User{}).Where("id=?", id).Updates(map[string]any{"email": "deleted." + id + "@invalid", "password_hash": "", "display_name": "Удалённый аккаунт", "is_admin": false}).Error
+		return tx.Model(&users.User{}).Where("id=?", id).Updates(map[string]any{"email": "deleted." + id + "@invalid", "password_hash": "", "display_name": "Удалённый аккаунт", "is_admin": false, "avatar_version": nil}).Error
 	})
 }

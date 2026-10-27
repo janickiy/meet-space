@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth";
 import { AccountManagement } from "../components/AccountManagement";
+import { ProfileAvatarEditor } from "../components/ProfileAvatarEditor";
+import { UserAvatar } from "../components/UserAvatar";
 import { PRODUCT_NAME } from "../brand";
 import { formatDate } from "../utils";
 import { Button, ErrorNotice } from "../components/ui";
@@ -209,13 +211,14 @@ export function SettingsPage() {
                 <h2 id="profile-heading">Ваш профиль</h2>
                 <p className="field-hint">Как вас видят участники встречи.</p>
               </div>
-              <span className="profile-initials" aria-hidden="true">
-                {(user?.displayName || user?.email || "?")
-                  .trim()
-                  .slice(0, 1)
-                  .toLocaleUpperCase("ru-RU")}
-              </span>
+              <UserAvatar
+                id={user?.id}
+                name={user?.displayName || user?.email || "?"}
+                version={user?.avatarVersion}
+                className="profile-initials"
+              />
             </div>
+            <ProfileAvatarEditor />
             <form onSubmit={(event) => void saveProfile(event)}>
               <label className="field">
                 <span>Имя для встреч</span>

@@ -98,6 +98,7 @@
   padding: var(--account-panel-gutter);
 }
 .account-settings-modal .account-dialog-panel > .content-card {
+  margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -238,7 +239,7 @@
 }
 .account-settings-section-heading h2,
 .account-dialog-panel .profile-section-heading h2 {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   font-size: calc(20px * var(--text-scale));
 }
 .account-settings-section-heading p,
@@ -288,7 +289,7 @@
   max-width: none;
 }
 .account-dialog-panel .preferences-fieldset {
-  padding: 0 0 20px;
+  padding: 0 0 24px;
   margin: 0;
   border: 0;
   border-bottom: 1px solid var(--border);
@@ -296,7 +297,13 @@
 .account-dialog-panel .preferences-fieldset legend {
   font-size: calc(16px * var(--text-scale));
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.account-dialog-panel .preferences-options {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 .account-dialog-panel .preferences-form {
   display: grid;
@@ -312,7 +319,7 @@
   padding: 12px 0;
   margin: 0;
   font-size: calc(14px * var(--text-scale));
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.5;
 }
 .account-dialog-panel .preference-option input {
@@ -332,7 +339,7 @@
   grid-column: 1;
   grid-row: 1;
   display: grid;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -364,10 +371,24 @@
   margin: 0;
   font-size: calc(12px * var(--text-scale, 1));
 }
-.account-dialog-panel .preferences-actions {
+.account-dialog-panel .notification-sound-controls {
   display: grid;
   justify-items: start;
   gap: 12px;
+  min-width: 0;
+  margin-top: 16px;
+}
+.account-dialog-panel .notification-sound-controls > :is(p, .error-notice) {
+  margin: 0;
+}
+.account-dialog-panel .notification-sound-controls > .button {
+  max-width: 100%;
+  white-space: normal;
+}
+.account-dialog-panel .preferences-actions {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
   min-width: 0;
 }
 .account-dialog-panel .preferences-actions > :is(p, .error-notice) {

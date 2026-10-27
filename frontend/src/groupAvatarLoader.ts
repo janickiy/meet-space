@@ -49,9 +49,17 @@ function pause(ms: number, signal: AbortSignal) {
 
 /** Без байтового кэша: каждый подключенный аватар имеет собственный приватный объект URL и освобождает его. */
 export async function loadGroupAvatar(id: string, signal: AbortSignal) {
+  return loadPrivateAvatar(() => api.groupAvatar(id, signal), signal);
+}
+
+/** Share the bounded authenticated image queue across group and user photos. */
+export async function loadPrivateAvatar(
+  load: () => Promise<Blob>,
+  signal: AbortSignal,
+) {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await withSlot(() => api.groupAvatar(id, signal), signal);
+      return await withSlot(load, signal);
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 429 || attempt >= 2)
         throw error;

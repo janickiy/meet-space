@@ -27,6 +27,7 @@ type User struct {
 	DisplayName       *string   `gorm:"column:display_name" json:"-"`
 	IsAdmin           bool      `gorm:"column:is_admin" json:"-"`
 	GuestConferenceID *string   `gorm:"column:guest_conference_id" json:"-"`
+	AvatarVersion     *string   `gorm:"column:avatar_version" json:"-"`
 	CreatedAt         time.Time `json:"-"`
 	UpdatedAt         time.Time `json:"-"`
 }
@@ -53,6 +54,7 @@ type View struct {
 	DisplayName       *string   `json:"displayName"`
 	IsAdmin           bool      `json:"isAdmin"`
 	GuestConferenceID *string   `json:"guestConferenceId,omitempty"`
+	AvatarVersion     *string   `json:"avatarVersion,omitempty"`
 	CreatedAt         time.Time `json:"createdAt"`
 	UpdatedAt         time.Time `json:"updatedAt"`
 }
@@ -66,7 +68,7 @@ func (u User) View() View {
 	if u.GuestConferenceID != nil {
 		email = ""
 	}
-	return View{ID: u.ID, Email: email, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt}
+	return View{ID: u.ID, Email: email, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, AvatarVersion: u.AvatarVersion, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt}
 }
 
 // ParticipantName выбирает публичное имя участника, которое используется в представлениях о
