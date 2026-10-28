@@ -42,12 +42,12 @@ start_dependencies() {
 drain_service() {
   local service="$1" port="$2" id response start=$SECONDS timeout="${RELEASE_DRAIN_TIMEOUT:-300}"
   [[ "$timeout" =~ ^[1-9][0-9]*$ ]] || fail "Invalid drain timeout"
-  id="$(compose ps -q "$service")"
+  id="$(compose --profile live ps -q "$service")"
   [[ -n "$id" ]] || return 0
   [[ "$(docker inspect --format '{{.State.Running}}' "$id")" == true ]] || return 0
-  compose exec -T "$service" sh -c 'wget -qO- --post-data="" --header="Authorization: Bearer $METRICS_SECRET" "http://127.0.0.1:$1/operations/drain"' sh "$port" >/dev/null || fail "$service cannot enter drain; legacy upgrade requires an explicit maintenance window"
+  compose --profile live exec -T "$service" sh -c 'wget -qO- --post-data="" --header="Authorization: Bearer $METRICS_SECRET" "http://127.0.0.1:$1/operations/drain"' sh "$port" >/dev/null || fail "$service cannot enter drain; legacy upgrade requires an explicit maintenance window"
   while ((SECONDS - start < timeout)); do
-    response="$(compose exec -T "$service" sh -c 'wget -qO- --header="Authorization: Bearer $METRICS_SECRET" "http://127.0.0.1:$1/operations/drain"' sh "$port")" || fail "Cannot inspect $service drain state"
+    response="$(compose --profile live exec -T "$service" sh -c 'wget -qO- --header="Authorization: Bearer $METRICS_SECRET" "http://127.0.0.1:$1/operations/drain"' sh "$port")" || fail "Cannot inspect $service drain state"
     if jq -e '.draining == true and .active == 0' <<<"$response" >/dev/null; then return 0; fi
     sleep 2
   done
@@ -57,6 +57,9 @@ drain_service() {
 # deploy_apps обновляет службы последовательно; совместимость БД проверяется до вызова.
 deploy_apps() {
   local service port id desired current force="${1:-false}"
+  # A previously enabled worker is stopped only after its active work has drained.
+  # Keep the container and image for rollback; never force-stop live sessions.
+  stop_disabled_live_worker
   for service in "${RELEASE_APPLICATIONS[@]}"; do
     id="$(compose ps -q "$service")"
     desired="$(jq -r --arg service "$service" '.images[$service]' "$RELEASE_MANIFEST")"

@@ -85,6 +85,7 @@ services:
       minio: {condition: service_healthy}
   live-worker:
     <<: *process
+    profiles: [live]
     image: ${LIVE_WORKER_IMAGE:?set immutable LIVE_WORKER_IMAGE}
     environment: {APP_ENV: "${RELEASE_APP_ENV:-production}", AUTO_MIGRATE: "false", GIN_MODE: release, LIVE_WORKER_PORT: "8093"}
     mem_limit: 768m
@@ -174,7 +175,7 @@ services:
     profiles: [observability]
     command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.retention.time=7d]
     ports: ["127.0.0.1:19090:9090"]
-    volumes: ["./dockers/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "./dockers/observability/alerts.yml:/etc/prometheus/alerts.yml:ro", "${METRICS_TOKEN_FILE:-./secrets/metrics_token}:/run/secrets/metrics_token:ro", "prometheus:/prometheus"]
+    volumes: ["./dockers/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "${LIVE_METRICS_TARGETS_FILE:-./dockers/observability/live-targets.disabled.json}:/etc/prometheus/live-targets.json:ro", "./dockers/observability/alerts.yml:/etc/prometheus/alerts.yml:ro", "${METRICS_TOKEN_FILE:-./secrets/metrics_token}:/run/secrets/metrics_token:ro", "prometheus:/prometheus"]
     networks: [private]
   migrate:
     <<: *process

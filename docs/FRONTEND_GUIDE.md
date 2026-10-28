@@ -211,7 +211,7 @@ WORKER_INTERNAL_URL=http://worker:8090
 Контейнерная сборка интерфейса из корня репозитория:
 
 ```sh
-docker compose up -d --build api media-worker worker product-worker live-worker frontend
+docker compose up -d --build api media-worker worker product-worker frontend
 ```
 
 Откройте `http://localhost:5173`; API опубликован на `http://localhost:8085`.
@@ -226,7 +226,7 @@ Nginx направляет `/api/` и WebSocket к API; SPA fallback не под
 
 ```sh
 docker compose stop frontend
-docker compose up -d --build api media-worker worker product-worker live-worker
+docker compose up -d --build api media-worker worker product-worker
 npm --prefix frontend ci
 npm --prefix frontend run dev
 ```

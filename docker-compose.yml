@@ -63,6 +63,7 @@ services:
     networks: [app-network]
 
   live-worker:
+    profiles: [live]
     image: go-recorder-live-worker:local
     restart: unless-stopped
     init: true

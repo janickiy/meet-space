@@ -98,10 +98,15 @@ commit/image digest, исполнителя и ссылку на результ�
 ## 4. Readiness, безопасность и операционная сводка
 
 - [ ] Проверить `/health/live` и `/health/ready` внутри доверенной сети для
-  API, media-worker и recorder; отдельно проверить health product/live-worker,
+  API, media-worker и recorder; отдельно проверить health product-worker и
+  live-worker только при включённых live-функциях,
   PostgreSQL, Redis, RabbitMQ, S3, свободный диск и отсутствие Rabbit backlog.
   Публичный production proxy должен закрывать `/health`, `/metrics`, `/internal`,
   `/debug`.
+- [ ] При `LIVE_STT_ENABLED=false` и `MEETING_ANALYTICS_ENABLED=false` убедиться,
+  что live-worker не входит в обычный запуск и ожидание readiness, а его
+  Prometheus target отсутствует. Если он был запущен ранее, дождаться drain
+  перед остановкой; отсутствие активного воркера не должно блокировать выпуск.
 - [ ] Проверить HTTPS/WSS, сертификаты, same-origin API, CSP без
   `unsafe-eval`/`unsafe-inline`, `nosniff` и `Referrer-Policy: no-referrer`.
   Для внешнего HTTPS `MINIO_PUBLIC_ENDPOINT` убедиться, что в `img-src` и

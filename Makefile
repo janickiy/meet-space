@@ -62,7 +62,7 @@ debug-stop:
 	$(DOCKER_COMPOSE) stop api-debug worker-debug
 
 docker-build:
-	$(DOCKER_COMPOSE) build api worker media-worker product-worker live-worker frontend minio
+	$(DOCKER_COMPOSE) build
 
 docker-up:
 	$(MAKE) up

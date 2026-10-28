@@ -100,7 +100,9 @@ Shared secret никогда не передаётся браузеру. Для 
 не публикуются. Readiness API: PG, Redis, Rabbit, MinIO; media: Redis и lease
 ownership; recorder/compositor: PG, Redis, Rabbit consumer, MinIO и локальный диск.
 Compositor встроен в recorder, отдельного процесса/health порта у него нет.
-Product проверяет PG и MinIO при включённом STT; live-worker — PG и Redis.
+Product проверяет PG и MinIO при включённом STT; включённый live-worker — PG и Redis.
+При выключенных `LIVE_STT_ENABLED` и `MEETING_ANALYTICS_ENABLED` контейнер live-worker
+не обязателен: проверять его health и требовать его метрики не нужно.
 Readiness внешнего provider нельзя считать доказанным только по этим probes.
 
 Для установки мастером сначала задайте функцию `compose` из
@@ -154,13 +156,16 @@ compose exec -T api sh -c 'wget -qO- --header="Authorization: Bearer $METRICS_SE
 ```
 
 Повторите с service/port `media-worker:8091`, `worker:8090`,
-`product-worker:8092`, `live-worker:8093`. Только после нулевой активности,
+`product-worker:8092` и, если он запущен, `live-worker:8093`. Только после нулевой активности,
 проверки очередей и завершения backup/обслуживания верните те же image IDs:
 
 ```bash
 compose up -d --no-build --no-deps --force-recreate --wait --wait-timeout 240 \
-  media-worker worker product-worker live-worker api frontend
+  media-worker worker product-worker api frontend
 ```
+
+Если live-функции включены, отдельно возобновите `live-worker` с профилем `live`
+и тем же проверенным образом. При обоих выключенных флагах запускать его не нужно.
 
 Этот блок возобновляет установленную версию: он не собирает новый выпуск и не
 обновляет инфраструктуру. Если env/образы уже менялись, сначала сверяйте план

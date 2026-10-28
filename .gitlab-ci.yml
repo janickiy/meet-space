@@ -27,7 +27,7 @@ workflow:
 # Существующая загрузка архива сохранена: артефакты явно копируются из временного source-каталога.
 .source-job:
   before_script:
-    - 'if command -v apk >/dev/null; then apk add --no-cache bash curl git tar build-base jq ripgrep; else apt-get update && apt-get install -y --no-install-recommends bash curl git tar build-essential jq ripgrep ca-certificates; fi'
+    - 'if command -v apk >/dev/null; then apk add --no-cache bash curl git tar build-base jq ripgrep python3; else apt-get update && apt-get install -y --no-install-recommends bash curl git tar build-essential jq ripgrep ca-certificates python3; fi'
     - SOURCE_WORK_DIR="$(mktemp -d)"
     - cd "$SOURCE_WORK_DIR"
     - SOURCE_ARCHIVE_TOKEN="$(printf "%s" "${CI_SOURCE_ARCHIVE_TOKEN_B64}" | base64 -d)"
@@ -52,6 +52,7 @@ validate:
     - go test -race -count=1 ./...
     - go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
     - bash -n scripts/ci-deploy.sh
+    - python3 -I -m unittest discover -s scripts/install -p 'test_*.py' -v
     - 'for script in scripts/release/*.sh; do bash -n "$script"; done'
 
 frontend-check:

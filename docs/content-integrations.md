@@ -231,11 +231,34 @@ Embedding контракт требует фиксированную разме�
 
 ## Эксплуатация и сроки хранения
 
-Обычный и production Compose включают `product-worker` и `live-worker`.
-Без product-worker новые задания остаются в PostgreSQL; без live-worker живые
+Обычный и production Compose запускают `product-worker`; `live-worker` вынесен
+в необязательный профиль `live` и по умолчанию не запускается. Без product-worker
+новые задания остаются в PostgreSQL; без live-worker живые
 субтитры/наблюдения не обрабатываются. Порты health — 8092/8093, `/metrics` и
 `/operations/drain` защищены `METRICS_SECRET`. FFmpeg нужен обоим worker,
 а SFU не декодирует медиа.
+
+Мастер установки и release-helper включают live-worker только при буквальном
+`true` в `LIVE_STT_ENABLED` или `MEETING_ANALYTICS_ENABLED` в сохранённом env-файле.
+Иначе его запуск, ожидание готовности и проверка метрик пропускаются. Отсутствие
+live-worker не отключает чаты, видеозвонки, запись, email и обработку уже записанных
+файлов. Полный установочный пакет сохраняет образ live-worker и его SBOM/проверки.
+
+В установке новым мастером после настройки нужной функции используйте
+`sudo /opt/meetspace/manage.sh start-live-worker`. Для выключения задайте оба флага
+`false` и выполните `sudo /opt/meetspace/manage.sh stop-live-worker`: активная
+обработка должна завершиться через drain, затем обновляется конфигурация метрик.
+Команды не пересоздают API: изменение его флагов применяется отдельно в согласованное
+окно обновления. Для ручного Compose нужен `--profile live`; при ручном production
+запуске также укажите `LIVE_METRICS_TARGETS_FILE` на абсолютный путь к
+`dockers/observability/live-targets.enabled.json`. По умолчанию используется пустой
+`live-targets.disabled.json`, поэтому отключённый сервис не создаёт down-тревог.
+
+Новый мастер работает и со старыми проверенными Docker-пакетами: он создаёт
+отдельный Compose overlay и конфигурацию Prometheus, не изменяя исходные файлы,
+контрольные суммы или образы пакета. Текущая версия мастера сохраняется в закрытом
+`config/installer.py`, чтобы управление и продолжение установки не возвращались
+к устаревшему мастеру внутри старого пакета.
 
 Метрики: `recorder_product_jobs_total`, `recorder_product_job_duration_seconds`, `recorder_product_queue`, `recorder_product_provider_calls_total`, `recorder_product_provider_duration_seconds`, `recorder_search_requests_total`, `recorder_search_duration_seconds`. Labels — фиксированные kind/state/channel/outcome, без ID, URL и поискового текста. Provider usage показывает число попыток, не счёт или token usage: generic контракт не возвращает стоимость. Пороги предоставленных alert rules настраиваются под реальную нагрузку.
 

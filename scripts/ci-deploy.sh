@@ -92,6 +92,8 @@ fi
 
 "${ssh_command[@]}" "${remote}" "cd '${DEPLOY_PATH}' && \
   if [ ! -f .env ]; then cp .env.example .env; fi && \
-  BUILD_VERSION='${BUILD_VERSION}' docker compose build api worker media-worker product-worker live-worker frontend minio && \
-  docker compose up -d --remove-orphans && \
+  live_enabled=\$(python3 -I scripts/install/wizard.py --live-worker-policy .env) && \
+  live_profile= && if [ \"\$live_enabled\" = true ]; then live_profile=live; fi && \
+  COMPOSE_PROFILES=\"\$live_profile\" BUILD_VERSION='${BUILD_VERSION}' docker compose build && \
+  COMPOSE_PROFILES=\"\$live_profile\" docker compose up -d --remove-orphans && \
   docker compose ps"

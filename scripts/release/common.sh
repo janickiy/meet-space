@@ -4,10 +4,11 @@ set -euo pipefail
 
 RELEASE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RELEASE_SERVICES=(api media-worker worker product-worker live-worker frontend minio postgres redis rabbitmq coturn proxy prometheus grafana)
-RELEASE_APPLICATIONS=(media-worker worker product-worker live-worker api frontend)
+RELEASE_APPLICATIONS=(media-worker worker product-worker api frontend)
+RELEASE_LIVE_WORKER=false
 
-# select_release_services выбирает только явно развёртываемые компоненты.
-# @args $1 — проверенный layout: classic либо hardened-shared-host.
+# select_release_services selects the full artifact inventory, including optional images.
+# Argument $1 is the validated classic or hardened-shared-host layout.
 select_release_services() {
   RELEASE_SERVICES=(api media-worker worker product-worker live-worker frontend minio postgres redis rabbitmq coturn proxy prometheus)
   if [[ "$1" == classic ]]; then RELEASE_SERVICES+=(grafana); fi
@@ -53,7 +54,36 @@ compose() {
     if [[ "${RELEASE_LAYOUT:-classic}" == classic ]]; then options+=(-f "$RELEASE_ROOT/docker-compose.release-local-grafana.yml");
     else options+=(-f "$RELEASE_ROOT/docker-compose.release-local-hardened.yml"); fi
   fi
-  docker compose --project-name "$RELEASE_PROJECT" --env-file "$RELEASE_ENV_FILE" "${options[@]}" "$@"
+  if [[ "$RELEASE_LIVE_WORKER" == true ]]; then options+=(--profile live); fi
+  COMPOSE_PROFILES= docker compose --project-name "$RELEASE_PROJECT" --env-file "$RELEASE_ENV_FILE" "${options[@]}" "$@"
+}
+
+# configure_live_worker selects runtime services from literal feature flags in the
+# reviewed env file. Full-package image integrity checks still include every image.
+configure_live_worker() {
+  command -v python3 >/dev/null || fail "python3 is required for optional service policy"
+  RELEASE_LIVE_WORKER="$(python3 -I "$RELEASE_ROOT/scripts/install/wizard.py" --live-worker-policy "$RELEASE_ENV_FILE")" \
+    || fail "Cannot determine live-worker policy; check LIVE_STT_ENABLED and MEETING_ANALYTICS_ENABLED"
+  RELEASE_APPLICATIONS=(media-worker worker product-worker)
+  if [[ "$RELEASE_LIVE_WORKER" == true ]]; then
+    RELEASE_APPLICATIONS+=(live-worker)
+    export LIVE_METRICS_TARGETS_FILE="$RELEASE_ROOT/dockers/observability/live-targets.enabled.json"
+  elif [[ "$RELEASE_LIVE_WORKER" == false ]]; then
+    export LIVE_METRICS_TARGETS_FILE="$RELEASE_ROOT/dockers/observability/live-targets.disabled.json"
+  else fail "Invalid live-worker policy"; fi
+  RELEASE_APPLICATIONS+=(api frontend)
+}
+
+# stop_disabled_live_worker retires an existing optional process only after drain.
+# The caller supplies drain_service; the container and its image are not deleted.
+stop_disabled_live_worker() {
+  [[ "$RELEASE_LIVE_WORKER" == false ]] || return 0
+  local id
+  id="$(compose --profile live ps -q live-worker)"
+  if [[ -n "$id" && "$(docker inspect --format '{{.State.Running}}' "$id")" == true ]]; then
+    drain_service live-worker 8093
+    compose --profile live stop live-worker
+  fi
 }
 
 # verify_archive_security проверяет целостность офлайн-пакета и отчёты каждого образа.
@@ -173,6 +203,7 @@ validate_release() {
   if [[ "$RELEASE_LAYOUT" == hardened-shared-host ]]; then export OBJECT_STORAGE_IMAGE="$MINIO_IMAGE"; fi
   export RELEASE_ENV_FILE
   export BUILD_VERSION="$RELEASE_VERSION"
+  configure_live_worker
   compose --profile observability --profile migration config --quiet
   if [[ "$RELEASE_ENVIRONMENT" != local ]]; then
     # Вывод полной конфигурации содержит секреты: читаем только публичные origins в процессе.

@@ -33,6 +33,7 @@ DEPLOYMENT_FILES = (
     'scripts/install/wizard.py', 'scripts/install/verify-release.sh',
     'dockers/turn/entrypoint.sh', 'dockers/turn/turnserver.conf',
     'dockers/observability/prometheus.yml', 'dockers/observability/alerts.yml',
+    'dockers/observability/live-targets.disabled.json', 'dockers/observability/live-targets.enabled.json',
     'dockers/observability/dashboard.json',
     'dockers/observability/provisioning/dashboards/recorder.yml',
     'dockers/observability/provisioning/datasources/recorder.yml',

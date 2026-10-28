@@ -51,7 +51,7 @@ Frontend — React, TypeScript и Vite; контейнер `frontend` разда
 | `media-worker` | SFU: комнаты, участники, RTP/RTCP, ICE и передача медиапотоков воркерам |
 | `worker` | Recorder: команды записи из RabbitMQ, получение медиа от SFU, FFmpeg, загрузка артефактов |
 | `product-worker` | Фоновые задания интеграций, обработка контента, транскрипция и ИИ |
-| `live-worker` | Обработка аудио для субтитров во время встречи при включённой функции |
+| `live-worker` | Необязательная обработка аудио для субтитров и аналитики речи; по умолчанию не запускается |
 | `postgres` | PostgreSQL 16: пользователи, конференции, чаты, записи, задания и outbox |
 | `redis` | События реального времени, присутствие, реестр SFU, блокировки и rate limit |
 | `rabbitmq` | Доставка команд `record.start` и `record.stop` |
@@ -497,7 +497,7 @@ docker network inspect gateway_default >/dev/null 2>&1 ||
 
 docker compose config --quiet
 docker compose up -d --build \
-  api media-worker worker product-worker live-worker frontend
+  api media-worker worker product-worker frontend
 
 docker compose ps
 docker compose exec -T api wget -qO- http://127.0.0.1:8085/health/ready
@@ -507,6 +507,16 @@ docker compose exec -T worker wget -qO- http://127.0.0.1:8090/health/ready
 PostgreSQL, Redis, RabbitMQ и MinIO запустятся как зависимости. При первом запуске
 приложение применяет SQL-миграции. Откройте **http://localhost:5173** и создайте
 аккаунт. Этот вариант запуска не включает сервис `https`.
+
+`live-worker` по умолчанию выключен и вынесен в профиль `live`. Чаты, звонки,
+записи и email не требуют его запуска. Для субтитров настройте распознавание
+речи и `LIVE_STT_ENABLED=true`; для встроенной речевой аналитики —
+`MEETING_ANALYTICS_ENABLED=true`. Затем явно запустите
+`docker compose --profile live up -d --build live-worker`. Новые значения
+флагов должны быть применены и в API в согласованное окно обновления.
+Установщик и release-helper выбирают профиль автоматически по этим флагам;
+при обоих `false` воркер не запускается и не проверяется мониторингом.
+Подробнее: [необязательные live-функции](docs/content-integrations.md#эксплуатация-и-сроки-хранения).
 
 Адрес в браузере должен совпадать с `PUBLIC_FRONTEND_URL`, включая протокол,
 имя хоста и порт: иначе операции входа и обновления сессии отклоняются с `403`.
@@ -660,7 +670,7 @@ npm --prefix frontend run check
 
 ```bash
 docker compose stop frontend
-docker compose up -d --build api media-worker worker product-worker live-worker
+docker compose up -d --build api media-worker worker product-worker
 npm --prefix frontend ci
 npm --prefix frontend run dev
 ```
@@ -693,7 +703,7 @@ make migrate-up APP_NETWORK=meet-space_app-network
 
 ```bash
 docker compose ps
-docker compose logs --tail=100 api worker media-worker product-worker live-worker
+docker compose logs --tail=100 api worker media-worker product-worker
 make doctor
 ```
 
