@@ -2025,7 +2025,7 @@
 .lp-footer-brand p {
   max-width: 36ch;
   color: #606e87;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.75;
   margin-top: 16px;
 }
@@ -2034,7 +2034,7 @@
   font-weight: 600;
 }
 .lp-footer h3 {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 650;
   margin: 8px 0 15px;
   letter-spacing: 0;
@@ -2044,7 +2044,7 @@
   align-items: center;
   gap: 5px;
   color: #68758e;
-  font-size: 11px;
+  font-size: 13px;
   min-height: 34px;
 }
 .lp-footer-bottom {
@@ -2053,7 +2053,7 @@
   gap: 25px;
   border-top: 1px solid #e7ebf3;
   min-height: 72px;
-  font-size: 10px;
+  font-size: 12px;
   color: #606e87;
 }
 .lp-footer-bottom > a {
@@ -2684,18 +2684,18 @@
   .lp-footer-brand p {
     max-width: 42ch;
     margin-top: 16px;
-    font-size: 13px;
+    font-size: 14px;
   }
   .lp-footer-main > div:not(.lp-footer-brand) > a {
-    font-size: 12px;
+    font-size: 13px;
     min-height: 37px;
   }
   .lp-footer h3 {
-    font-size: 12px;
+    font-size: 13px;
   }
   .lp-footer-bottom {
     gap: 12px;
-    font-size: 9px;
+    font-size: 12px;
   }
   .lp-footer-bottom > a:last-child {
     margin-left: auto;
@@ -3001,7 +3001,7 @@
 .lp-platform-credits {
   padding-bottom: 22px;
   color: #606e87;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.7;
 }
 .lp-platform-credits a {
