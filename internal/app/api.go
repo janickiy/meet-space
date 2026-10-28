@@ -32,6 +32,7 @@ import (
 	notificationsapp "github.com/janickiy/meet-space/internal/app/notifications"
 	personalapp "github.com/janickiy/meet-space/internal/app/personal"
 	platformapp "github.com/janickiy/meet-space/internal/app/platform"
+	profileapp "github.com/janickiy/meet-space/internal/app/profile"
 	recordingsapp "github.com/janickiy/meet-space/internal/app/recordings"
 	telemetryapp "github.com/janickiy/meet-space/internal/app/telemetry"
 	"github.com/janickiy/meet-space/internal/config"
@@ -54,6 +55,7 @@ import (
 	notificationsusecase "github.com/janickiy/meet-space/internal/usecase/notifications"
 	personalusecase "github.com/janickiy/meet-space/internal/usecase/personal"
 	platformusecase "github.com/janickiy/meet-space/internal/usecase/platform"
+	profileusecase "github.com/janickiy/meet-space/internal/usecase/profile"
 	realtimeusecase "github.com/janickiy/meet-space/internal/usecase/realtime"
 	"github.com/janickiy/meet-space/internal/usecase/recorder"
 	recordingsusecase "github.com/janickiy/meet-space/internal/usecase/recordings"
@@ -174,6 +176,7 @@ func RunAPI() error {
 	defer globalWS.Shutdown()
 	globalWS.RegisterRoutes(router)
 	personalHandler := &personalapp.Handler{Repo: personalRepository, Events: personalEvents, Presence: userPresence}
+	httptransport.RegisterProfileAvatarRoutes(router, &profileapp.AvatarHandler{Service: profileusecase.NewAvatarService(users)}, httpmiddleware.Authenticate(authService), personalHandler.AccountOnly, rateLimiter)
 	callService := &callsusecase.Service{Repo: postgresinfra.NewCallRepository(db), Bus: notificationBus, Observer: hub}
 	httptransport.RegisterCallRoutes(router, &callsapp.Handler{Service: callService}, httpmiddleware.Authenticate(authService), personalHandler.AccountOnly, rateLimiter)
 	httptransport.RegisterPersonalRoutes(router, personalHandler, chatapp.NewHandler(personalChat).ForConversations().WithGroupDownloads(personalAssets), httpmiddleware.Authenticate(authService), rateLimiter)

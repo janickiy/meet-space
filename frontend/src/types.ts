@@ -14,6 +14,7 @@ export interface User {
   displayName: string | null;
   isAdmin?: boolean;
   guestConferenceId?: string;
+  avatarVersion?: string | null;
   createdAt: string;
   updatedAt: string;
 }

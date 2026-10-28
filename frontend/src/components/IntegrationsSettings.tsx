@@ -239,24 +239,26 @@ function PreferencesForm({
     >
       <fieldset className="preferences-fieldset">
         <legend>События</legend>
-        {(["invitation", "reminder", "recording", "summary"] as const).map(
-          (name) => (
-            <label className="preference-option" key={name}>
-              <input
-                type="checkbox"
-                checked={draft[name]}
-                onChange={(event) =>
-                  setDraft({ ...draft, [name]: event.target.checked })
-                }
-              />
-              <span className="preference-copy">
-                <span className="preference-title">
-                  {preferenceLabels[name]}
+        <div className="preferences-options">
+          {(["invitation", "reminder", "recording", "summary"] as const).map(
+            (name) => (
+              <label className="preference-option" key={name}>
+                <input
+                  type="checkbox"
+                  checked={draft[name]}
+                  onChange={(event) =>
+                    setDraft({ ...draft, [name]: event.target.checked })
+                  }
+                />
+                <span className="preference-copy">
+                  <span className="preference-title">
+                    {preferenceLabels[name]}
+                  </span>
                 </span>
-              </span>
-            </label>
-          ),
-        )}
+              </label>
+            ),
+          )}
+        </div>
       </fieldset>
       <fieldset className="preferences-fieldset">
         <legend>Звук уведомлений</legend>
@@ -284,55 +286,61 @@ function PreferencesForm({
             </span>
           </span>
         </label>
-        <Button
-          variant="outline"
-          disabled={!soundEnabled || previewing}
-          onClick={() => {
-            stopPreview.current?.();
-            setSoundError(null);
-            setPreviewing(true);
-            stopPreview.current = playDeviceTone(
-              readDevicePreferences(user?.id || "").notificationOutputId,
-              (error) => {
-                setPreviewing(false);
-                if (error)
-                  setSoundError(
-                    new Error(
-                      "Не удалось воспроизвести звук. Проверьте громкость и выбранное устройство вывода.",
-                    ),
-                  );
-              },
-              0.35,
-            );
-          }}
-        >
-          {previewing ? "Воспроизводится…" : "Проверить звук"}
-        </Button>
-        <p className="field-hint">
-          Если браузер ограничивает воспроизведение, сначала нажмите любую
-          кнопку в приложении. В чатах с отключёнными уведомлениями сигнал не
-          звучит.
-        </p>
-        <ErrorNotice error={soundError} />
+        <div className="notification-sound-controls">
+          <Button
+            variant="outline"
+            disabled={!soundEnabled || previewing}
+            onClick={() => {
+              stopPreview.current?.();
+              setSoundError(null);
+              setPreviewing(true);
+              stopPreview.current = playDeviceTone(
+                readDevicePreferences(user?.id || "").notificationOutputId,
+                (error) => {
+                  setPreviewing(false);
+                  if (error)
+                    setSoundError(
+                      new Error(
+                        "Не удалось воспроизвести звук. Проверьте громкость и выбранное устройство вывода.",
+                      ),
+                    );
+                },
+                0.35,
+              );
+            }}
+          >
+            {previewing ? "Воспроизводится…" : "Проверить звук"}
+          </Button>
+          <p className="field-hint">
+            Если браузер ограничивает воспроизведение, сначала нажмите любую
+            кнопку в приложении. В чатах с отключёнными уведомлениями сигнал не
+            звучит.
+          </p>
+          <ErrorNotice error={soundError} />
+        </div>
       </fieldset>
       <fieldset className="preferences-fieldset">
         <legend>Каналы доставки</legend>
-        {(["email", "push"] as const).map((name) => (
-          <label className="preference-option" key={name}>
-            <input
-              type="checkbox"
-              disabled={capabilities[name] === "noop"}
-              checked={draft[name]}
-              onChange={(event) =>
-                setDraft({ ...draft, [name]: event.target.checked })
-              }
-            />
-            <span className="preference-copy">
-              <span className="preference-title">{preferenceLabels[name]}</span>
-              <span className="field-hint">{modes[capabilities[name]]}</span>
-            </span>
-          </label>
-        ))}
+        <div className="preferences-options">
+          {(["email", "push"] as const).map((name) => (
+            <label className="preference-option" key={name}>
+              <input
+                type="checkbox"
+                disabled={capabilities[name] === "noop"}
+                checked={draft[name]}
+                onChange={(event) =>
+                  setDraft({ ...draft, [name]: event.target.checked })
+                }
+              />
+              <span className="preference-copy">
+                <span className="preference-title">
+                  {preferenceLabels[name]}
+                </span>
+                <span className="field-hint">{modes[capabilities[name]]}</span>
+              </span>
+            </label>
+          ))}
+        </div>
       </fieldset>
       <div className="preferences-actions">
         <p className="field-hint">

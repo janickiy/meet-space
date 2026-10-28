@@ -34,6 +34,7 @@ interface Auth {
   switchAccount: (id: string) => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
   updateProfile: (displayName: string) => Promise<User>;
+  updateAvatar: (file: File | null, signal: AbortSignal) => Promise<User>;
   enterGuest: (
     code: string,
     displayName: string,
@@ -453,6 +454,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result.user;
   }
 
+  /** Replace the current profile photo while rejecting account-switch races. */
+  async function updateAvatar(
+    file: File | null,
+    signal: AbortSignal,
+  ): Promise<User> {
+    const expected = generation.current;
+    if (!sessionRef.current?.token)
+      throw new ApiError(401, "Войдите в аккаунт.");
+    const result = file
+      ? await api.putProfileAvatar(file, signal)
+      : await api.deleteProfileAvatar(signal);
+    if (generation.current !== expected || !sessionRef.current)
+      throw new ApiError(409, "Сессия изменилась. Повторите действие.");
+    const next = { ...sessionRef.current, user: result.user };
+    userRef.current = result.user;
+    sessionRef.current = next;
+    saveSession(next);
+    setSession(next);
+    setUser(result.user);
+    void client.invalidateQueries({
+      queryKey: ["user-avatar", result.user.id, result.user.id],
+    });
+    void client.invalidateQueries({
+      queryKey: ["browser-accounts", result.user.id],
+    });
+    return result.user;
+  }
+
   async function logout() {
     const token = sessionRef.current?.token ?? null;
     const id = sessionRef.current?.user?.id;
@@ -477,6 +506,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         startupError,
         login,
         updateProfile,
+        updateAvatar,
         switchAccount,
         deleteAccount,
         enterGuest,

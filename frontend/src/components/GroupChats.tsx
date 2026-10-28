@@ -14,7 +14,6 @@ import {
 import { useNavigate } from "react-router";
 import {
   ArrowLeft,
-  Camera,
   LogOut,
   MessageCircle,
   Pencil,
@@ -39,6 +38,8 @@ import { Button, ErrorNotice, Modal } from "./ui";
 import { ItemActions } from "./ItemActions";
 import { MessagingSkeleton } from "./MessagingSkeleton";
 import { UserInfoModal } from "./UserInfoModal";
+import { AvatarPicker } from "./AvatarPicker";
+import { UserAvatar } from "./UserAvatar";
 import "./group-chats.css";
 
 export function ConversationAvatar({
@@ -77,85 +78,38 @@ export function ConversationAvatar({
         <img src={url} alt="" />
       ) : group ? (
         <Users size={large ? 32 : 20} />
+      ) : conversation.type === "direct" ? (
+        <UserAvatar
+          id={conversation.peer.id}
+          name={conversation.peer.displayName}
+          className=""
+        />
       ) : (
-        initials(
-          conversation.type === "direct"
-            ? conversation.peer.displayName
-            : conversation.name,
-        )
+        initials(conversation.name)
       )}
     </span>
   );
-}
-
-function avatarError(file: File): string | undefined {
-  if (!file.size || file.size > 2 * 1024 * 1024)
-    return "Выберите изображение размером от 1 байта до 2 МБ.";
-  if (!["image/png", "image/jpeg"].includes(file.type))
-    return "Для аватара подходят PNG и JPEG.";
 }
 
 function AvatarFileField({
   file,
   onChange,
   disabled,
+  onPreparing,
 }: {
   file?: File;
   onChange: (file?: File) => void;
   disabled: boolean;
+  onPreparing: (value: boolean) => void;
 }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [url, setUrl] = useState<string>();
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (!file) {
-      setUrl(undefined);
-      return;
-    }
-    const object = URL.createObjectURL(file);
-    setUrl(object);
-    return () => URL.revokeObjectURL(object);
-  }, [file]);
   return (
-    <div className="group-avatar-field">
-      <button
-        type="button"
-        className="group-avatar-picker"
-        disabled={disabled}
-        aria-label="Выбрать аватар группы"
-        onClick={() => input.current?.click()}
-      >
-        {url ? <img src={url} alt="" /> : <Camera size={25} />}
-      </button>
-      <input
-        ref={input}
-        type="file"
-        accept="image/png,image/jpeg"
-        hidden
-        aria-label="Файл аватара группы"
-        disabled={disabled}
-        onChange={(event) => {
-          const selected = event.target.files?.[0];
-          event.target.value = "";
-          if (!selected) return;
-          const error = avatarError(selected);
-          setError(error || "");
-          if (!error) onChange(selected);
-        }}
-      />
-      <span>PNG или JPEG, до 2 МБ</span>
-      {file && (
-        <button
-          type="button"
-          className="text-link"
-          disabled={disabled}
-          onClick={() => onChange(undefined)}
-        >
-          Убрать выбранный аватар
-        </button>
-      )}
-      {error && <ErrorNotice>{error}</ErrorNotice>}
-    </div>
+    <AvatarPicker
+      file={file}
+      onChange={onChange}
+      disabled={disabled}
+      label="Выбрать аватар группы"
+      onPreparing={onPreparing}
+    />
   );
 }
 
@@ -291,6 +245,7 @@ export function GroupCreateModal({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = useState("");
   const [selected, setSelected] = useState<PersonalPeer[]>([]);
   const [file, setFile] = useState<File>();
+  const [preparingAvatar, setPreparingAvatar] = useState(false);
   const [validation, setValidation] = useState("");
   const [created, setCreated] = useState<GroupConversation>();
   const saved = useRef<GroupConversation | undefined>(undefined);
@@ -363,7 +318,7 @@ export function GroupCreateModal({ onClose }: { onClose: () => void }) {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (submitting.current) return;
+          if (submitting.current || preparingAvatar) return;
           if (
             !created &&
             (!name.trim() ||
@@ -384,6 +339,7 @@ export function GroupCreateModal({ onClose }: { onClose: () => void }) {
           file={file}
           onChange={setFile}
           disabled={create.isPending}
+          onPreparing={setPreparingAvatar}
         />
         <label className="field">
           Название группы
@@ -434,7 +390,11 @@ export function GroupCreateModal({ onClose }: { onClose: () => void }) {
           >
             Отмена
           </Button>
-          <Button type="submit" busy={create.isPending}>
+          <Button
+            type="submit"
+            busy={create.isPending}
+            disabled={preparingAvatar}
+          >
             {created ? "Повторить загрузку аватара" : "Создать"}
           </Button>
         </div>
@@ -553,6 +513,7 @@ export function GroupInfoModal({
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description);
   const [file, setFile] = useState<File>();
+  const [preparingAvatar, setPreparingAvatar] = useState(false);
   const [transferId, setTransferId] = useState("");
   const [removeTarget, setRemoveTarget] = useState<GroupMember>();
   const [profileId, setProfileId] = useState<string>();
@@ -756,9 +717,11 @@ export function GroupInfoModal({
                       }}
                     >
                       <span className="group-member-avatar" aria-hidden="true">
-                        <span className="avatar avatar-small">
-                          {initials(person.displayName)}
-                        </span>
+                        <UserAvatar
+                          id={person.id}
+                          name={person.displayName}
+                          className="avatar avatar-small"
+                        />
                         {connected &&
                           !members.isPaused &&
                           !members.isError &&
@@ -943,6 +906,7 @@ export function GroupInfoModal({
           <form
             onSubmit={(event) => {
               event.preventDefault();
+              if (preparingAvatar) return;
               if (
                 !name.trim() ||
                 Array.from(name.trim()).length > 50 ||
@@ -973,6 +937,7 @@ export function GroupInfoModal({
               file={file}
               onChange={setFile}
               disabled={mutation.isPending}
+              onPreparing={setPreparingAvatar}
             />
             {current.avatarVersion && (
               <Button
@@ -1003,7 +968,11 @@ export function GroupInfoModal({
                 onChange={(event) => setDescription(event.target.value)}
               />
             </label>
-            <Button type="submit" busy={mutation.isPending} disabled={!manages}>
+            <Button
+              type="submit"
+              busy={mutation.isPending}
+              disabled={!manages || preparingAvatar}
+            >
               Сохранить
             </Button>
           </form>

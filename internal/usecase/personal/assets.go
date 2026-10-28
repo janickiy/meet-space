@@ -14,20 +14,17 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"image"
-	"image/jpeg"
-	"image/png"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	"github.com/janickiy/meet-space/internal/domain/avatar"
 	"github.com/janickiy/meet-space/internal/domain/chat"
 	domain "github.com/janickiy/meet-space/internal/domain/personal"
 )
 
-const MaxAvatarBytes int64 = 2 << 20
+const MaxAvatarBytes int64 = avatar.MaxUploadBytes
 const AssetStreamTimeout = 30 * time.Second
 
 // Asset — ключи активов — это данные, доступные только на сервере, и они никогда не являются частью
@@ -410,58 +407,8 @@ func (s *AssetService) changed(ctx context.Context, conversation string) {
 //   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func normalizeAvatar(body io.Reader, contentType string) ([]byte, string, error) {
-	typ := strings.TrimSpace(strings.Split(contentType, ";")[0])
-	if typ != "image/jpeg" && typ != "image/png" {
-		return nil, "", apperrors.New(apperrors.ErrInvalidInput, "avatar must be JPEG or PNG")
-	}
-	raw, err := io.ReadAll(io.LimitReader(body, MaxAvatarBytes+1))
-	if err != nil {
-		return nil, "", apperrors.ErrInvalidInput
-	}
-	if len(raw) == 0 || int64(len(raw)) > MaxAvatarBytes {
-		return nil, "", apperrors.New(apperrors.ErrInvalidInput, "avatar exceeds 2 MiB")
-	}
-	config, format, err := image.DecodeConfig(bytes.NewReader(raw))
-	if err != nil || (format != "jpeg" && format != "png") || "image/"+format != typ || config.Width < 1 || config.Height < 1 || config.Width > 2048 || config.Height > 2048 || int64(config.Width)*int64(config.Height) > 4<<20 {
-		return nil, "", apperrors.New(apperrors.ErrInvalidInput, "invalid avatar image or dimensions")
-	}
-	img, _, err := image.Decode(bytes.NewReader(raw))
-	if err != nil {
-		return nil, "", apperrors.ErrInvalidInput
-	}
-	// При каноническом перекодировании удаляются встроенные метаданные и завершающие данные, а
-	// также полиглоты.
-	var out avatarBuffer
-	if format == "jpeg" {
-		err = jpeg.Encode(&out, img, &jpeg.Options{Quality: 85})
-	} else {
-		err = png.Encode(&out, img)
-	}
-	if err != nil || int64(out.Len()) > MaxAvatarBytes {
-		return nil, "", apperrors.New(apperrors.ErrInvalidInput, "encoded avatar exceeds 2 MiB")
-	}
-	return out.Bytes(), typ, nil
-}
-
-// При кодировании сжатый входной файл может увеличиться в размере.  Ограничьте объем выделяемой
-// памяти, а также размеры входного и декодированного файлов.
-type avatarBuffer struct{ bytes.Buffer }
-
-// Функция Write принимает выходные байты через контракт io.Writer, соблюдая правила буферизации
-// компонента.
-//
-// @Parameters:
-//   - data: Входные байты или структурированная полезная информация о событии.
-//
-// @returns:
-//   - result1: Возвращает количество, размер или числовое значение.
-//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func (b *avatarBuffer) Write(data []byte) (int, error) {
-	if int64(b.Len()+len(data)) > MaxAvatarBytes {
-		return 0, apperrors.ErrInvalidInput
-	}
-	return b.Buffer.Write(data)
+	data, err := avatar.Normalize(body, contentType)
+	return data, "image/jpeg", err
 }
 
 // GroupDownload возвращает ошибку URL, не связанную с возможностями; при каждом запросе байта

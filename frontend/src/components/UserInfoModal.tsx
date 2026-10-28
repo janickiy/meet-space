@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { PersonalPeer } from "../types";
-import { initials } from "../utils";
+import { UserAvatar } from "./UserAvatar";
 import { DirectCallButton } from "./DirectCallButton";
 import { Modal } from "./ui";
 import "./user-info-modal.css";
@@ -40,9 +40,11 @@ export function UserInfoModal({
       returnFocus={returnFocus}
     >
       <div className="personal-info-profile">
-        <span className="personal-info-avatar" aria-hidden="true">
-          {initials(person.displayName)}
-        </span>
+        <UserAvatar
+          id={person.id}
+          name={person.displayName}
+          className="personal-info-avatar"
+        />
         <div className="personal-info-identity">
           <h3>{person.displayName}</h3>
           <p

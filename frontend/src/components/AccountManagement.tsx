@@ -5,7 +5,8 @@ import { Check, Plus, Trash2, UserRound } from "lucide-react";
 import { useNavigate } from "react-router";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import { initials, passwordLength } from "../utils";
+import { passwordLength } from "../utils";
+import { UserAvatar } from "./UserAvatar";
 import { Button, ErrorNotice, Loading } from "./ui";
 import "./account-management.css";
 
@@ -97,9 +98,12 @@ export function AccountManagement() {
       <ul className="connected-accounts">
         {visible.map((item) => (
           <li key={item.id}>
-            <span className="connected-account-avatar" aria-hidden="true">
-              {initials(item.displayName || item.email)}
-            </span>
+            <UserAvatar
+              id={item.id}
+              name={item.displayName || item.email}
+              version={item.avatarVersion}
+              className="connected-account-avatar"
+            />
             <span className="connected-account-name">
               <strong>{item.displayName || item.email}</strong>
               <small>{item.email}</small>

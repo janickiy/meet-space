@@ -5,8 +5,11 @@
 .device-settings {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   font-size: calc(14px * var(--text-scale, 1));
+}
+.device-settings > .account-settings-section-heading {
+  margin-bottom: 0;
 }
 .device-card {
   padding: 4px 0 16px;
@@ -181,7 +184,7 @@
   margin: 12px 0 0;
 }
 .device-saved-hint {
-  margin: 4px 8px 0;
+  margin: 0;
 }
 .device-error {
   flex-basis: 100%;
@@ -227,6 +230,42 @@
 .device-camera-select select {
   flex: 0 1 70%;
 }
+.device-camera-card {
+  display: grid;
+  gap: 20px;
+  padding: 0 0 24px;
+}
+.device-camera-card > :is(p, .device-camera-select) {
+  margin: 0;
+}
+.device-camera-error {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 16px;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.device-camera-error > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.device-camera-options {
+  display: grid;
+  gap: 20px;
+  padding-top: 4px;
+}
+.device-camera-options .device-toggle-row {
+  min-height: 44px;
+  padding: 0;
+}
+.device-camera-options .device-toggle-row small {
+  margin-top: 6px;
+  line-height: 1.6;
+}
 @media (max-width: 767px) {
   .account-dialog-panel.account-media-panel {
     padding: 20px 16px;
@@ -253,6 +292,13 @@
   }
   .device-camera-select select {
     flex-basis: 100%;
+  }
+  .device-camera-card {
+    padding: 0 0 24px;
+  }
+  .device-camera-error {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
   }
 }
 @media (prefers-reduced-motion: reduce) {

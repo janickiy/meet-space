@@ -88,7 +88,7 @@
 .personal-preview {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
   min-width: 0;
   flex: 1;
 }
@@ -100,10 +100,12 @@
 }
 .personal-preview strong {
   font-size: calc(13px * var(--text-scale));
-  font-weight: 650;
+  font-weight: 600;
+  line-height: 1.4;
 }
 .personal-preview > span {
   font-size: calc(11px * var(--text-scale));
+  line-height: 1.5;
   color: var(--muted, #778499);
 }
 .personal-avatar {
@@ -187,10 +189,13 @@
 .personal-placeholder {
   display: grid;
   align-content: center;
+  align-content: safe center;
   justify-items: center;
   text-align: center;
-  padding: 24px;
+  padding: 32px 24px;
   height: 100%;
+  min-height: 0;
+  overflow-y: auto;
   color: var(--muted, #778499);
 }
 .personal-placeholder > svg {
@@ -199,18 +204,27 @@
   color: var(--primary);
   background: var(--primary-soft);
   border-radius: 16px;
-  margin-bottom: 8px;
+  margin: 0;
 }
 .personal-placeholder h2 {
-  margin: 16px 0 8px;
+  margin: 24px 0 0;
+  max-width: 440px;
   color: var(--text);
   font-size: calc(24px * var(--text-scale));
+  line-height: 1.4;
   letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 .personal-placeholder p {
-  line-height: 1.7;
+  margin: 12px 0 0;
+  line-height: 1.65;
   font-size: calc(14px * var(--text-scale));
   max-width: 420px;
+}
+.personal-placeholder > .button {
+  margin-top: 24px;
+  max-width: 100%;
+  white-space: normal;
 }
 .personal-thread.chat-panel {
   margin: 0;
@@ -429,14 +443,14 @@
 .personal-sidebar .section-heading {
   align-items: center;
   flex-wrap: nowrap;
-  padding: 14px 16px 10px;
+  padding: 16px 16px 14px;
 }
 .personal-sidebar .section-heading > .item-actions > .icon-button {
   color: var(--muted);
   background: transparent;
 }
 .personal-search {
-  margin: 0 16px 12px;
+  margin: 0 16px 16px;
   padding: 8px 12px;
   min-height: 44px;
 }
@@ -450,7 +464,7 @@
 .personal-sidebar .personal-filters {
   flex-wrap: nowrap;
   gap: 0;
-  padding: 0 12px 10px;
+  padding: 0 12px 12px;
   overflow-x: auto;
 }
 .personal-sidebar .personal-filters button {
@@ -479,6 +493,9 @@
   position: relative;
   border-radius: 6px;
 }
+.personal-conversation-row + .personal-conversation-row {
+  margin-top: 4px;
+}
 .personal-conversation-row:hover {
   background: var(--surface-soft);
 }
@@ -489,7 +506,8 @@
 .personal-conversation {
   gap: 12px;
   min-width: 0;
-  padding: 10px 6px 10px 12px;
+  min-height: 76px;
+  padding: 12px 6px 12px 12px;
 }
 .personal-conversation-row .personal-conversation:hover,
 .personal-conversation-row .personal-conversation.selected {
@@ -508,9 +526,13 @@
   font-size: calc(12px * var(--text-scale));
 }
 .personal-meta {
+  align-self: flex-start;
+  padding-top: 2px;
+  gap: 6px;
   flex-shrink: 0;
   min-width: 38px;
   font-size: calc(12px * var(--text-scale));
+  line-height: 1.4;
 }
 .personal-conversation-row > .item-actions,
 .personal-conversation-row > .personal-direct-actions {
@@ -571,8 +593,10 @@
   padding: 12px 20px;
 }
 .personal-placeholder > small {
-  margin-top: 36px;
+  margin-top: 20px;
+  max-width: 360px;
   font-size: calc(12px * var(--text-scale));
+  line-height: 1.6;
 }
 .personal-reconnect {
   display: flex;

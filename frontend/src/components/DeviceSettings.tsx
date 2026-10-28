@@ -518,13 +518,14 @@ export function VideoSettings() {
   }, [preview.stream]);
   return (
     <div className="device-settings" id="video-settings">
-      <section className="device-card" aria-labelledby="camera-title">
-        <header>
-          <div className="account-settings-section-heading">
-            <h2 id="camera-title">Видео</h2>
-            <p>Предпросмотр доступен только вам</p>
-          </div>
-        </header>
+      <div className="account-settings-section-heading">
+        <h2 id="camera-title">Видео</h2>
+        <p>Предпросмотр доступен только вам</p>
+      </div>
+      <section
+        className="device-card device-camera-card"
+        aria-labelledby="camera-title"
+      >
         <div className="device-camera-preview">
           <video
             ref={video}
@@ -543,8 +544,8 @@ export function VideoSettings() {
           )}
         </div>
         {preview.error && (
-          <div className="device-error" role="alert">
-            {preview.error}
+          <div className="device-error device-camera-error" role="alert">
+            <span>{preview.error}</span>
             <button
               type="button"
               className="device-test"
@@ -572,23 +573,27 @@ export function VideoSettings() {
             disabled={!available}
           />
         </div>
-        <Toggle
-          label="Подключаться с выключенной камерой"
-          checked={!preferences.cameraEnabled}
-          onChange={(muted) => update({ cameraEnabled: !muted })}
-        />
-        <Toggle
-          label="Видеть себя на звонке"
-          hint="Ваше видео или аватар"
-          checked={preferences.showSelf}
-          onChange={(showSelf) => update({ showSelf })}
-        />
-        <Toggle
-          label="Скрыть видео участников"
-          hint="Снижает нагрузку на сеть. Звук сохраняется; видео и экраны скрываются."
-          checked={preferences.hideParticipantVideo}
-          onChange={(hideParticipantVideo) => update({ hideParticipantVideo })}
-        />
+        <div className="device-camera-options">
+          <Toggle
+            label="Подключаться с выключенной камерой"
+            checked={!preferences.cameraEnabled}
+            onChange={(muted) => update({ cameraEnabled: !muted })}
+          />
+          <Toggle
+            label="Видеть себя на звонке"
+            hint="Ваше видео или аватар"
+            checked={preferences.showSelf}
+            onChange={(showSelf) => update({ showSelf })}
+          />
+          <Toggle
+            label="Скрыть видео участников"
+            hint="Снижает нагрузку на сеть. Звук сохраняется; видео и экраны скрываются."
+            checked={preferences.hideParticipantVideo}
+            onChange={(hideParticipantVideo) =>
+              update({ hideParticipantVideo })
+            }
+          />
+        </div>
       </section>
       <p className="device-saved-hint">
         Настройки сохраняются автоматически в этом браузере.

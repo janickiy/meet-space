@@ -8,19 +8,26 @@
 | Категория | Расширения |
 | --- | --- |
 | Изображения | JPG, JPEG, PNG, WebP |
-| PDF и текст | PDF, TXT, CSV, TSV, MD, Markdown, RTF |
+| PDF и текст | PDF, TXT, CSV, TSV, MD, Markdown, RTF, RST, AsciiDoc (ADOC, ASCIIDOC), TeX (TEX, LTX, LATEX) |
+| Структурированные документы | XML, JSON, YAML, YML |
 | Word | DOC, DOT, DOCX, DOTX, DOCM, DOTM |
 | Excel | XLS, XLT, XLSX, XLTX, XLSM, XLSB, XLTM |
-| PowerPoint | PPT, POT, PPS, PPTX, POTX, PPSX, PPTM, POTM, PPSM |
-| OpenDocument / LibreOffice | ODT, ODS, ODP, ODG, ODF, OTT, OTS, OTP, OTG |
-| Apple iWork и книги | Pages, Numbers, Key, EPUB |
+| PowerPoint | PPT, POT, PPS, PPTX, POTX, PPSX, PPTM, POTM, PPSM, SLDX, SLDM |
+| OpenDocument / LibreOffice | ODT, ODS, ODP, ODG, ODF, OTT, OTS, OTP, OTG, ODM, OTH, OTM, ODB |
+| Visio и OneNote | VSD, VST, VSS, VSW, VSDX, VSTX, VSSX, VSDM, VSTM, VSSM, ONE, ONETOC2 |
+| Печатные документы | XPS, OXPS, PS, EPS, DjVu (DJVU, DJV) |
+| Apple iWork и книги | Pages, Numbers, Key, EPUB, FB2, MOBI, PRC, AZW, AZW3 |
 | ZIP, RAR, 7-Zip | ZIP, ZIPX, RAR, 7Z |
-| TAR и сжатые архивы | TAR, GZ, GZIP, TGZ, BZ2, BZIP2, TBZ, TBZ2, XZ, TXZ, ZST, ZSTD, TZST, LZ4, LZ, LZIP, LZMA, Z, TAZ |
-| Другие архивы | CAB, CPIO, AR, ARJ, LHA, LZH |
+| TAR и сжатые архивы | TAR, GZ, GZIP, TGZ, BZ, BZIP, BZ2, BZIP2, BZ3, BZIP3, TBZ, TBZ2, XZ, TXZ, ZST, ZSTD, TZST, LZ4, LZ, LZIP, LZMA, LZO, LZOP, TZO, Z, TAZ |
+| Другие архивы | CAB, CPIO, AR, ARJ, LHA, LZH, ACE, ARC, ZPAQ |
 
 Составные расширения, например `.tar.gz`, `.tar.bz2`, `.tar.xz` и `.tar.zst`,
 поддерживаются. Регистр расширения не имеет значения.
 Текстовые вложения должны быть корректным UTF-8 без нулевых байтов.
+Разрешены перечисленные расширения; это не разрешение загружать любые файлы.
+PRC/AZW/AZW3 принимаются только с контейнером Mobipocket, а не как произвольные
+бинарные данные. У контейнерных документов проверяется формат контейнера,
+но не каждый внутренний объект или вариант формата.
 
 ## Проверки и скачивание
 
@@ -34,6 +41,13 @@
 проверкой структуры документа, антивирусной проверкой или подтверждением
 безопасности вложенных файлов. Зашифрованные Office-документы могут использовать
 контейнер OLE вместо ZIP.
+
+JSON проверяется на корректный синтаксис. XML и FB2 проверяются потоковым
+парсером с ограничениями глубины и количества элементов, без DTD и внешних
+сущностей. HTML/SVG и активные элементы XML отклоняются. YAML и TeX сохраняются
+как текст: сервер не разворачивает YAML-ссылки, не строит объекты из YAML и не
+компилирует TeX. Эти проверки не заменяют антивирус и не гарантируют безопасность
+при открытии документа в стороннем приложении.
 
 Сохраняются приватное хранение, SHA-256, проверки членства и видимости сообщения,
 ограничения параллельных загрузок, upload lease и очистка незавершённых загрузок.
