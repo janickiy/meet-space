@@ -313,35 +313,6 @@ export function RecordingsPage() {
             </button>
           ))}
         </div>
-        <div
-          className="recordings-filters"
-          role="group"
-          aria-label="Период и сортировка записей"
-        >
-          <label>
-            <CalendarDays size={16} aria-hidden="true" />
-            <select
-              aria-label="Период записей"
-              value={period}
-              disabled={!selected || conference.isError}
-              onChange={(event) => setPeriod(event.target.value)}
-            >
-              <option value="all">Все время</option>
-              <option value="7">Последние 7 дней</option>
-              <option value="30">Последние 30 дней</option>
-              <option value="90">Последние 90 дней</option>
-            </select>
-          </label>
-          <select
-            aria-label="Сортировка загруженных записей"
-            value={sort}
-            disabled={!selected || conference.isError}
-            onChange={(event) => setSort(event.target.value)}
-          >
-            <option value="newest">Сначала новые</option>
-            <option value="oldest">Сначала старые</option>
-          </select>
-        </div>
       </div>
       <section
         className="recordings-selection"
@@ -422,6 +393,35 @@ export function RecordingsPage() {
           </div>
         )}
       </section>
+      <div
+        className="recordings-filters"
+        role="group"
+        aria-label="Период и сортировка записей"
+      >
+        <label>
+          <CalendarDays size={16} aria-hidden="true" />
+          <select
+            aria-label="Период записей"
+            value={period}
+            disabled={!selected || conference.isError}
+            onChange={(event) => setPeriod(event.target.value)}
+          >
+            <option value="all">Все время</option>
+            <option value="7">Последние 7 дней</option>
+            <option value="30">Последние 30 дней</option>
+            <option value="90">Последние 90 дней</option>
+          </select>
+        </label>
+        <select
+          aria-label="Сортировка загруженных записей"
+          value={sort}
+          disabled={!selected || conference.isError}
+          onChange={(event) => setSort(event.target.value)}
+        >
+          <option value="newest">Сначала новые</option>
+          <option value="oldest">Сначала старые</option>
+        </select>
+      </div>
       {!conferenceId && conferences.isPending && <Loading />}
       {!conferenceId && conferences.isSuccess && !loadedConferences.length && (
         <section className="recordings-empty">
