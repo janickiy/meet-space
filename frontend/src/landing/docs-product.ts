@@ -1,9 +1,11 @@
+import type { DocumentationArticle } from "./docs";
+
 /**
  * Public product documentation checked against the current implementation.
  * Sources include USER_GUIDE, ARCHITECTURE, DATA_FLOWS and the registered
  * HTTP routes; historical stage reports are not treated as current limits.
  */
-export const productArticles = [
+export const productArticles: DocumentationArticle[] = [
   {
     slug: "features",
     title: "Возможности",

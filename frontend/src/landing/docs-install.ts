@@ -1,12 +1,5 @@
 import type { DocumentationArticle } from "./docs";
 
-const installerCommit = "12ba606bb98c10638fa6512d970f57c4ebe70de0";
-const source = `https://github.com/janickiy/meet-space/blob/${installerCommit}`;
-const sourceLink = (label: string, path: string) => ({
-  label,
-  href: `${source}/${path}`,
-});
-
 export const installationArticles: DocumentationArticle[] = [
   {
     slug: "before-you-begin",

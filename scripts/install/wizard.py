@@ -137,6 +137,8 @@ def save_installer_runtime(root):
         root: Installer-owned directory whose management script is being generated.
     """
     saved = root / 'config/installer.py'
+    if saved.is_symlink():
+        raise RuntimeError('Сохранённый мастер не должен быть символической ссылкой.')
     if Path(__file__).resolve() != saved.resolve():
         update_owned_configuration(saved, Path(__file__).resolve().read_text(), 0o600)
     update_owned_configuration(root / 'manage.sh', f'''#!/usr/bin/env bash

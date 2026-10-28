@@ -81,7 +81,7 @@ stop_disabled_live_worker() {
   local id
   id="$(compose --profile live ps -q live-worker)"
   if [[ -n "$id" && "$(docker inspect --format '{{.State.Running}}' "$id")" == true ]]; then
-    drain_service live-worker 8093
+    drain_service live-worker 8093 || return 1
     compose --profile live stop live-worker
   fi
 }

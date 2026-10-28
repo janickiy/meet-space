@@ -84,6 +84,11 @@ printf '%s\n' "$RELEASE_LIVE_WORKER" "${RELEASE_APPLICATIONS[*]}" "${RELEASE_SER
         self.assertEqual(saved.stat().st_mode & 0o777, 0o600)
         self.assertIn(str(saved), (self.root / 'manage.sh').read_text())
 
+    def test_saved_manager_rejects_a_redirected_script(self):
+        (self.root / 'config/installer.py').symlink_to(ROOT / 'scripts/install/wizard.py')
+        with self.assertRaises(RuntimeError):
+            wizard.save_installer_runtime(self.root)
+
     def test_docker_environment_cannot_silently_enable_profile(self):
         with mock.patch.dict(os.environ, {'COMPOSE_PROFILES': 'live'}), mock.patch.object(wizard.subprocess, 'run') as run:
             wizard.run('docker', 'compose', 'config', '--quiet')
@@ -190,6 +195,17 @@ drain_service() { printf 'drain:%s\n' "$*"; }
 stop_disabled_live_worker
 ''', 'test', str(ROOT)], text=True).splitlines()
         self.assertEqual(output, ['drain:live-worker 8093', 'compose:--profile live stop live-worker'])
+
+    def test_release_failed_drain_never_stops_a_worker_even_in_conditionals(self):
+        output = subprocess.check_output(['bash', '-c', '''
+set -euo pipefail
+source "$1/scripts/release/common.sh"
+compose() { if [[ "$*" == *" ps "* ]]; then printf '%s' fixture; else printf 'must-not-stop'; fi; }
+docker() { printf true; }
+drain_service() { return 1; }
+if stop_disabled_live_worker; then printf 'must-not-succeed'; else printf 'drain-failed-safely'; fi
+''', 'test', str(ROOT)], text=True)
+        self.assertEqual(output, 'drain-failed-safely')
 
     @unittest.skipUnless(shutil.which('docker'), 'Docker Compose CLI is unavailable')
     def test_real_compose_excludes_live_by_default(self):
