@@ -185,7 +185,7 @@ func (s *Service) Timeline(ctx context.Context, userID string, query domain.Time
 	page := domain.TimelinePage{Items: []domain.View{}}
 	if len(rows) > query.Limit {
 		rows = rows[:query.Limit]
-		cursor := domain.EncodeTimelineCursor(rows[len(rows)-1])
+		cursor := domain.EncodeTimelineCursor(rows[len(rows)-1], query.Sort)
 		page.NextCursor = &cursor
 	}
 	for _, c := range rows {

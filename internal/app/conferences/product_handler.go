@@ -107,7 +107,7 @@ func (h *Handler) History(c *gin.Context) {
 // @Parameters:
 //   - c: контекст запроса и ответа Gin, включая аутентифицированные данные.
 func (h *Handler) Timeline(c *gin.Context) {
-	query := conferences.TimelineQuery{View: c.DefaultQuery("view", "upcoming"), Scope: c.DefaultQuery("scope", "all"), Status: conferences.Status(c.Query("status")), Cursor: c.Query("cursor"), Limit: 20}
+	query := conferences.TimelineQuery{View: c.DefaultQuery("view", "upcoming"), Scope: c.DefaultQuery("scope", "all"), Sort: c.DefaultQuery("sort", "newest"), Status: conferences.Status(c.Query("status")), Cursor: c.Query("cursor"), Limit: 20}
 	if raw, exists := c.GetQuery("limit"); exists {
 		limit, err := strconv.Atoi(raw)
 		if err != nil {

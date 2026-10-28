@@ -2027,7 +2027,7 @@
 
 - **Доступ:** Bearer аккаунта
 
-- **Запрос:** Query view=upcoming/active/past (upcoming), scope=all/owned/participating (all), status, from/to RFC3339, cursor, limit 1–100 (20)
+- **Запрос:** Query view=upcoming/active/past (upcoming), scope=all/owned/participating (all), sort=newest/oldest (newest), status, from/to RFC3339, cursor, limit 1–100 (20). Порядок и границы дат применяются на сервере до пагинации; при изменении сортировки курсор необходимо сбросить.
 
 - **Ответ:** 200: status, items: Conference[], nextCursor
 

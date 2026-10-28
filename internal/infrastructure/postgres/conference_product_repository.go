@@ -208,11 +208,15 @@ func (r *ConferenceRepository) Timeline(ctx context.Context, userID string, quer
 	if err != nil {
 		return nil, err
 	}
+	direction, comparison := "DESC", "<"
+	if query.Sort == "oldest" {
+		direction, comparison = "ASC", ">"
+	}
 	if cursor != nil {
-		q = q.Where("("+timelineDate+", conferences.id) < (?, ?)", cursor.At, cursor.ID)
+		q = q.Where("("+timelineDate+", conferences.id) "+comparison+" (?, ?)", cursor.At, cursor.ID)
 	}
 	rows := []conferences.Conference{}
-	err = q.Select("conferences.*").Order(timelineDate + " DESC, conferences.id DESC").Limit(query.Limit + 1).Find(&rows).Error
+	err = q.Select("conferences.*").Order(timelineDate + " " + direction + ", conferences.id " + direction).Limit(query.Limit + 1).Find(&rows).Error
 	return rows, err
 }
 

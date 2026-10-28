@@ -23,6 +23,10 @@ import { NewDirectChatModal } from "../components/NewDirectChatModal";
 import { CurrentDateTime } from "../components/CurrentDateTime";
 import type { Conference, ConferenceFilters } from "../types";
 import { localDayEnd, localSchedule } from "../collaboration";
+import {
+  conferencePeriodRange,
+  type ConferencePeriod,
+} from "../conferencePeriod";
 import "./dashboard.css";
 import "./dashboard-home.css";
 
@@ -136,14 +140,26 @@ function ConferenceDashboard() {
     useState<NonNullable<ConferenceFilters["scope"]>>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [period, setPeriod] = useState<ConferencePeriod | "custom">("all");
+  const [sort, setSort] =
+    useState<NonNullable<ConferenceFilters["sort"]>>("newest");
   const query = useConferences({
     view: tab,
     scope,
+    sort,
     from: from ? localSchedule(`${from}T00:00`) || undefined : undefined,
     to: to ? localDayEnd(to) || undefined : undefined,
   });
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  /** Applies a quick period to the same server bounds as the date inputs. */
+  function selectPeriod(value: ConferencePeriod) {
+    const range = conferencePeriodRange(value);
+    setPeriod(value);
+    setFrom(range.from);
+    setTo(range.to);
+  }
 
   /** @args view — серверная категория встреч. Сохраняет прочие параметры маршрута. */
   function selectView(view: NonNullable<ConferenceFilters["view"]>) {
@@ -262,7 +278,10 @@ function ConferenceDashboard() {
                 aria-label="Встречи с даты"
                 value={from}
                 max={to || undefined}
-                onChange={(event) => setFrom(event.target.value)}
+                onChange={(event) => {
+                  setFrom(event.target.value);
+                  setPeriod(event.target.value || to ? "custom" : "all");
+                }}
               />
             </label>
             <label className="field">
@@ -272,9 +291,50 @@ function ConferenceDashboard() {
                 aria-label="Встречи по дату"
                 value={to}
                 min={from || undefined}
-                onChange={(event) => setTo(event.target.value)}
+                onChange={(event) => {
+                  setTo(event.target.value);
+                  setPeriod(from || event.target.value ? "custom" : "all");
+                }}
               />
             </label>
+          </div>
+          <div
+            className="dashboard-list-options"
+            role="group"
+            aria-label="Период и сортировка встреч"
+          >
+            <label className="dashboard-period-filter">
+              <CalendarDays size={16} aria-hidden="true" />
+              <select
+                aria-label="Период встреч"
+                value={period}
+                onChange={(event) =>
+                  selectPeriod(event.target.value as ConferencePeriod)
+                }
+              >
+                <option value="all">Все время</option>
+                <option value="7">Последние 7 дней</option>
+                <option value="30">Последние 30 дней</option>
+                <option value="90">Последние 90 дней</option>
+                {period === "custom" && (
+                  <option value="custom" disabled>
+                    Свой период
+                  </option>
+                )}
+              </select>
+            </label>
+            <select
+              aria-label="Сортировка встреч"
+              value={sort}
+              onChange={(event) =>
+                setSort(
+                  event.target.value as NonNullable<ConferenceFilters["sort"]>,
+                )
+              }
+            >
+              <option value="newest">Сначала новые</option>
+              <option value="oldest">Сначала старые</option>
+            </select>
           </div>
           <div className="dashboard-list-caption">
             <span>

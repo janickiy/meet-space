@@ -120,6 +120,7 @@ func ValidateSchedule(at *time.Time, duration *int, now time.Time) error {
 type TimelineQuery struct {
 	View   string
 	Scope  string
+	Sort   string
 	Status Status
 	From   *time.Time
 	To     *time.Time
@@ -129,8 +130,9 @@ type TimelineQuery struct {
 
 // TimelineCursor содержит дату и UUID границы страницы со списком конференций.
 type TimelineCursor struct {
-	At time.Time `json:"at"`
-	ID string    `json:"id"`
+	At   time.Time `json:"at"`
+	ID   string    `json:"id"`
+	Sort string    `json:"sort,omitempty"`
 }
 
 // Validate отклоняет несогласованные или выходящие за пределы допустимых значений поля
@@ -146,13 +148,19 @@ func (q TimelineQuery) Validate() error {
 	if q.Scope != "all" && q.Scope != "owned" && q.Scope != "participating" {
 		return apperrors.ErrInvalidInput
 	}
+	if q.Sort != "" && q.Sort != "newest" && q.Sort != "oldest" {
+		return apperrors.New(apperrors.ErrInvalidInput, "sort must be newest or oldest")
+	}
 	if q.Limit < 1 || q.Limit > 100 || (q.From != nil && q.To != nil && q.From.After(*q.To)) {
 		return apperrors.ErrInvalidInput
 	}
 	if q.Status != "" && q.Status != Created && q.Status != Scheduled && q.Status != Active && q.Status != Finished && q.Status != Cancelled {
 		return apperrors.ErrInvalidInput
 	}
-	_, err := DecodeTimelineCursor(q.Cursor)
+	cursor, err := DecodeTimelineCursor(q.Cursor)
+	if err == nil && cursor != nil && (cursor.Sort == "oldest") != (q.Sort == "oldest") {
+		return apperrors.New(apperrors.ErrInvalidInput, "cursor does not match the requested sort order")
+	}
 	return err
 }
 
@@ -175,7 +183,7 @@ func DecodeTimelineCursor(value string) (*TimelineCursor, error) {
 	}
 	data, err := base64.RawURLEncoding.Strict().DecodeString(value)
 	var c TimelineCursor
-	if err != nil || json.Unmarshal(data, &c) != nil || c.At.IsZero() {
+	if err != nil || json.Unmarshal(data, &c) != nil || c.At.IsZero() || (c.Sort != "" && c.Sort != "newest" && c.Sort != "oldest") {
 		return nil, apperrors.ErrInvalidInput
 	}
 	id, err := uuid.Parse(c.ID)
@@ -186,14 +194,10 @@ func DecodeTimelineCursor(value string) (*TimelineCursor, error) {
 	return &c, nil
 }
 
-// EncodeTimelineCursor кодирует стабильную границу продолжения для временной шкалы конференций.
-//
-// @Parameters:
-//   - c: Значение конференции, обработанное в ходе этой операции.
-//
-// @returns:
-//   - result1: Непрозрачный курсор для продолжения временной шкалы конференций.
-func EncodeTimelineCursor(c Conference) string {
+// EncodeTimelineCursor records the conference's effective date and stable ID.
+// The sort argument binds oldest-first cursors to their direction; empty or
+// newest order retains the legacy cursor format for existing clients.
+func EncodeTimelineCursor(c Conference, sort string) string {
 	at := c.CreatedAt
 	if c.ScheduledAt != nil {
 		at = *c.ScheduledAt
@@ -201,7 +205,11 @@ func EncodeTimelineCursor(c Conference) string {
 	if c.FinishedAt != nil {
 		at = *c.FinishedAt
 	}
-	data, _ := json.Marshal(TimelineCursor{At: at, ID: c.ID})
+	cursor := TimelineCursor{At: at, ID: c.ID}
+	if sort == "oldest" {
+		cursor.Sort = sort
+	}
+	data, _ := json.Marshal(cursor)
 	return base64.RawURLEncoding.EncodeToString(data)
 }
 

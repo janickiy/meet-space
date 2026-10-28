@@ -326,6 +326,7 @@ export interface CursorItems<T> extends Items<T> {
  *   - from — нижняя временная граница фильтра.
  *   - to — верхняя граница фильтра либо локальный путь согласно типу.
  *   - status — HTTP-статус либо состояние встречи.
+ *   - sort — chronological order of the meeting date, newest first by default.
  */
 export interface ConferenceFilters {
   view?: "upcoming" | "active" | "past";
@@ -333,6 +334,7 @@ export interface ConferenceFilters {
   from?: string;
   to?: string;
   status?: ConferenceStatus;
+  sort?: "newest" | "oldest";
 }
 /**
  * ConferenceInput задаёт входные параметры создания немедленной либо запланированной встречи.
