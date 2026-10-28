@@ -756,13 +756,4 @@ Makefile                   Команды разработки и выпуска
 MeetSpace распространяется под [Apache License 2.0](LICENSE).
 Copyright 2026 Яницкий Александр — [janickiy.com](https://janickiy.com/).
 Сведения об авторстве приведены в [NOTICE](NOTICE).
-
 Сторонние компоненты сохраняют собственные лицензии и уведомления об авторстве.
-
-
-
-chat.stage.org.ru
-ssh root@78.17.198.175
-i4fR0JCb33IyKd0Xv1 
-
-
