@@ -286,67 +286,67 @@ export function RecordingsPage() {
           <p>Записи и материалы выбранной встречи.</p>
         </div>
       </section>
+      <div className="recordings-selection-toolbar">
+        <div
+          className="recordings-meeting-views"
+          role="group"
+          aria-label="Список встреч"
+        >
+          {(
+            [
+              ["past", "Завершённые встречи"],
+              ["active", "В эфире"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={meetingView === value}
+              onClick={() => {
+                setMeetingView(value);
+                setParams({});
+                setSearch("");
+                setPeriod("all");
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div
+          className="recordings-filters"
+          role="group"
+          aria-label="Период и сортировка записей"
+        >
+          <label>
+            <CalendarDays size={16} aria-hidden="true" />
+            <select
+              aria-label="Период записей"
+              value={period}
+              disabled={!selected || conference.isError}
+              onChange={(event) => setPeriod(event.target.value)}
+            >
+              <option value="all">Все время</option>
+              <option value="7">Последние 7 дней</option>
+              <option value="30">Последние 30 дней</option>
+              <option value="90">Последние 90 дней</option>
+            </select>
+          </label>
+          <select
+            aria-label="Сортировка загруженных записей"
+            value={sort}
+            disabled={!selected || conference.isError}
+            onChange={(event) => setSort(event.target.value)}
+          >
+            <option value="newest">Сначала новые</option>
+            <option value="oldest">Сначала старые</option>
+          </select>
+        </div>
+      </div>
       <section
         className="recordings-selection"
         aria-label="Поиск и фильтры записей"
       >
-        <div className="recordings-selection-toolbar">
-          <div
-            className="recordings-meeting-views"
-            role="group"
-            aria-label="Список встреч"
-          >
-            {(
-              [
-                ["past", "Завершённые встречи"],
-                ["active", "В эфире"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={meetingView === value}
-                onClick={() => {
-                  setMeetingView(value);
-                  setParams({});
-                  setSearch("");
-                  setPeriod("all");
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div
-            className="recordings-filters"
-            role="group"
-            aria-label="Период и сортировка записей"
-          >
-            <label>
-              <CalendarDays size={16} aria-hidden="true" />
-              <select
-                aria-label="Период записей"
-                value={period}
-                disabled={!selected || conference.isError}
-                onChange={(event) => setPeriod(event.target.value)}
-              >
-                <option value="all">Все время</option>
-                <option value="7">Последние 7 дней</option>
-                <option value="30">Последние 30 дней</option>
-                <option value="90">Последние 90 дней</option>
-              </select>
-            </label>
-            <select
-              aria-label="Сортировка загруженных записей"
-              value={sort}
-              disabled={!selected || conference.isError}
-              onChange={(event) => setSort(event.target.value)}
-            >
-              <option value="newest">Сначала новые</option>
-              <option value="oldest">Сначала старые</option>
-            </select>
-          </div>
-        </div>
         <div className="recordings-selection-fields">
           <label className="recordings-search-field">
             <span>Поиск по загруженным встречам</span>
