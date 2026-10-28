@@ -39,6 +39,45 @@ function renderParagraphText(text: string) {
     );
 }
 
+function DocumentationScreenshots({
+  screenshots,
+}: {
+  screenshots: DocumentationSection["screenshots"];
+}) {
+  return (
+    <>
+      {screenshots?.map((screenshot) => (
+        <figure className="docs-screenshot" key={screenshot.src}>
+          <a
+            className="docs-screenshot-link"
+            href={screenshot.src}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Открыть скриншот «${screenshot.caption}» в полном размере в новой вкладке`}
+          >
+            <img
+              src={screenshot.src}
+              alt={screenshot.alt}
+              width={screenshot.width}
+              height={screenshot.height}
+              style={{
+                width: `min(100%, ${Math.min(screenshot.width, (640 * screenshot.width) / screenshot.height)}px)`,
+                aspectRatio: `${screenshot.width} / ${screenshot.height}`,
+              }}
+              loading="lazy"
+              decoding="async"
+            />
+            <span className="docs-screenshot-open" aria-hidden="true">
+              Открыть в полном размере <ArrowUpRight size={14} />
+            </span>
+          </a>
+          <figcaption>{screenshot.caption}</figcaption>
+        </figure>
+      ))}
+    </>
+  );
+}
+
 function CodeBlock({
   code,
 }: {
@@ -179,12 +218,26 @@ function DocumentationSearch() {
           const text = [
             article.title,
             section.title,
+            section === article.sections[0] ? article.lead || "" : "",
             ...(section.paragraphs || []),
             ...(section.subsections?.flatMap(
-              ({ title, bullets, paragraphs }) => [
+              ({
                 title,
+                introParagraphs,
+                bullets,
+                steps,
+                paragraphs,
+                screenshots,
+              }) => [
+                title,
+                ...(introParagraphs || []),
                 ...(bullets || []),
+                ...(steps || []),
                 ...paragraphs,
+                ...(screenshots?.flatMap(({ alt, caption }) => [
+                  alt,
+                  caption,
+                ]) || []),
               ],
             ) || []),
             ...(section.bullets || []),
@@ -373,7 +426,6 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
           {menuOpen ? <X size={18} /> : <Menu size={18} />} Разделы
           документации{" "}
         </button>
-        <span>RU</span>
       </div>
       <div className="docs-layout">
         <aside
@@ -381,7 +433,7 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
           id="docs-sidebar"
         >
           <Link className="docs-sidebar-home" to="/docs">
-            <BookOpen size={18} /> Руководство MeetSpace <span>RU</span>
+            <BookOpen size={18} /> Руководство MeetSpace
           </Link>
           <nav aria-label="Главы документации">
             {documentationGroups.map((item) => (
@@ -439,24 +491,14 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
                 )}
               </div>
               <h1>{article.title}</h1>
-              {!isLinkOnlyArticle && (
-                <p className="docs-lead">{article.description}</p>
-              )}
-              {!isLinkOnlyArticle && (
-                <div className="docs-article-meta">
-                  <span className="docs-status-dot" /> Документация на русском{" "}
-                  {article.slug !== "overview" &&
-                    (article.slug === "installation" ? (
-                      <>
-                        <span>·</span> Проверено 23 октября 2026 г.{" "}
-                      </>
-                    ) : (
-                      <>
-                        <span>·</span> Проверено 20 октября 2026 г.{" "}
-                      </>
-                    ))}
-                </div>
-              )}
+              {!isLinkOnlyArticle &&
+                (article.lead || article.slug !== "interface") && (
+                  <p className="docs-lead">
+                    {article.lead
+                      ? renderParagraphText(article.lead)
+                      : article.description}
+                  </p>
+                )}
             </header>
             {!isLinkOnlyArticle && (
               <details className="docs-mobile-toc">
@@ -489,6 +531,9 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
                 {section.subsections?.map((subsection) => (
                   <div className="docs-subsection" key={subsection.title}>
                     <h3>{subsection.title}</h3>
+                    {subsection.introParagraphs?.map((paragraph) => (
+                      <p key={paragraph}>{renderParagraphText(paragraph)}</p>
+                    ))}
                     {subsection.bullets && (
                       <ul>
                         {subsection.bullets.map((bullet) => (
@@ -496,39 +541,22 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
                         ))}
                       </ul>
                     )}
+                    {subsection.steps && (
+                      <ol>
+                        {subsection.steps.map((step) => (
+                          <li key={step}>{renderParagraphText(step)}</li>
+                        ))}
+                      </ol>
+                    )}
                     {subsection.paragraphs.map((paragraph) => (
                       <p key={paragraph}>{renderParagraphText(paragraph)}</p>
                     ))}
+                    <DocumentationScreenshots
+                      screenshots={subsection.screenshots}
+                    />
                   </div>
                 ))}
-                {section.screenshots?.map((screenshot) => (
-                  <figure className="docs-screenshot" key={screenshot.src}>
-                    <a
-                      className="docs-screenshot-link"
-                      href={screenshot.src}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`Открыть скриншот «${screenshot.caption}» в полном размере в новой вкладке`}
-                    >
-                      <img
-                        src={screenshot.src}
-                        alt={screenshot.alt}
-                        width={screenshot.width}
-                        height={screenshot.height}
-                        style={{
-                          width: `min(100%, ${Math.min(screenshot.width, (640 * screenshot.width) / screenshot.height)}px)`,
-                          aspectRatio: `${screenshot.width} / ${screenshot.height}`,
-                        }}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      <span className="docs-screenshot-open" aria-hidden="true">
-                        Открыть в полном размере <ArrowUpRight size={14} />
-                      </span>
-                    </a>
-                    <figcaption>{screenshot.caption}</figcaption>
-                  </figure>
-                ))}
+                <DocumentationScreenshots screenshots={section.screenshots} />
                 {section.bullets && (
                   <ul>
                     {section.bullets.map((bullet) => (
@@ -555,7 +583,7 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
                         <tr>
                           {section.table.headings.map((heading) => (
                             <th scope="col" key={heading}>
-                              {heading}
+                              {renderParagraphText(heading)}
                             </th>
                           ))}
                         </tr>
@@ -564,7 +592,9 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
                         {section.table.rows.map((row, rowIndex) => (
                           <tr key={rowIndex}>
                             {row.map((cell, cellIndex) => (
-                              <td key={cellIndex}>{cell}</td>
+                              <td key={cellIndex}>
+                                {renderParagraphText(cell)}
+                              </td>
                             ))}
                           </tr>
                         ))}

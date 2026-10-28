@@ -139,7 +139,7 @@ export function SelfHostedPage() {
           </h1>
           <p className="self-lead">
             Настройте, разверните и поддерживайте MeetSpace на собственном
-            Linux-сервере. Подробные инструкции со ссылками на исходные
+            VDS/VPS-сервере. Подробные инструкции со ссылками на исходные
             материалы.
           </p>
           <div className="self-meta">

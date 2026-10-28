@@ -34,7 +34,6 @@ import { PlatformLogo } from "../landing/PlatformLogo";
 import { applicationPath, MARKETING_ONLY } from "../landing/application";
 import {
   DOWNLOADS,
-  RELEASE,
   PROJECT_URL,
   HOSTED_APP_URL,
   DESKTOP_PROJECT_URL,
@@ -1060,9 +1059,6 @@ export function LandingFooter() {
           <span>
             © {new Date().getFullYear()} MeetSpace · Яницкий Александр
           </span>
-          <a href={RELEASE.url} target="_blank" rel="noopener noreferrer">
-            Выпуск на сервере {RELEASE.name} <ArrowUpRight size={12} />
-          </a>
           <a href="#main">
             Наверх <ArrowUpRight size={13} />
           </a>

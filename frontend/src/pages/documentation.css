@@ -1139,3 +1139,84 @@
     display: none;
   }
 }
+
+/* Overview quick starts: aligned content rows and readable card typography. */
+#start-here .docs-quick-starts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+#start-here .docs-quick-starts > a {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  row-gap: 14px;
+  min-width: 0;
+  padding: 22px;
+}
+#start-here .docs-quick-icon {
+  margin: 0;
+}
+#start-here .docs-quick-starts h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.45;
+  font-weight: 600;
+  padding-right: 8px;
+}
+#start-here .docs-quick-starts p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: #617089;
+  overflow-wrap: normal;
+}
+@media (max-width: 640px) {
+  #start-here .docs-quick-starts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #start-here .docs-quick-starts > a {
+    padding: 20px;
+    row-gap: 12px;
+  }
+}
+
+/* Consistent editorial formatting for documentation. */
+.docs-lead strong,
+.docs-section strong {
+  color: #34465f;
+  font-weight: 700;
+}
+.docs-section p,
+.docs-section li {
+  overflow-wrap: break-word;
+}
+.docs-subsection + .docs-subsection {
+  margin-top: 30px;
+}
+.docs-section h2,
+.docs-subsection h3 {
+  text-wrap: pretty;
+}
+.docs-table-wrap td:first-child {
+  color: #34465f;
+  font-weight: 600;
+}
+.docs-code-bar,
+.docs-code-bar button {
+  font-size: 12px;
+}
+.docs-code-bar button {
+  min-height: 30px;
+}
+@media (max-width: 800px) {
+  .docs-search-results {
+    right: 0;
+    left: auto;
+    width: min(380px, calc(100vw - 40px));
+  }
+}
+@media (max-width: 540px) {
+  .docs-search-results {
+    width: 100%;
+  }
+}
