@@ -1,10 +1,6 @@
 import { useId, useState } from "react";
 import { Link } from "react-router";
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   Bell,
@@ -24,6 +20,8 @@ import { notificationLink } from "../intelligence";
 import type { Notification } from "../types";
 import { Button, ErrorNotice, Loading, Modal } from "./ui";
 import "./notification-modal.css";
+
+const previewLimit = 10;
 
 function notificationIcon(item: Notification) {
   if (item.type === "chat.message")
@@ -78,7 +76,7 @@ export function notificationLabel(item: Notification): string {
   return "Обновление вашей конференции";
 }
 /**
- * NotificationBell показывает непрочитанные уведомления, поддерживает страницы и отметку прочтения.
+ * NotificationBell shows the ten latest notifications and the global unread count.
  *
  *
  * @returns JSX-представление компонента для текущих свойств и состояния.
@@ -88,27 +86,10 @@ export function NotificationBell() {
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const unreadDescriptionId = useId();
-  const query = useInfiniteQuery({
-    queryKey: ["notifications", user?.id],
-    initialPageParam: undefined as string | undefined,
-    /**
-     * queryFn загружает данные запроса с его сигналом отмены для кеша React Query.
-     *
-     * @args
-     *   - объект параметров: pageParam — свойство текущего компонента; signal — сигнал отмены запроса или потока.
-     *
-     * @returns вычисленное значение: api.notifications(pageParam, signal).
-     */
-    queryFn: ({ pageParam, signal }) => api.notifications(pageParam, signal),
-    /**
-     * getNextPageParam извлекает курсор продолжения серверной страницы.
-     *
-     * @args
-     *   - last — последняя загруженная страница, по которой определяется продолжение.
-     *
-     * @returns вычисленное значение: last.nextCursor || undefined.
-     */
-    getNextPageParam: (last) => last.nextCursor || undefined,
+  const query = useQuery({
+    queryKey: ["notifications", user?.id, "preview", previewLimit],
+    queryFn: ({ signal }) => api.notifications(undefined, signal, previewLimit),
+    enabled: !!user,
     refetchInterval: 15000,
   });
   const read = useMutation({
@@ -123,32 +104,12 @@ export function NotificationBell() {
       void client.invalidateQueries({ queryKey: ["notifications", user?.id] });
     },
   });
-  const unread = query.data?.pages[0]?.unreadCount || 0;
+  const unread = query.data?.unreadCount || 0;
   const rows = [
     ...new Map(
-      (
-        query.data?.pages.flatMap(
-          /**
-           * Обработчик flatMap преобразует текущий элемент в данные или представление результирующего списка.
-           *
-           * @args
-           *   - page — изолированная страница Playwright.
-           *
-           * @returns преобразованное значение текущего элемента для результирующего набора.
-           */ (page) => page.items,
-        ) || []
-      ).map(
-        /**
-         * Обработчик map преобразует текущий элемент в данные или представление результирующего списка.
-         *
-         * @args
-         *   - item — элемент списка, который обрабатывает текущий шаг.
-         *
-         * @returns преобразованное значение текущего элемента для результирующего набора.
-         */ (item) => [item.id, item],
-      ),
+      (query.data?.items || []).map((item) => [item.id, item]),
     ).values(),
-  ];
+  ].slice(0, previewLimit);
   return (
     <>
       <button
@@ -306,23 +267,6 @@ export function NotificationBell() {
                     },
                   )}
                 </ul>
-                {query.hasNextPage && (
-                  <Button
-                    variant="outline"
-                    className="notification-modal-more"
-                    busy={query.isFetchingNextPage}
-                    onClick={
-                      /**
-                       * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-                       *
-                       *
-                       * @returns вычисленное значение: void query.fetchNextPage().
-                       */ () => void query.fetchNextPage()
-                    }
-                  >
-                    Ещё уведомления
-                  </Button>
-                )}
                 {query.isError && (
                   <Button
                     variant="outline"

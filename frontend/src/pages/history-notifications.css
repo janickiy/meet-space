@@ -493,12 +493,62 @@
   max-width: none;
   margin-inline: 0;
 }
+.notifications-page > .page-heading {
+  flex-wrap: wrap;
+}
+.notifications-page > .page-heading > div {
+  flex: 1 1 320px;
+  min-width: 0;
+}
 .notifications-count {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   border-radius: 4px;
   padding: 4px 8px;
   background: var(--primary-soft);
   color: var(--primary);
   font-size: calc(12px * var(--text-scale));
+}
+.notifications-pagination {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.notifications-pagination > .button {
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+}
+.notifications-page-number {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text);
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.5;
+  text-align: center;
+}
+.notifications-page-number small {
+  color: var(--muted);
+  font-size: calc(11px * var(--text-scale));
+}
+.notifications-page .page-heading h1 {
+  scroll-margin-top: 96px;
+}
+@media (max-width: 600px) {
+  .notifications-pagination {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .notifications-page-number {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
 }
 .notifications-page-list .notification-row {
   align-items: flex-start;

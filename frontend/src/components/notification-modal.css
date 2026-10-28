@@ -167,12 +167,6 @@
   display: none;
 }
 
-.notification-modal .notification-modal-more {
-  width: 100%;
-  margin-top: 12px;
-  font-size: calc(13px * var(--text-scale));
-}
-
 .notification-modal-footer {
   flex-shrink: 0;
   padding: 8px 24px;

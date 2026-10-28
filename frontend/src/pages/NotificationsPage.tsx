@@ -1,10 +1,17 @@
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import {
   useInfiniteQuery,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { ArrowUpRight, Bell, Check } from "lucide-react";
+import {
+  ArrowUpRight,
+  Bell,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { notificationLabel } from "../components/NotificationBell";
@@ -13,37 +20,76 @@ import { notificationLink } from "../intelligence";
 import { formatDate } from "../utils";
 import "./history-notifications.css";
 
-/** Полная история личных уведомлений с серверным курсором и отметкой прочтения. */
+const pageSize = 15;
+
+/** Resets pagination when the signed-in account changes. */
 export function NotificationsPage() {
   const { user } = useAuth();
+  return (
+    <NotificationHistory key={user?.id || "anonymous"} userId={user?.id} />
+  );
+}
+
+/** Displays one cursor-backed page of fifteen notifications for userId. */
+function NotificationHistory({ userId }: { userId?: string }) {
   const client = useQueryClient();
+  const [pageIndex, setPageIndex] = useState(0);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const query = useInfiniteQuery({
-    queryKey: ["notifications", user?.id],
+    queryKey: ["notifications", userId, "history", pageSize],
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) => api.notifications(pageParam, signal),
+    queryFn: ({ pageParam, signal }) =>
+      api.notifications(pageParam, signal, pageSize),
     getNextPageParam: (last) => last.nextCursor || undefined,
+    enabled: !!userId,
   });
   const read = useMutation({
     mutationFn: api.readNotification,
     onSettled: () => {
-      void client.invalidateQueries({ queryKey: ["notifications", user?.id] });
+      void client.invalidateQueries({ queryKey: ["notifications", userId] });
     },
   });
+  const pages = query.data?.pages || [];
+  const lastLoadedPage = pages.reduce(
+    (last, page, index) => (page.items.length ? index : last),
+    0,
+  );
+  const currentPage = Math.min(pageIndex, lastLoadedPage);
   const rows = [
     ...new Map(
-      (query.data?.pages.flatMap((page) => page.items) || []).map((item) => [
-        item.id,
-        item,
-      ]),
+      (pages[currentPage]?.items || []).map((item) => [item.id, item]),
     ).values(),
-  ];
+  ].slice(0, pageSize);
   const unread = query.data?.pages[0]?.unreadCount || 0;
+  const hasNext = currentPage < lastLoadedPage || query.hasNextPage;
+
+  /** Moves to a loaded page and returns focus to the list heading. */
+  function showPage(index: number) {
+    setPageIndex(index);
+    headingRef.current?.focus({ preventScroll: true });
+    headingRef.current?.scrollIntoView({ block: "start" });
+  }
+
+  /** Advances only after the next cursor page has loaded successfully. */
+  async function nextPage() {
+    if (query.isFetching || !hasNext) return;
+    const next = currentPage + 1;
+    if (next <= lastLoadedPage && pages[next]?.items.length) {
+      showPage(next);
+      return;
+    }
+    const result = await query.fetchNextPage();
+    if (!result.isError && result.data?.pages[next]?.items.length)
+      showPage(next);
+  }
 
   return (
     <div className="notifications-page">
       <section className="page-heading">
         <div>
-          <h1>Уведомления</h1>
+          <h1 ref={headingRef} tabIndex={-1}>
+            Уведомления
+          </h1>
           <p>Сообщения и ответы в чатах, приглашения и материалы встреч.</p>
         </div>
         <span className="notifications-count" role="status">
@@ -120,17 +166,46 @@ export function NotificationsPage() {
                 </article>
               ))}
             </div>
-            {query.hasNextPage && (
-              <Button
-                variant="outline"
-                busy={query.isFetchingNextPage}
-                onClick={() => void query.fetchNextPage()}
+            {(rows.length > 0 || currentPage > 0) && (
+              <nav
+                className="notifications-pagination"
+                aria-label="Страницы уведомлений"
+                aria-busy={query.isFetching}
               >
-                Ещё уведомления
-              </Button>
+                <Button
+                  variant="outline"
+                  aria-label="Предыдущая страница"
+                  disabled={currentPage === 0 || query.isFetching}
+                  onClick={() => showPage(currentPage - 1)}
+                >
+                  <ChevronLeft size={17} aria-hidden="true" />
+                  Назад
+                </Button>
+                <span className="notifications-page-number" role="status">
+                  Страница {currentPage + 1}
+                  <small>По {pageSize} уведомлений</small>
+                </span>
+                <Button
+                  variant="outline"
+                  aria-label="Следующая страница"
+                  disabled={!hasNext || query.isFetching}
+                  busy={query.isFetchingNextPage}
+                  onClick={() => void nextPage()}
+                >
+                  Далее
+                  <ChevronRight size={17} aria-hidden="true" />
+                </Button>
+              </nav>
             )}
             {query.isError && (
-              <Button variant="outline" onClick={() => void query.refetch()}>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  void (query.isFetchNextPageError
+                    ? nextPage()
+                    : query.refetch())
+                }
+              >
                 Попробовать снова
               </Button>
             )}

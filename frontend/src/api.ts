@@ -1380,12 +1380,13 @@ export const api = {
    * @args
    *   - cursor (string) — непрозрачный курсор продолжения страницы (необязательный параметр).
    *   - signal (AbortSignal) — сигнал отмены запроса или потока (необязательный параметр).
+   *   - limit (number) — maximum number of notifications requested (default 30).
    *
    * @returns Promise с проверенным ответом API; сетевые ошибки и отказ сервера отклоняют Promise.
    */
-  notifications: (cursor?: string, signal?: AbortSignal) =>
+  notifications: (cursor?: string, signal?: AbortSignal, limit = 30) =>
     request<NotificationsPage>(
-      `/notifications?limit=30${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+      `/notifications?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
       { signal },
     ),
   /**

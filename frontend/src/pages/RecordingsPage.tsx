@@ -286,89 +286,130 @@ export function RecordingsPage() {
           <p>Записи и материалы выбранной встречи.</p>
         </div>
       </section>
-      <section className="recordings-selection" aria-label="Выбор встречи">
-        <div
-          className="recordings-meeting-views"
-          role="group"
-          aria-label="Список встреч"
-        >
-          {(
-            [
-              ["past", "Завершённые встречи"],
-              ["active", "В эфире"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={meetingView === value}
-              onClick={() => {
-                setMeetingView(value);
-                setParams({});
-                setSearch("");
-                setPeriod("all");
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <label className="recordings-search-field">
-          <span>Поиск по загруженным встречам</span>
-          <span className="recordings-search">
-            <Search size={17} aria-hidden="true" />
-            <input
-              type="search"
-              aria-label="Поиск по загруженным встречам"
-              placeholder="Название встречи"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </span>
-        </label>
-        <label className="recordings-conference-selector" htmlFor={selectionId}>
-          <span>Встреча</span>
-          <select
-            aria-label="Встреча"
-            id={selectionId}
-            value={conferenceId}
-            onChange={(event) => chooseConference(event.target.value)}
-            disabled={!conferenceId && !loadedConferences.length}
+      <section
+        className="recordings-selection"
+        aria-label="Поиск и фильтры записей"
+      >
+        <div className="recordings-selection-toolbar">
+          <div
+            className="recordings-meeting-views"
+            role="group"
+            aria-label="Список встреч"
           >
-            {!conferenceId && <option value="">Выберите встречу</option>}
-            {conferenceId &&
-              !visibleConferences.some((item) => item.id === conferenceId) && (
-                <option value={conferenceId}>
-                  {selected?.title || "Выбранная встреча"}
-                </option>
-              )}
-            {visibleConferences.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
+            {(
+              [
+                ["past", "Завершённые встречи"],
+                ["active", "В эфире"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={meetingView === value}
+                onClick={() => {
+                  setMeetingView(value);
+                  setParams({});
+                  setSearch("");
+                  setPeriod("all");
+                }}
+              >
+                {label}
+              </button>
             ))}
-          </select>
-        </label>
-        {conferences.hasNextPage && (
-          <Button
-            variant="outline"
-            busy={conferences.isFetchingNextPage}
-            onClick={() => void conferences.fetchNextPage()}
+          </div>
+          <div
+            className="recordings-filters"
+            role="group"
+            aria-label="Период и сортировка записей"
           >
-            Ещё встречи
-          </Button>
-        )}
+            <label>
+              <CalendarDays size={16} aria-hidden="true" />
+              <select
+                aria-label="Период записей"
+                value={period}
+                disabled={!selected || conference.isError}
+                onChange={(event) => setPeriod(event.target.value)}
+              >
+                <option value="all">Все время</option>
+                <option value="7">Последние 7 дней</option>
+                <option value="30">Последние 30 дней</option>
+                <option value="90">Последние 90 дней</option>
+              </select>
+            </label>
+            <select
+              aria-label="Сортировка загруженных записей"
+              value={sort}
+              disabled={!selected || conference.isError}
+              onChange={(event) => setSort(event.target.value)}
+            >
+              <option value="newest">Сначала новые</option>
+              <option value="oldest">Сначала старые</option>
+            </select>
+          </div>
+        </div>
+        <div className="recordings-selection-fields">
+          <label className="recordings-search-field">
+            <span>Поиск по загруженным встречам</span>
+            <span className="recordings-search">
+              <Search size={17} aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="Поиск по загруженным встречам"
+                placeholder="Название встречи"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </span>
+          </label>
+          <label
+            className="recordings-conference-selector"
+            htmlFor={selectionId}
+          >
+            <span>Встреча</span>
+            <select
+              aria-label="Встреча"
+              id={selectionId}
+              value={conferenceId}
+              onChange={(event) => chooseConference(event.target.value)}
+              disabled={!conferenceId && !loadedConferences.length}
+            >
+              {!conferenceId && <option value="">Выберите встречу</option>}
+              {conferenceId &&
+                !visibleConferences.some(
+                  (item) => item.id === conferenceId,
+                ) && (
+                  <option value={conferenceId}>
+                    {selected?.title || "Выбранная встреча"}
+                  </option>
+                )}
+              {visibleConferences.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="recordings-selection-footer">
+          <p className="recordings-selection-note">
+            Поиск выполняется по загруженным встречам. Записи загружаются только
+            для выбранной встречи.
+          </p>
+          {conferences.hasNextPage && (
+            <Button
+              variant="outline"
+              busy={conferences.isFetchingNextPage}
+              onClick={() => void conferences.fetchNextPage()}
+            >
+              Ещё встречи
+            </Button>
+          )}
+        </div>
         {search && !visibleConferences.length && (
           <p className="recordings-selection-note" role="status">
             В загруженных встречах совпадений нет.
           </p>
         )}
-        {
-          <p className="recordings-selection-note">
-            Поиск выполняется по загруженным встречам. Записи загружаются только
-            для выбранной встречи.
-          </p>
-        }
         {conferences.isError && (
           <div className="recordings-error">
             <ErrorNotice>Не удалось загрузить список встреч.</ErrorNotice>
@@ -426,29 +467,6 @@ export function RecordingsPage() {
                     Организатор {history.data.item.owner.displayName}
                   </p>
                 )}
-            </div>
-            <div className="recordings-filters">
-              <label>
-                <CalendarDays size={16} aria-hidden="true" />
-                <select
-                  aria-label="Период записей"
-                  value={period}
-                  onChange={(event) => setPeriod(event.target.value)}
-                >
-                  <option value="all">Все время</option>
-                  <option value="7">Последние 7 дней</option>
-                  <option value="30">Последние 30 дней</option>
-                  <option value="90">Последние 90 дней</option>
-                </select>
-              </label>
-              <select
-                aria-label="Сортировка загруженных записей"
-                value={sort}
-                onChange={(event) => setSort(event.target.value)}
-              >
-                <option value="newest">Сначала новые</option>
-                <option value="oldest">Сначала старые</option>
-              </select>
             </div>
           </div>
           {records.hasNextPage && (
