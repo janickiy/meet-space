@@ -35,7 +35,17 @@ function renderParagraphText(text: string) {
   return text
     .split(/(\*\*[^*]+\*\*)/g)
     .map((part, index) =>
-      index % 2 === 1 ? <strong key={index}>{part.slice(2, -2)}</strong> : part,
+      index % 2 === 1 ? (
+        <strong key={index}>
+          {part.startsWith("**`") && part.endsWith("`**") ? (
+            <code>{part.slice(3, -3)}</code>
+          ) : (
+            part.slice(2, -2)
+          )}
+        </strong>
+      ) : (
+        part
+      ),
     );
 }
 

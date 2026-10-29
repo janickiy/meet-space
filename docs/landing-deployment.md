@@ -25,9 +25,189 @@ Marketing-only mode renders the root landing without account recovery or API
 providers. Account and workspace actions use absolute application URLs. The
 default application build retains its existing account behavior.
 
-## Latest Interface workspace summary relocation
+## Latest acceptance checks introduction update
 
-Current release: `landing-20261028T024712Z-interface-lead`, published on
+Current release: `landing-20261028T033753Z-acceptance-copy`, published on
+28 October 2026 (Europe/Moscow) from
+`landing-20261028T033347Z-installer-copy`.
+Replaced the introduction to Before you begin > Check after installation with
+the two requested paragraphs about testing the web interface, authentication,
+audio and video before inviting users. Only “Важно:” is bold in the second
+paragraph about Docker, WebRTC and network configuration. The four checks,
+version verification and final note are unchanged.
+Source: `frontend/src/landing/docs-install.ts`.
+
+Scoped active article data and matching SSR are published under
+`acceptance-copy-20261028t033753z`. Source SSR matches the parent baseline;
+replacing the changed introduction yields identical before/after HTML.
+Other paragraphs, articles, metadata, reading time and CSS are unchanged.
+Prettier, whitespace, Node24 syntax, exact live HTML/client comparisons and
+all 32,569 prepared-file checksums passed. Parent checksums passed before
+preparation. Browser checks confirmed two exact paragraphs, bold “Важно:”,
+all four steps, no overflow and no runtime errors.
+Free space after preparation: 260,034,560 bytes. No full application rebuild.
+Unchanged files are hard-linked; changes use private files and atomic replacement.
+
+Evidence: `frontend/test-results/landing/acceptance-copy-browser-qa.json`,
+`acceptance-copy-source-verification.json`, `acceptance-copy-published-verification.json`,
+`published-acceptance-copy.png` and `verify-acceptance-copy.mjs`.
+Snapshots and scripts: `/private/tmp/meetspace-acceptance-copy-20261028`.
+
+## Previous prepared-image installer explanation update
+
+Preceding release: `landing-20261028T033347Z-installer-copy`, published on
+28 October 2026 (Europe/Moscow) from
+`landing-20261028T032800Z-before-begin-copy`.
+Replaced the first paragraph under Before you begin > New installation from
+prepared images with the exact requested explanation of the interactive
+installer. `install.sh` is rendered as bold inline code. Added handling for an
+entire code fragment inside bold text; no existing active article used that
+combination, so other rendered fragments are unchanged. Sources:
+`frontend/src/landing/docs-install.ts` and `frontend/src/pages/DocumentationPage.tsx`.
+
+Scoped active article data, rich-text expression and matching SSR are published
+under `installer-copy-20261028t033347z`. Source SSR matches the parent baseline;
+the HTML diff contains only the paragraph and automatic reading time (4 to 5
+minutes). Other article data, paragraphs, SEO metadata and CSS are unchanged.
+Prettier, whitespace, Node24 syntax, exact public HTML/client comparisons and
+all 32,191 prepared-file checksums passed. Parent checksums passed before
+preparation. Browser verification confirmed exact wording, nested bold code
+with weight 700 and size 17px, no overflow and no runtime errors.
+Free space after preparation: 276,955,136 bytes. No full application rebuild.
+Unchanged files are hard-linked; changes use private files and atomic replacement.
+
+Evidence: `frontend/test-results/landing/installer-copy-browser-qa.json`,
+`installer-copy-source-verification.json`, `installer-copy-published-verification.json`,
+`published-installer-copy.png` and `verify-installer-copy.mjs`.
+Snapshots and scripts: `/private/tmp/meetspace-installer-copy-20261028`.
+
+## Previous Before you begin wording update
+
+Preceding release: `landing-20261028T032800Z-before-begin-copy`, published on
+28 October 2026 (Europe/Moscow) from
+`landing-20261028T032431Z-support-heading`.
+Replaced the first paragraph in Before you begin > Choose your installation
+path with the exact requested wording: “Перед началом определите,
+**устанавливаете ли вы MeetSpace впервые или обновление и настройка уже
+установленной платформы**. От этого зависит порядок действий.”
+Source: `frontend/src/landing/docs-install.ts`. Bold emphasis is preserved.
+
+Published scoped active article data and matching SSR under
+`before-begin-copy-20261028t032800z`. Source SSR matches the parent baseline;
+replacing the one changed paragraph yields identical before/after HTML.
+Other paragraphs, article data, metadata and CSS are unchanged. Prettier,
+whitespace, Node24 syntax, exact public HTML/client checks and all 31,813
+prepared-file checksums passed. Parent checksums passed before preparation.
+Browser checks confirmed the exact wording, bold span, no overflow and no
+runtime errors. Free space after preparation: 293,883,904 bytes.
+No full application rebuild. Unchanged files are hard-linked; changes use
+private files and atomic replacement.
+
+Evidence: `frontend/test-results/landing/before-begin-copy-browser-qa.json`,
+`before-begin-copy-source-verification.json`, `before-begin-copy-published-verification.json`,
+`published-before-begin-copy.png` and `verify-before-begin-copy.mjs`.
+Snapshots and scripts: `/private/tmp/meetspace-before-begin-copy-20261028`.
+
+## Previous support heading update
+
+Preceding release: `landing-20261028T032431Z-support-heading`, published on
+28 October 2026 (Europe/Moscow) from
+`landing-20261028T031517Z-direct-call-screenshot`.
+Made the Support section heading visible as “Коммерческая разработка” directly
+before the existing individual development and adaptation paragraph. The same
+`where-to-get-help` anchor is preserved, and the table of contents uses the new
+heading. Both commercial paragraphs, the introduction and contacts are unchanged.
+Source: `frontend/src/landing/docs-product.ts`.
+
+Scoped active Support article data and matching SSR are published under
+`support-heading-20261028t032431z`. Source SSR matches the parent, and the
+before/after HTML differs only in the visible heading and its contents links.
+Other active articles and CSS are unchanged. Prettier, whitespace, Node24 syntax,
+exact live HTML/client comparisons and all 31,435 prepared-file checksums passed.
+The parent release checksums passed before preparation. Browser verification
+confirmed the visible H2 immediately before the requested paragraph, preserved
+text, matching table of contents, no overflow and no runtime errors.
+Free space after preparation: 310,476,800 bytes. No full application rebuild.
+Unchanged files are hard-linked; changes use private files and atomic replacement.
+
+Evidence: `frontend/test-results/landing/support-heading-browser-qa.json`,
+`support-heading-source-verification.json`, `support-heading-published-verification.json`,
+`published-support-heading.png` and `verify-support-heading.mjs`.
+Snapshots and scripts: `/private/tmp/meetspace-support-heading-20261028`.
+
+## Previous direct call screenshot update
+
+Preceding release: `landing-20261028T031517Z-direct-call-screenshot`, published on
+28 October 2026 (Europe/Moscow) from
+`landing-20261028T025735Z-appearance-screenshot-order`.
+Replaced the group chat screenshot below Direct calls with the second supplied
+attachment, copied byte-for-byte to `media/docs/direct-call.png` (2480×1700).
+The image now belongs to the Direct calls subsection. Alt text and caption
+describe the outgoing personal call, waiting for an answer and call controls.
+The full-size link points to the original PNG. The older group chat asset is
+retained for cached pages and rollback. All nine article images remain present.
+
+Published scoped Interface data and matching SSR under
+`direct-call-screenshot-20261028t031517z`. Source SSR matches the parent;
+removing the replaced figure yields identical before/after HTML. Other active
+articles and CSS are unchanged. Prettier, whitespace, Node24 syntax, exact live
+HTML/client comparisons, image bytes/MIME/SHA-256 and all 31,057 prepared-file
+checksums passed. Both active and parent release checksums passed after
+activation. Browser verification confirmed the correct subsection, one new image,
+no old group chat image, original image dimensions, full-size link, no overflow
+and no runtime errors. Free space after preparation: 327,278,592 bytes.
+No full application rebuild. Unchanged files are hard-linked; modifications use
+private files and atomic replacement.
+
+Evidence: `frontend/test-results/landing/direct-call-screenshot-browser-qa.json`,
+`direct-call-screenshot-source-verification.json`,
+`direct-call-screenshot-published-verification.json`,
+`published-direct-call-screenshot.png` and `verify-direct-call-screenshot.mjs`.
+Snapshots and scripts: `/private/tmp/meetspace-direct-call-screenshot-20261028`.
+
+## Previous appearance screenshot placement update
+
+Preceding release: `landing-20261028T025735Z-appearance-screenshot-order`, published on
+28 October 2026 (Europe/Moscow) from `landing-20261028T024712Z-interface-lead`.
+Moved the appearance settings screenshot into Interface > Account settings >
+Devices and appearance, immediately after its two paragraphs and before
+Saved preferences. The same image, full-size link, alt text, caption and
+928×780 dimensions are retained; all nine article screenshots remain present.
+Only `docs-interface.ts` data changed. Existing subsection renderer/search
+support and CSS were reused.
+
+Scoped active Interface data and matching SSR figure relocation are published
+under `appearance-screenshot-order-20261028t025735z`. Source SSR matches the
+parent, and removing the one moved figure yields identical before/after HTML.
+Prettier, whitespace, Node24 syntax, exact live page/client comparisons and
+unchanged CSS checks passed. Browser checks confirmed one image in the correct
+subsection, the next subsection heading, preserved caption/dimensions, no
+overflow and no runtime errors. Other active articles are unchanged. All
+30,678 prepared-file checksums and current-parent checksums passed. No full
+application rebuild. Unchanged files are hard-linked; modifications use private
+files and atomic replacement.
+
+Before activation, available space was restored without removing rollback
+contents: 7,603 byte-identical same-path regular files with one link in
+`landing-20261027T112854Z-conference-copy/site` were atomically replaced by
+hard links to identical files in `landing-20261027T111750Z-docs-cards/site`.
+Device, size, owner/group, mode, SHA-256 and unchanged inode/mtime were checked.
+Both complete rollback releases passed checksums before and after deduplication.
+Released 336,506,880 allocated bytes; free space at activation was 344,797,184
+bytes. The preceding completed remote staging payload was also cleaned; local
+snapshots and all release/rollback contents remain. Script: `deduplicate.py`
+in the input directory below. Publishers must privately replace linked files.
+
+Evidence: `frontend/test-results/landing/appearance-screenshot-order-browser-qa.json`,
+`appearance-screenshot-order-source-verification.json`,
+`appearance-screenshot-order-published-verification.json`,
+`appearance-screenshot-order-client-verification.json`,
+`published-appearance-screenshot-order.png` and `verify-appearance-screenshot-order.mjs`.
+Snapshots and scripts: `/private/tmp/meetspace-appearance-screenshot-order-20261028`.
+
+## Previous Interface workspace summary relocation
+
+Preceding release: `landing-20261028T024712Z-interface-lead`, published on
 28 October 2026 (Europe/Moscow) from `landing-20261028T023821Z-interface-signin-copy`.
 Moved “Рабочее пространство объединяет встречи, переписку, календарь, записи
 и настройки.” directly below the Interface H1, preserving bold emphasis on
