@@ -95,7 +95,7 @@ HttpOnly cookie-сессия восстанавливает аккаунт по�
 обновить JWT. Отказ сети сохраняет профиль и открытую конференцию. Явный выход
 сразу открывает публичную главную, очищает кэши и соединения; локальная отметка
 выхода позволяет повторить отзыв серверной сессии после восстановления сети.
-Гость получает JWT одной встречи на час, без постоянной сессии.
+Гость получает JWT одной встречи на три часа, без постоянной сессии.
 
 `GET /api/v1/auth/me` возвращает профиль; `PATCH /api/v1/auth/me` принимает только
 `{displayName}` — 1–100 Unicode code points после trim, без управляющих символов.
@@ -103,16 +103,14 @@ HttpOnly cookie-сессия восстанавливает аккаунт по�
 Смена аккаунта отменяет запросы, очищает Query cache, Object URLs и соединения
 прежней личности. Refresh передаёт выбранный `userId`.
 
-`GET /api/v1/capabilities` сообщает `liveCaptions`, `transcription`, `aiSummary`,
-`semanticSearch`, `meetingAnalytics`, `recordingModes` и `buildVersion` без
-адресов провайдеров и ключей. Неизвестный или ошибочный ответ не разрешает функцию.
-Панели учитывают также статусы и ошибки операций. Email, push, STT, ИИ и embeddings
-по умолчанию выключены; `mock` не выполняет реальную доставку или обработку.
+`GET /api/v1/capabilities` сообщает `recordingModes` и `buildVersion` без
+адресов провайдеров и ключей. Панели учитывают также статусы и ошибки операций.
+Возможности email, push и календаря читаются отдельно из `/integrations/capabilities`.
 
 `/admin` читает `GET /api/v1/admin/summary`: агрегаты встреч, присутствия, записей,
 заданий и отказов, readiness API/media-worker и состояние инфраструктуры.
 Право `users.is_admin` проверяется каждым запросом и не совпадает с ролью owner
-конференции. Интерфейс не показывает чат, расшифровки, секреты или персональные
+конференции. Интерфейс не показывает чат, секреты или персональные
 строки. Назначение права описано в [admin runbook](operations/admin.md).
 Owner/co_host конференции также различаются: назначение ролей и camera control —
 owner-only. Клиентские ограничения не заменяют серверные ACL.
@@ -181,8 +179,8 @@ Meetrix/Meet также отображаются как MeetSpace. `public/brand
 Desktop: светлый кабинет с sidebar/topbar, тёмная активная комната без внешней
 навигации. Tablet ≤1100px — компактная сетка; mobile ≤760px — drawer, нижняя
 навигация и список календаря. Панели комнаты открываются поверх сцены на узком
-экране. Формы и таблицы не расширяют страницу за viewport; широкая техническая
-таблица аналитики прокручивается внутри своего контейнера.
+экране. Формы и таблицы не расширяют страницу за viewport; широкие таблицы
+прокручиваются внутри своего контейнера.
 
 Есть skip-link, labels, aria-live состояния, keyboard tabs, Escape/focus return,
 focus trap диалогов/drawer и reduced motion. Горячие клавиши M/V/C
@@ -200,7 +198,7 @@ focus trap диалогов/drawer и reduced motion. Горячие клави�
 APP_ENV=local
 PUBLIC_FRONTEND_URL=http://localhost:5173
 MINIO_PUBLIC_ENDPOINT=http://localhost:9000
-WORKER_INTERNAL_URL=http://worker:8090
+WORKER_INTERNAL_URL=http://record-worker:8090
 ```
 
 В `MEDIA_NAT_IPS` нужен IP хоста Docker, доступный браузеру; для Docker Desktop
@@ -211,7 +209,7 @@ WORKER_INTERNAL_URL=http://worker:8090
 Контейнерная сборка интерфейса из корня репозитория:
 
 ```sh
-docker compose up -d --build api media-worker worker product-worker frontend
+docker compose up -d --build api media-worker record-worker product-worker frontend
 ```
 
 Откройте `http://localhost:5173`; API опубликован на `http://localhost:8085`.
@@ -226,7 +224,7 @@ Nginx направляет `/api/` и WebSocket к API; SPA fallback не под
 
 ```sh
 docker compose stop frontend
-docker compose up -d --build api media-worker worker product-worker
+docker compose up -d --build api media-worker record-worker product-worker
 npm --prefix frontend ci
 npm --prefix frontend run dev
 ```
@@ -290,7 +288,7 @@ context: HTTPS либо разрешённый браузером localhost.
 Перед отправкой остаются только версия, шаблон маршрута, фиксированный код,
 семейство браузера и максимум пять координат в JS-артефактах текущего origin.
 Query, hash, UUID, код приглашения, исходное сообщение, имена функций, внешний
-URL, содержимое чата/расшифровок, SDP, Authorization, cookies и Referer не
+URL, содержимое чата, SDP, Authorization, cookies и Referer не
 отправляются. Неизвестный путь превращается в `unknown`; подписанные URL и кадры
 из исходных файлов разработки отбрасываются. Отправка ограничена пятью событиями
 в минуту, двадцатью за страницу и подавлением одинаковых событий на десять секунд.

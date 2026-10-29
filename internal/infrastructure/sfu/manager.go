@@ -61,8 +61,6 @@ type Stats struct {
 	Dropped           uint64 `json:"packetsDropped"`
 	RecordingOutputs  int    `json:"recordingOutputs"`
 	RecordingDrops    uint64 `json:"recordingDrops"`
-	AudioTaps         int    `json:"audioTaps"`
-	AudioTapDrops     uint64 `json:"audioTapDrops"`
 }
 
 // Manager — менеджер управляет локальными медиаресурсами и синхронизирует их создание, использование и
@@ -83,7 +81,6 @@ type Manager struct {
 	tcp                                      net.Listener
 	total, failures, packets, bytes, dropped atomic.Uint64
 	egressDropped                            atomic.Uint64
-	audioTapDropped                          atomic.Uint64
 	relay, direct                            atomic.Uint64
 }
 
@@ -641,13 +638,7 @@ func (m *Manager) Snapshot() Stats {
 	m.mu.Unlock()
 	for _, r := range rooms {
 		r.mu.Lock()
-		for _, e := range r.egresses {
-			if e.audioOnly {
-				s.AudioTaps++
-			} else {
-				s.RecordingOutputs++
-			}
-		}
+		s.RecordingOutputs += len(r.egresses)
 		sources := make([]*publishedTrack, 0, len(r.tracks))
 		for _, t := range r.tracks {
 			sources = append(sources, t)
@@ -668,7 +659,6 @@ func (m *Manager) Snapshot() Stats {
 	s.Bytes = m.bytes.Load()
 	s.Dropped = m.dropped.Load()
 	s.RecordingDrops = m.egressDropped.Load()
-	s.AudioTapDrops = m.audioTapDropped.Load()
 	return s
 }
 

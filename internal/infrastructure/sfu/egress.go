@@ -24,7 +24,6 @@ var errEgressOverflow = errors.New("recording_egress_overflow")
 // egress пассивно отслеживает закодированные пакеты.  При переполнении очереди подписка на
 // запись закрывается без задержки при пересылке SFU RTP.
 type egress struct {
-	audioOnly bool
 	manager   *Manager
 	room      *room
 	id        string
@@ -51,39 +50,6 @@ type egress struct {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (m *Manager) SubscribeRecording(ctx context.Context, conferenceID, recordingID string) (media.EgressSubscription, error) {
-	return m.subscribeEgress(ctx, conferenceID, recordingID, false)
-}
-
-// SubscribeAudio открывает отдельную ограниченную подписку только на аудио, не занимая слот
-// подписки на запись.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
-//   - sessionID: Постоянный или физический идентификатор сессии, определяемый операцией.
-//
-// @returns:
-//   - result1: Результирующая подписка egress.
-//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func (m *Manager) SubscribeAudio(ctx context.Context, conferenceID, sessionID string) (media.EgressSubscription, error) {
-	return m.subscribeEgress(ctx, conferenceID, sessionID, true)
-}
-
-// subscribeEgress резервирует не более одной подписки на комнату для каждой цели и привязывает
-// ее к текущему идентификатору записи.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - conferenceID: Идентификатор конференции, ограничивающий область действия операции.
-//   - recordingID: Внешняя запись UUID.
-//   - audioOnly: Ограничивается ли подписка только вспомогательными аудиокадрами.
-//
-// @returns:
-//   - result1: Результирующая подписка egress.
-//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func (m *Manager) subscribeEgress(ctx context.Context, conferenceID, recordingID string, audioOnly bool) (media.EgressSubscription, error) {
 	for _, id := range []string{conferenceID, recordingID} {
 		parsed, err := uuid.Parse(id)
 		if err != nil || parsed == uuid.Nil {
@@ -108,24 +74,16 @@ func (m *Manager) subscribeEgress(ctx context.Context, conferenceID, recordingID
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for id, existing := range r.egresses {
-		if id == recordingID || existing.audioOnly == audioOnly {
-			return nil, media.ErrNegotiation
-		}
+	if len(r.egresses) != 0 {
+		return nil, media.ErrNegotiation
 	}
-	queueSize := m.opts.EgressQueueSize
-	if audioOnly {
-		queueSize = min(queueSize, 256)
-	}
-	e := &egress{audioOnly: audioOnly, manager: m, room: r, id: recordingID, frames: make(chan media.EgressFrame, queueSize), done: make(chan struct{}), tracks: map[string]bool{}}
+	e := &egress{manager: m, room: r, id: recordingID, frames: make(chan media.EgressFrame, m.opts.EgressQueueSize), done: make(chan struct{}), tracks: map[string]bool{}}
 	e.mu.Lock()
 	e.enqueueLocked(media.EgressFrame{Type: "hello"})
 	e.mu.Unlock()
 	for _, t := range r.tracks {
 		e.addTrack(t)
-		if !audioOnly {
-			t.requestPLI()
-		}
+		t.requestPLI()
 	}
 	r.egresses[recordingID] = e
 	return e, nil
@@ -167,11 +125,7 @@ func (e *egress) enqueueLocked(frame media.EgressFrame) {
 	select {
 	case e.frames <- frame:
 	default:
-		if e.audioOnly {
-			e.manager.audioTapDropped.Add(1)
-		} else {
-			e.manager.egressDropped.Add(1)
-		}
+		e.manager.egressDropped.Add(1)
 		e.closed = true
 		e.err = errEgressOverflow
 		close(e.done)
@@ -186,7 +140,7 @@ func (e *egress) enqueueLocked(frame media.EgressFrame) {
 func (e *egress) addTrack(t *publishedTrack) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.closed || e.tracks[t.metadata.ID] || !t.permitted.Load() || (e.audioOnly && t.metadata.Kind != media.KindAudio) {
+	if e.closed || e.tracks[t.metadata.ID] || !t.permitted.Load() {
 		return
 	}
 	e.tracks[t.metadata.ID] = true
@@ -281,9 +235,6 @@ func (m *Manager) recordPacket(t *publishedTrack, packet *rtp.Packet) {
 	t.publisher.room.mu.Lock()
 	egresses := make([]*egress, 0, len(t.publisher.room.egresses))
 	for _, e := range t.publisher.room.egresses {
-		if e.audioOnly && t.metadata.Kind != media.KindAudio {
-			continue
-		}
 		egresses = append(egresses, e)
 	}
 	t.publisher.room.mu.Unlock()

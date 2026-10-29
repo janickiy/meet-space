@@ -143,7 +143,7 @@ func validReport(report Report) bool {
 		"/meetings/:id", "/meetings/:id/join", "/conferences", "/conferences/new", "/conferences/:id",
 		"/conferences/:id/join", "/i/:code", "/app/settings", "/settings",
 		"/app/settings/calendar/:provider/callback", "/app/recordings", "/history", "/history/:id",
-		"/notifications", "/app/search", "/search", "/admin", "/calendar", "/analytics", "unknown":
+		"/notifications", "/app/search", "/search", "/admin", "/calendar", "unknown":
 	default:
 		return false
 	}

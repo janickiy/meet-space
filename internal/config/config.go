@@ -55,7 +55,6 @@ type Config struct {
 	TrustedProxies     []string
 	Operations         OperationsConfig
 	StageSeven         StageSevenConfig
-	StageEight         StageEightConfig
 }
 
 // Load загружает параметры приложения из среды и поддерживаемого локального файла конфигурации.
@@ -77,8 +76,8 @@ func Load() (Config, error) {
 		TrustedProxies:     envList("HTTP_TRUSTED_PROXIES"),
 		APIPort:            envInt("APP_PORT", 8085),
 		WorkerPort:         envInt("WORKER_PORT", 8090),
-		WorkerInternalURL:  env("WORKER_INTERNAL_URL", "http://worker:8090"),
-		WorkerID:           env("WORKER_ID", "recorder-worker-local"),
+		WorkerInternalURL:  env("WORKER_INTERNAL_URL", "http://record-worker:8090"),
+		WorkerID:           env("WORKER_ID", "record-worker-local"),
 		StoragePath:        env("STORAGE_PATH", "/storage"),
 		FFmpegPath:         env("FFMPEG_PATH", "ffmpeg"),
 		WebRTCUDPPort:      webRTCUDPPort,
@@ -113,10 +112,6 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if err := validateProduction(cfg); err != nil {
-		return Config{}, err
-	}
-	cfg.StageEight, err = LoadStageEight(cfg.IsLocal() || cfg.AppEnv == "test")
-	if err != nil {
 		return Config{}, err
 	}
 	cfg.StageSeven, err = LoadStageSeven(cfg.IsLocal() || cfg.AppEnv == "test")

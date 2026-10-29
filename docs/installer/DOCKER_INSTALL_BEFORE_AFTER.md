@@ -1,5 +1,7 @@
 # Docker image build optimization: measurements and verification
 
+> Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](../ARCHITECTURE.md).
+
 Date: 2026-10-22. Baseline source: `ac8b8826908a69c0d3de073d0c0f56a6f3dc4687`.
 See [the pre-change audit](DOCKER_INSTALL_AUDIT.md) for scope and the distinction
 between installing Docker Engine and compiling application images.

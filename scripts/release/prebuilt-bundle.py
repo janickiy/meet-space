@@ -41,7 +41,7 @@ def main():
     api.require(archive.stat().st_size < 2 * 1024**3, 'GitHub release asset exceeds 2 GiB.')
     digest = api.digest(archive)
     (args.output / (name + '.sha256')).write_text(digest + '  ' + name + '\n')
-    descriptor = dict(schemaVersion=1, version=manifest['version'], commit=commit,
+    descriptor = dict(schemaVersion=1, serviceInventoryVersion=2, version=manifest['version'], commit=commit,
                       platform=manifest['platform'], repository='janickiy/meet-space',
                       archive=dict(url=f'https://github.com/janickiy/meet-space/releases/download/{manifest["version"]}/{name}',
                                    sha256=digest, sizeBytes=archive.stat().st_size),

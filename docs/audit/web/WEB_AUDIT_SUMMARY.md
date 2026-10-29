@@ -1,5 +1,7 @@
 # MeetSpace web audit summary
 
+> Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](../../ARCHITECTURE.md).
+
 Date: 2026-10-26. Baseline: `3ea9a4e83e82484c25402963b2e68a0642d986f6` on `main`, with pre-existing meeting-toolbar edits preserved. The original audit produced a local patch without publication, deployment, remote deletion or production testing. Repository-publication integration is recorded separately below.
 
 ## Repository-publication integration, 2026-10-26

@@ -27,7 +27,7 @@ import (
 //     ли успешное изменение ее условного состояния.
 func productKind(kind string) bool {
 	switch kind {
-	case "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate":
+	case "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar":
 		return true
 	}
 	return false
@@ -79,7 +79,7 @@ func ProductQueue(kind, state string, count int64) {
 //   - err: Ошибка классификации, инкапсуляции или безопасного оповещения.
 func ProviderCall(provider string, duration time.Duration, err error) {
 	switch provider {
-	case "email", "push", "calendar", "stt", "ai", "embedding", "live_stt":
+	case "email", "push", "calendar":
 	default:
 		return
 	}

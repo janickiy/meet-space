@@ -68,8 +68,3 @@ groups:
         for: 5m
         labels: {severity: info}
         annotations: {summary: "Повторяющиеся клиентские ошибки; сверить версию и сценарий в окне выпуска"}
-      - alert: RecorderLiveCaptionBacklog
-        expr: sum by(service) (increase(recorder_events_total{event="live_audio_dropped"}[10m])) > 10
-        for: 5m
-        labels: {severity: warning}
-        annotations: {summary: "Проверить фактические потери аудио субтитров и лимиты провайдера"}

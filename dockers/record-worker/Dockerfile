@@ -1,0 +1,64 @@
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS build
+ARG TARGETARCH
+ARG GOMAXPROCS
+ARG GOFLAGS
+ARG GOGC
+ARG GOMEMLIMIT
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,id=meetspace-go126-modules-${TARGETARCH},target=/go/pkg/mod,sharing=locked \
+    go mod download
+
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY tools/ ./tools/
+ARG BUILD_VERSION=dev
+ARG BUILD_COMMIT=unknown
+ARG BUILD_TIME=unknown
+RUN --mount=type=cache,id=meetspace-go126-modules-${TARGETARCH},target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,id=meetspace-go126-build-${TARGETARCH},target=/root/.cache/go-build,sharing=locked \
+    CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
+    -ldflags "-s -w -X github.com/janickiy/meet-space/internal/buildinfo.Version=$BUILD_VERSION -X github.com/janickiy/meet-space/internal/buildinfo.Commit=$BUILD_COMMIT -X github.com/janickiy/meet-space/internal/buildinfo.BuildTime=$BUILD_TIME" \
+    -o /bin/record-worker ./cmd/record-worker
+
+FROM alpine:3.22 AS runtime
+
+# Refresh runtime libraries before adding FFmpeg; cached base packages may have security fixes.
+RUN apk upgrade --no-cache \
+	&& apk add --no-cache ca-certificates ffmpeg su-exec \
+	&& addgroup -S app \
+	&& adduser -S app -G app
+
+WORKDIR /app
+
+COPY --from=build /bin/record-worker /app/record-worker
+COPY database/migrations /app/database/migrations
+COPY dockers/record-worker/entrypoint.sh /app/entrypoint.sh
+
+RUN mkdir -p /storage \
+	&& chown -R app:app /storage \
+	&& chmod +x /app/entrypoint.sh
+
+EXPOSE 8090
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+FROM golang:1.26.10-alpine3.23 AS debug
+
+RUN apk add --no-cache ca-certificates ffmpeg git \
+	&& go install github.com/go-delve/delve/cmd/dlv@latest \
+	&& mkdir -p /storage
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -gcflags="all=-N -l" -o /app/record-worker-debug ./cmd/record-worker
+
+EXPOSE 8090 2346
+
+ENTRYPOINT ["/go/bin/dlv", "--listen=:2346", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "/app/record-worker-debug", "--continue"]

@@ -1,5 +1,7 @@
 # MeetSpace
 
+> При обновлении старой установки сначала выполните [переход на record-worker и миграцию 000037](docs/operations/speech-removal-upgrade.md). Миграция необратимо удаляет данные функций речи; требуются проверенная резервная копия и остановка старых процессов. Простой откат образов после неё не поддерживается.
+
 **Чаты, видеозвонки и совместная работа в одном пространстве.**
 
 MeetSpace — платформа для корпоративного общения и совместной работы на Go и
@@ -20,7 +22,7 @@ React: видеовстречи через собственный WebRTC SFU, л
 - Email-приглашения: письмо приглашённому участнику сразу и напоминание за 3 часа
   до запланированной встречи. SMTP настраивается в мастере установки.
 - Запись конференций: несколько режимов, обработка, просмотр, скачивание и удаление.
-- Дополнительные интеграции: почта, push, календари, транскрипция, субтитры и ИИ-сводки.
+- Дополнительные интеграции: почта, push и календари.
   Внешние провайдеры требуют отдельной настройки; в стандартной конфигурации
   используются отключённые функции или режим `noop`.
 
@@ -49,9 +51,8 @@ Frontend — React, TypeScript и Vite; контейнер `frontend` разда
 | `frontend` | Веб-интерфейс и same-origin proxy |
 | `https` | TLS-прокси для локального HTTPS |
 | `media-worker` | SFU: комнаты, участники, RTP/RTCP, ICE и передача медиапотоков воркерам |
-| `worker` | Recorder: команды записи из RabbitMQ, получение медиа от SFU, FFmpeg, загрузка артефактов |
-| `product-worker` | Фоновые задания интеграций, обработка контента, транскрипция и ИИ |
-| `live-worker` | Необязательная обработка аудио для субтитров и аналитики речи; по умолчанию не запускается |
+| `record-worker` | Recorder: команды записи из RabbitMQ, получение медиа от SFU, FFmpeg, загрузка артефактов |
+| `product-worker` | Напоминания, email/push и синхронизация календарей |
 | `postgres` | PostgreSQL 16: пользователи, конференции, чаты, записи, задания и outbox |
 | `redis` | События реального времени, присутствие, реестр SFU, блокировки и rate limit |
 | `rabbitmq` | Доставка команд `record.start` и `record.stop` |
@@ -68,11 +69,10 @@ flowchart LR
     API --> DB[(PostgreSQL / outbox)]
     API --> Redis[(Redis)]
     API -->|команды outbox| MQ[RabbitMQ]
-    MQ --> Recorder[worker / FFmpeg]
+    MQ --> Recorder[record-worker / FFmpeg]
     SFU -->|внутренний HTTP-поток| Recorder
     Recorder --> S3[(S3-хранилище)]
     Recorder --> DB
-    SFU --> Live[live-worker]
     DB --> Product[product-worker]
 ```
 
@@ -90,7 +90,7 @@ API охватывает весь продукт: аккаунты и сесси
 | Где искать | Содержание |
 | --- | --- |
 | [Обзор и примеры](docs/API.md#быстрый-старт-rest) | Авторизация, создание встречи, диалога, отправка и закрепление сообщения |
-| Каталог ниже | Все **148 маршрутов `/api/v1`**, включая HTTP-входы WebSocket |
+| Каталог ниже | Все **маршруты `/api/v1`**, включая HTTP-входы WebSocket |
 | [Полный справочник](docs/API_REFERENCE.md) | Поля запросов, ответы, доступ, ошибки и исходники всех 177 серверных контрактов |
 | [Postman-коллекция](docs/postman/meetspace/MeetSpace.postman_collection.json) | Готовые описания запросов и иллюстративные ответы |
 | [Realtime](docs/realtime.md), [SFU](docs/media-sfu.md), [личные звонки](docs/direct-calls.md) | События, сигнализация и передача аудио/видео |
@@ -150,7 +150,7 @@ curl --fail-with-body "$API/auth/me" \
 ### Каталог маршрутов
 
 <details>
-<summary>Развернуть все 148 маршрутов API по разделам</summary>
+<summary>Развернуть маршруты API по разделам</summary>
 
 #### Аккаунты, сессии и управление встречами
 
@@ -356,26 +356,11 @@ curl --fail-with-body "$API/auth/me" \
 | `DELETE` | `/api/v1/conferences/:id/recordings/:recordingId` | Удалить завершенную запись и ее артефакты. |
 | `POST` | `/api/v1/conferences/:id/recordings/:recordingId/stop` | Запросить остановку записи. |
 
-#### Контент и общий поиск
+#### Поиск встреч
 
 | Метод | Путь | Назначение |
 | --- | --- | --- |
-| `GET` | `/api/v1/conferences/:id/recordings/:recordingId/transcript` | Метаданные транскрипции записи. |
-| `GET` | `/api/v1/conferences/:id/recordings/:recordingId/transcript/segments` | Страница текста с временными метками. |
-| `POST` | `/api/v1/conferences/:id/recordings/:recordingId/transcript/retry` | Поставить первую/повторную транскрипцию. |
-| `GET` | `/api/v1/conferences/:id/recordings/:recordingId/summary` | Прочитать AI summary. |
-| `POST` | `/api/v1/conferences/:id/recordings/:recordingId/summary/regenerate` | Поставить повторную генерацию summary. |
-| `GET` | `/api/v1/search` | Поиск конференций, транскрипций и summary. |
-
-#### Субтитры и аналитика
-
-| Метод | Путь | Назначение |
-| --- | --- | --- |
-| `GET` | `/api/v1/conferences/:id/captions` | Состояние живых субтитров. |
-| `PUT` | `/api/v1/conferences/:id/captions` | Включить/выключить живые субтитры. |
-| `GET` | `/api/v1/conferences/:id/captions/segments` | Сохраненные финальные субтитры после курсора. |
-| `GET` | `/api/v1/conferences/:id/analytics` | Аналитика конференции. |
-| `POST` | `/api/v1/conferences/:id/recordings/:recordingId/search/reindex` | Поставить повторную индексацию готовой транскрипции. |
+| `GET` | `/api/v1/search` | Поиск по названиям доступных конференций. |
 
 #### Реакции встречи
 
@@ -425,7 +410,7 @@ curl --fail-with-body "$API/auth/me" \
   ограничения описаны в [контракте чата](docs/collaboration.md).
 - Начало/остановка записи, транскрипция и генерация итогов асинхронны.
   Готовность и доступные файлы нужно читать из ответов соответствующих API.
-- Дополнительные провайдеры STT, ИИ, календарей, email/push могут быть отключены.
+- Дополнительные провайдеры календарей и email/push могут быть отключены.
   Сначала проверяйте `GET /api/v1/capabilities` и
   `GET /api/v1/integrations/capabilities`; наличие маршрута не означает,
   что внешний провайдер настроен.
@@ -474,7 +459,7 @@ openssl rand -hex 32
 APP_ENV=local
 PUBLIC_FRONTEND_URL=http://localhost:5173
 MINIO_PUBLIC_ENDPOINT=http://localhost:9000
-WORKER_INTERNAL_URL=http://worker:8090
+WORKER_INTERNAL_URL=http://record-worker:8090
 ```
 
 В `MEDIA_NAT_IPS` укажите доступный браузеру IP компьютера с Docker. Для Docker
@@ -497,26 +482,18 @@ docker network inspect gateway_default >/dev/null 2>&1 ||
 
 docker compose config --quiet
 docker compose up -d --build \
-  api media-worker worker product-worker frontend
+  api media-worker record-worker product-worker frontend
 
 docker compose ps
 docker compose exec -T api wget -qO- http://127.0.0.1:8085/health/ready
-docker compose exec -T worker wget -qO- http://127.0.0.1:8090/health/ready
+docker compose exec -T record-worker wget -qO- http://127.0.0.1:8090/health/ready
 ```
 
 PostgreSQL, Redis, RabbitMQ и MinIO запустятся как зависимости. При первом запуске
 приложение применяет SQL-миграции. Откройте **http://localhost:5173** и создайте
 аккаунт. Этот вариант запуска не включает сервис `https`.
 
-`live-worker` по умолчанию выключен и вынесен в профиль `live`. Чаты, звонки,
-записи и email не требуют его запуска. Для субтитров настройте распознавание
-речи и `LIVE_STT_ENABLED=true`; для встроенной речевой аналитики —
-`MEETING_ANALYTICS_ENABLED=true`. Затем явно запустите
-`docker compose --profile live up -d --build live-worker`. Новые значения
-флагов должны быть применены и в API в согласованное окно обновления.
-Установщик и release-helper выбирают профиль автоматически по этим флагам;
-при обоих `false` воркер не запускается и не проверяется мониторингом.
-Подробнее: [необязательные live-функции](docs/content-integrations.md#эксплуатация-и-сроки-хранения).
+
 
 Адрес в браузере должен совпадать с `PUBLIC_FRONTEND_URL`, включая протокол,
 имя хоста и порт: иначе операции входа и обновления сессии отклоняются с `403`.
@@ -568,8 +545,7 @@ docker compose up -d --build
 | MinIO S3 / console | `http://localhost:9000` / `http://localhost:9001` |
 | SFU | `50010/udp`, `50010/tcp` |
 
-Внутренние HTTP-порты `media-worker:8091`, `product-worker:8092` и
-`live-worker:8093` не публикуются. Пользователи и пароли инфраструктуры берутся
+Внутренние HTTP-порты `media-worker:8091`, `product-worker:8092` не публикуются. Пользователи и пароли инфраструктуры берутся
 из `.env`. Локальные данные сохраняются в подкаталогах `dockers/`.
 
 ## Установка на новый сервер
@@ -615,7 +591,7 @@ Go-сервисы используют общий кеш компиляции, �
 
 ## Запись конференций
 
-Текущий путь записи: **браузер → SFU → внутренний HTTP-поток → recorder-worker
+Текущий путь записи: **браузер → SFU → внутренний HTTP-поток → record-worker
 → FFmpeg → S3**. Воркер получает поток событий и RTP от SFU в формате NDJSON.
 Прежний прямой WebRTC ingest сохранён в коде для совместимости и не является
 основным путём записи конференций.
@@ -670,7 +646,7 @@ npm --prefix frontend run check
 
 ```bash
 docker compose stop frontend
-docker compose up -d --build api media-worker worker product-worker
+docker compose up -d --build api media-worker record-worker product-worker
 npm --prefix frontend ci
 npm --prefix frontend run dev
 ```
@@ -703,7 +679,7 @@ make migrate-up APP_NETWORK=meet-space_app-network
 
 ```bash
 docker compose ps
-docker compose logs --tail=100 api worker media-worker product-worker
+docker compose logs --tail=100 api record-worker media-worker product-worker
 make doctor
 ```
 
@@ -711,11 +687,11 @@ make doctor
 Для установки через мастер используйте созданный `manage.sh`; команды описаны
 в [руководстве установки](docs/INSTALLATION.md).
 
-Для Delve доступны `make debug-api`, `make debug-worker`, `make debug-both`.
-После `make debug-stop` обычные API и worker нужно запустить заново:
+Для Delve доступны `make debug-api`, `make debug-record-worker`, `make debug-both`.
+После `make debug-stop` обычные API и record-worker нужно запустить заново:
 
 ```bash
-docker compose up -d api worker
+docker compose up -d api record-worker
 ```
 
 Общие инструкции сопровождения: [операционный runbook](docs/operations/README.md),
@@ -748,7 +724,7 @@ Makefile                   Команды разработки и выпуска
 - [Авторизация и сессии](docs/PERSISTENT_AUTH.md), [управление аккаунтами](docs/account-management.md).
 - [Личные сообщения](docs/PERSONAL_MESSAGES.md), [группы](docs/GROUP_CHATS.md),
   [поиск в переписке](docs/personal-chat-search.md), [папки](docs/PERSONAL_FOLDERS.md).
-- [Настройки аудио и видео](docs/AUDIO_VIDEO_SETTINGS.md), [интеграции и обработка контента](docs/content-integrations.md).
+- [Настройки аудио и видео](docs/AUDIO_VIDEO_SETTINGS.md), [уведомления и интеграции](docs/content-integrations.md).
 - [Frontend](docs/FRONTEND_GUIDE.md), [развёртывание](docs/DEPLOYMENT.md).
 
 ## Лицензия

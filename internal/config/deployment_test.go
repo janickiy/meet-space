@@ -28,7 +28,7 @@ func TestDevelopmentPortsStayOnLoopback(t *testing.T) {
 	}
 	for service, ports := range map[string][]string{
 		"api": {"APP_HOST_PORT"}, "api-debug": {"APP_HOST_PORT", "DLV_API_PORT"},
-		"worker": {"WORKER_HOST_PORT"}, "worker-debug": {"WORKER_HOST_PORT", "DLV_WORKER_PORT"},
+		"record-worker": {"WORKER_HOST_PORT"}, "record-worker-debug": {"WORKER_HOST_PORT", "DLV_WORKER_PORT"},
 		"postgres": {"POSTGRES_HOST_PORT"}, "redis": {"REDIS_HOST_PORT"},
 		"minio":    {"MINIO_PORT_HOST", "MINIO_CONSOLE_PORT_HOST"},
 		"rabbitmq": {"RABBIT_MQ_HOST_PORT", "RABBIT_MQ_MANAGEMENT_HOST_PORT"},

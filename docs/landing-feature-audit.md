@@ -1,5 +1,7 @@
 # MeetSpace website content audit
 
+> Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](ARCHITECTURE.md).
+
 Checked **19 October 2026** against this checkout and the dedicated client
 repositories. The content brief is
 `/Users/aleksandranickij/Downloads/CODEX_PROMPT_MEETSPACE_WEBSITE_CONTENT.md`.

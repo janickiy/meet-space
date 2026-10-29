@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ import (
 // auditDatabase accepts only an explicit loopback-only disposable database.
 // It creates a uniquely named schema, applies real migrations and drops only
 // that schema afterwards; it never loads the application's environment file.
-func auditDatabase(t *testing.T) *gorm.DB {
+func auditDatabase(t *testing.T, throughVersion ...int) *gorm.DB {
 	t.Helper()
 	raw := os.Getenv("MEETSPACE_AUDIT_POSTGRES_DSN")
 	if raw == "" {
@@ -78,7 +79,26 @@ func auditDatabase(t *testing.T) *gorm.DB {
 	}
 	sqlDB.SetMaxOpenConns(2)
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := RunMigrations(db, filepath.Join("..", "..", "..", "database", "migrations")); err != nil {
+	directory := filepath.Join("..", "..", "..", "database", "migrations")
+	if len(throughVersion) > 0 {
+		files, err := migrationFiles(directory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		directory = t.TempDir()
+		for _, file := range files {
+			version, err := strconv.Atoi(strings.SplitN(file.name, "_", 2)[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if version <= throughVersion[0] {
+				if err := os.WriteFile(filepath.Join(directory, file.name), []byte(file.sql), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+	if err := RunMigrations(db, directory); err != nil {
 		t.Fatal(err)
 	}
 	return db

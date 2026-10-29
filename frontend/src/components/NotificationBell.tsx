@@ -7,7 +7,6 @@ import {
   CalendarClock,
   Check,
   ChevronRight,
-  FileText,
   MessageCircle,
   Play,
   Users,
@@ -16,7 +15,7 @@ import {
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { formatDate } from "../utils";
-import { notificationLink } from "../intelligence";
+import { notificationLink } from "../notificationLinks";
 import type { Notification } from "../types";
 import { Button, ErrorNotice, Loading, Modal } from "./ui";
 import "./notification-modal.css";
@@ -27,8 +26,6 @@ function notificationIcon(item: Notification) {
   if (item.type === "chat.message")
     return item.payload.conversationType === "group" ? Users : MessageCircle;
   if (item.type.includes("recording")) return Play;
-  if (item.type.includes("transcript") || item.type.includes("summary"))
-    return FileText;
   if (item.type === "conference.soon" || item.type === "conference.rescheduled")
     return CalendarClock;
   if (item.type === "conference.invited") return Users;
@@ -54,19 +51,11 @@ export function notificationLabel(item: Notification): string {
       ? `Ответ на ваше сообщение ${place}`
       : `Новое сообщение ${place}`;
   }
-  if (item.type === "transcript.failed")
-    return "Не удалось подготовить расшифровку";
-  if (item.type === "summary.failed")
-    return "Не удалось подготовить итоги встречи";
-  if (item.type.includes("transcript")) return "Расшифровка встречи готова";
-  if (item.type.includes("summary")) return "Итоги встречи готовы";
   if (item.type.includes("recording")) return "Запись встречи готова";
   if (item.type === "conference.soon") return "Скоро начнётся встреча";
   if (item.type === "conference.invited") return "Вас пригласили на встречу";
   if (item.type === "conference.rescheduled") return "Время встречи изменилось";
   if (item.type === "conference.cancelled") return "Встреча отменена";
-  if (item.type === "processing.failed")
-    return "Обработка материалов не завершена";
   if (item.payload.admissionState === "admitted")
     return "Вас пригласили войти во встречу";
   if (item.payload.admissionState === "rejected")

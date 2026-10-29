@@ -228,9 +228,9 @@ GitHub-токен и SSH-ключ для публичного репозитор
    и ключи, сохранит конфигурацию, проверенные образы и исходники.
 7. Дождитесь запуска зависимостей, применения миграций и запуска MeetSpace.
    Миграции выполняются отдельным шагом, не при обычном запуске приложения
-   (`AUTO_MIGRATE=false`). Текущий набор содержит 35 `.up.sql`; применяется ledger
-   `release_schema_migrations` с checksum файлов. Условная миграция pgvector
-   не включает semantic search без отдельно установленного расширения.
+   (`AUTO_MIGRATE=false`). Применяется ledger `release_schema_migrations` с checksum файлов.
+   При обновлении существующей базы обязательно учтите необратимую
+   [миграцию 000037](operations/speech-removal-upgrade.md).
 8. После проверки HTTPS, `/version` и `/version.json` можно создать первый
    пользовательский аккаунт в терминале: email, имя и пароль со скрытым вводом.
    Это обычный аккаунт без дополнительных административных прав.
@@ -243,7 +243,7 @@ SMTP настраивается в мастере. Учётные данные �
 TLS 1.2+ и доверенные сертификаты; незашифрованная доставка не поддерживается.
 Принимающий SMTP-сервер ещё не гарантирует появление письма во входящих:
 проверьте тестовое письмо, настройки SPF/DKIM/DMARC домена и папку «Спам».
-Внешние push/calendar-провайдеры, распознавание речи и ИИ настраиваются отдельно.
+Внешние push/calendar-провайдеры настраиваются отдельно.
 
 ### Включение email после установки
 
@@ -351,7 +351,7 @@ CLI-стек `bundle/deployment` из команды выше.
 ```bash
 sudo /opt/meetspace/manage.sh status
 sudo /opt/meetspace/manage.sh logs api
-sudo /opt/meetspace/manage.sh logs worker
+sudo /opt/meetspace/manage.sh logs record-worker
 sudo /opt/meetspace/manage.sh create-account
 ```
 

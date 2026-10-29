@@ -29,7 +29,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     TURN_URLS) value='turn:127.0.0.1:23478?transport=udp,turn:127.0.0.1:23478?transport=tcp';;
     TURN_REALM) value=release.local;;
     MEDIA_WORKER_ID) value=media-release-rehearsal;;
-    WORKER_ID) value=recorder-release-rehearsal;;
+    WORKER_ID) value=record-worker-release-rehearsal;;
     RECORDER_STORAGE_DIR) value="$rehearsal_dir/storage";;
     TLS_CERT_DIR|TURN_TLS_CERT_DIR) value="$rehearsal_dir/certs";;
   esac

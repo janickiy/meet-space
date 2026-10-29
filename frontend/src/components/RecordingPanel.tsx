@@ -12,7 +12,7 @@ import type {
 import { Button, ErrorNotice } from "./ui";
 import { formatDate } from "../utils";
 import { isAdmitted } from "../collaboration";
-import { RecordingInsights } from "./RecordingInsights";
+import { RecordingPlayback } from "./RecordingPlayback";
 import { useCapabilities } from "../useCapabilities";
 import { useAuth } from "../auth";
 
@@ -32,8 +32,7 @@ const labels = {
  * @args
  *   - conference — текущая конференция; membership — членство и права текущего пользователя.
  *   - showHistory — показывать список прошлых записей и их файлов; в диалоге управления отключается.
- *   - showInsights — показывать доступные результаты обработки записи.
- *   - materialOnly — компактное представление расшифровки или итогов без списка файлов.
+ *   - showPlayback — показывать проигрыватель готовой записи.
  *   - onStarted — уведомить родительский интерфейс только после успешного запроса запуска записи.
  *
  * @return JSX-представление состояния записи и разрешённых действий.
@@ -42,15 +41,13 @@ export function RecordingPanel({
   conference,
   membership,
   showHistory = true,
-  showInsights = false,
-  materialOnly = false,
+  showPlayback = false,
   onStarted,
 }: {
   conference: Conference;
   membership?: Participant;
   showHistory?: boolean;
-  showInsights?: boolean;
-  materialOnly?: boolean;
+  showPlayback?: boolean;
   onStarted?: () => void;
 }) {
   const { user } = useAuth();
@@ -176,13 +173,13 @@ export function RecordingPanel({
     (current?.requestedBy === user?.id ||
       (membership?.role === "owner" && conference.ownerId === user?.id));
   if (!membership || !isAdmitted(membership)) return null;
-  const controlsOnly = !showHistory && !showInsights;
+  const controlsOnly = !showHistory && !showPlayback;
   return (
     <section
-      className={`content-card recording-panel${materialOnly ? " recording-panel-material" : ""}${controlsOnly ? " recording-panel-control" : ""}`}
+      className={`content-card recording-panel${controlsOnly ? " recording-panel-control" : ""}`}
       aria-label="Записи конференции"
     >
-      {!materialOnly && !controlsOnly && (
+      {!controlsOnly && (
         <div className="section-heading">
           <h2>Записи конференции</h2>
           {current && (
@@ -393,12 +390,11 @@ export function RecordingPanel({
           )}
         </div>
       )}
-      {showInsights && (
-        <RecordingInsights
+      {showPlayback && (
+        <RecordingPlayback
           conferenceId={conference.id}
           membership={membership}
           recordings={items}
-          materialOnly={materialOnly}
         />
       )}
     </section>

@@ -6,10 +6,10 @@
 
 `cmd/media-worker` запускает SFU на Pion. Браузеры публикуют микрофон, камеру,
 видео и аудио экрана; SFU пересылает encoded RTP подписчикам и отдельным
-recording/captions outputs. API хранит права, членство, сигнализацию и историю;
-Go recorder-worker и live-worker обрабатывают медиа в отдельных процессах.
+потоков записи. API хранит права, членство, сигнализацию и историю;
+Go record-worker обрабатывает запись в отдельном процессе.
 SFU используется как обычными конференциями, так и двухсторонними личными звонками.
-Запись и автоматические субтитры для `kind=direct_call` запрещены на уровне приложения.
+Запись для `kind=direct_call` запрещены на уровне приложения.
 
 Реализованы trickle ICE, ограниченные очереди, RTCP/PLI, сериализация переговоров,
 повторное включение устройств без пересоздания PeerConnection, screen sharing,
@@ -24,7 +24,6 @@ Browser → same-origin WebSocket → API media controller → protected worker 
 Browser ← same-origin WebSocket ← API Hub ← Redis targeted events ← media-worker
 Browser ⇄ encrypted WebRTC RTP/RTCP ⇄ media-worker SFU ⇄ other browsers
                                ├─ HTTP NDJSON → recorder → spool/FFmpeg/S3
-                               └─ HTTP NDJSON audio tap → live-worker → live STT
 ```
 
 SFU не зависит от PostgreSQL, RabbitMQ, S3-хранилища или FFmpeg. Его engine принимает
@@ -227,7 +226,7 @@ UI: http://localhost:5173 или https://localhost:18482. Internal media HTTP/me
 не опубликованы на host/gateway. Health endpoint возвращает только готовность,
 `/metrics` и `/operations/drain` требуют `METRICS_SECRET`, media commands —
 `MEDIA_INTERNAL_SECRET`. Новый Docker image non-root и без FFmpeg.
-PostgreSQL/RabbitMQ/S3-хранилища/recorder-worker не требуется пересоздавать для обновления SFU.
+PostgreSQL/RabbitMQ/S3-хранилища/record-worker не требуется пересоздавать для обновления SFU.
 После обновления проверяйте health/readiness и разрешения браузера.
 В production используйте
 полный набор Compose overlays/образов своей поставки и drain перед заменой SFU.
@@ -252,10 +251,10 @@ TCP mapping через override. Firewall должен разрешать выб
 PeerConnections, затем отдельно forced relay через TURN/TURNS. Разрешения ОС,
 выбор системного аудио и качество физических устройств проверяются в браузере.
 
-## Запись и live audio tap
+## Поток записи
 
-`POST /internal/media/egress` принимает `EgressRequest` с `purpose=recording`
-(или пустым значением по умолчанию) либо `captions`, conference/recording UUID, request UUID и текущей route/lease.
+`POST /internal/media/egress` принимает `EgressRequest`: UUID конференции, записи
+и запроса, текущую route/lease и длительность сегмента.
 `Authorization: Bearer MEDIA_INTERNAL_SECRET` и совпадающий `X-Request-ID`
 обязательны. `application/x-ndjson` содержит `hello`, `track`, `rtp`, `track.end`,
 `ping`, `error`; поле `rtp` сериализует байты в base64. `capturedAt` — Unix ns;
@@ -263,16 +262,15 @@ sequence монотонно увеличивается. Сервер не зап
 
 Каждая подписка имеет отдельную ограниченную очередь. Переполнение recording
 output закрывает его и приводит к ошибке записи, не блокируя RTP участников.
-`purpose=captions` использует audio tap; live-worker берёт микрофонные дорожки,
-декодирует Opus и отдельно применяет свои лимиты и provider retries.
 
-Go recorder-worker после `hello` переходит в `recording` (первый RTP может прийти
+
+Go record-worker после `hello` переходит в `recording` (первый RTP может прийти
 позднее), пишет локальные IVF/Ogg/manifests, запускает compositor/FFmpeg и публикует
 проверенные файлы в S3. RabbitMQ доставляет команды start/stop, но не медиабайты.
 Полный lifecycle, четыре режима, leases и retention: [conference-recording.md](conference-recording.md).
 
 Legacy recorder ingest имеет отдельные PeerConnection и порты; текущий UI его
-не использует. Производственный worker отключает legacy mux-порты и принимает
+не использует. Производственный record-worker отключает legacy mux-порты и принимает
 NDJSON от SFU. Наличие legacy кода не расширяет набор кодеков SFU.
 
 ## Границы отказоустойчивости и эксплуатации
@@ -287,7 +285,7 @@ NDJSON от SFU. Наличие legacy кода не расширяет набо
 - Internal HTTP защищён секретом и сетью. Перед передачей за пределы доверенной
   сети требуются соответствующие TLS/mTLS и firewall; production env не должен
   использовать локально выведенные HMAC-секреты.
-- Для совместной нагрузки конференций, экранов, записи и live STT рассчитывайте
+- Для совместной нагрузки конференций, экранов, записи рассчитывайте
   ресурсы целевого хоста: [лимиты и планирование](CAPACITY_BASELINE.md).
 - Реальные Chrome/Firefox/Safari, NAT, TURN/TURNS и screen audio зависят от
   устройств и браузеров; их проверяют на целевой сети и клиентах перед выпуском.

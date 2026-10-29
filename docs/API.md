@@ -1,19 +1,18 @@
 # API и протоколы текущего выпуска
 
-Актуализировано: **2026-10-21**. Это точка входа в документацию REST,
+Актуализировано: **2026-10-29**. Это точка входа в документацию REST,
 WebSocket, медиа и диагностики. Исполняемые маршруты и handlers — первичный
 источник контракта; документы ниже описывают текущую реализацию.
 
-Полный [каталог API](API_REFERENCE.md) содержит **177 серверных контрактов**:
-149 маршрутов API-сервера (148 под `/api/v1` и `GET /health`) и 28 маршрутов
-внутренних worker, operations и profiling. Общие operations считаются один раз,
-хотя регистрируются на нескольких сервисах. [Postman-коллекция](postman/meetspace/MeetSpace.postman_collection.json)
-содержит **178 запросов**: те же контракты плюс статический frontend `/version.json`.
+[Каталог API](API_REFERENCE.md) описывает публичные и внутренние маршруты,
+общие operations и profiling. Общие operations указаны один раз.
+[Postman-коллекция](postman/meetspace/MeetSpace.postman_collection.json) дополнительно
+содержит статический frontend `/version.json`.
 Каталог включает доступ, запрос, ответ, ошибки и исходный файл для каждого пути.
 
 ## Быстрый старт REST
 
-В [README](../README.md#api-meetspace) находится краткий каталог всех 148
+В [README](../README.md#api-meetspace) находится краткий каталог
 маршрутов `/api/v1`, а не только API записи. Ниже — последовательности запросов
 для основных функций. Примеры предназначены для локального стенда с уже
 созданными аккаунтами; они **не выполнялись на рабочем сервере** при подготовке
@@ -145,7 +144,6 @@ curl --fail-with-body -X PUT "$API/conversations/$CONVERSATION_ID/chat/read" \
 | Уведомления | `/notifications`, `/:notificationId/read`, `/notifications/events` (SSE с Bearer); настройки и устройства — `/notifications/preferences` и `/notifications/devices` |
 | Календарные провайдеры | `/integrations/calendars`, OAuth connect/callback и `/conferences/:id/calendar`; [настройка провайдеров](content-integrations.md) |
 | Запись встречи | `/conferences/:id/recordings` → `/:recordingId/stop` → чтение состояния и файлов; [контракт](conference-recording.md) |
-| Текст и итоги встречи | `transcript`, `transcript/segments`, `summary` относительно записи; `captions` и `analytics` относительно конференции; сначала проверьте `/capabilities` |
 
 Пути в этой таблице указаны относительно `/api/v1`; `attachments/*` дополнительно
 относится к выбранному `/conferences/:id` или `/conversations/:id`.
@@ -164,8 +162,8 @@ curl --fail-with-body -X PUT "$API/conversations/$CONVERSATION_ID/chat/read" \
 | SFU, `media.*`, ICE/TURN, внутреннее управление | [media-sfu.md](media-sfu.md) | [mediaworker transport](../internal/transport/mediaworker), [TURN config](../internal/config/turn.go) |
 | Запись, модерация, экран, recorder egress | [conference-recording.md](conference-recording.md) | [recording routes](../internal/transport/http/conference_recording_routes.go), [record models](../internal/domain/records/models.go) |
 | Зал ожидания, расписание, чат, вложения, реакции, история, уведомления | [collaboration.md](collaboration.md) | [HTTP routes](../internal/transport/http), [chat routes и лимиты](../internal/transport/http/chat_routes.go) |
-| Email/push/calendar, STT, ИИ, поиск | [content-integrations.md](content-integrations.md) | [integration routes](../internal/transport/http/integration_routes.go), [content routes](../internal/transport/http/content_routes.go) |
-| Live captions, аналитика, переиндексация | Этот индекс и прикладные типы | [captions routes](../internal/transport/http/captions_routes.go), [captions types](../internal/domain/captions/captions.go), [intelligence config](../internal/config/meeting_intelligence.go) |
+| Email/push/calendar | [content-integrations.md](content-integrations.md) | [integration routes](../internal/transport/http/integration_routes.go) |
+| Поиск встреч | [API_REFERENCE.md](API_REFERENCE.md#api-group-6) | [search routes](../internal/transport/http/search_routes.go) |
 | Возможности клиента и admin | [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md), [admin.md](operations/admin.md) | [platform status routes](../internal/transport/http/platform_status_routes.go) |
 
 Продуктовые REST-маршруты начинаются с `/api/v1`. JSON использует camelCase.
@@ -213,8 +211,7 @@ account WS также подписан на общий персональный 
 ## Возможности, запись и дополнительные результаты
 
 `GET /api/v1/capabilities` требует JWT и возвращает
-`{status, capabilities, buildVersion}`. Флаги: `liveCaptions`, `transcription`,
-`aiSummary`, `semanticSearch`, `meetingAnalytics`; `recordingModes` сейчас
+`{status, capabilities, buildVersion}`. Список `recordingModes` сейчас
 содержит `composite`, `audio_only`, `individual_tracks`, `screen_focus`.
 Семантический поиск дополнительно требует доступного pgvector. Этот ответ не
 предоставляет права пользователю и не доказывает готовность каждого провайдера.
@@ -235,7 +232,7 @@ DTO может содержать `starting`, `recording`, `degraded`, `stopping
 запись (`ready`, `partial_ready`, `failed`, `cancelled`). Действие доступно
 организатору встречи или инициатору записи с постоянным аккаунтом и действующим
 правом читать историю встречи. Гости и исключённые участники получают `403`.
-Активная запись или ещё действующая аренда recorder-worker дают `409`.
+Активная запись или ещё действующая аренда record-worker дают `409`.
 Удаление выполняется после подтверждения в меню записи. Сервер удаляет файлы,
 превью и все версии объектов в пределах UUID записи; затем удаляет ссылки на
 артефакты и выставляет `deleted_at`. Сама строка остаётся для внутренних связей,
@@ -245,10 +242,6 @@ DTO может содержать `starting`, `recording`, `degraded`, `stopping
 
 | Endpoint | Назначение |
 | --- | --- |
-| `GET/PUT /api/v1/conferences/{id}/captions` | Состояние и управление живым распознаванием согласно `canManage` |
-| `GET /api/v1/conferences/{id}/captions/segments` | Сохранённые финальные реплики с курсором |
-| `GET /api/v1/conferences/{id}/analytics` | Разрешённые агрегаты встречи |
-| `POST /api/v1/conferences/{id}/recordings/{recordingId}/search/reindex` | Разрешённый повтор индексации |
 | `GET /api/v1/admin/summary` | Агрегаты для `users.is_admin`; обычному пользователю — `403` |
 
 Внутренние протоколы SFU/recorder используют отдельные service secrets.
@@ -321,13 +314,9 @@ Redis limiter допускает 30 запросов/IP/минуту и 300 за
 | Запись | 2 активные, 1 FFmpeg-конвейер, 4 часа, 10 ГиБ | [composite.go](../internal/config/composite.go), `RECORDING_*` |
 | Чат: чтение / отправка / правка | 120 / 60 / 30 в минуту на user+conference | [chat_routes.go](../internal/transport/http/chat_routes.go) |
 | Вложения | 10 МиБ/файл, 5/сообщение; upload init/content по 10/минуту | [collaboration.md](collaboration.md), [chat routes](../internal/transport/http/chat_routes.go) |
-| Поиск | 30 запросов/минуту на пользователя | [content_routes.go](../internal/transport/http/content_routes.go) |
+| Поиск | 30 запросов/минуту на пользователя | [search_routes.go](../internal/transport/http/search_routes.go) |
 | OAuth start / callback | 5 / 10 запросов/минуту на пользователя | [integration_routes.go](../internal/transport/http/integration_routes.go) |
-| STT записи | 2 часа, 1 ГиБ исходного видео, 256 МиБ извлечённого аудио | [product.go](../internal/config/product.go) |
-| Live STT | 2 конференции, 10 дорожек на процесс, до 2 часов | [meeting_intelligence.go](../internal/config/meeting_intelligence.go) |
 
-Обработка более длинной записи не следует автоматически из увеличения одного
-лимита recorder: бюджеты STT, temporary storage и провайдера отдельные.
 Не игнорируйте `429` и `Retry-After`; повторять изменяющие операции следует
 только с предусмотренной контрактом идемпотентностью.
 

@@ -1,5 +1,7 @@
 # MeetSpace web memory and lifecycle audit
 
+> Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](../../ARCHITECTURE.md).
+
 Date: 2026-10-26. Baseline checkout: `3ea9a4e83e82484c25402963b2e68a0642d986f6`.
 
 Later repository integration is recorded in [the publication follow-up](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). The original browser profiles below were not rerun against the newer upstream landing page.

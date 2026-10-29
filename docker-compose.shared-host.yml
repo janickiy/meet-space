@@ -9,16 +9,13 @@ services:
   media-worker:
     mem_limit: 512m
     cpus: 1
-  worker:
+  record-worker:
     mem_limit: 768m
     cpus: 1
   product-worker:
     mem_limit: 256m
     cpus: 1
     tmpfs: !override ["/tmp:size=64m,mode=1777"]
-  live-worker:
-    mem_limit: 128m
-    cpus: 1
   frontend:
     mem_limit: 64m
   postgres:

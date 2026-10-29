@@ -42,16 +42,10 @@ import type {
   IntegrationCapabilities,
   CalendarConnection,
   CalendarSync,
-  TranscriptView,
-  TranscriptSegment,
-  SummaryView,
   OffsetPage,
   SearchFilters,
   SearchResult,
   RecordingMode,
-  Caption,
-  CaptionState,
-  MeetingAnalytics,
   CapabilitiesResponse,
   AdminSummary,
   InvitationUser,
@@ -768,61 +762,6 @@ export const api = {
       { method: "DELETE" },
     ),
   /**
-   * Читает состояние расшифровки без запуска обработки.
-   * @args id, recordingId — идентификаторы; signal — отмена запроса.
-   * @return Nullable расшифровка и проверенные сервером возможности.
-   */
-  transcript: (id: string, recordingId: string, signal?: AbortSignal) =>
-    request<TranscriptView>(
-      `/conferences/${encodeURIComponent(id)}/recordings/${encodeURIComponent(recordingId)}/transcript`,
-      { signal },
-    ),
-  /**
-   * Загружает ограниченную страницу сегментов в хронологическом порядке.
-   * @args id, recordingId — идентификаторы; offset — смещение; signal — отмена.
-   * @return Страница текста с временными метками.
-   */
-  transcriptSegments: (
-    id: string,
-    recordingId: string,
-    offset: number,
-    signal?: AbortSignal,
-  ) =>
-    request<OffsetPage<TranscriptSegment>>(
-      `/conferences/${encodeURIComponent(id)}/recordings/${encodeURIComponent(recordingId)}/transcript/segments?limit=100&offset=${offset}`,
-      { signal },
-    ),
-  /**
-   * Явно запрашивает разрешённый организатору повтор распознавания.
-   * @args id, recordingId — идентификаторы встречи и записи.
-   * @return Обновлённое состояние очереди либо отказ авторизации/лимита.
-   */
-  retryTranscript: (id: string, recordingId: string) =>
-    request<TranscriptView>(
-      `/conferences/${encodeURIComponent(id)}/recordings/${encodeURIComponent(recordingId)}/transcript/retry`,
-      { method: "POST", body: {} },
-    ),
-  /**
-   * Читает сохранённые итоги ИИ, не вызывая провайдера.
-   * @args id, recordingId — идентификаторы; signal — отмена запроса.
-   * @return Nullable итоги и право повторного запуска.
-   */
-  summary: (id: string, recordingId: string, signal?: AbortSignal) =>
-    request<SummaryView>(
-      `/conferences/${encodeURIComponent(id)}/recordings/${encodeURIComponent(recordingId)}/summary`,
-      { signal },
-    ),
-  /**
-   * Ставит новую генерацию итогов по явной команде организатора.
-   * @args id, recordingId — идентификаторы встречи и записи.
-   * @return Принятое задание либо безопасная ошибка лимита.
-   */
-  regenerateSummary: (id: string, recordingId: string) =>
-    request<SummaryView>(
-      `/conferences/${encodeURIComponent(id)}/recordings/${encodeURIComponent(recordingId)}/summary/regenerate`,
-      { method: "POST", body: {} },
-    ),
-  /**
    * Передаёт фильтры полнотекстового поиска с авторизацией в заголовке.
    * @args filters — запрос и UTC-даты; offset — смещение; signal — отмена.
    * @return Страница доступных результатов без выдачи URL хранилища.
@@ -843,8 +782,7 @@ export const api = {
       params.set("participantId", filters.participantId);
     return request<
       OffsetPage<SearchResult> & {
-        effectiveMode?: string;
-        fallbackReason?: string;
+        effectiveMode?: "keyword";
       }
     >(`/search?${params}`, { signal });
   },
@@ -938,36 +876,6 @@ export const api = {
     request<Item<ConferenceRecording>>(
       `/conferences/${encodeURIComponent(id)}/recordings`,
       { method: "POST", body: { segmentDurationSec: 5, mode } },
-    ),
-  /** Читает состояние распознавания; @args id — встреча; signal — отмена; @return приватный снимок. */
-  captions: (id: string, signal?: AbortSignal) =>
-    request<Item<CaptionState>>(
-      `/conferences/${encodeURIComponent(id)}/captions`,
-      { signal },
-    ),
-  /** Переключает передачу звука; @args id — встреча, enabled — согласие, language — auto/ru/en; @return состояние. */
-  setCaptions: (id: string, enabled: boolean, language: string) =>
-    request<Item<CaptionState>>(
-      `/conferences/${encodeURIComponent(id)}/captions`,
-      { method: "PUT", body: { enabled, language } },
-    ),
-  /** Восстанавливает финалы; @args id — встреча, afterCursor — последняя версия, signal — отмена; @return страница. */
-  captionFinals: (id: string, afterCursor: number, signal?: AbortSignal) =>
-    request<{ items: Caption[]; nextCursor: number; hasMore: boolean }>(
-      `/conferences/${encodeURIComponent(id)}/captions/segments?afterCursor=${afterCursor}&limit=100`,
-      { signal },
-    ),
-  /** Читает агрегаты; @args id — встреча, signal — отмена; @return разрешённая аналитика. */
-  analytics: (id: string, signal?: AbortSignal) =>
-    request<Item<MeetingAnalytics>>(
-      `/conferences/${encodeURIComponent(id)}/analytics`,
-      { signal },
-    ),
-  /** Ставит переиндексацию; @args id,rid — встреча и запись; @return подтверждение постановки. */
-  reindex: (id: string, rid: string) =>
-    request(
-      `/conferences/${encodeURIComponent(id)}/recordings/${encodeURIComponent(rid)}/search/reindex`,
-      { method: "POST", body: {} },
     ),
   /**
    * stopRecording запрашивает остановку указанной записи и её последующую финализацию.

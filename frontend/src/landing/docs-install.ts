@@ -860,7 +860,7 @@ export const installationArticles: DocumentationArticle[] = [
         code: {
           language: "bash",
           value:
-            "sudo /opt/meetspace/manage.sh status\nsudo /opt/meetspace/manage.sh logs api\nsudo /opt/meetspace/manage.sh logs worker\nsudo /opt/meetspace/manage.sh create-account",
+            "sudo /opt/meetspace/manage.sh status\nsudo /opt/meetspace/manage.sh logs api\nsudo /opt/meetspace/manage.sh logs record-worker\nsudo /opt/meetspace/manage.sh create-account",
         },
         table: {
           headings: ["Путь по умолчанию", "Содержимое"],
@@ -1402,7 +1402,7 @@ export const installationArticles: DocumentationArticle[] = [
         code: {
           language: "bash",
           value:
-            "sudo /opt/meetspace/manage.sh status\nsudo /opt/meetspace/manage.sh logs api\nsudo /opt/meetspace/manage.sh logs media-worker\nsudo /opt/meetspace/manage.sh logs worker\ncurl --fail --silent --show-error https://meet.example.com/version\ncurl --fail --silent --show-error https://meet.example.com/version.json",
+            "sudo /opt/meetspace/manage.sh status\nsudo /opt/meetspace/manage.sh logs api\nsudo /opt/meetspace/manage.sh logs media-worker\nsudo /opt/meetspace/manage.sh logs record-worker\ncurl --fail --silent --show-error https://meet.example.com/version\ncurl --fail --silent --show-error https://meet.example.com/version.json",
         },
         links: [
           {
@@ -1639,10 +1639,10 @@ export const installationArticles: DocumentationArticle[] = [
             title: "Если запись не начинается или долго обрабатывается",
             paragraphs: [],
             bullets: [
-              "**Сервис записи:** проверьте состояние **worker (Record Worker)** и его журналы.",
+              "**Сервис записи:** проверьте состояние **record-worker (Record Worker)** и его журналы.",
               "**Зависимости:** убедитесь, что доступны **RabbitMQ**, **PostgreSQL** и S3-совместимое хранилище.",
               "**Место на диске:** проверьте свободное место и доступность каталога записи. Требуемый владелец каталога - **UID/GID 1000:1000**. Также проверьте ограничения записи.",
-              "**Обработка файла:** изучите сообщения worker и **FFmpeg** за время возникновения ошибки.",
+              "**Обработка файла:** изучите сообщения record-worker и **FFmpeg** за время возникновения ошибки.",
             ],
           },
           {
@@ -1693,7 +1693,7 @@ export const installationArticles: DocumentationArticle[] = [
           {
             title: "Перед повторной отправкой",
             paragraphs: [
-              "Повторная отправка без устранения причины не подтверждает, что интеграция работает. Эти же проверки применяются к транскрипции и функциям искусственного интеллекта, если они включены на сервере.",
+              "Повторная отправка без устранения причины не подтверждает, что интеграция работает. После исправления настроек проверьте доставку нового приглашения.",
             ],
             steps: [
               "Найдите **первоначальное сообщение об ошибке** в журнале задачи или ответе провайдера.",

@@ -43,12 +43,12 @@ services:
       retries: 6
     depends_on:
       redis: {condition: service_healthy}
-  worker:
+  record-worker:
     <<: *process
-    image: ${WORKER_IMAGE:?set immutable WORKER_IMAGE}
+    image: ${RECORD_WORKER_IMAGE:?set immutable RECORD_WORKER_IMAGE}
     # Каталог тома должен заранее принадлежать UID app; запуск от root в точке входа не нужен.
     user: "1000:1000"
-    entrypoint: /app/go-recorder-worker
+    entrypoint: /app/record-worker
     environment: {APP_ENV: "${RELEASE_APP_ENV:-production}", AUTO_MIGRATE: "false", GIN_MODE: release, WORKER_PORT: "8090", STORAGE_PATH: /storage, WEBRTC_UDP_PORT: "0", WEBRTC_TCP_PORT: "0"}
     mem_limit: 4g
     cpus: 4
@@ -72,8 +72,7 @@ services:
     cpus: 2
     pids_limit: 96
     read_only: true
-    # Для одного стандартного задания STT: видео до 1 ГиБ и аудио до 256 МиБ.
-    tmpfs: ["/tmp:size=1536m,mode=1777"]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
     healthcheck:
       test: [CMD, wget, -q, --spider, "http://127.0.0.1:8092/health/ready"]
       interval: 5s
@@ -83,25 +82,6 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       minio: {condition: service_healthy}
-  live-worker:
-    <<: *process
-    profiles: [live]
-    image: ${LIVE_WORKER_IMAGE:?set immutable LIVE_WORKER_IMAGE}
-    environment: {APP_ENV: "${RELEASE_APP_ENV:-production}", AUTO_MIGRATE: "false", GIN_MODE: release, LIVE_WORKER_PORT: "8093"}
-    mem_limit: 768m
-    cpus: 2
-    pids_limit: 128
-    read_only: true
-    tmpfs: ["/tmp:size=16m,mode=1777"]
-    healthcheck:
-      test: [CMD, wget, -q, --spider, "http://127.0.0.1:8093/health/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 6
-    depends_on:
-      postgres: {condition: service_healthy}
-      redis: {condition: service_healthy}
-      media-worker: {condition: service_healthy}
   frontend:
     image: ${FRONTEND_IMAGE:?set immutable FRONTEND_IMAGE}
     restart: unless-stopped
@@ -175,7 +155,7 @@ services:
     profiles: [observability]
     command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.retention.time=7d]
     ports: ["127.0.0.1:19090:9090"]
-    volumes: ["./dockers/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "${LIVE_METRICS_TARGETS_FILE:-./dockers/observability/live-targets.disabled.json}:/etc/prometheus/live-targets.json:ro", "./dockers/observability/alerts.yml:/etc/prometheus/alerts.yml:ro", "${METRICS_TOKEN_FILE:-./secrets/metrics_token}:/run/secrets/metrics_token:ro", "prometheus:/prometheus"]
+    volumes: ["./dockers/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "./dockers/observability/alerts.yml:/etc/prometheus/alerts.yml:ro", "${METRICS_TOKEN_FILE:-./secrets/metrics_token}:/run/secrets/metrics_token:ro", "prometheus:/prometheus"]
     networks: [private]
   migrate:
     <<: *process

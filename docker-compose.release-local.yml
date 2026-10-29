@@ -7,7 +7,7 @@ services:
     environment: {MEDIA_NAT_IPS: "127.0.0.1", MEDIA_UDP_PORT: "50220", MEDIA_TCP_PORT: "50220"}
   api:
     ports: ["127.0.0.1:28085:8085"]
-  worker:
+  record-worker:
     ports: ["127.0.0.1:28090:8090"]
   postgres:
     ports: ["127.0.0.1:25433:5432"]

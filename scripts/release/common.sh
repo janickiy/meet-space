@@ -3,14 +3,13 @@
 set -euo pipefail
 
 RELEASE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RELEASE_SERVICES=(api media-worker worker product-worker live-worker frontend minio postgres redis rabbitmq coturn proxy prometheus grafana)
-RELEASE_APPLICATIONS=(media-worker worker product-worker api frontend)
-RELEASE_LIVE_WORKER=false
+RELEASE_SERVICES=(api media-worker record-worker product-worker frontend minio postgres redis rabbitmq coturn proxy prometheus grafana)
+RELEASE_APPLICATIONS=(media-worker record-worker product-worker api frontend)
 
 # select_release_services selects the full artifact inventory, including optional images.
 # Argument $1 is the validated classic or hardened-shared-host layout.
 select_release_services() {
-  RELEASE_SERVICES=(api media-worker worker product-worker live-worker frontend minio postgres redis rabbitmq coturn proxy prometheus)
+  RELEASE_SERVICES=(api media-worker record-worker product-worker frontend minio postgres redis rabbitmq coturn proxy prometheus)
   if [[ "$1" == classic ]]; then RELEASE_SERVICES+=(grafana); fi
 }
 
@@ -54,36 +53,20 @@ compose() {
     if [[ "${RELEASE_LAYOUT:-classic}" == classic ]]; then options+=(-f "$RELEASE_ROOT/docker-compose.release-local-grafana.yml");
     else options+=(-f "$RELEASE_ROOT/docker-compose.release-local-hardened.yml"); fi
   fi
-  if [[ "$RELEASE_LIVE_WORKER" == true ]]; then options+=(--profile live); fi
   COMPOSE_PROFILES= docker compose --project-name "$RELEASE_PROJECT" --env-file "$RELEASE_ENV_FILE" "${options[@]}" "$@"
 }
 
-# configure_live_worker selects runtime services from literal feature flags in the
-# reviewed env file. Full-package image integrity checks still include every image.
-configure_live_worker() {
-  command -v python3 >/dev/null || fail "python3 is required for optional service policy"
-  RELEASE_LIVE_WORKER="$(python3 -I "$RELEASE_ROOT/scripts/install/wizard.py" --live-worker-policy "$RELEASE_ENV_FILE")" \
-    || fail "Cannot determine live-worker policy; check LIVE_STT_ENABLED and MEETING_ANALYTICS_ENABLED"
-  RELEASE_APPLICATIONS=(media-worker worker product-worker)
-  if [[ "$RELEASE_LIVE_WORKER" == true ]]; then
-    RELEASE_APPLICATIONS+=(live-worker)
-    export LIVE_METRICS_TARGETS_FILE="$RELEASE_ROOT/dockers/observability/live-targets.enabled.json"
-  elif [[ "$RELEASE_LIVE_WORKER" == false ]]; then
-    export LIVE_METRICS_TARGETS_FILE="$RELEASE_ROOT/dockers/observability/live-targets.disabled.json"
-  else fail "Invalid live-worker policy"; fi
-  RELEASE_APPLICATIONS+=(api frontend)
+# Retire legacy processes before a migration or replacement can start a second recorder.
+retire_legacy_services() {
+  command -v python3 >/dev/null || fail "python3 is required for legacy service retirement"
+  python3 -I "$RELEASE_ROOT/scripts/install/retire-legacy-services.py" --project "$RELEASE_PROJECT" "$@"
 }
 
-# stop_disabled_live_worker retires an existing optional process only after drain.
-# The caller supplies drain_service; the container and its image are not deleted.
-stop_disabled_live_worker() {
-  [[ "$RELEASE_LIVE_WORKER" == false ]] || return 0
-  local id
-  id="$(compose --profile live ps -q live-worker)"
-  if [[ -n "$id" && "$(docker inspect --format '{{.State.Running}}' "$id")" == true ]]; then
-    drain_service live-worker 8093 || return 1
-    compose --profile live stop live-worker
-  fi
+# Require the exact new inventory; never reinterpret an immutable legacy package.
+verify_service_inventory() {
+  jq -e --arg services "${RELEASE_SERVICES[*]}" '
+    (.images | keys | sort) == ($services | split(" ") | sort)' "$RELEASE_MANIFEST" >/dev/null \
+    || fail "Incompatible release inventory: a new verified package with record-worker is required; legacy packages cannot be relabelled"
 }
 
 # verify_archive_security проверяет целостность офлайн-пакета и отчёты каждого образа.
@@ -92,6 +75,7 @@ stop_disabled_live_worker() {
 # @args параметры берутся из проверенного RELEASE_MANIFEST и его каталога.
 verify_archive_security() {
   local directory service image expected actual scan sbom architecture config_id descriptor
+  verify_service_inventory
   directory="$(dirname "$RELEASE_MANIFEST")"
   [[ -f "$directory/images.tar" ]] || fail "Archive release images.tar is missing"
   expected="$(jq -er '.archiveSHA256 | select(test("^[a-f0-9]{64}$"))' "$RELEASE_MANIFEST")" || fail "Archive checksum missing"
@@ -138,13 +122,14 @@ verify_archive_security() {
 # @args версия, commit и sourceSHA256 берутся из манифеста текущего релиза.
 verify_loaded_images() {
   local service image source architecture expected_version expected_commit expected_source
+  verify_service_inventory
   source="$(jq -er .sourceSHA256 "$RELEASE_MANIFEST")"
   architecture="$(jq -r '.platform | split("/")[1]' "$RELEASE_MANIFEST")"
   for service in "${RELEASE_SERVICES[@]}"; do
     image="$(jq -er --arg service "$service" '.images[$service]' "$RELEASE_MANIFEST")"
     docker image inspect "$image" | jq -e --arg architecture "$architecture" '.[0].Architecture == $architecture' >/dev/null || fail "Loaded image architecture mismatch for $service"
     case "$service" in
-      api|media-worker|worker|product-worker|live-worker|frontend|minio)
+      api|media-worker|record-worker|product-worker|frontend|minio)
         expected_version="$RELEASE_VERSION"; expected_commit="$RELEASE_COMMIT"; expected_source="$source"
         if [[ "$service" == minio && "$(jq -r '.infrastructureReused // false' "$RELEASE_MANIFEST")" == true ]]; then
           # Хранилище сохраняет собственное происхождение. При переиспользовании
@@ -184,6 +169,7 @@ validate_release() {
   RELEASE_LAYOUT="$(jq -r '.deploymentLayout // "classic"' "$RELEASE_MANIFEST")"
   [[ "$RELEASE_LAYOUT" == classic || "$RELEASE_LAYOUT" == hardened-shared-host ]] || fail "Unsupported release layout"
   select_release_services "$RELEASE_LAYOUT"
+  verify_service_inventory
   RELEASE_ARTIFACT_MODE="$(jq -r '.artifactMode // ""' "$RELEASE_MANIFEST")"
   if [[ "$RELEASE_ENVIRONMENT" != local ]]; then
     jq -e '.sourceDirty == false and .sourceFingerprintVerified == true and .securityScanned == true
@@ -203,7 +189,6 @@ validate_release() {
   if [[ "$RELEASE_LAYOUT" == hardened-shared-host ]]; then export OBJECT_STORAGE_IMAGE="$MINIO_IMAGE"; fi
   export RELEASE_ENV_FILE
   export BUILD_VERSION="$RELEASE_VERSION"
-  configure_live_worker
   compose --profile observability --profile migration config --quiet
   if [[ "$RELEASE_ENVIRONMENT" != local ]]; then
     # Вывод полной конфигурации содержит секреты: читаем только публичные origins в процессе.

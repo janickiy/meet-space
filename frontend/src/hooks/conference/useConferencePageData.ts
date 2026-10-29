@@ -5,7 +5,6 @@ import { isAdmitted } from "../../collaboration";
 import { onlineParticipants } from "../../presence";
 import { useConference, useMembership, useParticipants } from "../../queries";
 import { useRealtime } from "../../realtime";
-import { useCapabilities } from "../../useCapabilities";
 
 /**
  * Собирает серверные данные страницы и владеет единственным realtime-подключением встречи.
@@ -30,13 +29,6 @@ export function useConferencePageData(id: string) {
   );
   const onlinePeople = onlineParticipants(people, live.state?.participants);
   const displayedPeople = closed ? people : onlinePeople;
-  const capabilities = useCapabilities();
-  const features =
-    capabilities.isSuccess && !capabilities.isError
-      ? capabilities.data.capabilities
-      : undefined;
-  const captionsEnabled = features?.liveCaptions === true;
-  const analyticsEnabled = features?.meetingAnalytics === true;
   const activeMeeting =
     admitted &&
     membership?.status === "joined" &&
@@ -83,9 +75,6 @@ export function useConferencePageData(id: string) {
     live,
     onlinePeople,
     displayedPeople,
-    capabilities,
-    captionsEnabled,
-    analyticsEnabled,
     activeMeeting,
     recordingAccess,
     recordingStatus,

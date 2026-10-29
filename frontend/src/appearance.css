@@ -81,7 +81,7 @@ select {
     textarea,
     .conference-filters select,
     .media-devices select,
-    .recording-insights select,
+    .recording-playback select,
     .search-form select,
     .search-form input
   ) {
@@ -131,8 +131,6 @@ select {
     .status-scheduled,
     .tab-active,
     .dev-badge,
-    .topic-list li,
-    .transcript-list li.segment-selected,
     .recordings-meeting-views button[aria-pressed="true"],
     .recordings-thumbnail
   ) {
@@ -201,12 +199,9 @@ select {
     .participant-row,
     .recording-row,
     .conference-media,
-    .recording-insights,
+    .recording-playback,
     .integration-list li,
     .search-results li,
-    .transcript-list li,
-    .analytics-scroll th,
-    .analytics-scroll td,
     .landing,
     .landing-footer
   ) {

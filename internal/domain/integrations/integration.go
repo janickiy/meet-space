@@ -20,7 +20,6 @@ type Preferences struct {
 	Invitation bool      `json:"invitation"`
 	Reminder   bool      `json:"reminder"`
 	Recording  bool      `json:"recording"`
-	Summary    bool      `json:"summary"`
 	Email      bool      `json:"email"`
 	Push       bool      `json:"push"`
 	UpdatedAt  time.Time `json:"-"`
@@ -41,7 +40,7 @@ func (Preferences) TableName() string { return "notification_preferences" }
 // @returns:
 //   - result1: Результирующие настройки.
 func DefaultPreferences(userID string) Preferences {
-	return Preferences{UserID: userID, Invitation: true, Reminder: true, Recording: true, Summary: true}
+	return Preferences{UserID: userID, Invitation: true, Reminder: true, Recording: true}
 }
 
 // Allows сообщает, разрешает ли текущая политика выполнение запрошенной операции или
@@ -61,9 +60,7 @@ func (p Preferences) Allows(kind string) bool {
 		return p.Reminder
 	case "recording.ready":
 		return p.Recording
-	case "transcript.ready", "summary.ready":
-		return p.Summary
-	case "admission.decided", "processing.failed":
+	case "admission.decided":
 		return true
 	}
 	return false
@@ -225,8 +222,8 @@ type EmailProvider interface {
 // PushProvider изолирует доставку на платформе от специфичных для конкретного провайдера
 // токенов SDKs.
 type PushProvider interface {
-	// Send доставляет минимальное уведомление на выбранное зарегистрированное устройство без
-	// расшифровки текста и без использования секретов провайдера.
+	// Send доставляет минимальное уведомление на зарегистрированное устройство
+	// без передачи секретов провайдера в содержимом сообщения.
 	//
 	// @Parameters:
 	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения

@@ -25,15 +25,15 @@ REPOSITORY = 'https://github.com/janickiy/meet-space.git'
 SCANNER = 'aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa'
 BUILDKIT = 'moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea'
 BUILDKIT_CONFIG = '[worker.oci]\n  max-parallelism = 1\n'
-SERVICES = frozenset(('api', 'media-worker', 'worker', 'product-worker', 'live-worker',
+SERVICES = frozenset(('api', 'media-worker', 'record-worker', 'product-worker',
                       'frontend', 'minio', 'postgres', 'redis', 'rabbitmq', 'coturn', 'proxy', 'prometheus'))
 DEPLOYMENT_FILES = (
     'docker-compose.production.yml', 'docker-compose.hardened.yml', 'docker-compose.grafana.yml',
     '.env.production.example', 'scripts/release/common.sh', 'dockers/production/routes.conf',
     'scripts/install/wizard.py', 'scripts/install/verify-release.sh',
+    'scripts/install/retire-legacy-services.py',
     'dockers/turn/entrypoint.sh', 'dockers/turn/turnserver.conf',
     'dockers/observability/prometheus.yml', 'dockers/observability/alerts.yml',
-    'dockers/observability/live-targets.disabled.json', 'dockers/observability/live-targets.enabled.json',
     'dockers/observability/dashboard.json',
     'dockers/observability/provisioning/dashboards/recorder.yml',
     'dockers/observability/provisioning/datasources/recorder.yml',

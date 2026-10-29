@@ -1,8 +1,8 @@
 # Управление медиа и запись конференций
 
 Актуализировано 2026-10-21 по коду `6e577b6cced4e34d1c031353fbb9055909055185`.
-Текущий UI использует conference recording API и SFU egress. Go recorder-worker
-(`cmd/worker`, Compose service `worker`) захватывает и обрабатывает запись отдельно
+Текущий UI использует conference recording API и SFU egress. Go record-worker
+(`cmd/record-worker`, Compose service `record-worker`) захватывает и обрабатывает запись отдельно
 от API и SFU.
 
 ## Возможности
@@ -23,7 +23,7 @@ Browser ⇄ WebRTC ⇄ media-worker SFU ⇄ другие Browser
                          ▼
                  защищённый HTTP egress
                          ▼
-                 recorder-worker spool
+                 record-worker spool
                          ▼
            FFmpeg segment composition и audio mix
                          ▼
@@ -138,7 +138,7 @@ IVF/Ogg-фрагменты и manifest с participant/source/track instance и �
 ### Spool и объектное хранилище
 
 `STORAGE_PATH=/storage`; в production монтируется
-`${RECORDER_STORAGE_DIR}:/storage`, worker работает UID/GID 1000.
+`${RECORDER_STORAGE_DIR}:/storage`, record-worker работает UID/GID 1000.
 Каталог `/storage/records/{recordId}` содержит:
 
 - `sources/{chunk}_{trackId}.ivf` / `.ogg` — VP8 / Opus;
@@ -159,9 +159,7 @@ Compose service `minio` — классический MinIO либо SeaweedFS и
 
 Внутренний `POST /internal/media/egress` защищён отдельным Bearer secret и Redis
 ownership lease. Запрос содержит UUID `requestId`, `conferenceId`, `recordingId`, `route`,
-`segmentDurationSec` (1–30 на внутренней границе). `purpose` может быть
-`recording` или отсутствовать: текущий recorder использует пустое значение,
-эквивалентное recording; live-worker явно передаёт `captions`.
+`segmentDurationSec` (1–30 на внутренней границе).
 `X-Request-ID` должен совпадать с телом. Ответ `application/x-ndjson` содержит
 `hello`, `track`, `rtp`, `track.end`, `ping` либо `error`.
 Метаданные содержат codec и typed source; RTP передаётся как base64, capturedAt —
@@ -172,7 +170,7 @@ recording output. Пустая комната сохраняется, пока �
 Внутренние адреса и secrets не доступны браузеру. HTTP write deadline обновляется
 на каждой отправке; shutdown закрывает egress до ожидания завершения HTTP.
 
-`hello` вызывает `OnStarted`: именно после него worker устанавливает `recording`
+`hello` вызывает `OnStarted`: именно после него record-worker устанавливает `recording`
 и `started_at`, затем публикует `recording.started`. Это ещё не доказательство
 получения первого RTP. Media timeline хранится отдельно (`media_started_at`,
 `timelineOriginNs`). Без владельца SFU открытие egress завершается ошибкой; при
@@ -180,8 +178,7 @@ recording output. Пустая комната сохраняется, пока �
 
 `MEDIA_EGRESS_QUEUE_SIZE=2048` по умолчанию, ping — раз в секунду, PLI — по
 длительности сегмента. Capture прерывается при 15 секундах отсутствия входных
-кадров контракта. Для live-worker используется отдельная подписка
-`purpose=captions`, а не очередь/файлы recorder. RabbitMQ не переносит RTP.
+кадров контракта. RabbitMQ не переносит RTP.
 
 ## Жизненный цикл и восстановление
 
@@ -214,14 +211,14 @@ Worker наблюдает DB state, поэтому stop, доставленны�
 | --- | --- | --- |
 | `starting` | `starting` | Заявка/outbox создана, идёт захват аренды и открытие egress |
 | `recording` | `recording` | Получен `hello`, идёт capture и композиция сегментов |
-| `stopping` | `stopping` | Принята остановка; worker завершает захват и последний сегмент |
+| `stopping` | `stopping` | Принята остановка; record-worker завершает захват и последний сегмент |
 | `finalizing` | `processing` | Concat, ffprobe и подготовка артефактов |
 | `uploading` | `processing` | Публикация файлов и fenced commit |
 | `ready` | `ready` | Подтверждён полный набор файлов выбранного режима |
 | `failed` | `failed` | Неуспех; доступный spool сохраняется |
-| `degraded` | `degraded` | Зарезервировано моделью; блокирует новый start, текущий composite worker не выставляет |
-| `partial_ready` | `partial_ready` | Терминальное состояние модели; текущий composite worker не выставляет |
-| `cancelled` | `cancelled` | Терминальное состояние модели; текущий composite worker не выставляет |
+| `degraded` | `degraded` | Зарезервировано моделью; блокирует новый start, текущий composite record-worker не выставляет |
+| `partial_ready` | `partial_ready` | Терминальное состояние модели; текущий composite record-worker не выставляет |
+| `cancelled` | `cancelled` | Терминальное состояние модели; текущий composite record-worker не выставляет |
 
 Outbox dispatcher опрашивает БД каждые 250 ms, захватывает до 16 команд на 15 s,
 сохраняет порядок одной записи и повторяет неудачную доставку. Redis lock
@@ -236,7 +233,7 @@ Recorder lease по умолчанию 20 s, продление каждые TTL
 Рестарт `starting`/`recording` с прежним token означает оборванный capture и `failed`.
 `stopping`/`finalizing`/`uploading` можно восстановить по локальным закрытым manifests
 и сегментам, если они доступны новому владельцу. Это не перенос активной записи
-между произвольными хостами. При предельной длительности worker запрашивает stop
+между произвольными хостами. При предельной длительности record-worker запрашивает stop
 с `duration_limit`; finish конференции — с `conference_finished`.
 
 Загрузка имеет timeout 10 min, S3 SDK — до 3 попыток; после upload `StatObject`
@@ -280,7 +277,7 @@ JSON запуска/остановки ограничен 32 KiB; неизвес
 События: participant.media.updated, participant.role.updated, participant.kicked,
 media.policy, recording.starting, recording.started, recording.stopping,
 recording.processing, recording.ready, recording.failed, recording.deleted.
-Legacy worker endpoints не читают и не изменяют conference recording rows.
+Legacy record-worker endpoints не читают и не изменяют conference recording rows.
 Публичного legacy create endpoint в текущем router нет.
 
 ## Основные файлы
@@ -346,7 +343,7 @@ RTP — 200 ms. Эти пределы защищают память и не за
 
 ## Эксплуатация
 
-Контролируйте FFmpeg backlog, свободное место spool, записи в `failed`, worker
+Контролируйте FFmpeg backlog, свободное место spool, записи в `failed`, record-worker
 leases, очередь outbox и выполнение retention. Восстановление финализации требует
 доступа к spool; при передаче egress за пределы доверенной сети защищайте транспорт
 TLS/mTLS. Настройки по умолчанию:
@@ -357,7 +354,7 @@ TLS/mTLS. Настройки по умолчанию:
 
 Legacy — отдельный внутренний ingest в `internal/infrastructure/webrtc` и
 `internal/usecase/recorder/service.go`. Защищённые `WORKER_INTERNAL_SECRET`
-маршруты worker `/records/:id/start`, `/records/:id/stop`,
+маршруты record-worker `/records/:id/start`, `/records/:id/stop`,
 `/records/:id/webrtc/offer` принимают SDP для отдельной Pion-сессии и не заменяют
 conference API. Guard запрещает использовать их для conference recording rows.
 
@@ -365,6 +362,6 @@ Legacy передаёт RTP через локальные UDP sockets в FFmpeg 
 MKV в `/storage/tmp/{id}` и затем перекодирует итоговый H.264/AAC MP4. Его объектный
 префикс — `records/{id}/`, без conference token hierarchy. Поддерживаемые legacy
 кодеки шире (VP8/VP9/H.264 и Opus/PCMU/PCMA), чем текущий SFU (VP8/Opus).
-Основной UI не отправляет медиа непосредственно этому worker; production Compose
+Основной UI не отправляет медиа непосредственно этому record-worker; production Compose
 отключает его legacy ICE mux-порты. Ни публичного `/record-worker` proxy, ни
 анонимного `/records` create текущий backend router не обещает.

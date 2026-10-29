@@ -31,9 +31,9 @@ func main() {
 		if err := app.RunAPI(); err != nil {
 			log.Fatalf("api: %v", err)
 		}
-	case "worker":
-		if err := app.RunWorker(); err != nil {
-			log.Fatalf("worker: %v", err)
+	case "record-worker":
+		if err := app.RunRecordWorker(); err != nil {
+			log.Fatalf("record-worker: %v", err)
 		}
 	case "migrate":
 		if err := app.RunMigrations(); err != nil {

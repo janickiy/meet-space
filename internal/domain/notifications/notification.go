@@ -29,9 +29,6 @@ type Payload struct {
 	MessageID        string     `json:"messageId,omitempty"`
 	ScheduledAt      *time.Time `json:"scheduledAt,omitempty"`
 	AdmissionState   string     `json:"admissionState,omitempty"`
-	TranscriptID     string     `json:"transcriptId,omitempty"`
-	SummaryID        string     `json:"summaryId,omitempty"`
-	Generation       int64      `json:"generation,omitempty"`
 }
 
 // Notification сохраняет личное событие, ссылки на ресурсы, данные дедупликации, состояние

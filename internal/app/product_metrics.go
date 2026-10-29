@@ -10,10 +10,8 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
-	content "github.com/janickiy/meet-space/internal/domain/content"
 	integrations "github.com/janickiy/meet-space/internal/domain/integrations"
 	"github.com/janickiy/meet-space/internal/operations"
 )
@@ -40,8 +38,8 @@ func (p measuredEmail) Send(ctx context.Context, message integrations.EmailMessa
 // метрики.
 type measuredPush struct{ integrations.PushProvider }
 
-// Send отправляет минимальное уведомление на выбранное зарегистрированное устройство без расшифровки текста
-// или секретов провайдера.
+// Send отправляет минимальное уведомление на зарегистрированное устройство
+// без передачи секретов провайдера в содержимом сообщения.
 //
 // @Parameters:
 //   - ctx: контекст, управляющий отменой, сроками и временем выполнения операции.
@@ -125,41 +123,4 @@ func (p measuredCalendar) GetEvent(ctx context.Context, credentials integrations
 	started := time.Now()
 	defer func() { operations.ProviderCall("calendar", time.Since(started), err) }()
 	return p.CalendarProvider.GetEvent(ctx, credentials, event)
-}
-
-// measuredSTT отслеживает аудиозапрос, сохраняя потоковую передачу и имя провайдера адаптера.
-type measuredSTT struct{ content.TranscriptionProvider }
-
-// Transcribe отправляет ограниченную аудиозапись в настроенный сервис расшифровки.
-//
-// @Parameters:
-//   - ctx: контекст, управляющий отменой, сроками и временем выполнения операции.
-//   - request: проверенный запрос приложения или входящие параметры операции.
-//
-// @returns:
-//   - out: результат расшифровки.
-//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения данных.
-func (p measuredSTT) Transcribe(ctx context.Context, request content.TranscriptionRequest) (out content.TranscriptionResult, err error) {
-	started := time.Now()
-	defer func() { operations.ProviderCall("stt", time.Since(started), err) }()
-	return p.TranscriptionProvider.Transcribe(ctx, request)
-}
-
-// measuredAI отслеживает каждый фрагмент или слияние без изменения инструкций модели или
-// проверки схемы.
-type measuredAI struct{ content.AIProvider }
-
-// Summarize создает сводную информацию с ограничениями схемы на основе переданных входных данных.
-//
-// @Parameters:
-//   - ctx: контекст, управляющий отменой, сроками и временем жизни операции.
-//   - request: валидированный запрос приложения или входящие параметры операции.
-//
-// @returns:
-//   - out: результирующее необработанное сообщение.
-//   - err: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения.
-func (p measuredAI) Summarize(ctx context.Context, request content.AIRequest) (out json.RawMessage, err error) {
-	started := time.Now()
-	defer func() { operations.ProviderCall("ai", time.Since(started), err) }()
-	return p.AIProvider.Summarize(ctx, request)
 }

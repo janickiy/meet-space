@@ -6,8 +6,8 @@
 // Website: https://janickiy.com/
 // Licensed under the Apache License, Version 2.0.
 
-// Пакет mediaworker предоставляет только аутентифицированные внутренние сигналы.  RTP никогда
-// не проходит через эти обработчики HTTP.
+// Пакет mediaworker предоставляет аутентифицированные внутренние команды и поток записи.
+// Клиентский медиатрафик обслуживается SFU.
 package mediaworker
 
 import (

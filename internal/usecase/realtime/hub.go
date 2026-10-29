@@ -964,7 +964,7 @@ func (h *Hub) deliver(bus domain.Bus) {
 		// сокетов.  Удаление или завершение работы может быть зафиксировано до того, как будет
 		// доставлено событие изменения состояния.
 		kind := bus.Event.Type
-		restricted := strings.HasPrefix(kind, "caption.") || strings.HasPrefix(kind, "chat.") || strings.HasPrefix(kind, "recording.") || strings.HasPrefix(kind, "reaction.") || strings.HasPrefix(kind, "participant.")
+		restricted := strings.HasPrefix(kind, "chat.") || strings.HasPrefix(kind, "recording.") || strings.HasPrefix(kind, "reaction.") || strings.HasPrefix(kind, "participant.")
 		allowed := map[string]bool{}
 		if restricted {
 			status, roster, err := h.repo.Roster(ctx, bus.ConferenceID)

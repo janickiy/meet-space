@@ -4,6 +4,7 @@
 import argparse
 import datetime
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -22,6 +23,7 @@ VERSION = re.compile(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?\Z')
 SHA256 = re.compile(r'[a-f0-9]{64}\Z')
 MAX_ARCHIVE = 2 * 1024**3
 MAX_RELEASE_PAGES = 10
+SERVICE_INVENTORY_VERSION = 2
 
 
 def require(condition, message):
@@ -62,6 +64,10 @@ def read_json(url):
 def select_archive(index, release, platform):
     """Validate the requested version, source commit, platform and immutable asset URL."""
     require(isinstance(index, dict), 'Манифест готовых образов должен быть JSON-объектом.')
+    require(index.get('serviceInventoryVersion') == SERVICE_INVENTORY_VERSION,
+            'Этот выпуск содержит прежний состав служб. Нужен совместимый пакет с record-worker; '
+            'до его публикации используйте --mode source --ref с проверенным коммитом новой версии. '
+            'Автоматическая сборка не запускалась.')
     require(type(index.get('schemaVersion')) is int and index['schemaVersion'] == 1
             and index.get('installationMode') == 'prebuilt'
             and index.get('repository') == REPOSITORY and index.get('version') == release
@@ -163,6 +169,8 @@ def resolve_release(requested, platform):
                 raise
             # A release can disappear between discovery and manifest retrieval.
             continue
+        if isinstance(index, dict) and index.get('serviceInventoryVersion') != SERVICE_INVENTORY_VERSION:
+            continue
         artifact = select_archive(index, tag, platform)
         archive = assets[f'meetspace-{tag}-{platform.replace("/", "-")}.tar.gz']
         require(archive['size'] == artifact['sizeBytes'], 'Размер пакета отличается от метаданных GitHub.')
@@ -170,8 +178,8 @@ def resolve_release(requested, platform):
         require(checksum is None or checksum == 'sha256:' + artifact['sha256'],
                 'Контрольная сумма пакета отличается от метаданных GitHub.')
         return index
-    raise RuntimeError(f'В GitHub Releases нет опубликованного пакета готовых образов для {platform}. '
-                       'Релизы только с исходниками не подходят. Для сборки актуального main '
+    raise RuntimeError(f'В GitHub Releases нет совместимого опубликованного пакета готовых образов для {platform}. '
+                       'Нужен новый состав служб с record-worker. Для сборки актуального main '
                        'запустите: sudo bash install.sh --mode source --ref main. '
                        'Автоматическая сборка не запускалась.')
 
@@ -228,11 +236,17 @@ def validate_bundle(bundle, index, platform):
     require(hashlib.sha256(manifest_path.read_bytes()).hexdigest() == info.get('manifestSHA256'),
             'Манифест пакета изменён.')
     manifest = json.loads(manifest_path.read_text())
+    # Use this bootstrap's policy, not code from an older downloaded package.
+    spec = importlib.util.spec_from_file_location('current_installer', Path(__file__).with_name('wizard.py'))
+    installer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(installer)
+    installer.validate_service_inventory(manifest)
     require(manifest.get('commit') == index['commit'] and manifest.get('version') == index['version']
             and manifest.get('platform') == platform and manifest.get('securityScanned') is True
             and manifest.get('sourceDirty') is False and manifest.get('artifactMode') == 'archive',
             'Происхождение/платформа готовых образов не совпадают.')
-    for name in ('scripts/install/wizard.py', 'scripts/install/verify-release.sh', 'scripts/release/common.sh'):
+    for name in ('scripts/install/wizard.py', 'scripts/install/verify-release.sh',
+                 'scripts/install/retire-legacy-services.py', 'scripts/release/common.sh'):
         path = bundle / 'deployment' / name
         require(path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == info['deploymentSHA256'].get(name),
                 'Контрольная сумма инструментов установки не совпадает: ' + name)

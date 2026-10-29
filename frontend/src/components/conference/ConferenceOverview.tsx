@@ -1,7 +1,5 @@
 import { RealtimePanel } from "../RealtimePanel";
 import { RecordingPanel } from "../RecordingPanel";
-import { CaptionsPanel } from "../CaptionsPanel";
-import { AnalyticsPanel } from "../AnalyticsPanel";
 import { WaitingRoomPanel } from "../WaitingRoomPanel";
 import { ChatPanel } from "../ChatPanel";
 import { ConferenceCalendarStatus } from "../IntegrationsSettings";
@@ -29,9 +27,6 @@ export function ConferenceOverview(props: ConferenceViewProps) {
     people,
     closed,
     live,
-    capabilities,
-    captionsEnabled,
-    analyticsEnabled,
     activeMeeting,
     recordingAccess,
     canInvite,
@@ -191,30 +186,8 @@ export function ConferenceOverview(props: ConferenceViewProps) {
         <RecordingPanel
           conference={conference}
           membership={membership}
-          showInsights
+          showPlayback
         />
-      )}
-      {admitted && captionsEnabled && !activeMeeting && (
-        <CaptionsPanel
-          key={`captions-${id}`}
-          conferenceId={id}
-          active={
-            conference.status === "active" && membership?.status === "joined"
-          }
-          live={live}
-        />
-      )}
-      {admitted && analyticsEnabled && (
-        <AnalyticsPanel
-          key={`analytics-${id}`}
-          conferenceId={id}
-          active={conference.status === "active"}
-        />
-      )}
-      {admitted && capabilities.isSuccess && !analyticsEnabled && (
-        <p className="conference-feature-note">
-          Аналитика встречи отключена для этой установки.
-        </p>
       )}
       {admitted &&
         user &&

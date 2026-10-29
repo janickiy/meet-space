@@ -1,5 +1,7 @@
 # MeetSpace download verification
 
+> Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](ARCHITECTURE.md).
+
 Checked on **23 October 2026**. The landing now links to Desktop **0.1.2-beta**
 and Android **0.3.8-beta**. Client versions are independent from server versions.
 The desktop repository has been renamed to `janickiy/meet-space-desktop`;

@@ -24,7 +24,7 @@ jq -e 'all(.[]; .messages_ready == 0 and .messages_unacknowledged == 0)' <<<"$qu
 bash "$delivery/deployment/scripts/release/release.sh" drain "${arguments[@]}"
 # Admission уже ограничен оператором; после завершения тестов останавливаем
 # только собственные producer/consumer-процессы, не базы и не чужие контейнеры.
-compose --profile live stop proxy frontend api live-worker product-worker worker media-worker
+compose stop proxy frontend api product-worker record-worker media-worker
 install -d -m 0700 /opt/meetrix/backups
 RELEASE_BACKUP_QUIESCED=1 bash "$delivery/deployment/scripts/release/backup.sh" "${arguments[@]}" --output /opt/meetrix/backups/staging-20261003
 bash "$delivery/deployment/scripts/release/restore-check.sh" "${arguments[@]}" --backup /opt/meetrix/backups/staging-20261003

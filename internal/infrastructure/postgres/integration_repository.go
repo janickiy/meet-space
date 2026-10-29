@@ -71,7 +71,7 @@ func (r *IntegrationRepository) Preferences(ctx context.Context, userID string) 
 //     передачи данных или сохранения.
 func (r *IntegrationRepository) SavePreferences(ctx context.Context, p d.Preferences) error {
 	p.UpdatedAt = time.Now().UTC()
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}}, DoUpdates: clause.AssignmentColumns([]string{"invitation", "reminder", "recording", "summary", "email", "push", "updated_at"})}).Create(&p).Error
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}}, DoUpdates: clause.AssignmentColumns([]string{"invitation", "reminder", "recording", "email", "push", "updated_at"})}).Create(&p).Error
 }
 
 // Devices возвращает зарегистрированные устройства доставки аккаунта, не раскрывая их
@@ -467,7 +467,7 @@ func (r *IntegrationRepository) FailCalendars(ctx context.Context, job jobs.Job,
 //     передачи данных или сохранения.
 func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event string) error {
 	switch event {
-	case "conference.invited", "conference.rescheduled", "conference.cancelled", "conference.soon", "transcript.ready", "summary.ready", "transcript.failed", "summary.failed":
+	case "conference.invited", "conference.rescheduled", "conference.cancelled", "conference.soon":
 	default:
 		return jobs.Error{Code: "integration_event"}
 	}
@@ -479,8 +479,7 @@ func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event 
 		if err := tx.Table("conferences").Where("id=?", job.ConferenceID).Take(&c).Error; err != nil {
 			return err
 		}
-		isSchedule := event == "conference.invited" || event == "conference.rescheduled" || event == "conference.cancelled" || event == "conference.soon"
-		if isSchedule && c.IntegrationVersion != job.Version {
+		if c.IntegrationVersion != job.Version {
 			return jobs.ErrSkip
 		}
 		if event == "conference.soon" && (c.Status != "scheduled" || c.ScheduledAt == nil || !c.ScheduledAt.After(time.Now())) {
@@ -491,35 +490,11 @@ func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event 
 			return jobs.Error{Code: "integration_payload"}
 		}
 		payload["conferenceId"] = job.ConferenceID
-		if isSchedule && c.ScheduledAt != nil {
+		if c.ScheduledAt != nil {
 			payload["scheduledAt"] = c.ScheduledAt
 		}
 		delete(payload, "event")
 		kind := event
-		if event == "transcript.failed" || event == "summary.failed" {
-			kind = "processing.failed"
-		}
-		guard := ""
-		var guardArgs []any
-		if event == "transcript.ready" || event == "transcript.failed" {
-			status := "ready"
-			if event == "transcript.failed" {
-				status = "failed"
-			}
-			guard = ` AND EXISTS(SELECT 1 FROM transcripts t JOIN record r ON r.uuid=t.recording_id WHERE t.id=? AND t.conference_id=p.conference_id AND t.generation=? AND t.status=? AND r.status='ready' AND r.deleted_at IS NULL)`
-			guardArgs = []any{job.EntityID, job.Version, status}
-			payload["transcriptId"] = job.EntityID
-			payload["generation"] = job.Version
-		} else if event == "summary.ready" || event == "summary.failed" {
-			status := "ready"
-			if event == "summary.failed" {
-				status = "failed"
-			}
-			guard = ` AND EXISTS(SELECT 1 FROM meeting_summaries s JOIN transcripts t ON t.id=s.transcript_id AND t.status='ready' AND t.generation=s.transcript_generation JOIN record r ON r.uuid=t.recording_id WHERE s.id=? AND s.conference_id=p.conference_id AND s.generation=? AND s.status=? AND r.status='ready' AND r.deleted_at IS NULL)`
-			guardArgs = []any{job.EntityID, job.Version, status}
-			payload["summaryId"] = job.EntityID
-			payload["generation"] = job.Version
-		}
 		encoded, err := json.Marshal(payload)
 		if err != nil {
 			return err
@@ -538,16 +513,9 @@ func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event 
 		if cursor, ok := payload["cursorParticipantId"].(string); ok && cursor != "" {
 			q = q.Where("p.id>?::uuid", cursor)
 		}
-		if isSchedule {
-			q = q.Where("p.admission_state IN ('admitted','waiting')")
-		} else {
-			q = q.Where("p.admission_state='admitted' AND p.status IN ('joined','left')")
-		}
+		q = q.Where("p.admission_state IN ('admitted','waiting')")
 		if job.UserID != nil {
 			q = q.Where("p.user_id=?", *job.UserID)
-		}
-		if kind == "processing.failed" {
-			q = q.Where("p.user_id=?", c.OwnerID)
 		}
 		var recipients []recipient
 		if err := q.Order("p.id").Limit(100).Scan(&recipients).Error; err != nil {
@@ -563,10 +531,7 @@ func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event 
 			if !p.Allows(kind) {
 				continue
 			}
-			entity := job.EntityID
-			if isSchedule {
-				entity = job.ConferenceID
-			}
+			entity := job.ConferenceID
 			key := fmt.Sprintf("integration-notification:%s:%s:%d:%s", event, entity, job.Version, userID)
 			if event == "conference.soon" {
 				offset, _ := payload["offsetSec"].(float64)
@@ -576,29 +541,20 @@ func (r *IntegrationRepository) Fanout(ctx context.Context, job jobs.Job, event 
 					key = fmt.Sprintf("reminder:%s:%d:%d", c.ID, c.ScheduledAt.UnixMicro(), int64(offset))
 				}
 			}
-			live := "p.admission_state='admitted' AND p.status IN ('joined','left')"
-			if isSchedule {
-				live = "p.admission_state IN ('admitted','waiting') AND p.status NOT IN ('kicked','rejected') AND c.integration_version=?"
-			}
+			live := "p.admission_state IN ('admitted','waiting') AND p.status NOT IN ('kicked','rejected') AND c.integration_version=?"
 			preference := ""
 			switch kind {
 			case "conference.invited", "conference.rescheduled", "conference.cancelled":
 				preference = "invitation"
 			case "conference.soon":
 				preference = "reminder"
-			case "transcript.ready", "summary.ready":
-				preference = "summary"
 			}
 			if preference != "" {
 				live += " AND COALESCE((SELECT pref." + preference + " FROM notification_preferences pref WHERE pref.user_id=p.user_id),TRUE)"
 			}
 			live += " AND NOT EXISTS(SELECT 1 FROM conference_chat_preferences cp WHERE cp.conference_id=p.conference_id AND cp.user_id=p.user_id AND (cp.left_at IS NOT NULL OR NOT cp.notifications_enabled))"
-			args := []any{kind, string(encoded), key, userID, job.ConferenceID}
-			if isSchedule {
-				args = append(args, job.Version)
-			}
-			args = append(args, guardArgs...)
-			if err := tx.Exec(`INSERT INTO notifications(id,user_id,type,payload,dedup_key) SELECT gen_random_uuid(),p.user_id,?,?::jsonb,? FROM conference_participants p JOIN conferences c ON c.id=p.conference_id WHERE p.user_id=? AND p.conference_id=? AND `+live+guard+` ON CONFLICT(user_id,dedup_key) DO NOTHING`, args...).Error; err != nil {
+			args := []any{kind, string(encoded), key, userID, job.ConferenceID, job.Version}
+			if err := tx.Exec(`INSERT INTO notifications(id,user_id,type,payload,dedup_key) SELECT gen_random_uuid(),p.user_id,?,?::jsonb,? FROM conference_participants p JOIN conferences c ON c.id=p.conference_id WHERE p.user_id=? AND p.conference_id=? AND `+live+` ON CONFLICT(user_id,dedup_key) DO NOTHING`, args...).Error; err != nil {
 				return err
 			}
 		}
@@ -719,20 +675,6 @@ func (r *IntegrationRepository) Delivery(ctx context.Context, job jobs.Job) (u.D
 	if kind == "recording.ready" {
 		var available int64
 		if err := r.db.WithContext(ctx).Table("record").Where("uuid=? AND platform_conference_id=? AND deleted_at IS NULL AND status IN ('ready','partial_ready')", result.Notification.Payload.RecordingID, job.ConferenceID).Count(&available).Error; err != nil {
-			return result, err
-		}
-		if available == 0 {
-			return result, nil
-		}
-	}
-	if kind == "transcript.ready" || kind == "summary.ready" {
-		var available int64
-		if kind == "transcript.ready" {
-			err = r.db.WithContext(ctx).Raw(`SELECT count(*) FROM transcripts t JOIN record r ON r.uuid=t.recording_id WHERE t.id=? AND t.conference_id=? AND t.generation=? AND t.status='ready' AND r.status='ready' AND r.deleted_at IS NULL`, result.Notification.Payload.TranscriptID, job.ConferenceID, result.Notification.Payload.Generation).Scan(&available).Error
-		} else {
-			err = r.db.WithContext(ctx).Raw(`SELECT count(*) FROM meeting_summaries s JOIN transcripts t ON t.id=s.transcript_id AND t.status='ready' AND t.generation=s.transcript_generation JOIN record r ON r.uuid=t.recording_id WHERE s.id=? AND s.conference_id=? AND s.generation=? AND s.status='ready' AND r.status='ready' AND r.deleted_at IS NULL`, result.Notification.Payload.SummaryID, job.ConferenceID, result.Notification.Payload.Generation).Scan(&available).Error
-		}
-		if err != nil {
 			return result, err
 		}
 		if available == 0 {

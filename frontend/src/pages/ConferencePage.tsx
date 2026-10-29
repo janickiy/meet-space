@@ -17,11 +17,7 @@ import "./conference.css";
 export function ConferencePage() {
   const { id = "" } = useParams();
   const data = useConferencePageData(id);
-  const controls = useConferenceRoomControls(
-    id,
-    data.activeMeeting,
-    data.captionsEnabled,
-  );
+  const controls = useConferenceRoomControls(id, data.activeMeeting);
   const commands = useConferenceCommands(id, () => controls.setConfirm(null));
 
   if (data.query.isPending) return <Loading />;

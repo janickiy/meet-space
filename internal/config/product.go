@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
 // ProviderConfig описывает адаптер, настроенный на сервере; конечная точка и токен никогда не
@@ -35,25 +34,18 @@ type SMTPConfig struct {
 	Timeout                                 time.Duration
 }
 
-// StageSevenConfig ограничивает работу отдельного продуктового воркера и его внешних интеграций.  STT и ИИ
-// по умолчанию отключены; MockAllowed запрещает имитацию производственных результатов.  Ключ шифрования
-// не зависит от ключей JWT и защищает только учетные данные устройства и календаря.
+// StageSevenConfig ограничивает фоновые доставки и внешние интеграции.
+// Ключ шифрования защищает учетные данные устройств и календаря независимо от JWT.
 type StageSevenConfig struct {
-	PublicURL, EncryptionKey, TempRoot                            string
-	Email, Push, Calendar, STT, AI                                ProviderConfig
-	SMTP                                                          SMTPConfig
-	AIModel                                                       string
-	OAuthAuthURL, OAuthTokenURL, OAuthRevokeURL                   string
-	OAuthClientID, OAuthClientSecret, OAuthRedirectURL            string
-	OAuthScopes                                                   []string
-	ReminderOffsets                                               []time.Duration
-	STTEnabled, AIEnabled, MockAllowed                            bool
-	Port, DeliveryWorkers, CalendarWorkers, STTWorkers, AIWorkers int
-	MaxDurationSec, MaxSegments, ChunkRunes, MaxChunks            int
-	AIConcurrency, MaxReprocess, MaxAttempts                      int
-	MaxVideoBytes, MaxAudioBytes, MaxTranscriptBytes              int64
-	PollInterval, ProviderTimeout, STTTimeout, AITimeout          time.Duration
-	ReprocessCooldown                                             time.Duration
+	PublicURL, EncryptionKey                            string
+	Email, Push, Calendar                               ProviderConfig
+	SMTP                                                SMTPConfig
+	OAuthAuthURL, OAuthTokenURL, OAuthRevokeURL         string
+	OAuthClientID, OAuthClientSecret, OAuthRedirectURL  string
+	OAuthScopes                                         []string
+	ReminderOffsets                                     []time.Duration
+	Port, DeliveryWorkers, CalendarWorkers, MaxAttempts int
+	PollInterval, ProviderTimeout                       time.Duration
 }
 
 // LoadStageSeven загружает бюджет продукта и явно включенную внешнюю интеграцию
@@ -67,11 +59,8 @@ type StageSevenConfig struct {
 //   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспорта или сохранения
 //     данных.
 func LoadStageSeven(local bool) (StageSevenConfig, error) {
-	c := StageSevenConfig{MockAllowed: local, TempRoot: env("PRODUCT_TEMP_PATH", os.TempDir()), AIModel: env("AI_PROVIDER_MODEL", "configured-model")}
-	if !utf8.ValidString(c.AIModel) || strings.ContainsRune(c.AIModel, 0) || utf8.RuneCountInString(c.AIModel) > 100 {
-		return c, fmt.Errorf("AI_PROVIDER_MODEL requires valid text within 100 characters")
-	}
-	for prefix, target := range map[string]*ProviderConfig{"EMAIL": &c.Email, "PUSH": &c.Push, "CALENDAR": &c.Calendar, "STT": &c.STT, "AI": &c.AI} {
+	c := StageSevenConfig{}
+	for prefix, target := range map[string]*ProviderConfig{"EMAIL": &c.Email, "PUSH": &c.Push, "CALENDAR": &c.Calendar} {
 		*target = ProviderConfig{Mode: env(prefix+"_PROVIDER_MODE", "noop"), Endpoint: os.Getenv(prefix + "_PROVIDER_ENDPOINT"), Token: os.Getenv(prefix + "_PROVIDER_TOKEN")}
 		if target.Mode != "noop" && target.Mode != "mock" && target.Mode != "http" && !(prefix == "EMAIL" && target.Mode == "smtp") {
 			if prefix == "EMAIL" {
@@ -99,16 +88,6 @@ func LoadStageSeven(local bool) (StageSevenConfig, error) {
 		}
 	}
 	var err error
-	for key, target := range map[string]*bool{"TRANSCRIPTION_ENABLED": &c.STTEnabled, "AI_SUMMARY_ENABLED": &c.AIEnabled} {
-		raw := env(key, "false")
-		*target, err = strconv.ParseBool(raw)
-		if err != nil {
-			return c, fmt.Errorf("%s must be a boolean", key)
-		}
-	}
-	if (c.STTEnabled && c.STT.Mode == "noop") || (c.AIEnabled && c.AI.Mode == "noop") {
-		return c, fmt.Errorf("enabled transcription/AI require configured providers")
-	}
 	c.PublicURL = os.Getenv("PUBLIC_FRONTEND_URL")
 	if c.PublicURL == "" && local {
 		c.PublicURL = "http://localhost:5173"
@@ -163,10 +142,7 @@ func LoadStageSeven(local bool) (StageSevenConfig, error) {
 		initial, low, high int
 	}{
 		{"PRODUCT_WORKER_PORT", &c.Port, 8092, 1, 65535}, {"PRODUCT_DELIVERY_CONCURRENCY", &c.DeliveryWorkers, 2, 1, 8},
-		{"PRODUCT_CALENDAR_CONCURRENCY", &c.CalendarWorkers, 1, 1, 8}, {"TRANSCRIPTION_CONCURRENCY", &c.STTWorkers, 1, 1, 8}, {"AI_JOB_CONCURRENCY", &c.AIWorkers, 1, 1, 8},
-		{"TRANSCRIPTION_MAX_DURATION_SEC", &c.MaxDurationSec, 7200, 1, 86400}, {"TRANSCRIPTION_MAX_SEGMENTS", &c.MaxSegments, 10000, 1, 10000},
-		{"AI_CHUNK_RUNES", &c.ChunkRunes, 12000, 512, 50000}, {"AI_MAX_CHUNKS", &c.MaxChunks, 256, 1, 512}, {"AI_CHUNK_CONCURRENCY", &c.AIConcurrency, 2, 1, 8},
-		{"PRODUCT_MAX_REPROCESS", &c.MaxReprocess, 3, 0, 10}, {"PRODUCT_MAX_ATTEMPTS", &c.MaxAttempts, 5, 1, 10},
+		{"PRODUCT_CALENDAR_CONCURRENCY", &c.CalendarWorkers, 1, 1, 8}, {"PRODUCT_MAX_ATTEMPTS", &c.MaxAttempts, 5, 1, 10},
 	}
 	for _, field := range integers {
 		raw := env(field.key, strconv.Itoa(field.initial))
@@ -177,28 +153,11 @@ func LoadStageSeven(local bool) (StageSevenConfig, error) {
 	}
 	for _, field := range []struct {
 		key                string
-		target             *int64
-		initial, low, high int64
-	}{
-		{"TRANSCRIPTION_MAX_VIDEO_BYTES", &c.MaxVideoBytes, 1 << 30, 1 << 20, 8 << 30},
-		{"TRANSCRIPTION_MAX_AUDIO_BYTES", &c.MaxAudioBytes, 256 << 20, 1 << 20, 2 << 30},
-		{"TRANSCRIPTION_MAX_TEXT_BYTES", &c.MaxTranscriptBytes, 8 << 20, 1024, 32 << 20},
-	} {
-		*field.target, err = strconv.ParseInt(env(field.key, strconv.FormatInt(field.initial, 10)), 10, 64)
-		if err != nil || *field.target < field.low || *field.target > field.high {
-			return c, fmt.Errorf("%s is outside the allowed byte budget", field.key)
-		}
-	}
-	for _, field := range []struct {
-		key                string
 		target             *time.Duration
 		initial, low, high time.Duration
 	}{
 		{"PRODUCT_POLL_INTERVAL", &c.PollInterval, 5 * time.Second, 100 * time.Millisecond, time.Minute},
 		{"PROVIDER_TIMEOUT", &c.ProviderTimeout, 15 * time.Second, time.Second, time.Minute},
-		{"TRANSCRIPTION_TIMEOUT", &c.STTTimeout, 10 * time.Minute, time.Second, 30 * time.Minute},
-		{"AI_SUMMARY_TIMEOUT", &c.AITimeout, 2 * time.Minute, time.Second, 30 * time.Minute},
-		{"PRODUCT_REPROCESS_COOLDOWN", &c.ReprocessCooldown, 5 * time.Minute, time.Second, 24 * time.Hour},
 	} {
 		*field.target, err = time.ParseDuration(env(field.key, field.initial.String()))
 		if err != nil || *field.target < field.low || *field.target > field.high {

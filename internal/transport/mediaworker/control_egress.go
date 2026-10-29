@@ -115,10 +115,6 @@ func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 		//   доступа, передачи данных или сохранения.
 		SubscribeRecording(context.Context, string, string) (media.EgressSubscription, error)
 	})
-	if req.Purpose != "" && req.Purpose != "recording" && req.Purpose != "captions" {
-		h.fail(w, media.ErrInvalid)
-		return
-	}
 	if !ok || !h.ready.Load() {
 		h.fail(w, media.ErrUnavailable)
 		return
@@ -159,33 +155,7 @@ func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, media.ErrUnavailable)
 		return
 	}
-	var sub media.EgressSubscription
-	if req.Purpose == "captions" {
-		if audio, available := h.engine.(interface {
-			// SubscribeAudio открывает отдельную ограниченную подписку только на аудио, не
-			// занимая слот подписки на запись.
-			//
-			// @Parameters:
-			//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность
-			//   выполнения операции.
-			//   - arg2: Идентификатор конференции, ограничивающий область действия
-			//   операции.
-			//   - arg3: Постоянный или физический идентификатор сессии, определяемый
-			//   операцией.
-			//
-			// @returns:
-			//   - result1: Результирующая подписка egress.
-			//   - result2: nil — в случае успеха; в противном случае — ошибка валидации,
-			//   доступа, передачи данных или сохранения.
-			SubscribeAudio(context.Context, string, string) (media.EgressSubscription, error)
-		}); available {
-			sub, err = audio.SubscribeAudio(setup, req.ConferenceID, req.RecordingID)
-		} else {
-			err = media.ErrUnavailable
-		}
-	} else {
-		sub, err = engine.SubscribeRecording(setup, req.ConferenceID, req.RecordingID)
-	}
+	sub, err := engine.SubscribeRecording(setup, req.ConferenceID, req.RecordingID)
 	unlock()
 	if err != nil {
 		h.fail(w, err)
@@ -237,9 +207,7 @@ func (h *Handler) egress(w http.ResponseWriter, r *http.Request) {
 			}
 			sub.Ping()
 		case <-keyframes.C:
-			if req.Purpose != "captions" {
-				sub.Keyframes()
-			}
+			sub.Keyframes()
 		}
 	}
 }

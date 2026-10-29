@@ -70,6 +70,7 @@ with tarfile.open(archive, 'r:gz') as source:
         if len(files) > 50000 or total > 2 * 1024**3:
             raise SystemExit('GitHub source archive exceeds publication limits')
     for required in ('install.sh', 'scripts/install/from-source.py', 'scripts/install/from-images.py', 'scripts/install/wizard.py',
+                     'scripts/install/retire-legacy-services.py',
                      'scripts/release/build.sh', 'scripts/release/package.sh', 'go.mod'):
         if f'{prefix}/{required}' not in files or not files[f'{prefix}/{required}'].isfile():
             raise SystemExit('The selected GitHub commit lacks required installation files')

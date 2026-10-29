@@ -71,7 +71,7 @@ backup, совместимость миграций, готовый старый
 
 У каждой среды свои PostgreSQL, Redis namespaces, RabbitMQ, S3 bucket/данные,
 provider credentials и worker identities. Нельзя направлять локальные тесты в
-production-зависимости. Внешние email/push/calendar/STT/AI/embeddings по умолчанию
+production-зависимости. Внешние email/push/calendar по умолчанию
 выключены; mock запрещён для staging/production. Матрица флагов и лимитов —
 [API.md](API.md), шаблон — [`.env.production.example`](../.env.production.example).
 
@@ -176,20 +176,16 @@ Production использует те же операции с `--environment pro
 [runbook](operations/README.md#health-и-завершение).
 
 Порядок замены:
-`media-worker → worker → product-worker → [live-worker] → api → frontend → proxy`,
+`media-worker → record-worker → product-worker → api → frontend → proxy`,
 затем observability. Сначала выполняется drain, ожидается нулевая активность,
 после запуска проверяется health. При тайм-ауте процесс остаётся draining,
 принудительного restart нет. Это управляемая замена single-host сервисов с
 возможным перерывом, а не обещание zero-downtime или canary traffic splitting.
 
-`live-worker` — необязательный профиль `live`: release-helper включает его
-только при `LIVE_STT_ENABLED=true` или `MEETING_ANALYTICS_ENABLED=true` в проверенном
-env-файле. По умолчанию оба флага `false`; готовность live-worker не требуется,
-его цель исключена из Prometheus. Полный пакет всё ещё содержит проверенный образ
-для последующего включения; проверки его происхождения и SBOM не ослаблены.
-При выключении ранее запущенного воркера release-helper сначала выполняет drain,
-ждёт `active=0`, затем останавливает контейнер без удаления. Если работа не
-завершена за тайм-аут, обновление останавливается без принудительного kill.
+При первом обновлении с удалением функций речи действует отдельное окно
+обслуживания: [миграция 000037 и переименование сервиса](operations/speech-removal-upgrade.md).
+Она требует проверенной резервной копии и остановки всех прикладных процессов.
+Обычный последовательный порядок выше не заменяет это требование.
 
 Для возобновления после общего drain/backup существует `release.sh resume`
 с тем же установленным manifest: он пересоздаёт процессы с теми же образами.

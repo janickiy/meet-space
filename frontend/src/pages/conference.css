@@ -609,7 +609,6 @@
   scrollbar-width: thin;
 }
 .conference-stage-panel > .chat-panel,
-.conference-stage-panel > .captions-panel,
 .conference-stage-panel > .content-card {
   margin: 0;
   padding: 4px;

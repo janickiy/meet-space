@@ -92,7 +92,6 @@ function AdminSummaryView({
     ["Задания в очереди и обработке", item.queuedJobs],
     ["Ошибки заданий за 24 часа", item.failedJobs24h],
     ["Ошибки записей за 24 часа", item.failedRecordings24h],
-    ["Ошибки расшифровки за 24 часа", item.failedTranscriptions24h],
   ] as const;
   return (
     <>

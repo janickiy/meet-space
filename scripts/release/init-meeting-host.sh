@@ -31,7 +31,7 @@ for target in staging production; do
       MEDIA_MAX_ROOMS) value=2;; MEDIA_MAX_PEERS) value=4;;
       WS_MAX_CONNECTIONS) value=50;; DB_MAX_OPEN) value=10;; DB_MAX_IDLE) value=2;;
       RECORDING_MAX_ACTIVE) value=1;; RECORDING_MAX_DURATION) value=1h;; RECORDING_MAX_MIB) value=512;;
-      MEDIA_WORKER_ID) value="media-meeting-$target";; WORKER_ID) value="recorder-meeting-$target";;
+      MEDIA_WORKER_ID) value="media-meeting-$target";; WORKER_ID) value="record-worker-meeting-$target";;
       RECORDER_STORAGE_DIR) value="/opt/meetrix/storage-$target";;
       TLS_CERT_DIR|TURN_TLS_CERT_DIR) value=/etc/meetrix/certs;;
     esac

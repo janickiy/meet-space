@@ -21,8 +21,8 @@ RUN --mount=type=cache,id=meetspace-go126-modules-${TARGETARCH},target=/go/pkg/m
     -o /bin/product-worker ./cmd/product-worker
 
 FROM alpine:3.22 AS runtime
-# Refresh runtime libraries before installing FFmpeg to include current security fixes.
-RUN apk upgrade --no-cache && apk add --no-cache ca-certificates ffmpeg && addgroup -S app && adduser -S app -G app
+# Refresh runtime libraries before packaging the background scheduler.
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates && addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /bin/product-worker /app/product-worker
 COPY database/migrations /app/database/migrations

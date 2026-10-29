@@ -817,7 +817,7 @@ func normalizeOptions(options Options) Options {
 	}
 	options.ConsumerTag = strings.TrimSpace(options.ConsumerTag)
 	if options.ConsumerTag == "" {
-		options.ConsumerTag = "go-recorder-worker"
+		options.ConsumerTag = "meet-space-record-worker"
 	}
 
 	return options

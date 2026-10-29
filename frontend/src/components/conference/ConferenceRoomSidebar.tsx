@@ -1,27 +1,19 @@
 import { Link as LinkIcon, Square, X } from "lucide-react";
 import { ParticipantsPanel } from "../ParticipantsPanel";
 import { WaitingRoomPanel } from "../WaitingRoomPanel";
-import { CaptionsPanel } from "../CaptionsPanel";
 import { ChatPanel } from "../ChatPanel";
 import { Button } from "../ui";
 import type { ActiveConferenceViewProps } from "./types";
 
 /**
- * Показывает чат, участников и субтитры без размонтирования скрытых вкладок.
+ * Показывает чат и участников без размонтирования скрытых вкладок.
  * @args props — общие данные, команды и состояние интерфейса, созданные корневой страницей.
  * @return Представление раздела с прежними условиями доступа и монтирования панелей.
  */
 export function ConferenceRoomSidebar(props: ActiveConferenceViewProps) {
   const { id } = props;
-  const {
-    membership,
-    participants,
-    people,
-    live,
-    onlinePeople,
-    captionsEnabled,
-    owner,
-  } = props.data;
+  const { membership, participants, people, live, onlinePeople, owner } =
+    props.data;
   const { mutation, moderation } = props.commands;
   const {
     focusMessageId,
@@ -34,9 +26,7 @@ export function ConferenceRoomSidebar(props: ActiveConferenceViewProps) {
     setUtility,
     setConfirm,
   } = props.controls;
-  const panels = captionsEnabled
-    ? (["chat", "participants", "captions"] as const)
-    : (["chat", "participants"] as const);
+  const panels = ["chat", "participants"] as const;
   return (
     <aside
       className="conference-stage-rail"
@@ -45,11 +35,7 @@ export function ConferenceRoomSidebar(props: ActiveConferenceViewProps) {
     >
       <div className="room-panel-header">
         <strong>
-          {stagePanel === "chat"
-            ? "Чат встречи"
-            : stagePanel === "participants"
-              ? "Участники встречи"
-              : "Субтитры"}
+          {stagePanel === "chat" ? "Чат встречи" : "Участники встречи"}
         </strong>
         <button
           className="icon-button"
@@ -91,11 +77,7 @@ export function ConferenceRoomSidebar(props: ActiveConferenceViewProps) {
             tabIndex={stagePanel === panel ? 0 : -1}
             onClick={() => setStagePanel(panel)}
           >
-            {panel === "chat"
-              ? "Чат"
-              : panel === "participants"
-                ? `Участники (${onlinePeople.length})`
-                : "Субтитры"}
+            {panel === "chat" ? "Чат" : `Участники (${onlinePeople.length})`}
           </button>
         ))}
       </div>
@@ -166,22 +148,6 @@ export function ConferenceRoomSidebar(props: ActiveConferenceViewProps) {
           )}
         </div>
       </div>
-      {captionsEnabled && (
-        <div
-          id="meeting-panel-captions"
-          role="tabpanel"
-          aria-labelledby="meeting-tab-captions"
-          className="conference-stage-panel"
-          hidden={stagePanel !== "captions"}
-        >
-          <CaptionsPanel
-            key={`captions-${id}`}
-            conferenceId={id}
-            active
-            live={live}
-          />
-        </div>
-      )}
     </aside>
   );
 }

@@ -416,7 +416,7 @@ func WSActive(delta float64) {
 //     обращение.
 func Event(name string) {
 	switch name {
-	case "ffmpeg_failed", "recording_failed", "recording_ready", "rabbitmq_dead_letter", "rabbitmq_reconnect", "dependency_failed", "disk_low", "live_reconnect", "live_capacity", "live_audio_dropped", "live_provider_failed", "live_decoder_failed", "live_invalid_event", "live_caption_limit", "live_persist_failed", "live_delivery_failed", "analytics_failed", "caption_partial", "caption_final", "recording_mode_composite", "recording_mode_audio_only", "recording_mode_individual_tracks", "recording_mode_screen_focus":
+	case "ffmpeg_failed", "recording_failed", "recording_ready", "rabbitmq_dead_letter", "rabbitmq_reconnect", "dependency_failed", "disk_low", "recording_mode_composite", "recording_mode_audio_only", "recording_mode_individual_tracks", "recording_mode_screen_focus":
 	default:
 		return
 	}
@@ -434,7 +434,7 @@ func Event(name string) {
 //   - seconds: Измеренная продолжительность операции в секундах.
 func Observe(name string, seconds float64) {
 	switch name {
-	case "recording", "finalization", "command", "ffmpeg", "search", "transcription", "summary", "email", "push", "calendar", "caption_latency", "caption_partial", "caption_final", "live_decode", "live_decode_cpu", "analytics", "embedding", "hybrid_search":
+	case "recording", "finalization", "command", "ffmpeg", "search", "email", "push", "calendar":
 	default:
 		return
 	}

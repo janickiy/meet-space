@@ -1,5 +1,7 @@
 # Эксплуатация MeetSpace
 
+> При обновлении старой установки сначала выполните [переход на record-worker и миграцию 000037](speech-removal-upgrade.md). Миграция необратимо удаляет данные функций речи; требуются проверенная резервная копия и остановка старых процессов. Простой откат образов после неё не поддерживается.
+
 Runbook для одного Docker Compose-хоста: проверка служб, сеть, управление
 нагрузкой, диагностика, резервное копирование и восстановление.
 
@@ -39,7 +41,7 @@ TLS, не опубликованный наружу. Между отдельны
 | API | 8085/TCP | Только Compose/LB внутри доверенной сети |
 | media-worker control | 8091/TCP | Только API/recorder, Bearer service secret |
 | recorder control | 8090/TCP | Внутренняя сеть, Bearer service secret |
-| product/live-worker | 8092/8093/TCP | Health/operations только внутри сети |
+| product-worker | 8092/TCP | Health/operations только внутри сети |
 | SFU ICE mux | 50010/UDP и TCP по умолчанию | Публичное назначение `MEDIA_NAT_IPS`, прямой RTP |
 | TURN | 3478/UDP + TCP | Браузеры → Coturn |
 | TURNS | 5349/TCP | TLS fallback, отдельный действительный сертификат |
@@ -100,9 +102,7 @@ Shared secret никогда не передаётся браузеру. Для 
 не публикуются. Readiness API: PG, Redis, Rabbit, MinIO; media: Redis и lease
 ownership; recorder/compositor: PG, Redis, Rabbit consumer, MinIO и локальный диск.
 Compositor встроен в recorder, отдельного процесса/health порта у него нет.
-Product проверяет PG и MinIO при включённом STT; включённый live-worker — PG и Redis.
-При выключенных `LIVE_STT_ENABLED` и `MEETING_ANALYTICS_ENABLED` контейнер live-worker
-не обязателен: проверять его health и требовать его метрики не нужно.
+Product проверяет PostgreSQL.
 Readiness внешнего provider нельзя считать доказанным только по этим probes.
 
 Для установки мастером сначала задайте функцию `compose` из
@@ -121,9 +121,8 @@ validate_release
 compose ps
 compose exec -T api wget -qO- http://127.0.0.1:8085/health/ready
 compose exec -T media-worker wget -qO- http://127.0.0.1:8091/health/ready
-compose exec -T worker wget -qO- http://127.0.0.1:8090/health/ready
+compose exec -T record-worker wget -qO- http://127.0.0.1:8090/health/ready
 compose exec -T product-worker wget -qO- http://127.0.0.1:8092/health/ready
-compose exec -T live-worker wget -qO- http://127.0.0.1:8093/health/ready
 ```
 
 Замените пути/версию на фактические. Для local/staging выберите их отдельный
@@ -155,17 +154,14 @@ compose exec -T api sh -c 'wget -qO- --post-data="" --header="Authorization: Bea
 compose exec -T api sh -c 'wget -qO- --header="Authorization: Bearer $METRICS_SECRET" http://127.0.0.1:8085/operations/drain'
 ```
 
-Повторите с service/port `media-worker:8091`, `worker:8090`,
-`product-worker:8092` и, если он запущен, `live-worker:8093`. Только после нулевой активности,
+Повторите с service/port `media-worker:8091`, `record-worker:8090`,
+`product-worker:8092`. Только после нулевой активности,
 проверки очередей и завершения backup/обслуживания верните те же image IDs:
 
 ```bash
 compose up -d --no-build --no-deps --force-recreate --wait --wait-timeout 240 \
-  media-worker worker product-worker api frontend
+  media-worker record-worker product-worker api frontend
 ```
-
-Если live-функции включены, отдельно возобновите `live-worker` с профилем `live`
-и тем же проверенным образом. При обоих выключенных флагах запускать его не нужно.
 
 Этот блок возобновляет установленную версию: он не собирает новый выпуск и не
 обновляет инфраструктуру. Если env/образы уже менялись, сначала сверяйте план
@@ -299,7 +295,7 @@ Composite очищает spool после upload и commit ready, если
 [Матрица отказных проверок](FAILURE_TESTS.md) описывает, как проверить
 восстановление на изолированном стенде.
 
-При recording failed не подменять статус success. Проверить worker readiness,
+При recording failed не подменять статус success. Проверить record-worker readiness,
 lease/token, свободный диск, retained chunks, FFmpeg stderr, MinIO и outbox.
 Перезапуск может финализировать завершённые фрагменты, но не восстановит потерянный
 RTP или незакрытый хвостовой chunk. Не копировать файлы между record/token

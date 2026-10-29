@@ -63,57 +63,15 @@ def yes(label, default=False):
     return value.lower() in ('да', 'yes', 'y')
 
 
-def live_worker_enabled(environment):
-    """Read only literal live-feature booleans from environment, never shell code.
-
-    Args:
-        environment: Path to the operator's private dotenv file.
-
-    Returns:
-        True only when live captions or speech activity analytics are enabled.
-        Missing/empty flags default to False; ambiguous values fail closed.
-    """
-    environment = Path(environment)
-    if not environment.is_file() or environment.stat().st_size > 1024 * 1024:
-        raise RuntimeError('Для проверки live-worker нужен обычный env-файл размером до 1 МиБ.')
-    flags = {'LIVE_STT_ENABLED': False, 'MEETING_ANALYTICS_ENABLED': False}
-    true_values = ('1', 't', 'T', 'true', 'True', 'TRUE')
-    false_values = ('', '0', 'f', 'F', 'false', 'False', 'FALSE')
-    for line in environment.read_text(encoding='utf-8').splitlines():
-        assignment = re.fullmatch(r'\s*(?:export\s+)?(LIVE_STT_ENABLED|MEETING_ANALYTICS_ENABLED)\s*=\s*(.*?)\s*', line)
-        if assignment is None:
-            continue
-        key, raw = assignment.groups()
-        value = re.fullmatch(r'''(?:"([^"]*)"|'([^']*)'|([^\s#]*))\s*(?:#.*)?''', raw)
-        if value is None:
-            raise RuntimeError(f'{key}: укажите буквальное true или false, без подстановок.')
-        literal = next((part for part in value.groups() if part is not None), '')
-        if literal not in (*true_values, *false_values):
-            raise RuntimeError(f'{key}: укажите буквальное true или false, без подстановок.')
-        flags[key] = literal in true_values
-    return any(flags.values())
-
-
-def configure_optional_services(root):
-    """Apply optional runtime profiles and metrics without changing bundle checksums.
-
-    Args:
-        root: Installer-owned directory containing the saved private configuration.
-
-    The generated overlay also disables live-worker in older verified bundles
-    whose original Compose file did not yet declare the optional live profile.
-    """
-    enabled = live_worker_enabled(root / 'config/meetspace.env')
+def configure_monitoring(root):
+    """Generate metrics configuration outside the checksum-verified bundle."""
     overlay_path = root / 'config/compose.json'
     overlay = json.loads(overlay_path.read_text())
     services = overlay.setdefault('services', {})
-    services.setdefault('live-worker', {})['profiles'] = ['live']
     # Generate a separate Prometheus configuration: never patch immutable bundle files.
     targets = [{'targets': [f'{name}:{port}'], 'labels': {'service': label}}
                for name, port, label in (('api', 8085, 'api'), ('media-worker', 8091, 'media-worker'),
-                                         ('worker', 8090, 'recorder-worker'), ('product-worker', 8092, 'product-worker'))]
-    if enabled:
-        targets.append({'targets': ['live-worker:8093'], 'labels': {'service': 'live-worker'}})
+                                         ('record-worker', 8090, 'record-worker'), ('product-worker', 8092, 'product-worker'))]
     monitoring = {'global': {'scrape_interval': '15s', 'evaluation_interval': '15s'},
                   'rule_files': ['/etc/prometheus/alerts.yml'],
                   'scrape_configs': [{'job_name': 'recorder', 'authorization': {
@@ -127,7 +85,6 @@ def configure_optional_services(root):
         or isinstance(item, dict) and item.get('target') == '/etc/prometheus/prometheus.yml')]
     prometheus['volumes'] = [*mounts, mount]
     update_owned_configuration(overlay_path, json.dumps(overlay, indent=2) + '\n')
-    return enabled
 
 
 def save_installer_runtime(root):
@@ -357,6 +314,20 @@ def verify_inventory(root, expected):
     assert actual == set(expected)
 
 
+def validate_service_inventory(manifest):
+    """Reject old package inventories without changing their signed/checksummed bytes."""
+    layout = manifest.get('deploymentLayout', 'classic')
+    expected = {'api', 'media-worker', 'record-worker', 'product-worker', 'frontend',
+                'minio', 'postgres', 'redis', 'rabbitmq', 'coturn', 'proxy', 'prometheus'}
+    if layout == 'classic':
+        expected.add('grafana')
+    if (layout not in ('classic', 'hardened-shared-host')
+            or not isinstance(manifest.get('images'), dict) or set(manifest['images']) != expected):
+        raise RuntimeError('Состав пакета несовместим: нужен новый проверенный выпуск с record-worker. '
+                           'Старые образы не переименовываются. До публикации совместимого пакета '
+                           'используйте --mode source --ref с проверенным коммитом новой версии.')
+
+
 def metadata(bundle):
     """Check release, deployment and optional GitHub source inventories on every run."""
     info = json.loads((bundle / 'bundle.json').read_text())
@@ -364,6 +335,7 @@ def metadata(bundle):
     assert digest(bundle / 'release/release.json') == info['manifestSHA256']
     verify_inventory(bundle / 'deployment', info['deploymentSHA256'])
     manifest = json.loads((bundle / 'release/release.json').read_text())
+    validate_service_inventory(manifest)
     assert info['version'] == manifest['version'] and info['platform'] == manifest['platform']
     if 'source' in info or (bundle / 'source').exists():
         source = info['source']
@@ -754,7 +726,6 @@ def configure(bundle, manifest):
     warn_disk_space(Path(info['DockerRootDir']), 15 * 1024**3)
     print(f'\nВерсия: {manifest["version"]}\nСайт: https://{domain}\nIP: {address}\nКаталог: {root}\nПроект: {project}')
     print('Email-уведомления: ' + ('SMTP настроен; напоминание за 3 часа.' if smtp else 'отключены.'))
-    print('Живые субтитры и аналитика речи отключены. Контейнер live-worker не запускается.')
     print('Откройте во внешнем firewall: TCP 80,443,3478,5349,50010; UDP 3478,50010,49160–49259.\n'
           'Мастер не меняет firewall и не открывает наружу базы данных.')
     ask('Нажмите Enter, чтобы начать установку (Ctrl+C — отмена)', validate=lambda s: s == '')
@@ -817,8 +788,7 @@ def make_configuration(root, manifest, state, smtp=None):
                   HTTP_TRUSTED_PROXIES=state['subnet'], BUILD_VERSION=manifest['version'],
                   RECORDER_STORAGE_DIR=str(root / 'storage'), TLS_CERT_DIR=str(root / 'certs'),
                   TURN_TLS_CERT_DIR=str(root / 'certs'), PROVIDER_TOKEN_ENCRYPTION_KEY='',
-                  DB_MAX_OPEN='10', DB_MAX_IDLE='2', REMINDER_OFFSETS='3h',
-                  LIVE_STT_ENABLED='false', MEETING_ANALYTICS_ENABLED='false')
+                  DB_MAX_OPEN='10', DB_MAX_IDLE='2', REMINDER_OFFSETS='3h')
     template = (root / 'bundle/deployment/.env.production.example').read_text()
     lines = []
     for line in template.splitlines():
@@ -886,7 +856,7 @@ server {
 }
 ''', 0o644)
     save_installer_runtime(root)
-    configure_optional_services(root)
+    configure_monitoring(root)
 
 
 def bounded_cpu_limits(services, cpu_count):
@@ -917,35 +887,7 @@ def compose_args(root, manifest, state):
     """Add root's generated installation overlays to the verified release Compose arguments."""
     args = [*compose_base_args(root, manifest, state), '-f', str(root / 'config/compose.json'),
             '-f', str(root / 'config/turn.yml')]
-    if live_worker_enabled(root / 'config/meetspace.env'):
-        args.extend(['--profile', 'live'])
     return args
-
-
-def stop_live_worker(args):
-    """Drain a running optional worker before stopping it, retaining its container.
-
-    Args:
-        args: Fixed Compose arguments for the installer-owned project.
-    """
-    selected = [*args, '--profile', 'live']
-    container = run(*selected, 'ps', '-q', 'live-worker', capture=True)
-    if not container:
-        return
-    if not re.fullmatch(r'[a-f0-9]{12,64}', container):
-        raise RuntimeError('Нельзя однозначно определить контейнер live-worker.')
-    if run('docker', 'inspect', '--format', '{{.State.Running}}', container, capture=True) != 'true':
-        return
-    command = 'wget -qO- --header="Authorization: Bearer $METRICS_SECRET" http://127.0.0.1:8093/operations/drain'
-    run(*selected, 'exec', '-T', 'live-worker', 'sh', '-c', command.replace('wget -qO-', 'wget -qO- --post-data=""'), capture=True)
-    deadline = time.monotonic() + 300
-    while time.monotonic() < deadline:
-        state = json.loads(run(*selected, 'exec', '-T', 'live-worker', 'sh', '-c', command, capture=True))
-        if state.get('draining') is True and state.get('active') == 0:
-            run(*selected, 'stop', 'live-worker')
-            return
-        time.sleep(2)
-    raise RuntimeError('live-worker ещё обрабатывает аудио и оставлен в режиме drain. Принудительная остановка не выполнялась.')
 
 
 def certificates(root, state):
@@ -1001,7 +943,7 @@ def install(root, state, manifest):
         raise RuntimeError('MeetSpace уже установлен. Для обновления используйте процедуру выпуска.')
     check_project(state['project'], state['token'])
     save_installer_runtime(root)
-    configure_optional_services(root)
+    configure_monitoring(root)
     bundle = root / 'bundle'
     args = compose_args(root, manifest, state)
     certificates(root, state)
@@ -1010,11 +952,10 @@ def install(root, state, manifest):
     run('docker', 'image', 'load', '--quiet', '--input', str(bundle / 'release/images.tar'))
     run('bash', str(bundle / 'deployment/scripts/install/verify-release.sh'), str(bundle), 'loaded')
     run(*args, 'up', '-d', '--no-build', '--wait', '--wait-timeout', '240', 'postgres', 'redis', 'rabbitmq', 'minio')
+    run('python3', '-I', str(bundle / 'deployment/scripts/install/retire-legacy-services.py'),
+        '--check-migration', '--project', state['project'])
     run(*args, '--profile', 'migration', 'run', '--rm', '--no-deps', 'migrate')
     print('\n[6/7] Запуск MeetSpace')
-    if not live_worker_enabled(root / 'config/meetspace.env'):
-        stop_live_worker(args)
-        print('live-worker пропущен: живые субтитры и аналитика речи выключены.')
     run(*args, '--profile', 'observability', 'up', '-d', '--no-build', '--wait', '--wait-timeout', '240')
     print('\n[7/7] Проверка сайта и версии')
     verify_public(state, manifest)
@@ -1088,24 +1029,8 @@ def manage(root, command, extra):
     elif command == 'certificates':
         certificates(root, state)
         manage(root, 'reload-tls', [])
-    elif command in ('start-live-worker', 'stop-live-worker'):
-        if extra:
-            raise RuntimeError('Команда live-worker не принимает дополнительных аргументов.')
-        enabled = live_worker_enabled(root / 'config/meetspace.env')
-        if (command == 'start-live-worker') != enabled:
-            raise RuntimeError('Сначала задайте LIVE_STT_ENABLED или MEETING_ANALYTICS_ENABLED: '
-                               'true для запуска, оба false для остановки.')
-        configure_optional_services(root)
-        if enabled:
-            run(*args, 'up', '-d', '--no-build', '--no-deps', '--wait', '--wait-timeout', '240', 'live-worker')
-        else:
-            stop_live_worker(args)
-        # Prometheus re-reads its updated config without restarting the application.
-        if run(*args, '--profile', 'observability', 'ps', '-q', 'prometheus', capture=True):
-            run(*args, '--profile', 'observability', 'kill', '--signal', 'SIGHUP', 'prometheus')
     else:
-        raise RuntimeError('Команды: status, logs [служба], create-account, certificates, reload-tls, '
-                           'start-live-worker, stop-live-worker.')
+        raise RuntimeError('Команды: status, logs [служба], create-account, certificates, reload-tls.')
 
 
 def main():
@@ -1171,10 +1096,7 @@ def main():
 
 if __name__ == '__main__':
     try:
-        if len(sys.argv) == 3 and sys.argv[1] == '--live-worker-policy':
-            print('true' if live_worker_enabled(Path(sys.argv[2])) else 'false')
-        else:
-            main()
+        main()
     except (KeyboardInterrupt, EOFError):
         print('\nУстановка прервана пользователем.', file=sys.stderr)
         sys.exit(130)

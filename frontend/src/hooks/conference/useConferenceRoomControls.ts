@@ -3,20 +3,15 @@ import { useSearchParams } from "react-router";
 import { meetingShortcut } from "../../conferenceShortcuts";
 
 /** Названия переключаемых панелей активной комнаты. */
-export type ConferenceStagePanel = "chat" | "participants" | "captions";
+export type ConferenceStagePanel = "chat" | "participants";
 
 /**
  * Хранит состояние панелей, диалогов и клавиатуры независимо от активного представления.
  * Вкладки остаются смонтированными при скрытии; фокус возвращается на открывшую панель кнопку.
- * @args id — встреча для фокуса поля чата; activeMeeting — включает горячие клавиши;
- * captionsEnabled — серверное разрешение вкладки субтитров.
+ * @args id — встреча для фокуса поля чата; activeMeeting — включает горячие клавиши.
  * @return Состояние интерфейса, ссылки на элементы и операции переключения панелей.
  */
-export function useConferenceRoomControls(
-  id: string,
-  activeMeeting: boolean,
-  captionsEnabled: boolean,
-) {
+export function useConferenceRoomControls(id: string, activeMeeting: boolean) {
   const [params, setParams] = useSearchParams();
   const focusMessageId = params.get("message") || undefined;
   const showChat = params.get("chat") === "1";
@@ -39,9 +34,6 @@ export function useConferenceRoomControls(
       setStagePanel("chat");
     }
   }, [showChat, focusMessageId]);
-  useEffect(() => {
-    if (!captionsEnabled && stagePanel === "captions") setStagePanel("chat");
-  }, [captionsEnabled, stagePanel]);
   useEffect(() => {
     if (!activeMeeting) return;
     const onKeyDown = (event: KeyboardEvent) => {

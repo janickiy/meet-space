@@ -6,45 +6,30 @@
 // Website: https://janickiy.com/
 // Licensed under the Apache License, Version 2.0.
 
-// Поиск пакетов определяет векторные представления независимо от конкретной модели или SDK.
+// Package search defines keyword search over authorized conference titles.
 package search
 
-import "context"
+import "time"
 
-// EmbeddingRequest привязывает ограниченные текстовые входные данные к одному пространству
-// модели внедрения.
-type EmbeddingRequest struct {
-	Model          string   `json:"model"`
-	Version        string   `json:"version"`
-	Dimensions     int      `json:"dimensions"`
-	Inputs         []string `json:"inputs"`
-	IdempotencyKey string   `json:"-"`
+// Query limits conference-title search to the caller's visible meetings.
+type Query struct {
+	Mode, Source, Query, ConferenceID, ParticipantID, Membership string
+	From, To                                                     *time.Time
+	Limit, Offset                                                int
 }
 
-// EmbeddingProvider изолирует внешний сервис от хранения данных, авторизации и ранжирования.
-type EmbeddingProvider interface {
-	// Embed вычисляет ограниченный пакет текстовых векторов с помощью настроенной модели
-	// встраивания.
-	//
-	// @Parameters:
-	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
-	//   операции.
-	//   - arg2: Валидированный запрос приложения или входящие параметры операции.
-	//
-	// @returns:
-	//   - result1: Собранные значения []float32.
-	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-	//   передачи данных или сохранения.
-	Embed(context.Context, EmbeddingRequest) ([][]float32, error)
+type Result struct {
+	Type            string  `json:"type"`
+	ConferenceID    string  `json:"conferenceId"`
+	ConferenceTitle string  `json:"conferenceTitle"`
+	Snippet         string  `json:"snippet"`
+	Rank            float64 `json:"rank"`
 }
 
-// Chunk привязывает ограниченный текст к транскрипции, исходному сегменту и позиции навигации.
-type Chunk struct {
-	ID, ConferenceID, RecordingID, TranscriptID, SegmentID string
-	Generation                                             int64
-	Ordinal                                                int
-	StartMS, EndMS                                         int64
-	SpeakerID                                              *string
-	Speaker, Text, ContentHash, ModelKey                   string
-	Vector                                                 []float32
+type Page struct {
+	EffectiveMode string   `json:"effectiveMode"`
+	Items         []Result `json:"items"`
+	Total         int64    `json:"total"`
+	Limit         int      `json:"limit"`
+	Offset        int      `json:"offset"`
 }

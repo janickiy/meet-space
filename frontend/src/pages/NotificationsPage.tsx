@@ -16,7 +16,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import { notificationLabel } from "../components/NotificationBell";
 import { Button, ErrorNotice, Loading } from "../components/ui";
-import { notificationLink } from "../intelligence";
+import { notificationLink } from "../notificationLinks";
 import { formatDate } from "../utils";
 import "./history-notifications.css";
 

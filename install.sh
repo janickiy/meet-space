@@ -38,7 +38,7 @@ main() (
           'Коммит инструментов закрепляется при публикации; версия образов выбирается при запуске.' \
           'Сборка актуального main: sudo bash install.sh --mode source --ref main' \
           'Режим images не компилирует приложение и не запускает сканер на вашем сервере.' \
-          'live-worker по умолчанию не запускается; он нужен только для включённых субтитров или аналитики речи.' \
+          'Требуется совместимый пакет с record-worker; прежние выпуски не переименовываются.' \
           'Для сборки из исходников рекомендуются 4 CPU, 8 ГиБ RAM и 35 ГиБ свободного места.' \
           'Мастер запросит домен и сертификат; SMTP необязателен. IPv4 определяется автоматически.' \
           'Каталог /opt/meetspace, проект meetspace и подсеть 172.30.240.0/24 используются по умолчанию.' \
@@ -119,6 +119,11 @@ main() (
   fi
   [[ -f "$scratch/source/scripts/install/from-source.py" && ! -L "$scratch/source/scripts/install/from-source.py" ]] \
     || fail 'В выбранной версии нет установщика из исходников. Выберите более новый коммит.'
+  [[ -f "$scratch/source/scripts/install/retire-legacy-services.py" \
+     && ! -L "$scratch/source/scripts/install/retire-legacy-services.py" \
+     && -f "$scratch/source/dockers/record-worker/Dockerfile" \
+     && -f "$scratch/source/cmd/record-worker/main.go" ]] \
+    || fail 'Выбранный коммит ещё использует прежний состав служб. Укажите через --ref опубликованный проверенный коммит с record-worker; старый установщик не запускался.'
   printf '\nПолучен коммит: %s\n' "$commit"
   if [[ "$mode" == images ]]; then
     [[ -f "$scratch/source/scripts/install/from-images.py" && ! -L "$scratch/source/scripts/install/from-images.py" ]] \
@@ -127,7 +132,7 @@ main() (
     return
   fi
   if [[ "$build_mode" == auto ]]; then
-    # Older explicitly selected source versions do not understand --build-mode.
+    # Let the selected installer choose its automatic resource policy.
     python3 -I "$scratch/source/scripts/install/from-source.py" "$scratch/source"
   else
     python3 -I "$scratch/source/scripts/install/from-source.py" "$scratch/source" --build-mode "$build_mode"

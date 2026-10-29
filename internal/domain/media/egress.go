@@ -11,7 +11,6 @@ package media
 // EgressRequest описывает внутренний запрос на запись потока, защищённый авторизацией и арендой
 // права владения медиакомнатой.
 type EgressRequest struct {
-	Purpose            string `json:"purpose,omitempty"`
 	RequestID          string `json:"requestId"`
 	ConferenceID       string `json:"conferenceId"`
 	RecordingID        string `json:"recordingId"`

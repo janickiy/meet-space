@@ -12,7 +12,6 @@ import {
 import type { MouseEvent } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import {
-  BarChart3,
   CalendarDays,
   Home,
   Folder,
@@ -33,7 +32,6 @@ import { Brand, Loading } from "./ui";
 import { NotificationBell } from "./NotificationBell";
 import { UnreadMessageCount } from "./UnreadMessageCount";
 import { useNotificationStream } from "../notifications";
-import { useCapabilities } from "../useCapabilities";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "../brand";
 import { AccountSettingsModal } from "./AccountSettingsModal";
 import { AccountSettingsContext } from "./AccountSettingsContext";
@@ -51,7 +49,6 @@ export function Layout() {
   const personal = usePersonalRealtime(
     user?.guestConferenceId ? undefined : user?.id,
   );
-  const capabilities = useCapabilities();
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -186,11 +183,6 @@ export function Layout() {
     { to: "/personal", label: "Личные", Icon: MessageCircle },
     { to: "/calendar", label: "Календарь", Icon: CalendarDays },
     { to: "/recordings", label: "Записи", Icon: CirclePlay },
-    ...(capabilities.isSuccess &&
-    !capabilities.isError &&
-    capabilities.data.capabilities.meetingAnalytics
-      ? [{ to: "/analytics", label: "Аналитика", Icon: BarChart3 }]
-      : []),
   ];
   const serviceItems = [
     { to: "/app/settings", label: "Настройки", Icon: Settings },

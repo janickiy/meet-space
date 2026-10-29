@@ -541,8 +541,6 @@ export interface Notification {
     isReply?: boolean;
     messageId?: string;
     recordingId?: string;
-    transcriptId?: string;
-    summaryId?: string;
     scheduledAt?: string;
     admissionState?: string;
   };
@@ -564,7 +562,6 @@ export interface NotificationPreferences {
   invitation: boolean;
   reminder: boolean;
   recording: boolean;
-  summary: boolean;
   email: boolean;
   push: boolean;
 }
@@ -591,67 +588,14 @@ export interface CalendarSync {
   syncStatus: string;
   lastSyncedAt?: string;
 }
-export type ContentStatus = "queued" | "processing" | "ready" | "failed";
-export interface Transcript {
-  id: string;
-  conferenceId: string;
-  recordingId: string;
-  status: ContentStatus;
-  language: string;
-  provider: string;
-  createdAt: string;
-  updatedAt: string;
-  errorCode?: string;
-  errorMessage?: string;
-}
-export interface TranscriptView extends Item<Transcript | null> {
-  enabled: boolean;
-  canRetry: boolean;
-  providerMode: ProviderMode;
-}
-export interface TranscriptSegment {
-  id: string;
-  transcriptId: string;
-  startMs: number;
-  endMs: number;
-  speakerId?: string | null;
-  speakerLabel?: string | null;
-  text: string;
-  confidence?: number | null;
-}
 export interface OffsetPage<T> extends Items<T> {
   limit: number;
   offset: number;
   total: number;
 }
-export interface MeetingSummary {
-  id: string;
-  conferenceId: string;
-  transcriptId: string;
-  status: ContentStatus;
-  summary: string;
-  keyPoints: string[];
-  actionItems: {
-    text: string;
-    assignee: string | null;
-    dueDate: string | null;
-    sourceSegmentIds: string[];
-  }[];
-  topics: string[];
-  provider: string;
-  model: string;
-  promptVersion: string;
-  schemaVersion: string | number;
-  errorCode?: string;
-}
-export interface SummaryView extends Item<MeetingSummary | null> {
-  enabled: boolean;
-  canRegenerate: boolean;
-  providerMode: ProviderMode;
-}
-export type SearchSource = "all" | "conference" | "transcript" | "summary";
+export type SearchSource = "all" | "conference";
 export interface SearchFilters {
-  mode?: "keyword" | "semantic" | "hybrid";
+  mode?: "keyword";
   membership?: "all" | "owned" | "participating";
   participantId?: string;
   q: string;
@@ -661,15 +605,9 @@ export interface SearchFilters {
   to?: string;
 }
 export interface SearchResult {
-  speaker?: string;
-  speakerId?: string;
   type: Exclude<SearchSource, "all">;
   conferenceId: string;
   conferenceTitle: string;
-  recordingId?: string;
-  transcriptId?: string;
-  segmentId?: string;
-  startMs?: number;
   snippet: string;
   rank: number;
 }
@@ -677,62 +615,8 @@ export interface SearchResult {
 /** RecordingMode ограничивает выбор серверными стратегиями, без параметров FFmpeg. */
 export type RecordingMode =
   "composite" | "audio_only" | "individual_tracks" | "screen_focus";
-/** Caption содержит серверную идентичность реплики, порядок версий и время внутри встречи. */
-export interface Caption {
-  id: string;
-  conferenceId: string;
-  sessionId: string;
-  participantId: string;
-  speaker: string;
-  trackInstanceId: string;
-  generation: number;
-  cursor: number;
-  sequence: number;
-  revision: number;
-  startMs: number;
-  endMs: number;
-  text: string;
-  language: string;
-  final: boolean;
-}
-/** CaptionState отделяет согласие на распознавание от локального отображения субтитров. */
-export interface CaptionState {
-  conferenceId: string;
-  sessionId: string;
-  enabled: boolean;
-  available: boolean;
-  canManage: boolean;
-  language: string;
-  status: string;
-  generation: number;
-  canonicalRecordingId?: string;
-}
-/** MeetingAnalytics содержит агрегаты без оценки продуктивности или ранжирования участников. */
-export interface MeetingAnalytics {
-  enabled: boolean;
-  durationMs: number;
-  participantCount: number;
-  recordingAvailable: boolean;
-  transcriptAvailable: boolean;
-  timeline: { atMs: number; count: number }[];
-  participants: {
-    participantId: string;
-    displayName: string;
-    participationMs: number;
-    speakingMs: number;
-    observedAudioMs: number;
-    screenMs: number;
-    messageCount: number;
-  }[];
-}
-
 /** ProductCapabilities содержит только безопасные признаки включённых серверных функций. */
 export interface ProductCapabilities {
-  liveCaptions: boolean;
-  transcription: boolean;
-  aiSummary: boolean;
-  semanticSearch: boolean;
-  meetingAnalytics: boolean;
   recordingModes: RecordingMode[];
 }
 
@@ -751,7 +635,6 @@ export interface AdminSummary {
   queuedJobs: number;
   failedJobs24h: number;
   failedRecordings24h: number;
-  failedTranscriptions24h: number;
   apiReady: boolean;
   mediaWorkerReady: boolean;
   dependencies: Record<string, boolean>;

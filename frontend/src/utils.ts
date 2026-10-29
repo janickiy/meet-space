@@ -187,7 +187,7 @@ export function safeNext(value: string | null): string {
 const RETURN_DESTINATIONS = [
   /^\/$/,
   /^\/app(?:\/(?:settings|recordings))?\/?$/,
-  /^\/(?:calendar|analytics|settings|notifications|admin)\/?$/,
+  /^\/(?:calendar|settings|notifications|admin)\/?$/,
   /^\/(?:meetings|conferences)(?:\/[A-Za-z0-9_-]+(?:\/join)?)?\/?$/,
   /^\/(?:recordings|history|folders)(?:\/[A-Za-z0-9_-]+)?\/?$/,
   /^\/personal(?:\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})?\/?$/,

@@ -14,11 +14,13 @@ def main():
     spec = importlib.util.spec_from_file_location('images', helper)
     api = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(api)
-    index = dict(schemaVersion=1, installationMode='prebuilt', repository=api.REPOSITORY,
+    index = dict(schemaVersion=1, serviceInventoryVersion=api.SERVICE_INVENTORY_VERSION,
+                 installationMode='prebuilt', repository=api.REPOSITORY,
                  version=version, commit=commit, platforms={})
     for arch in ('amd64', 'arm64'):
         item = json.loads((root / ('prebuilt-' + arch + '.json')).read_text())
-        api.require(item.get('repository') == api.REPOSITORY and item.get('version') == version
+        api.require(item.get('serviceInventoryVersion') == api.SERVICE_INVENTORY_VERSION
+                    and item.get('repository') == api.REPOSITORY and item.get('version') == version
                     and item.get('commit') == commit and item.get('platform') == 'linux/' + arch,
                     'Architecture descriptor differs from release source.')
         index['platforms']['linux/' + arch] = item['archive']

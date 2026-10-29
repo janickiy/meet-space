@@ -31,7 +31,7 @@ Base64 — кодирование, не шифрование. Отключите
 | `frontend-check` | Node 24: `npm ci`, lint, typecheck, build |
 | `security-go` | govulncheck v1.8.0 |
 | `security-frontend` | `npm audit --audit-level=high` |
-| `go-build` | Бинарники api, worker, media-worker, product-worker, live-worker, main с version/commit/time |
+| `go-build` | Бинарники api, record-worker, media-worker, product-worker, main с version/commit/time |
 | `release-package` | Теги `vX.Y.Z` / prerelease: сборка, scan, SBOM и registry package |
 | `deploy-dev` | Только `main`: legacy rsync/build/up |
 
@@ -84,9 +84,10 @@ TLS к daemon и разрешениями для сборки. Текущий CI
 
 Скрипт выполняет `rsync --delete`, сохраняя перечисленные в нём data/cert/env
 каталоги. Новые нестандартные каталоги автоматически не защищаются. Затем он
-собирает api/worker/media/product/live/frontend/minio и запускает базовый Compose
-с `--remove-orphans`. Автоматического drain, backup, миграционного окна и rollback
-здесь нет. `StrictHostKeyChecking=accept-new` принимает первый неизвестный ключ;
+собирает сервисы базового Compose и проверяет остановку старых служб через
+`retire-legacy-services.py --check-migration`, затем запускает готовые образы
+без сборки. Перед миграцией 000037 все прикладные процессы должны быть
+остановлены оператором. Автоматического backup и rollback здесь нет. `StrictHostKeyChecking=accept-new` принимает первый неизвестный ключ;
 предварительно проверьте host key и подготовьте доверенный `known_hosts` runner.
 
 Изменение пароля зависимости в `.env` не обновляет учётную запись существующего

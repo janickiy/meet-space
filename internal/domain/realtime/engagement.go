@@ -32,7 +32,7 @@ func AllowedReaction(emoji string) bool {
 //     ли успешное изменение ее условного состояния.
 func LowPriorityEvent(kind string) bool {
 	switch kind {
-	case "caption.partial", "caption.final", "caption.status", "reaction.created", "chat.message.created", "chat.message.updated", "chat.message.deleted", "chat.read.updated":
+	case "reaction.created", "chat.message.created", "chat.message.updated", "chat.message.deleted", "chat.read.updated":
 		return true
 	default:
 		return false

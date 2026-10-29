@@ -1,17 +1,14 @@
 # Полный справочник API MeetSpace
 
-Актуализировано **21 октября 2026 года** по коду коммита `6e577b6`.
-Справочник содержит **177 серверных регистраций**: 148 маршрутов `/api/v1`,
-`GET /health` API и 28 общих/внутренних/диагностических регистраций.
+Актуализировано **29 октября 2026 года** после удаления функций распознавания речи.
 Общие маршруты Runtime указаны один раз, хотя используются разными процессами.
-Статический frontend `/version.json` в это число не входит.
 Контракты сверены с регистрациями и обработчиками; запросы к рабочему серверу
 при актуализации не выполнялись. Права проверяются на сервере для конкретного
 ресурса. `*` означает, что Go HTTP handler не ограничивает метод; обычно
 используется GET. Символ `*` после имени поля означает обязательное поле.
 Этот документ дополняет [обзор API](API.md), [инструкции запуска](../README.md)
 и [Postman-коллекцию](postman/meetspace/MeetSpace.postman_collection.json).
-Краткий [каталог всех 148 маршрутов `/api/v1`](../README.md#каталог-маршрутов)
+Краткий [каталог маршрутов `/api/v1`](../README.md#каталог-маршрутов)
 доступен прямо в README; [быстрый старт](API.md#быстрый-старт-rest) показывает
 последовательности запросов для встреч, переписок и закреплённых сообщений.
 Служебные адреса SFU/recorder/metrics не предназначены для публичного доступа.
@@ -24,11 +21,10 @@
 ## Разделы
 
 - [Личные звонки](#api-group-1) — 8
-- [Субтитры и аналитика](#api-group-2) — 5
 - [Чаты конференций](#api-group-3) — 12
 - [Сообщения и вложения](#api-group-4) — 20
 - [Записи конференций](#api-group-5) — 5
-- [Контент и общий поиск](#api-group-6) — 6
+- [Поиск встреч](#api-group-6) — 1
 - [Реакции и TURN](#api-group-7) — 1
 - [Личные папки](#api-group-8) — 10
 - [Гостевой доступ](#api-group-9) — 1
@@ -38,14 +34,14 @@
 - [Приватные ресурсы групп](#api-group-13) — 4
 - [Личные и групповые диалоги](#api-group-14) — 21
 - [Поиск в диалогах](#api-group-15) — 2
-- [Аккаунты и конференции](#api-group-16) — 28
+- [Аккаунты и конференции](#api-group-16) — 31
 - [Возможности платформы](#api-group-17) — 2
 - [Телеметрия](#api-group-18) — 1
 - [API health](#api-group-19) — 1
 - [WebSocket HTTP](#api-group-20) — 5
 - [Media worker](#api-group-21) — 11
 - [Operations](#api-group-22) — 6
-- [Recorder worker](#api-group-23) — 4
+- [Record Worker](#api-group-23) — 4
 - [Profiling (отдельный listener)](#api-group-24) — 7
 
 <a id="api-group-1"></a>
@@ -163,81 +159,6 @@
 - **Ошибки:** 409 не accepted/чужой clientId; 422
 
 Источники: [internal/transport/http/call_routes.go:39](../internal/transport/http/call_routes.go#L39), [internal/app/calls/handler.go:95](../internal/app/calls/handler.go#L95).
-
-
-<a id="api-group-2"></a>
-
-## Субтитры и аналитика
-
-### `GET /api/v1/conferences/:id/captions`
-
-Состояние живых субтитров.
-
-- **Доступ:** Bearer; доступ к истории
-
-- **Запрос:** id
-
-- **Ответ:** 200: status,item: available,enabled,canManage,status,language,generation,sessionId,canonicalRecordingId
-
-- **Ошибки:** 403; 404
-
-Источники: [internal/transport/http/captions_routes.go:27](../internal/transport/http/captions_routes.go#L27), [internal/app/captions/handler.go:119](../internal/app/captions/handler.go#L119).
-
-### `PUT /api/v1/conferences/:id/captions`
-
-Включить/выключить живые субтитры.
-
-- **Доступ:** Bearer; вошедший owner/co_host
-
-- **Запрос:** id; JSON enabled* bool; language=auto/ru/en (auto)
-
-- **Ответ:** 200: status,item: CaptionState
-
-- **Ошибки:** 422 язык/поле; 403 роль; 409 конференция не active; 503 функция отключена; 429
-
-Источники: [internal/transport/http/captions_routes.go:28](../internal/transport/http/captions_routes.go#L28), [internal/app/captions/handler.go:141](../internal/app/captions/handler.go#L141).
-
-### `GET /api/v1/conferences/:id/captions/segments`
-
-Сохраненные финальные субтитры после курсора.
-
-- **Доступ:** Bearer; доступ к истории
-
-- **Запрос:** id; afterCursor ≥0 (0),limit 1–200 (100)
-
-- **Ответ:** 200: status,items: Caption[],nextCursor,hasMore
-
-- **Ошибки:** 422 cursor/limit; 403; 404
-
-Источники: [internal/transport/http/captions_routes.go:29](../internal/transport/http/captions_routes.go#L29), [internal/app/captions/handler.go:178](../internal/app/captions/handler.go#L178).
-
-### `GET /api/v1/conferences/:id/analytics`
-
-Аналитика конференции.
-
-- **Доступ:** Bearer; доступ к истории
-
-- **Запрос:** id
-
-- **Ответ:** 200: status,item: ConferenceAnalytics (включая participants,timeline,approximateSpeaking)
-
-- **Ошибки:** 403; 404
-
-Источники: [internal/transport/http/captions_routes.go:30](../internal/transport/http/captions_routes.go#L30), [internal/app/captions/handler.go:63](../internal/app/captions/handler.go#L63).
-
-### `POST /api/v1/conferences/:id/recordings/:recordingId/search/reindex`
-
-Поставить повторную индексацию готовой транскрипции.
-
-- **Доступ:** Bearer; owner/co_host с доступом к истории
-
-- **Запрос:** id,recordingId; тело не читается
-
-- **Ответ:** 202: status=success
-
-- **Ошибки:** 403; 409 нет ready transcript/прошло <5 минут; 503 embeddings/index недоступны; 404
-
-Источники: [internal/transport/http/captions_routes.go:31](../internal/transport/http/captions_routes.go#L31), [internal/app/captions/handler.go:80](../internal/app/captions/handler.go#L80).
 
 
 <a id="api-group-3"></a>
@@ -779,91 +700,21 @@
 
 <a id="api-group-6"></a>
 
-## Контент и общий поиск
-
-### `GET /api/v1/conferences/:id/recordings/:recordingId/transcript`
-
-Метаданные транскрипции записи.
-
-- **Доступ:** Bearer; доступ к истории
-
-- **Запрос:** id,recordingId
-
-- **Ответ:** 200: status,item: Transcript либо null,enabled,canRetry,providerMode
-
-- **Ошибки:** 403; 404 запись
-
-Источники: [internal/transport/http/content_routes.go:36](../internal/transport/http/content_routes.go#L36), [internal/app/content/handler.go:170](../internal/app/content/handler.go#L170).
-
-### `GET /api/v1/conferences/:id/recordings/:recordingId/transcript/segments`
-
-Страница текста с временными метками.
-
-- **Доступ:** Bearer; доступ к истории
-
-- **Запрос:** id,recordingId; limit 1–200 (100),offset 0–100000 (0)
-
-- **Ответ:** 200: status,items: Segment[],total,limit,offset
-
-- **Ошибки:** 409 транскрипция не ready; 422 pagination; 403; 404
-
-Источники: [internal/transport/http/content_routes.go:37](../internal/transport/http/content_routes.go#L37), [internal/app/content/handler.go:187](../internal/app/content/handler.go#L187).
-
-### `POST /api/v1/conferences/:id/recordings/:recordingId/transcript/retry`
-
-Поставить первую/повторную транскрипцию.
-
-- **Доступ:** Bearer; owner/co_host с доступом к истории
-
-- **Запрос:** id,recordingId; пусто или {}
-
-- **Ответ:** 202: status,item: Transcript,enabled,canRetry=false,providerMode
-
-- **Ошибки:** 409 запись не готова/не failed/лимит/пауза повторов; 503 STT выключен; 403; 404
-
-Источники: [internal/transport/http/content_routes.go:38](../internal/transport/http/content_routes.go#L38), [internal/app/content/handler.go:230](../internal/app/content/handler.go#L230).
-
-### `GET /api/v1/conferences/:id/recordings/:recordingId/summary`
-
-Прочитать AI summary.
-
-- **Доступ:** Bearer; доступ к истории
-
-- **Запрос:** id,recordingId
-
-- **Ответ:** 200: status,item: Summary либо null,enabled,canRegenerate,providerMode
-
-- **Ошибки:** 403; 404
-
-Источники: [internal/transport/http/content_routes.go:39](../internal/transport/http/content_routes.go#L39), [internal/app/content/handler.go:212](../internal/app/content/handler.go#L212).
-
-### `POST /api/v1/conferences/:id/recordings/:recordingId/summary/regenerate`
-
-Поставить повторную генерацию summary.
-
-- **Доступ:** Bearer; owner/co_host с доступом к истории
-
-- **Запрос:** id,recordingId; пусто или {}
-
-- **Ответ:** 202: status,item: Summary,enabled,canRegenerate=false,providerMode
-
-- **Ошибки:** 409 нет готовой транскрипции/лимит/пауза повторов; 503 AI выключен; 403; 404
-
-Источники: [internal/transport/http/content_routes.go:40](../internal/transport/http/content_routes.go#L40), [internal/app/content/handler.go:247](../internal/app/content/handler.go#L247).
+## Поиск встреч
 
 ### `GET /api/v1/search`
 
-Поиск конференций, транскрипций и summary.
+Поиск по названиям доступных конференций.
 
 - **Доступ:** Bearer аккаунта; фильтрация доступных конференций
 
-- **Запрос:** Query q* ≤500 символов/2000 байт; source=all/conference/transcript/summary; mode=keyword/semantic/hybrid; conferenceId,participantId UUID; membership=all/owned/participating; from/to RFC3339; limit 1–100 (20),offset 0–10000
+- **Запрос:** Query q* ≤500 символов/2000 байт; source=all/conference; mode=keyword; conferenceId,participantId UUID; membership=all/owned/participating; from/to RFC3339; limit 1–100 (20),offset 0–10000
 
-- **Ответ:** 200: status,items: SearchResult[],total,limit,offset,effectiveMode,fallbackReason
+- **Ответ:** 200: status,items: SearchResult[],total,limit,offset,effectiveMode=keyword
 
-- **Ошибки:** 422 фильтры; 429; 503 инфраструктура; semantic/hybrid могут вернуться как fallback
+- **Ошибки:** 422 фильтры (в том числе неподдерживаемые source/mode); 429; 503 инфраструктура
 
-Источники: [internal/transport/http/content_routes.go:41](../internal/transport/http/content_routes.go#L41), [internal/app/content/handler.go:264](../internal/app/content/handler.go#L264).
+Источники: [search_routes.go](../internal/transport/http/search_routes.go), [обработчик поиска](../internal/app/search/handler.go), [модель результата](../internal/domain/search/search.go). Результат содержит `type=conference`, `conferenceId`, `conferenceTitle`, `snippet`, `rank`.
 
 
 <a id="api-group-7"></a>
@@ -1061,7 +912,7 @@
 
 - **Запрос:** Без тела/query
 
-- **Ответ:** 200: объект invitation,reminder,recording,summary,email,push (без status)
+- **Ответ:** 200: объект invitation,reminder,recording,email,push (без status)
 
 - **Ошибки:** 401/403
 
@@ -1073,7 +924,7 @@
 
 - **Доступ:** Bearer аккаунта
 
-- **Запрос:** Пусто либо JSON invitation,reminder,recording,summary,email,push bool; пропущенные bool получают false
+- **Запрос:** Пусто либо JSON invitation,reminder,recording,email,push bool; пропущенные bool получают false
 
 - **Ответ:** 200: сохраненный объект Preferences (без status)
 
@@ -1783,6 +1634,27 @@
 
 Источники: [internal/transport/http/platform_routes.go:28](../internal/transport/http/platform_routes.go#L28), [internal/app/auth/handler.go:169](../internal/app/auth/handler.go#L169).
 
+### `PUT /api/v1/auth/me/avatar`
+
+Заменить собственное фото профиля. Доступ: Bearer постоянного аккаунта.
+Тело: бинарный PNG/JPEG до 2 МиБ; Content-Type соответствует изображению.
+Ответ: 200 `{status,user}`. Гостю — 403; неверный файл — ошибка валидации;
+ограничение нагрузки — 429. Лимит: 10 запросов в минуту.
+
+### `DELETE /api/v1/auth/me/avatar`
+
+Удалить собственное фото. Доступ: Bearer постоянного аккаунта, без тела.
+Ответ: 200 `{status,user}`. Гостю — 403. Лимит: 30 запросов в минуту.
+
+### `GET /api/v1/users/:id/avatar/content`
+
+Прочитать нормализованный JPEG профиля. Доступ: Bearer постоянного аккаунта.
+Параметр `id` — UUID пользователя. Ответ: 200 `image/jpeg`; отсутствующий
+аватар — 404, гость — 403. Лимит: 120 запросов в минуту.
+Все три маршрута используют `private, no-store` и `nosniff`.
+
+Источники: [profile_avatar_routes.go](../internal/transport/http/profile_avatar_routes.go), [avatar_handler.go](../internal/app/profile/avatar_handler.go).
+
 ### `GET /api/v1/auth/me`
 
 Профиль текущего пользователя.
@@ -2104,7 +1976,7 @@
 
 - **Запрос:** Без тела/query
 
-- **Ответ:** 200: status,capabilities: liveCaptions,transcription,aiSummary,semanticSearch,meetingAnalytics,recordingModes; buildVersion
+- **Ответ:** 200: status,capabilities: recordingModes; buildVersion
 
 - **Ошибки:** 401
 
@@ -2384,11 +2256,11 @@
 
 ### `POST /internal/media/egress`
 
-Пассивно получать RTP для записи либо только аудио для captions; не WebSocket.
+Пассивно получать RTP для записи конференции; не WebSocket.
 
 - **Доступ:** Authorization: Bearer <MEDIA_INTERNAL_SECRET>, точное значение; Cache-Control:no-store
 
-- **Запрос:** Строгий JSON <=4096 байт: {requestId:UUID,conferenceId:UUID,recordingId:UUID,route:{workerId,endpoint,leaseId:UUID},segmentDurationSec:1..30,purpose?:"recording"|"captions"}; requestId=X-Request-ID. Пустой purpose означает запись.
+- **Запрос:** Строгий JSON <=4096 байт: {requestId:UUID,conferenceId:UUID,recordingId:UUID,route:{workerId,endpoint,leaseId:UUID},segmentDurationSec:1..30}; requestId=X-Request-ID.
 
 - **Ответ:** 200 поток application/x-ndjson; X-Request-ID. Frame={type,sequence,capturedAt:UnixNano,track?:EgressTrack,trackId?:UUID,rtp?:base64,code?:string}; type: hello,track,rtp,track.end,ping,error. EgressTrack=Track+mimeType,clockRate,channels,payloadType,ssrc.
 
@@ -2488,11 +2360,11 @@
 
 <a id="api-group-23"></a>
 
-## Recorder worker
+## Record Worker
 
 ### `* /health`
 
-Legacy health recorder-worker.
+Legacy health record-worker.
 
 - **Доступ:** Не требуется
 
@@ -2502,7 +2374,7 @@ Legacy health recorder-worker.
 
 - **Ошибки:** Специальных ошибок нет; readiness не проверяется.
 
-Источники: [internal/app/worker.go:201](../internal/app/worker.go#L201).
+Источники: [internal/app/record_worker.go:201](../internal/app/record_worker.go#L201).
 
 ### `POST /records/:id/start`
 
@@ -2516,7 +2388,7 @@ Legacy health recorder-worker.
 
 - **Ошибки:** 404 text/plain: auth, неправильный метод/путь, отсутствующая/composite запись; 503 "worker unavailable"; 400 text/plain при Decode или ошибке HandleCommand.
 
-Источники: [internal/app/worker.go:269](../internal/app/worker.go#L269).
+Источники: [internal/app/record_worker.go:269](../internal/app/record_worker.go#L269).
 
 ### `POST /records/:id/stop`
 
@@ -2530,7 +2402,7 @@ Legacy health recorder-worker.
 
 - **Ошибки:** 404 text/plain: auth, неправильный метод/путь, отсутствующая/composite запись; 503 "worker unavailable"; 400 text/plain при Decode или ошибке HandleCommand.
 
-Источники: [internal/app/worker.go:269](../internal/app/worker.go#L269).
+Источники: [internal/app/record_worker.go:269](../internal/app/record_worker.go#L269).
 
 ### `POST /records/:id/webrtc/offer`
 
@@ -2544,7 +2416,7 @@ Legacy health recorder-worker.
 
 - **Ошибки:** 404 text/plain: auth/запись/composite/метод; 503 "worker unavailable"; 400 text/plain при JSON/ingest ошибке.
 
-Источники: [internal/app/worker.go:347](../internal/app/worker.go#L347).
+Источники: [internal/app/record_worker.go:347](../internal/app/record_worker.go#L347).
 
 
 <a id="api-group-24"></a>

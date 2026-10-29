@@ -26,7 +26,6 @@ const preferenceLabels: Record<keyof NotificationPreferences, string> = {
   invitation: "Приглашения и изменения встреч",
   reminder: "Напоминания о встречах",
   recording: "Готовность записи",
-  summary: "Расшифровка и итоги встречи",
   email: "Email",
   push: "Push-уведомления",
 };
@@ -240,24 +239,22 @@ function PreferencesForm({
       <fieldset className="preferences-fieldset">
         <legend>События</legend>
         <div className="preferences-options">
-          {(["invitation", "reminder", "recording", "summary"] as const).map(
-            (name) => (
-              <label className="preference-option" key={name}>
-                <input
-                  type="checkbox"
-                  checked={draft[name]}
-                  onChange={(event) =>
-                    setDraft({ ...draft, [name]: event.target.checked })
-                  }
-                />
-                <span className="preference-copy">
-                  <span className="preference-title">
-                    {preferenceLabels[name]}
-                  </span>
+          {(["invitation", "reminder", "recording"] as const).map((name) => (
+            <label className="preference-option" key={name}>
+              <input
+                type="checkbox"
+                checked={draft[name]}
+                onChange={(event) =>
+                  setDraft({ ...draft, [name]: event.target.checked })
+                }
+              />
+              <span className="preference-copy">
+                <span className="preference-title">
+                  {preferenceLabels[name]}
                 </span>
-              </label>
-            ),
-          )}
+              </span>
+            </label>
+          ))}
         </div>
       </fieldset>
       <fieldset className="preferences-fieldset">

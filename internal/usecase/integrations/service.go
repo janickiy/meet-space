@@ -49,8 +49,7 @@ type ConferenceSnapshot struct {
 	IntegrationVersion                     int64
 }
 
-// Delivery содержит разрешённые факты об уведомлениях и адреса получателей, но не содержимое
-// расшифровки.
+// Delivery содержит разрешённые поля уведомления и адрес получателя.
 type Delivery struct {
 	Notification       n.Notification
 	Email              string
@@ -856,12 +855,6 @@ func eventText(kind string) string {
 		return "Встреча скоро начнётся"
 	case "recording.ready":
 		return "Запись встречи готова"
-	case "transcript.ready":
-		return "Расшифровка встречи готова"
-	case "summary.ready":
-		return "Итоги встречи готовы"
-	case "processing.failed":
-		return "Обработка встречи не завершилась"
 	default:
 		return "Обновление встречи"
 	}
@@ -905,13 +898,6 @@ func (s *Service) deliver(ctx context.Context, job jobs.Job, payload eventPayloa
 		return err
 	}
 	link := strings.TrimRight(s.options.PublicURL, "/") + "/conferences/" + url.PathEscape(conference.ID)
-	if delivery.Notification.Payload.RecordingID != "" && (delivery.Notification.Type == "transcript.ready" || delivery.Notification.Type == "summary.ready") {
-		query := url.Values{"recording": {delivery.Notification.Payload.RecordingID}, "tab": {"transcript"}}
-		if delivery.Notification.Type == "summary.ready" {
-			query.Set("tab", "summary")
-		}
-		link += "?" + query.Encode()
-	}
 	op, cancel := context.WithTimeout(ctx, s.options.ProviderTimeout)
 	defer cancel()
 	if payload.Channel == "email" {

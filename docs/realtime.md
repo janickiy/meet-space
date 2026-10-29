@@ -74,9 +74,8 @@ API сохраняет deadline последнего подтверждённо�
 `media.renegotiate`, `media.policy` и состояния возвращаются через тот же канал.
 Полный контракт — [media-sfu.md](media-sfu.md).
 
-Также доставляются `participant.*`, сообщения/реакции, `recording.*` и `caption.*`.
-Потеря события записи восстанавливается чтением recording API, чата — историей,
-субтитров — сохранёнными финальными репликами; Pub/Sub не выполняет replay.
+Также доставляются `participant.*`, сообщения/реакции, `recording.*`.
+Потеря события записи восстанавливается чтением recording API, чата — историей; Pub/Sub не выполняет replay.
 
 ### Envelope
 
@@ -155,7 +154,7 @@ docker compose exec -T https nginx -t
 docker compose exec -T https nginx -s reload
 ```
 
-Не требуется перезапуск PostgreSQL, Redis, RabbitMQ, S3-хранилища или recorder-worker. UI: http://localhost:5173; HTTPS: https://localhost:18482. После join откройте конференцию в двух браузерах/вкладках и проверьте presence
+Не требуется перезапуск PostgreSQL, Redis, RabbitMQ, S3-хранилища или record-worker. UI: http://localhost:5173; HTTPS: https://localhost:18482. После join откройте конференцию в двух браузерах/вкладках и проверьте presence
 и реальное медиа SFU. Для production используйте полный набор overlays своей поставки и процедуру drain.
 
 ## Безопасность

@@ -19,6 +19,12 @@ done
 layout="$(jq -r '.deploymentLayout // "classic"' "$build")"
 [[ "$layout" == classic || "$layout" == hardened-shared-host ]] || fail "Unsupported release layout"
 select_release_services "$layout"
+# Reject historical build manifests before scanning, exporting or publishing any image.
+jq -e --arg services "${RELEASE_SERVICES[*]}" '
+  (.images | type == "object")
+  and ((["api", "media-worker", "record-worker", "product-worker", "frontend", "minio"] - (.images | keys)) | length == 0)
+  and (((.images | keys) - ($services | split(" "))) | length == 0)' "$build" >/dev/null \
+  || fail "Incompatible build inventory: rebuild this source with record-worker; old images cannot be relabelled"
 export IMAGE_PLATFORM="$(jq -r '.platform // ""' "$build")"
 if [[ -n "$infrastructure_manifest" ]]; then
   [[ "$infrastructure_manifest" == /* && -f "$infrastructure_manifest" ]] || fail "--infrastructure-manifest must name an existing absolute path"

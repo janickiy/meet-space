@@ -143,6 +143,37 @@ func TestEgressOverflowFailsClosed(t *testing.T) {
 	}
 }
 
+// TestRecordingEgressIsExclusive keeps the single-recorder lease independent of peers.
+func TestRecordingEgressIsExclusive(t *testing.T) {
+	m := newLifecycleManager(t)
+	conferenceID, recordingID := uuid.NewString(), uuid.NewString()
+	sub, err := m.SubscribeRecording(context.Background(), conferenceID, recordingID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := <-sub.Frames()
+	if frame.Type != "hello" || frame.Sequence != 1 || frame.CapturedAt == 0 {
+		t.Fatalf("initial frame = %+v", frame)
+	}
+	for _, id := range []string{recordingID, uuid.NewString()} {
+		if _, err := m.SubscribeRecording(context.Background(), conferenceID, id); !errors.Is(err, media.ErrNegotiation) {
+			t.Fatalf("second recording subscription = %v, want negotiation conflict", err)
+		}
+	}
+	if stats := m.Snapshot(); stats.RecordingOutputs != 1 || stats.Rooms != 1 {
+		t.Fatalf("active recording stats = %+v", stats)
+	}
+	sub.Close()
+	replacement, err := m.SubscribeRecording(context.Background(), conferenceID, uuid.NewString())
+	if err != nil {
+		t.Fatalf("subscription after release: %v", err)
+	}
+	replacement.Close()
+	if stats := m.Snapshot(); stats.RecordingOutputs != 0 || stats.Rooms != 0 {
+		t.Fatalf("released recording stats = %+v", stats)
+	}
+}
+
 // TestJoinRejectsRebinding checks that an existing connection cannot change its identity.
 func TestJoinRejectsRebinding(t *testing.T) {
 	m := newLifecycleManager(t)

@@ -22,10 +22,8 @@ import (
 
 	authapp "github.com/janickiy/meet-space/internal/app/auth"
 	callsapp "github.com/janickiy/meet-space/internal/app/calls"
-	captionsapp "github.com/janickiy/meet-space/internal/app/captions"
 	chatapp "github.com/janickiy/meet-space/internal/app/chat"
 	conferencesapp "github.com/janickiy/meet-space/internal/app/conferences"
-	contentapp "github.com/janickiy/meet-space/internal/app/content"
 	engagementapp "github.com/janickiy/meet-space/internal/app/engagement"
 	foldersapp "github.com/janickiy/meet-space/internal/app/folders"
 	integrationsapp "github.com/janickiy/meet-space/internal/app/integrations"
@@ -34,6 +32,7 @@ import (
 	platformapp "github.com/janickiy/meet-space/internal/app/platform"
 	profileapp "github.com/janickiy/meet-space/internal/app/profile"
 	recordingsapp "github.com/janickiy/meet-space/internal/app/recordings"
+	searchapp "github.com/janickiy/meet-space/internal/app/search"
 	telemetryapp "github.com/janickiy/meet-space/internal/app/telemetry"
 	"github.com/janickiy/meet-space/internal/config"
 	healthinfra "github.com/janickiy/meet-space/internal/infrastructure/health"
@@ -59,6 +58,7 @@ import (
 	realtimeusecase "github.com/janickiy/meet-space/internal/usecase/realtime"
 	"github.com/janickiy/meet-space/internal/usecase/recorder"
 	recordingsusecase "github.com/janickiy/meet-space/internal/usecase/recordings"
+	searchusecase "github.com/janickiy/meet-space/internal/usecase/search"
 )
 
 // RunAPI запускает API с настроенными зависимостями и сообщает о сбоях при запуске или завершении работы.
@@ -209,18 +209,17 @@ func RunAPI() error {
 	ops.ConfigureDrain(func() { notificationHandler.BeginDrain(); globalWS.BeginDrain(true) }, func() int { return hub.LocalCount() + globalWS.LocalCount() })
 	httptransport.RegisterNotificationRoutes(router, notificationHandler, httpmiddleware.Authenticate(authService))
 	httptransport.RegisterEngagementRoutes(router, engagementapp.NewHandler(engagementService, rateLimiter, realtimeConfig.Namespace), httpmiddleware.Authenticate(authService))
-	product, err := newProductServices(cfg, db, s3Client)
+	product, err := newProductServices(cfg, db)
 	if err != nil {
 		return fmt.Errorf("product initialization failed: %w", err)
 	}
-	httptransport.RegisterContentRoutes(router, contentapp.NewHandler(product.content), httpmiddleware.Authenticate(authService), rateLimiter)
-	httptransport.RegisterCaptionRoutes(router, &captionsapp.Handler{Repo: postgresinfra.NewCaptionsRepository(db), Enabled: cfg.StageEight.LiveEnabled, Config: cfg.StageEight, Analytics: postgresinfra.NewAnalyticsRepository(db), Search: postgresinfra.NewSearchRepository(db)}, httpmiddleware.Authenticate(authService), rateLimiter)
+	httptransport.RegisterSearchRoutes(router, &searchapp.Handler{Service: &searchusecase.Service{Repo: postgresinfra.NewConferenceSearchRepository(db)}}, httpmiddleware.Authenticate(authService), rateLimiter)
 	httptransport.RegisterIntegrationRoutes(router, integrationsapp.NewHandler(product.integrations), httpmiddleware.Authenticate(authService), rateLimiter)
 	httptransport.RegisterInvitationRoutes(router, &conferencesapp.InvitationHandler{Service: &conferenceusecase.InvitationService{Repository: postgresinfra.NewConferenceInvitationRepository(db)}}, httpmiddleware.Authenticate(authService), rateLimiter)
 	mediaReady := healthinfra.NewHTTPReady(mediaConfig.WorkerInternalURL)
 	defer mediaReady.Close()
 	platformRepository := postgresinfra.NewPlatformRepository(db)
-	platformService := &platformusecase.Service{Repo: platformRepository, Vector: postgresinfra.NewSearchRepository(db), MediaWorker: mediaReady, APIReady: ops.Ready, DependencyStatuses: ops.DependencyStatuses, StageSeven: cfg.StageSeven, StageEight: cfg.StageEight}
+	platformService := &platformusecase.Service{Repo: platformRepository, MediaWorker: mediaReady, APIReady: ops.Ready, DependencyStatuses: ops.DependencyStatuses}
 	httptransport.RegisterPlatformStatusRoutes(router, &platformapp.Handler{Service: platformService, BuildVersion: platformusecase.BuildVersion()}, httpmiddleware.Authenticate(authService), platformRepository)
 	wstransport.NewHandler(hub, authService, store, rateLimiter, realtimeConfig).SetMedia(mediaController).RegisterRoutes(router)
 

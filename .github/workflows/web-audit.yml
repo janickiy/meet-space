@@ -72,7 +72,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Check optional live-worker installation and deployment policy
+      - name: Check service inventory and safe recorder migration
         run: python3 -I -m unittest discover -s scripts/install -p 'test_*.py' -v
       - name: Check installation and release shell syntax
         run: |

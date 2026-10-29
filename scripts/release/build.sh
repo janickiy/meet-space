@@ -47,7 +47,7 @@ fi
 if [[ "$layout" == hardened-shared-host ]]; then
   metadata="$(jq '.objectStorageProvider="seaweedfs" | .omittedComponents=[{name:"grafana",reason:"upstream bundled plugins have unresolved HIGH findings; Prometheus remains enabled"}]' <<<"$metadata")"
 fi
-build_services=(api media-worker worker product-worker live-worker frontend minio)
+build_services=(api media-worker record-worker product-worker frontend minio)
 if [[ "$layout" == hardened-shared-host ]]; then build_services+=(coturn proxy postgres redis prometheus); fi
 build_command=(docker build)
 if [[ -n "$builder" ]]; then build_command=(docker buildx build --builder "$builder" --load); fi

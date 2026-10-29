@@ -92,8 +92,7 @@ fi
 
 "${ssh_command[@]}" "${remote}" "cd '${DEPLOY_PATH}' && \
   if [ ! -f .env ]; then cp .env.example .env; fi && \
-  live_enabled=\$(python3 -I scripts/install/wizard.py --live-worker-policy .env) && \
-  live_profile= && if [ \"\$live_enabled\" = true ]; then live_profile=live; fi && \
-  COMPOSE_PROFILES=\"\$live_profile\" BUILD_VERSION='${BUILD_VERSION}' docker compose build && \
-  COMPOSE_PROFILES=\"\$live_profile\" docker compose up -d --remove-orphans && \
+  COMPOSE_PROFILES= BUILD_VERSION='${BUILD_VERSION}' docker compose build && \
+  python3 -I scripts/install/retire-legacy-services.py --check-migration --compose docker compose && \
+  COMPOSE_PROFILES= docker compose up -d --no-build && \
   docker compose ps"

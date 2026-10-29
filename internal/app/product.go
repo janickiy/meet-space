@@ -19,42 +19,33 @@ import (
 	"time"
 
 	"github.com/janickiy/meet-space/internal/config"
-	"github.com/janickiy/meet-space/internal/infrastructure/contentproviders"
-	"github.com/janickiy/meet-space/internal/infrastructure/ffmpeg"
 	pg "github.com/janickiy/meet-space/internal/infrastructure/postgres"
 	"github.com/janickiy/meet-space/internal/infrastructure/providers"
 	"github.com/janickiy/meet-space/internal/infrastructure/security"
-	s3 "github.com/janickiy/meet-space/internal/infrastructure/storage/s3"
 	"github.com/janickiy/meet-space/internal/operations"
-	analyticsusecase "github.com/janickiy/meet-space/internal/usecase/analytics"
-	content "github.com/janickiy/meet-space/internal/usecase/content"
 	integrations "github.com/janickiy/meet-space/internal/usecase/integrations"
 	jobrunner "github.com/janickiy/meet-space/internal/usecase/jobs"
-	searchusecase "github.com/janickiy/meet-space/internal/usecase/search"
 	"gorm.io/gorm"
 )
 
 // productServices группирует операции с продуктами без изменения жизненного цикла записи RTP
 // или FFmpeg.
 type productServices struct {
-	content      *content.Service
 	integrations *integrations.Service
-	search       *searchusecase.Service
 }
 
-// newProductServices создает общие валидированные зависимости для продуктов; API только считывает или
-// обрабатывает очереди, в то время как отдельный рабочий процесс обращается к медиа и внешним провайдерам.
+// newProductServices создает зависимости уведомлений и внешних интеграций.
+// API ставит задания в очередь, отдельный процесс доставляет их провайдерам.
 //
 // @Parameters:
 //   - cfg: управляемая оператором конфигурация и ограничения обработки.
 //   - db: дескриптор базы данных, используемый для операции или транзакции.
-//   - storage: частный объект или зависимость от файлового хранилища.
 //
 // @returns:
 //   - result1: результирующие сервисы для продуктов.
 //   - result2: nil в случае успешного выполнения; в противном случае — ошибка валидации, доступа, транспортировки или сохранения
 //     данных.
-func newProductServices(cfg config.Config, db *gorm.DB, storage *s3.Client) (productServices, error) {
+func newProductServices(cfg config.Config, db *gorm.DB) (productServices, error) {
 	c := cfg.StageSeven
 	local := cfg.IsLocal() || cfg.AppEnv == "test"
 	adapter := func(p config.ProviderConfig) providers.AdapterConfig {
@@ -85,28 +76,7 @@ func newProductServices(cfg config.Config, db *gorm.DB, storage *s3.Client) (pro
 	if err != nil {
 		return productServices{}, err
 	}
-	stt, err := contentproviders.NewTranscriptionProvider(c.STT.Mode, c.STT.Endpoint, c.STT.Token, c.STTTimeout)
-	if err != nil {
-		return productServices{}, err
-	}
-	ai, err := contentproviders.NewAIProvider(c.AI.Mode, c.AI.Endpoint, c.AI.Token, c.AIModel, c.AITimeout)
-	if err != nil {
-		return productServices{}, err
-	}
-	audio := ffmpeg.NewTranscriptionAudio(storage, cfg.FFmpegPath, c.TempRoot, c.MaxVideoBytes, c.MaxAudioBytes, c.MaxDurationSec)
-	contentService, err := content.NewService(pg.NewContentRepository(db), audio, measuredSTT{stt}, measuredAI{ai}, content.Config{TranscriptionEnabled: c.STTEnabled, AIEnabled: c.AIEnabled, MaxDurationSec: c.MaxDurationSec, MaxSegments: c.MaxSegments, MaxTranscriptBytes: c.MaxTranscriptBytes,
-		ChunkRunes: c.ChunkRunes, MaxChunks: c.MaxChunks, AIConcurrency: c.AIConcurrency, STTTimeout: c.STTTimeout, AITimeout: c.AITimeout, ReprocessCooldown: c.ReprocessCooldown, MaxReprocess: c.MaxReprocess, MaxAttempts: c.MaxAttempts})
-	if err != nil {
-		return productServices{}, err
-	}
-	embedCfg := cfg.StageEight
-	embeddings, err := contentproviders.NewEmbeddingProvider(embedCfg.Embeddings.Mode, embedCfg.Embeddings.Endpoint, embedCfg.Embeddings.Token, embedCfg.EmbeddingTimeout)
-	if err != nil {
-		return productServices{}, err
-	}
-	searchService := searchusecase.New(pg.NewSearchRepository(db), embeddings, embedCfg)
-	contentService.SetSearch(searchService)
-	return productServices{contentService, integrationService, searchService}, nil
+	return productServices{integrations: integrationService}, nil
 }
 
 // RunProductWorker запускает продукт-воркер с настроенными зависимостями и передает информацию о сбоях при запуске
@@ -137,42 +107,17 @@ func RunProductWorker() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	storage, err := s3.NewClient(ctx, cfg.MinIOEndpoint, cfg.MinIOAccessKey, cfg.MinIOSecretKey, cfg.MinIOBucket, cfg.MinIOUseSSL)
-	if err != nil {
-		return err
-	}
-	if cfg.StageSeven.STTEnabled {
-		privacyCtx, cancel := context.WithTimeout(ctx, cfg.Operations.ProbeTimeout)
-		err = storage.CheckAttachmentPrivacy(privacyCtx)
-		cancel()
-		if err != nil {
-			return errors.New("product worker requires a private recording bucket")
-		}
-	}
-	services, err := newProductServices(cfg, db, storage)
+	services, err := newProductServices(cfg, db)
 	if err != nil {
 		return err
 	}
 	checks := map[string]operations.Check{"postgres": sqlDB.PingContext}
-	if cfg.StageSeven.STTEnabled {
-		checks["minio"] = func(ctx context.Context) error {
-			if err := storage.Check(ctx); err != nil {
-				return err
-			}
-			return storage.CheckAttachmentPrivacy(ctx)
-		}
-	}
 	ops := operations.New("product-worker", hostname(), cfg.Operations, checks)
 	ops.Run(ctx)
 	go runProfiling(ctx, ops)
 	go sampleDatabase(ctx, sqlDB)
 	repo := pg.NewJobRepository(db)
 	i := jobrunner.Handler{Handle: services.integrations.Handle, Fail: services.integrations.FailJob}
-	c := jobrunner.Handler{Handle: services.content.Handle, Fail: services.content.FailJob}
-	e := jobrunner.Handler{Handle: services.search.Handle, Fail: services.search.FailJob}
-	analyticsRepo := pg.NewAnalyticsRepository(db)
-	analyticsService := &analyticsusecase.Service{Repo: analyticsRepo, Enabled: cfg.StageEight.AnalyticsEnabled}
-	a := jobrunner.Handler{Handle: analyticsService.Handle}
 	s := cfg.StageSeven
 	deliveryTimeout := s.ProviderTimeout
 	if s.Email.Mode == "smtp" && s.SMTP.Timeout > deliveryTimeout {
@@ -183,9 +128,6 @@ func RunProductWorker() error {
 		{Kind: "integrations.delivery", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i},
 		{Kind: "integrations.invitation", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i}, {Kind: "integrations.calendar", Concurrency: s.CalendarWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout * 3, Handler: i},
 		{Kind: "integrations.invitation_reminder", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i},
-		{Kind: "content.transcribe", Concurrency: s.STTWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.STTTimeout, Handler: c}, {Kind: "content.summarize", Concurrency: s.AIWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.AITimeout, Handler: c},
-		{Kind: "content.embed", Concurrency: cfg.StageEight.EmbeddingWorkers, MaxAttempts: s.MaxAttempts, Timeout: cfg.StageEight.EmbeddingTimeout, Handler: e},
-		{Kind: "analytics.aggregate", Concurrency: 1, MaxAttempts: 3, Timeout: 15 * time.Second, Handler: a},
 	}, s.PollInterval, operations.Product)
 	if err != nil {
 		return err
@@ -196,13 +138,7 @@ func RunProductWorker() error {
 	tickDone := make(chan struct{})
 	go func() {
 		defer close(tickDone)
-		runProductTicks(ctx, services.integrations, repo, s.PollInterval, func(ctx context.Context) {
-			if cfg.StageEight.AnalyticsEnabled {
-				if analyticsRepo.Tick(ctx) != nil {
-					operations.Event("analytics_failed")
-				}
-			}
-		})
+		runProductTicks(ctx, services.integrations, repo, s.PollInterval)
 	}()
 	mux := http.NewServeMux()
 	ops.Register(mux)
@@ -240,22 +176,18 @@ func RunProductWorker() error {
 //   - service: сервис приложения, вызываемый этим адаптером.
 //   - repo: зависимость от персистентности, используемая операцией приложения.
 //   - interval: интервал между итерациями ограниченного обслуживания.
-//   - extra: дополнительные поля ограниченных событий или обратные вызовы.
-func runProductTicks(ctx context.Context, service *integrations.Service, repo *pg.JobRepository, interval time.Duration, extra func(context.Context)) {
+func runProductTicks(ctx context.Context, service *integrations.Service, repo *pg.JobRepository, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for ctx.Err() == nil {
 		tickCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		if extra != nil {
-			extra(tickCtx)
-		}
 		if err := service.Tick(tickCtx); err != nil && ctx.Err() == nil {
 			slog.Warn("product scheduler unavailable", "event_type", "product.scheduler.failed")
 		}
 		counts, err := repo.Counts(tickCtx)
 		cancel()
 		if err == nil {
-			for _, kind := range []string{"integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar", "content.transcribe", "content.summarize", "content.embed", "analytics.aggregate"} {
+			for _, kind := range []string{"integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar"} {
 				for _, state := range []string{"queued", "processing", "failed"} {
 					operations.ProductQueue(kind, state, 0)
 				}

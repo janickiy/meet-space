@@ -13,6 +13,14 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const fileSha = filename => execFileSync('openssl', ['dgst', '-sha256', filename], {encoding:'utf8'}).trim().split(/\s+/).at(-1);
 const manifest = JSON.parse(readFileSync(join(input, 'release.json'), 'utf8'));
 if (manifest.artifactMode !== 'archive' || !manifest.securityScanned || manifest.sourceDirty || !manifest.sourceFingerprintVerified) throw new Error('Scanned clean source release required');
+const layout = manifest.deploymentLayout ?? 'classic';
+const services = ['api', 'media-worker', 'record-worker', 'product-worker', 'frontend', 'minio',
+  'postgres', 'redis', 'rabbitmq', 'coturn', 'proxy', 'prometheus'];
+if (layout === 'classic') services.push('grafana');
+if (!['classic', 'hardened-shared-host'].includes(layout)
+    || JSON.stringify(Object.keys(manifest.images ?? {}).sort()) !== JSON.stringify(services.sort())) {
+  throw new Error('Incompatible inventory: build a new verified release with record-worker; old images must not be relabelled');
+}
 const archive = join(input, 'images.tar');
 if (fileSha(archive) !== manifest.archiveSHA256) throw new Error('Archive checksum mismatch');
 const member = name => execFileSync('tar', ['-xOf', archive, name], {maxBuffer:4*1024*1024});
@@ -63,6 +71,7 @@ for (const service of Object.keys(manifest.images)) for (const suffix of ['scan'
 const files = ['docker-compose.production.yml','docker-compose.hardened.yml','docker-compose.shared-host.yml','docker-compose.release-local.yml',
   'docker-compose.release-local-grafana.yml','docker-compose.release-local-hardened.yml','dockers/production/nginx.conf',
   ...['common.sh','release.sh','backup.sh','restore-check.sh'].map(n => `scripts/release/${n}`),
+  'scripts/install/retire-legacy-services.py',
   'dockers/production/nginx-external-tls.conf','dockers/production/routes.conf','dockers/turn/entrypoint.sh','dockers/turn/turnserver.conf',
   'dockers/observability/prometheus.yml','dockers/observability/alerts.yml'];
 const checksums = [];
