@@ -1,55 +1,57 @@
-# Realtime, присутствие и сигнализация
+<a id="realtime-присутствие-и-сигнализация"></a>
+
+# Обмен событиями в реальном времени, присутствие и сигнализация
 
 Актуализировано 2026-10-21 по коду `6e577b6cced4e34d1c031353fbb9055909055185`.
 
 ## Текущие каналы
 
-Conference WebSocket обслуживает присутствие, события встречи и сигнализацию
+WebSocket конференции обслуживает присутствие, события встречи и сигнализацию
 `media.*` для [SFU](media-sfu.md). Аудио/видео передаются по WebRTC браузер ↔ SFU,
 не через WS, API или RabbitMQ.
 
-Account WebSocket `/api/v1/ws` доставляет личные сообщения, presence аккаунтов,
-события звонков и уведомления по персональным каналам. Отдельные SSE endpoints
+WebSocket аккаунта `/api/v1/ws` передаёт личные сообщения, статусы присутствия,
+события звонков и уведомления по персональным каналам. Отдельные SSE-эндпоинты
 уведомлений используют существующую инфраструктуру событий; REST остаётся
 источником сохранённых данных при пропущенных уведомлениях.
 
 Общие свойства: одноразовые билеты, проверка авторизации и прав, Redis Pub/Sub,
-native ping/pong, bounded queues, reconnect и закрытие доступа после отзыва сессии.
-Conference presence учитывает каждую физическую вкладку и не удаляет membership
-при транспортном отключении.
+служебные кадры ping/pong, очереди ограниченного размера, переподключение и закрытие доступа после отзыва сессии.
+Присутствие в конференции учитывается отдельно для каждой вкладки. Потеря соединения
+не удаляет участника из конференции.
 
 ## Архитектурные решения
 
-ConferenceParticipant — постоянное членство. ParticipantSession — история отдельного подключения. Закрытие вкладки не вызывает REST leave и не удаляет membership. Несколько вкладок имеют разные connectionId и один participantId.
+ConferenceParticipant хранит постоянное участие в конференции, ParticipantSession — историю отдельного подключения. Закрытие вкладки не вызывает выход через REST и не удаляет участника. У нескольких вкладок одного участника разные connectionId, но общий participantId.
 
-HTTP transport занимается аутентификацией и upgrade, WebSocket client — чтением, единственным write loop и ограниченной очередью. ConferenceHub предоставляет Register, Unregister, Broadcast, SendToParticipant, SendToConnection и GetActiveSessions. Он зависит от интерфейсов repository, store и socket, не от Pion.
+HTTP-слой выполняет аутентификацию и переход на WebSocket (upgrade). WebSocket-клиент читает сообщения, отправляет их через единственный цикл записи и использует очередь ограниченного размера. ConferenceHub предоставляет Register, Unregister, Broadcast, SendToParticipant, SendToConnection и GetActiveSessions. Он зависит от интерфейсов repository, store и socket, не от Pion.
 
-Все межсерверные события, включая события своего API, доставляются только через Redis Pub/Sub. Локальной дополнительной доставки нет, поэтому publisher не создаёт дубликат. Локальный registry хранит socket objects с неизменяемой идентичностью сессии. Presence и routing не вычисляются только по нему.
+Все межсерверные события, включая события своего API, доставляются только через Redis Pub/Sub. Локальной дополнительной доставки нет, поэтому отправитель не создаёт дополнительный дубликат. Локальный реестр хранит объекты сокетов с неизменяемыми данными сессии. Для определения присутствия и маршрутизации используются также данные Redis.
 
-После committed REST-изменения observer уведомляет hub. Ошибка публикации не превращает успешную транзакцию в ложный HTTP failure; проверка membership при signaling и heartbeat обеспечивает резервное закрытие. Миграции применяются в транзакции под PostgreSQL advisory lock, чтобы два запуска API не конкурировали за таблицы и триггеры.
+После фиксации REST-изменения наблюдатель (observer) уведомляет hub. Ошибка публикации не приводит к ошибочному HTTP-ответу об отказе уже успешной транзакции. Проверки участия при сигнализации и heartbeat служат дополнительным механизмом закрытия отозванных подключений. Миграции выполняются в транзакции с рекомендательной блокировкой PostgreSQL (advisory lock), чтобы два запуска API не изменяли таблицы и триггеры одновременно.
 
-WebSocket transport использует [Gorilla WebSocket](https://pkg.go.dev/github.com/gorilla/websocket). Ping, pong и close приложения проходят через один writer; reader не пишет application frames.
+WebSocket-слой использует [Gorilla WebSocket](https://pkg.go.dev/github.com/gorilla/websocket). Все кадры ping, pong и close проходят через один обработчик записи (writer); обработчик чтения (reader) не отправляет прикладные кадры.
 
 ## Основные файлы
 
-- `internal/domain/realtime/realtime.go`: сессия, identity, protocol envelope, snapshot, ICE config и внутренние bus messages.
-- `internal/usecase/realtime/hub.go`: hub, routing, snapshots, janitor, registry и shutdown.
-- `internal/infrastructure/redis/realtime.go`: atomic Lua presence, leases, tickets и Pub/Sub adapter.
-- `internal/infrastructure/postgres/session_repository.go`: authorization, история подключения и восстановление после crash.
-- `internal/transport/websocket/handler.go`: endpoints, upgrade, reader/writer, limits и heartbeat.
+- `internal/domain/realtime/realtime.go`: сессии, идентификация, оболочка сообщения, снимки состояния, настройки ICE и внутренние события.
+- `internal/usecase/realtime/hub.go`: hub, маршрутизация, снимки состояния, фоновая очистка, реестр и завершение работы.
+- `internal/infrastructure/redis/realtime.go`: атомарные операции Lua для присутствия, временных прав, билетов и адаптера Pub/Sub.
+- `internal/infrastructure/postgres/session_repository.go`: авторизация, история подключения и восстановление после аварии.
+- `internal/transport/websocket/handler.go`: эндпоинты, переход на WebSocket, чтение и запись, ограничения и heartbeat.
 - `internal/config/realtime.go`, `.env.example`: отдельная конфигурация realtime для API.
 - `database/migrations/000009_create_participant_sessions_table.*.sql`: схема и индексы.
-- `internal/app/api.go`, `internal/transport/http/router.go`, `internal/infrastructure/security/jwt.go`: подключение слоя, graceful shutdown, безопасные логи и проверенная дата истечения JWT.
-- `internal/usecase/conferences/service.go`: observer после REST mutations.
-- `frontend/src/realtime.ts`, `frontend/src/components/RealtimePanel.tsx`: presence, reconnect и события; подключение в ConferencePage, типы, API методы и стили.
-- `frontend/nginx.conf.template`, `dockers/https/nginx.conf`, `frontend/vite.config.ts`: WS proxy, сохранение Host с портом и исключение ticket query из access logs.
-- `internal/usecase/media`, `internal/transport/mediaworker`, `internal/infrastructure/sfu`: текущая SFU сигнализация/медиа.
+- `internal/app/api.go`, `internal/transport/http/router.go`, `internal/infrastructure/security/jwt.go`: подключение слоя, корректное завершение работы, безопасные журналы и проверенная дата истечения JWT.
+- `internal/usecase/conferences/service.go`: уведомление наблюдателя после изменений через REST.
+- `frontend/src/realtime.ts`, `frontend/src/components/RealtimePanel.tsx`: присутствие, переподключение и события; подключение в ConferencePage, типы, методы API и стили.
+- `frontend/nginx.conf.template`, `dockers/https/nginx.conf`, `frontend/vite.config.ts`: проксирование WebSocket, сохранение Host с портом и исключение параметра ticket из журналов доступа.
+- `internal/usecase/media`, `internal/transport/mediaworker`, `internal/infrastructure/sfu`: сигнализация и медиапотоки текущего SFU.
 
 ## PostgreSQL и Redis
 
-Таблица `participant_sessions`: UUID id, conference_id, participant_id, user_id, уникальный UUID connection_id, status connected/disconnected, connected_at, disconnected_at, last_seen_at. Composite foreign key гарантирует, что participant, conference и user относятся к одному membership. CHECK constraints проверяют статус и порядок дат. Несколько сессий одного участника разрешены.
+Таблица `participant_sessions`: UUID id, conference_id, participant_id, user_id, уникальный UUID connection_id, status connected/disconnected, connected_at, disconnected_at, last_seen_at. Составной внешний ключ гарантирует, что participant, conference и user относятся к одному участию в конференции. Ограничения CHECK проверяют статус и порядок дат. Несколько сессий одного участника разрешены.
 
-PostgreSQL записывается на open/close, не на каждый pong. При закрытии сохраняется последнее подтверждённое время жизни. У неудавшегося upgrade также остаётся закрытая запись истории. Janitor проверяет старые connected записи страницами по 500 и исправляет SQL-only crash между commit и регистрацией в Redis.
+Данные PostgreSQL обновляются при открытии и закрытии соединения, а не при каждом pong. При закрытии сохраняется время последнего подтверждения активности. Неудачный переход на WebSocket также оставляет закрытую запись в истории. Фоновый обработчик очистки (janitor) проверяет старые записи connected порциями по 500 и исправляет состояние после аварии между фиксацией транзакции SQL и регистрацией в Redis.
 
 Redis namespace по умолчанию `go-recorder:realtime:v1`. Все API одной платформы должны использовать одинаковые PostgreSQL, Redis database и namespace.
 
@@ -57,29 +59,31 @@ Redis namespace по умолчанию `go-recorder:realtime:v1`. Все API о
 | --- | --- |
 | `:route:<connectionId>` | JSON сессии с физическим TTL, по умолчанию 5 секунд |
 | `:conference:<conferenceId>` | Sorted set активных connectionId и сроков lease |
-| `:expiry` и `:metadata` | Индекс истечения и сведения для crash cleanup |
+| `:expiry` и `:metadata` | Индекс сроков действия и данные для очистки после аварии |
 | `:bus` | Pub/Sub канал внутренних событий |
 | `:ticket:<sha256>` | Одноразовый билет с TTL до 45 секунд |
 | `:ticket-limit:<userId>` | До 30 выдач билета за минуту |
 
 Lua использует Redis TIME для проверки и ограничения абсолютного срока lease;
-API сохраняет deadline последнего подтверждённого pong. Часы API и Redis должны
-быть синхронизированы. Sorted set содержит индивидуальные сроки, а routing key имеет настоящий Redis TTL. Истёкший routing key никогда не считается online, даже до janitor. Metadata сохраняется до atomic prune, чтобы после crash можно было объявить disconnect и завершить историю. Janitor работает с интервалом не более 250 ms, удаляя до 100 истёкших записей за проход; при наличии backlog очистка индексных записей постепенная. Пустые hash и sorted set удаляются самим Redis.
+API сохраняет предельный срок действия по последнему подтверждённому pong. Часы API и Redis должны
+быть синхронизированы. Sorted set содержит индивидуальные сроки, а routing key имеет настоящий Redis TTL. Истёкший ключ маршрутизации не считается признаком присутствия в сети, даже до запуска очистки. Метаданные сохраняются до атомарной очистки, чтобы после аварии можно было сообщить об отключении и завершить запись в истории. Фоновая очистка запускается с интервалом не более 250 ms и удаляет до 100 истёкших записей за проход. Если записей больше, индекс очищается постепенно. Пустые hash и sorted set удаляются самим Redis.
 
 ## Протокол WebSocket
 
-Текущие media команды — `media.join`, `media.offer` (SDP и publications),
-`media.ready`, `media.ice`, `media.unpublish`, `media.leave`. Binding отправителя
-сервер получает из WS session. `media.joined`, `media.answer`, `media.tracks`,
+Текущие команды управления медиасессией — `media.join`, `media.offer` (SDP и publications),
+`media.ready`, `media.ice`, `media.unpublish`, `media.leave`. Привязку отправителя
+сервер определяет по WebSocket-сессии. `media.joined`, `media.answer`, `media.tracks`,
 `media.renegotiate`, `media.policy` и состояния возвращаются через тот же канал.
 Полный контракт — [media-sfu.md](media-sfu.md).
 
 Также доставляются `participant.*`, сообщения/реакции, `recording.*`.
-Потеря события записи восстанавливается чтением recording API, чата — историей; Pub/Sub не выполняет replay.
+После пропуска события состояние записи можно получить через API записей, а сообщения — из истории чата. Pub/Sub не воспроизводит пропущенные события.
 
-### Envelope
+<a id="envelope"></a>
 
-Browser subprotocol: `go-recorder.v1`. Native клиент может использовать Bearer header без subprotocol, но JSON version всегда равен 1.
+### Оболочка сообщения
+
+Браузер использует подпротокол `go-recorder.v1`. Нативный клиент может передать заголовок Bearer без подпротокола, но поле version в JSON всегда равно 1.
 
 ```json
 {
@@ -93,29 +97,29 @@ Browser subprotocol: `go-recorder.v1`. Native клиент может испол
 ```
 
 `id` сообщения должен быть UUID; `timestamp` обязателен. Сервер формирует
-свои `id`/`timestamp`, а identity отправителя получает из аутентифицированной
+свои `id`/`timestamp`, а данные отправителя получает из аутентифицированной
 сессии. Ответы связываются с запросом через `replyTo`; входящий `replyTo`
-и подмена binding отправителя запрещены.
+и подмена привязки отправителя запрещены.
 
 | Событие | Направление и данные |
 | --- | --- |
-| `conference.state` | Server → client: connectionId, participantId, status конференции, participants |
-| `participant.connected` | Server → conference: актуальный snapshot после подключения |
-| `participant.disconnected` | Server → conference: актуальный snapshot после удаления подключения |
-| `ack` | Server → sender: публикация signaling принята брокером, replyTo |
-| `error` | Server → sender: безопасный code и replyTo |
+| `conference.state` | Сервер → клиент: connectionId, participantId, status конференции, participants |
+| `participant.connected` | Сервер → участники конференции: актуальный снимок состояния после подключения |
+| `participant.disconnected` | Сервер → участники конференции: актуальный снимок состояния после удаления подключения |
+| `ack` | Сервер → отправитель: публикация сигнального сообщения принята брокером, replyTo |
+| `error` | Сервер → отправитель: безопасный код ошибки (code) и replyTo |
 
-Каждый элемент participants содержит обычный ParticipantView и поля online, connections, connectionIds. Online требует joined membership и хотя бы одного живого routing lease. Presence event несёт snapshot текущего состояния, а не накопительный delta; поздний disconnect старой вкладки не делает переподключённого участника offline.
+Каждый элемент participants содержит обычный ParticipantView и поля online, connections, connectionIds. Статус online требует участия со статусом joined и хотя бы одной действующей записи маршрутизации с ограниченным сроком (routing lease). Событие присутствия содержит полный снимок состояния, а не накопленную разницу. Позднее событие отключения старой вкладки не переводит переподключившегося участника в offline.
 
-SFU media путь проверяет SDP, publications, кодеки и ICE перед Pion.
-Неизвестные поля, несовпадающая conferenceId и нарушение membership отклоняются.
+Перед передачей в Pion проверяются SDP, publications, кодеки и ICE.
+Неизвестные поля, несовпадающая conferenceId и нарушение правил участия отклоняются.
 Совместимый relay `webrtc.offer/answer/ice` также остаётся в API, но текущий UI
-использует `media.*`. Relay проверяет активность и общую конференцию sender/target;
+использует `media.*`. Relay проверяет активность отправителя и получателя (sender/target) и их принадлежность одной конференции;
 его SDP не используется для обхода проверок SFU.
 
-`WS_MAX_CONNECTIONS=1000` по умолчанию ограничивает физические conference WS
-одного API (0 отключает этот cap). Это не число участников SFU.
-Остальные defaults: входящий frame 270336 байт, SDP 128 KiB, ICE 4 KiB, исходящий data 1 MiB; 20 сообщений в секунду с burst 40. Control frames тоже учитываются в token bucket. Outbound queue содержит максимум 64 сообщения. Переполнение закрывает slow client и запускает обычную очистку; hub не ждёт свободной очереди. Oversized исходящий snapshot закрывает подключение, а не выдаёт неполный roster.
+`WS_MAX_CONNECTIONS=1000` по умолчанию ограничивает физические WebSocket-соединения конференций
+одного API (0 отключает это ограничение). Это не число участников SFU.
+Остальные значения по умолчанию: входящий кадр 270336 байт, SDP 128 KiB, ICE 4 KiB, исходящие данные (data) 1 MiB; 20 сообщений в секунду с burst 40. Управляющие кадры также учитываются алгоритмом token bucket. Исходящая очередь содержит максимум 64 сообщения. При переполнении медленный клиент отключается, после чего выполняется обычная очистка; hub не ждёт освобождения очереди. Если снимок состояния превышает допустимый размер, соединение закрывается: неполный список участников не отправляется.
 
 Причины закрытия включают `client_closed`, `presence_timeout`, `server_shutdown`, `authentication_expired`, `authentication_revoked`, `authentication_unavailable`, `membership_closed`, `rate_limited`, `slow_client`, `broker_unavailable` и `outbound_too_large`. Сервер отправляет нативный ping каждую секунду; после пяти секунд без подтверждённого pong физическая сессия отключается. Срок присутствия в Redis также равен пяти секундам и обновляется только подтверждённым pong, а не произвольными сообщениями приложения. Закрытие браузера удаляет присутствие при закрытии сокета, не ожидая тайм-аута. Очистка присутствия выполняется до ожидания отправки закрывающего кадра. При аварии процесса API истёкшие аренды дополнительно удаляются фоновым обработчиком с периодом не более 250 мс; доставка события зависит от доступности хранилища и сети.
 
@@ -123,7 +127,9 @@ SFU media путь проверяет SDP, publications, кодеки и ICE п�
 
 Дедлайн аренды сохраняется как абсолютная серверная отметка `время приёма pong + TTL`: задержка обработки не добавляет ещё пять секунд. Системные часы API и Redis должны быть синхронизированы. Для защиты от положительного сдвига часов API срок дополнительно ограничен `текущее время Redis + TTL`; уже истёкшая аренда не продлевается.
 
-## Endpoints и конфигурация
+<a id="endpoints-и-конфигурация"></a>
+
+## Эндпоинты и конфигурация
 
 - `POST /api/v1/conferences/:id/ws-ticket`: Bearer JWT, joined membership, открытая конференция. Ответ 201 `{ticket, expiresAt}`, Cache-Control no-store. Билет привязан к conference,
 сессии авторизации и при личном звонке `clientId`, одноразовый через GETDEL;
@@ -131,7 +137,7 @@ SFU media путь проверяет SDP, publications, кодеки и ICE п�
 - `GET /api/v1/conferences/:id/ws?ticket=...`: browser upgrade. JWT в URL не принимается. Можно вместо ticket передать Bearer header в native клиенте. Одновременное использование обоих способов отклоняется.
 - `GET /api/v1/webrtc/config`: Bearer JWT, ответ с `iceServers`, `iceTransportPolicy` и при TURN `expiresAt`, Cache-Control no-store.
 
-Created и active конференции открыты для realtime, finished и cancelled закрыты. Наличие membership со статусом left недостаточно: сначала нужен REST join. Конференция и права проверяются до 101; после upgrade проводится повторная проверка на race с finish/leave.
+Конференции в состояниях created и active доступны для обмена событиями, finished и cancelled — нет. Участия со статусом left недостаточно: сначала нужно войти через REST join. Состояние конференции и права проверяются до ответа 101. После перехода на WebSocket проверка повторяется, чтобы учесть одновременное завершение встречи или выход участника.
 
 Origin по умолчанию должен иметь тот же host и порт, что WS request. HTTPS reverse proxy сохраняет исходный Host, включая порт. `WS_ALLOWED_ORIGINS` позволяет задать точные HTTP(S) origins через запятую. Отсутствующий Origin допустим для native клиента, но аутентификация всё равно обязательна. Cookies не используются.
 
@@ -155,20 +161,20 @@ docker compose exec -T https nginx -s reload
 ```
 
 Не требуется перезапуск PostgreSQL, Redis, RabbitMQ, S3-хранилища или record-worker. UI: http://localhost:5173; HTTPS: https://localhost:18482. После join откройте конференцию в двух браузерах/вкладках и проверьте presence
-и реальное медиа SFU. Для production используйте полный набор overlays своей поставки и процедуру drain.
+и реальное медиа SFU. Для production используйте все дополнительные конфигурации Compose своей поставки и процедуру завершения текущих работ (drain).
 
 ## Безопасность
 
-JWT не помещается в WebSocket URL. В Redis сохраняется SHA256 имени билета; его случайное значение имеет 256 бит энтропии. Билет одноразовый, scoped и short lived. Для аккаунта с `sid` WebSocket проверяет серверную сессию перед upgrade и при каждом pong/команде; истечение исходного JWT не меняет соединение и медиапривязку. Отзыв закрывает сокет. Гостевые и старые JWT без `sid` сохраняют исходный expiry. Перед upgrade и при работе проверяются joined membership и состояние конференции.
+JWT не помещается в WebSocket URL. В Redis сохраняется SHA256 имени билета; его случайное значение имеет 256 бит энтропии. Билет одноразовый, имеет ограниченную область действия и короткий срок жизни. Для аккаунта с `sid` WebSocket проверяет серверную сессию перед upgrade и при каждом pong/команде; истечение исходного JWT не меняет соединение и медиапривязку. Отзыв закрывает сокет. Гостевые и старые JWT без `sid` сохраняют исходный expiry. Перед upgrade и при работе проверяются joined membership и состояние конференции.
 
-Backend logs содержат структурированные conference_id, participant_id, user_id, connection_id, event_type, но не JWT, SDP, ICE credentials или пароль. HTTP logs используют route template без query string. Recovery не печатает request dump. Nginx access logs исключают query, а WS location подавляет credential-bearing upstream error dumps. Клиентский журнал показывает только названия событий.
+Журналы серверной части содержат структурированные conference_id, participant_id, user_id, connection_id, event_type, но не JWT, SDP, ICE credentials или пароль. HTTP-журналы используют шаблон маршрута без параметров URL. Обработчик восстановления после сбоя (recovery) не выводит дамп запроса. Журналы доступа Nginx исключают параметры URL, а настройка WebSocket-маршрута не допускает вывода ошибок upstream с учётными данными. Клиентский журнал показывает только названия событий.
 
-Короткий JWT остаётся в sessionStorage текущей вкладки. Секрет постоянной сессии хранится в HttpOnly cookie и обновляет JWT через `/auth/refresh`; logout отзывает сессию вместе с JWT. Подробности: [PERSISTENT_AUTH.md](PERSISTENT_AUTH.md). XSS остаётся существенным риском, поэтому CSP и отказ от недоверенного HTML важны. Для production нужны TLS, закрытая сеть Redis, настройка реальных trusted proxies и отдельные лимиты инфраструктуры.
+Короткий JWT остаётся в sessionStorage текущей вкладки. Секрет постоянной сессии хранится в HttpOnly cookie и обновляет JWT через `/auth/refresh`; logout отзывает сессию вместе с JWT. Подробности: [PERSISTENT_AUTH.md](PERSISTENT_AUTH.md). XSS остаётся существенным риском, поэтому CSP и отказ от недоверенного HTML важны. Для production нужны TLS, закрытая сеть Redis, настройка фактических доверенных прокси и отдельные лимиты инфраструктуры.
 
 ## Команды записи и события
 
-API сохраняет recording row и `recording_outbox` транзакционно. Dispatcher
-отправляет `record.start`/`record.stop` через RabbitMQ с confirms. Recorder получает
+API сохраняет строку записи и `recording_outbox` в одной транзакции. Диспетчер
+отправляет `record.start`/`record.stop` через RabbitMQ с подтверждением брокера. Recorder получает
 RTP через отдельный SFU HTTP NDJSON egress, а события `recording.starting`,
 `started`, `stopping`, `processing`, `ready`, `failed`, `deleted` публикуются через
 Redis для conference WS. ACK команды/публикации не означает готовность файла.
@@ -176,30 +182,32 @@ Redis для conference WS. ACK команды/публикации не озн�
 
 ## Отказ Redis и границы доставки
 
-Redis Pub/Sub не durable: подтверждение публикации не означает получение клиентом.
-Conference Hub при сбое подписки закрывает текущие sockets `broker_unavailable`,
-прекращает приём до восстановления и автоматически переподписывается. Backoff
+Redis Pub/Sub не хранит историю доставки: подтверждение публикации не означает, что клиент получил событие.
+Conference Hub при сбое подписки закрывает текущие соединения с причиной `broker_unavailable`,
+прекращает приём до восстановления и автоматически переподписывается. Задержка между повторными попытками
 растёт от 100 ms до 2 s, одна попытка ограничена 5 s; после подтверждённой подписки
 Hub снова принимает подключения. Штатное восстановление не требует рестарта API.
-Клиент reconnect получает текущий snapshot; сохранённую историю читает через REST.
+После переподключения клиент получает текущий снимок состояния; сохранённую историю он читает через REST.
 
-Низкоприоритетные события чата/реакций проходят отдельную bounded очередь;
-переполнение может пропустить event, но не удаляет сохранённое сообщение. Медленный
-socket закрывается, а не блокирует весь Hub. Состояния presence не равны бизнес-
-членству, а live media ownership имеет собственные TTL в Redis.
+Низкоприоритетные события чата/реакций проходят отдельную очередь ограниченного размера;
+при переполнении событие может быть пропущено, но не удаляет сохранённое сообщение. Медленное
+соединение закрывается, а не блокирует весь Hub. Присутствие в сети не определяет
+постоянное участие в конференции. Право медиасервера обслуживать активную комнату имеет отдельный TTL в Redis.
 
-Lua storage рассчитан на обычный Redis, не Redis Cluster. Полные snapshots и
-глобальный conference bus имеют явные лимиты размера; это не обещание неограниченного
-масштаба. Metrics/health описаны в
+Хранилище с Lua-операциями рассчитано на обычный Redis, не Redis Cluster. Полные снимки состояния и
+общая шина событий конференций имеют явные лимиты размера; это не обещание неограниченного
+масштаба. Метрики и проверки состояния описаны в
 [ARCHITECTURE.md](ARCHITECTURE.md). Планирование нагрузки —
 [CAPACITY_BASELINE.md](CAPACITY_BASELINE.md).
 
-## Account WebSocket личных сообщений
+<a id="account-websocket-личных-сообщений"></a>
+
+## WebSocket аккаунта для личных сообщений
 
 Дополнительно к conference WS есть независимый `POST /api/v1/ws-ticket` →
 `GET /api/v1/ws?ticket=…`. Он разрешён зарегистрированным аккаунтам, подписан
-на персональный Redis channel и передаёт `message.*`, `conversation.*`,
-`user.presence`, `call.updated`, а также существующие notification events. Presence учитывает
-каждую физическую вкладку с TTL и временем Redis. Конференционное presence,
-signaling и Pion остаются в conference WS. Контракт билета, событий, cleanup
+на персональный канал Redis и передаёт `message.*`, `conversation.*`,
+`user.presence`, `call.updated`, а также существующие события уведомлений. Присутствие учитывает
+каждую физическую вкладку с TTL и временем Redis. Присутствие в конференции,
+сигнализация и Pion остаются в WebSocket конференции. Контракт билета, событий, очистки
 и постоянной сессии: [PERSONAL_MESSAGES.md](PERSONAL_MESSAGES.md).

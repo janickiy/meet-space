@@ -1,116 +1,75 @@
-# MeetSpace website content audit
+# Аудит содержания публичного сайта MeetSpace
 
 > Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](ARCHITECTURE.md).
 
-Checked **19 October 2026** against this checkout and the dedicated client
-repositories. The content brief is
-`/Users/aleksandranickij/Downloads/CODEX_PROMPT_MEETSPACE_WEBSITE_CONTENT.md`.
-The user's direct request for an English landing takes precedence over the
-brief's Russian-language examples. This audit verifies implementation and
-published files; it is not a live-service acceptance test.
+Проверено **19 октября 2026 года** по этой рабочей копии и отдельным репозиториям клиентских приложений. Задание на содержание: `/Users/aleksandranickij/Downloads/CODEX_PROMPT_MEETSPACE_WEBSITE_CONTENT.md`. На этом этапе прямое указание пользователя сделать сайт на английском имело приоритет над русскими примерами задания. Аудит охватывает реализацию и опубликованные файлы, но не является приёмочным испытанием работающего сервиса.
 
-## Current feature matrix
+## Состояние возможностей на дату проверки
 
-“Implemented” means a UI and server contract exist. Runtime availability can
-still depend on server configuration, permissions, devices and network access.
+«Реализовано» означает, что существуют интерфейс и соответствующие серверные операции. Фактическая доступность может зависеть от настроек сервера, прав пользователя, устройств и сети.
 
-| Feature from the brief                      | Status                                              | Evidence                                                                                                                                                                                  | Public copy boundary                                                                                                                                                                                                     |
+| Возможность из задания | Состояние | Основание | Ограничения описания на сайте |
 | ------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Video meetings                              | Implemented                                         | `frontend/src/pages/ConferencePage.tsx`, `frontend/src/components/conference/ActiveConferenceRoom.tsx`, `frontend/src/media.ts`, `docs/media-sfu.md`                                      | Say video meetings; do not promise unlimited capacity, guaranteed resolution or network-independent operation.                                                                                                           |
-| Screen sharing and moderation               | Implemented                                         | `frontend/src/media.ts`, `docs/conference-recording.md`                                                                                                                                   | Camera and screen can run together. Capture requires explicit user selection and browser/OS support. Moderator policy applies; configured default is one screen sharer. System audio is not available on every platform. |
-| Meeting chat                                | Implemented                                         | `frontend/src/components/ChatPanel.tsx`, `internal/transport/http/chat_routes.go`                                                                                                         | Messages, history and attachments follow meeting access rules. Do not call it end-to-end encrypted.                                                                                                                      |
-| Direct messages                             | Implemented                                         | `frontend/src/pages/PersonalPage.tsx`, `internal/infrastructure/postgres/personal_repository.go`, `docs/PERSONAL_MESSAGES.md`                                                             | Registered accounts, membership checks, replies, own-message editing/deletion, read state and persistent history. Guest meeting sessions do not unlock personal chats.                                                   |
-| Group chats                                 | Implemented                                         | `frontend/src/components/GroupChats.tsx`, `docs/GROUP_CHATS.md`                                                                                                                           | Registered accounts; owner/admin/member roles and membership controls. This is not an organization-wide administration or workspace-role system.                                                                         |
-| Personal folders                            | Implemented for meetings **and direct/group chats** | `frontend/src/types.ts`, `frontend/src/components/FolderItems.tsx`, `internal/infrastructure/postgres/folder_repository.go`, `docs/PERSONAL_FOLDERS.md`                                   | Users can organize all three in their own folders. Folders are private organization, not shared team folders, separate chats or a shared file drive.                                                                     |
-| Calendar                                    | Implemented                                         | `frontend/src/pages/CalendarPage.tsx`, `frontend/src/components/ScheduleFields.tsx`                                                                                                       | Calendar for scheduled MeetSpace meetings. Do not imply universal Google/Outlook synchronization.                                                                                                                        |
-| Recording and playback                      | Implemented; server capabilities required           | `frontend/src/components/RecordingPanel.tsx`, `frontend/src/pages/RecordingDetailPage.tsx`, `internal/usecase/recordings/service.go`, `docs/conference-recording.md`                      | An admitted, joined participant with a full account can start a recording when the server provides recording modes. Guests cannot control recordings. Processing/storage must be configured; completion is asynchronous. |
-| File sharing | Implemented as message attachments | `frontend/src/attachmentPolicy.ts`, `internal/domain/chat/attachment_types.go`, `docs/ATTACHMENTS.md` | Up to five attachments per message, each at most 10 MiB. Images, PDF, Office/OpenDocument/text files and the listed archives are supported. Container signatures are checked without unpacking. Do not imply video uploads, antivirus scanning or cloud-drive functionality. |
-| Registration and invited guests             | Implemented                                         | `frontend/src/pages/AuthPage.tsx`, `frontend/src/pages/InvitePage.tsx`, `frontend/src/pages/PreJoinPage.tsx`, `internal/app/auth/`                                                        | Accounts are needed for personal workspace features; invitation-based guests can join an authorized meeting. Do not claim registration is mandatory for every meeting attendee.                                          |
-| External calendars                          | Partial / configuration-dependent                   | `frontend/src/components/IntegrationsSettings.tsx`, `internal/transport/http/integration_routes.go`, `internal/usecase/integrations/service.go`                                           | Providers have noop/mock/http modes. A configured UI/API is not proof of live external synchronization.                                                                                                                  |
-| Transcripts, summaries, captions, analytics | Partial / configuration-dependent                   | `frontend/src/components/RecordingInsights.tsx`, `frontend/src/components/CaptionsPanel.tsx`, `frontend/src/pages/AnalyticsPage.tsx`, `internal/transport/http/platform_status_routes.go` | Capability flags and external processing configuration matter. Omit unconditional AI claims from this landing.                                                                                                           |
-| Android                                     | Published beta APK                                  | Dedicated Android repository; `frontend/src/landing/downloads.ts` and `docs/landing-release-audit.md`                                                                                     | `0.3.7-beta`, Android 8.0+, universal APK. No verified Play Store listing or production-signing claim.                                                                                                                   |
-| Windows                                     | Published unsigned beta test installers             | Dedicated desktop repository; download manifest/audit                                                                                                                                     | `0.1.1-beta`, x64 and ARM64 EXE. Package availability does not mean every target OS has passed installation and runtime acceptance.                                                                                      |
-| Linux                                       | Published beta test packages                        | Dedicated desktop repository; download manifest/audit                                                                                                                                     | `0.1.1-beta`, DEB/RPM/AppImage for x64 and ARM64. Package-specific desktop and sandbox requirements apply.                                                                                                               |
-| Docker self-hosting and custom domains      | Implemented; deployment configuration required      | `docker-compose.yml`, `docker-compose.production.yml`, `docs/operations/meeting-host-deployment.md`, `docs/landing-self-hosted-audit.md`                                                  | Linux host, Docker Compose, HTTPS and network/TURN configuration; use the actual documented setup. Not a universal one-click deployment.                                                                                 |
-| Free service, license, commercial terms     | Not confirmed                                       | No project license file in this checkout; no pricing contract verified                                                                                                                    | Do not invent a free tier, MIT/Apache license, commercial permission, SLA or unlimited-use promise.                                                                                                                      |
+| Видеовстречи | Реализовано | `frontend/src/pages/ConferencePage.tsx`, `frontend/src/components/conference/ActiveConferenceRoom.tsx`, `frontend/src/media.ts`, `docs/media-sfu.md` | Можно описывать видеовстречи, но нельзя обещать неограниченную вместимость, гарантированное разрешение или независимость от качества сети. |
+| Демонстрация экрана и модерация | Реализовано | `frontend/src/media.ts`, `docs/conference-recording.md` | Камера и демонстрация экрана могут работать одновременно. Захват требует явного выбора пользователя и поддержки браузера/ОС. Действуют правила модерации; по умолчанию экран показывает один участник. Системный звук доступен не на всех платформах. |
+| Чат встречи | Реализовано | `frontend/src/components/ChatPanel.tsx`, `internal/transport/http/chat_routes.go` | Сообщения, история и вложения подчиняются правилам доступа к встрече. Нельзя заявлять сквозное шифрование. |
+| Личные сообщения | Реализовано | `frontend/src/pages/PersonalPage.tsx`, `internal/infrastructure/postgres/personal_repository.go`, `docs/PERSONAL_MESSAGES.md` | Нужна регистрация; проверяется участие в диалоге. Есть ответы, изменение и удаление собственных сообщений, состояние прочтения и сохранение истории. Гостевая сессия встречи не даёт доступа к личным чатам. |
+| Групповые чаты | Реализовано | `frontend/src/components/GroupChats.tsx`, `docs/GROUP_CHATS.md` | Нужна регистрация; предусмотрены роли owner/admin/member и управление участниками. Это не система администрирования всей организации или ролей рабочего пространства. |
+| Личные папки | Реализовано для встреч **и личных/групповых чатов** | `frontend/src/types.ts`, `frontend/src/components/FolderItems.tsx`, `internal/infrastructure/postgres/folder_repository.go`, `docs/PERSONAL_FOLDERS.md` | Пользователь распределяет все три вида объектов по своим папкам. Это личная организация содержимого, а не общие папки команды, отдельные чаты или файловый диск. |
+| Календарь | Реализовано | `frontend/src/pages/CalendarPage.tsx`, `frontend/src/components/ScheduleFields.tsx` | Календарь запланированных встреч MeetSpace. Нельзя подразумевать универсальную синхронизацию с Google/Outlook. |
+| Запись и просмотр | Реализовано; нужны серверные возможности | `frontend/src/components/RecordingPanel.tsx`, `frontend/src/pages/RecordingDetailPage.tsx`, `internal/usecase/recordings/service.go`, `docs/conference-recording.md` | Допущенный и подключённый участник с полноценным аккаунтом может начать запись, если сервер предоставляет режимы записи. Гости не управляют записями. Нужна настройка обработки и хранилища; готовый файл создаётся асинхронно. |
+| Обмен файлами | Реализовано через вложения сообщений | `frontend/src/attachmentPolicy.ts`, `internal/domain/chat/attachment_types.go`, `docs/ATTACHMENTS.md` | До пяти вложений на сообщение, каждое не более 10 MiB. Поддерживаются изображения, PDF, Office/OpenDocument, текстовые файлы и перечисленные архивы. Сигнатуры контейнеров проверяются без распаковки. Нельзя подразумевать загрузку видео, антивирусную проверку или облачный диск. |
+| Регистрация и приглашённые гости | Реализовано | `frontend/src/pages/AuthPage.tsx`, `frontend/src/pages/InvitePage.tsx`, `frontend/src/pages/PreJoinPage.tsx`, `internal/app/auth/` | Для личного рабочего пространства нужен аккаунт. Гость по приглашению может войти в доступную ему встречу. Нельзя утверждать, что регистрация обязательна каждому участнику встречи. |
+| Внешние календари | Частично; зависит от конфигурации | `frontend/src/components/IntegrationsSettings.tsx`, `internal/transport/http/integration_routes.go`, `internal/usecase/integrations/service.go` | У провайдеров есть режимы noop/mock/http. Наличие интерфейса и API само по себе не подтверждает работающую внешнюю синхронизацию. |
+| Расшифровки, сводки, субтитры и аналитика | Частично; зависит от конфигурации | `frontend/src/components/RecordingInsights.tsx`, `frontend/src/components/CaptionsPanel.tsx`, `frontend/src/pages/AnalyticsPage.tsx`, `internal/transport/http/platform_status_routes.go` | Важны флаги возможностей и настройка внешней обработки. На сайте нельзя безусловно обещать функции ИИ. |
+| Android | Опубликован бета-APK | Отдельный репозиторий Android; `frontend/src/landing/downloads.ts` и `docs/landing-release-audit.md` | `0.3.7-beta`, Android 8.0+, универсальный APK. Размещение в Play Store и подпись финального выпуска не подтверждены. |
+| Windows | Опубликованы тестовые бета-установщики без подписи | Отдельный репозиторий настольного приложения; каталог загрузок и аудит | `0.1.1-beta`, EXE для x64 и ARM64. Наличие пакета не означает, что установка и работа проверены на каждой целевой ОС. |
+| Linux | Опубликованы тестовые бета-пакеты | Отдельный репозиторий настольного приложения; каталог загрузок и аудит | `0.1.1-beta`, DEB/RPM/AppImage для x64 и ARM64. Для каждого пакета действуют требования к графическому окружению и изоляции процессов. |
+| Размещение в Docker на своём сервере и домене | Реализовано; нужна настройка развёртывания | `docker-compose.yml`, `docker-compose.production.yml`, `docs/operations/meeting-host-deployment.md`, `docs/landing-self-hosted-audit.md` | Нужны Linux-сервер, Docker Compose, HTTPS и настройка сети/TURN. Следует использовать фактическую инструкцию; универсальная установка одним нажатием не заявляется. |
+| Бесплатный сервис, лицензия и коммерческие условия | Не подтверждено | На дату проверки в этой рабочей копии нет файла лицензии; условия оплаты не проверены | Нельзя выдумывать бесплатный тариф, лицензию MIT/Apache, разрешение на коммерческое использование, SLA или обещание неограниченного использования. |
 
-No required core feature above needs a fictional “in development” state.
-Do not mark published client builds “coming soon” merely because their GitHub
-Releases asset arrays are empty: the binaries are published in repository
-folders and have already been verified in this session.
+Для перечисленных основных возможностей не нужно выдумывать статус «в разработке». Опубликованные клиентские сборки нельзя помечать «скоро» только из-за пустого массива вложений GitHub Releases: готовые файлы размещены в каталогах репозиториев и уже проверены в рамках этого аудита.
 
-## Folder scope and historical documentation
+## Назначение папок и прежняя документация
 
-The new brief's folder description is supported by current code:
+Описание папок в задании подтверждается кодом на дату проверки:
 
-- `FolderItemKind` is `conversation | conference`.
-- `PersonalConversation` includes `direct | group`.
-- `FolderItems` displays group titles or direct peers and routes both to the
-  existing `/personal/:id` page; meetings use their existing meeting route.
-- `folderConversationsSQL` explicitly selects both direct and group types.
-  `folderConferencesSQL` selects meetings; all folder operations are scoped
-  to the current account and existing access rights.
-- One item can be in multiple folders. Removing a folder or its membership
-  does not delete the underlying conversations or meetings. Files and
-  recordings do not automatically become standalone folder items.
+- `FolderItemKind` принимает `conversation | conference`.
+- `PersonalConversation` включает `direct | group`.
+- `FolderItems` показывает название группы или собеседника и открывает оба вида переписки на существующей странице `/personal/:id`. Для встреч используется существующий маршрут встречи.
+- `folderConversationsSQL` явно выбирает личные и групповые диалоги. `folderConferencesSQL` выбирает встречи. Все операции с папками ограничены текущим аккаунтом и его правами доступа.
+- Один объект может находиться в нескольких папках. Удаление папки или объекта из неё не удаляет сам диалог или встречу. Файлы и записи не становятся отдельными объектами папки автоматически.
 
-Earlier statements in `docs/GROUP_CHATS.md` that folders are future work are
-historical stage notes, superseded by `docs/PERSONAL_FOLDERS.md` and current
-code. The same applies to the previous version of this audit, whose client
-availability was based only on the server checkout.
+Прежнее упоминание папок как будущей возможности в `docs/GROUP_CHATS.md` относится к более раннему этапу. Актуальное на дату проверки описание находится в `docs/PERSONAL_FOLDERS.md` и коде. То же относится к предыдущей версии этого аудита, в которой доступность клиентских приложений оценивалась только по серверному репозиторию.
 
-## Recording, chat and storage wording
+## Как описывать запись, чат и хранение
 
-Recording is **not owner-only**. Current UI permits a joined, admitted account
-holder to start an active meeting's recording when the server advertises a
-recording mode. The initiator or meeting owner can stop it; completed-recording
-delete permissions follow the same ownership distinction. A visible recording
-indicator and start announcement exist. Guests cannot start/stop recording.
-Do not promise immediate processing, unlimited retention or autonomous consent
-management.
+Запись доступна **не только организатору**. Интерфейс позволяет допущенному и подключённому владельцу аккаунта начать запись активной встречи, если сервер предоставляет соответствующий режим. Остановить запись может её инициатор или организатор встречи; право удаления готовой записи определяется теми же ролями. Есть видимый индикатор записи и сообщение о её начале. Гости не могут запускать и останавливать запись. Нельзя обещать мгновенную обработку, бессрочное хранение или автоматическое управление согласиями участников.
 
-Messages and membership state are persisted in PostgreSQL. File/recording
-objects use the configured object storage, with MinIO present in the standard
-Compose stack; a recorder spool is also configured. Redis and RabbitMQ support
-realtime coordination and background processing. On a self-hosted deployment,
-the operator controls these resources. This does not imply end-to-end
-encryption, data being stored only on the user's device, or a guarantee that
-provider integrations never send data elsewhere.
+Сообщения и сведения об участии хранятся в PostgreSQL. Файлы и записи размещаются в настроенном объектном хранилище; стандартная конфигурация Compose включает MinIO. Для сервиса записи также предусмотрен рабочий каталог spool. Redis и RabbitMQ обеспечивают координацию в реальном времени и фоновую обработку. При размещении на своём сервере этими ресурсами управляет администратор. Это не означает сквозное шифрование, хранение данных только на устройстве пользователя или гарантию, что интеграции никогда не передают данные внешним провайдерам.
 
-## Download installation copy
+## Тексты о скачивании и установке
 
-The existing download audit already verifies nine binaries. No additional
-binary downloads or execution were needed for this content review.
+Существующий аудит загрузок уже охватывает девять готовых файлов. Для проверки текста не требовалось дополнительно скачивать или запускать их.
 
-| Platform | Suitable requirements / installation wording                                                                                                                                                                                                                           | Avoid                                                                                                                                                                     |
+| Платформа | Допустимое описание требований и установки | Что нельзя обещать или рекомендовать |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Android  | Android 8.0 or newer (`minSdk = 26`); universal APK contains `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`. Download the beta APK, use Android's normal installer, then enter the server's root HTTPS URL and sign in.                                                   | A Play Store claim, automatic updates, a production signer or guaranteed upgrade compatibility. Historical release docs are not signing evidence for the current APK.     |
-| Windows  | Select x64 or ARM64 EXE. Documented targets are Windows 10 **22H2 x64**, Windows 11 x64 and Windows 11 native ARM64. Open the matching installer and choose an HTTPS server. Keep “Unsigned beta test build” visible.                                                  | Certified compatibility on every target, x86, Windows 7/8/8.1, Windows 10 ARM64, signed production release, automatic updates, or instructions to disable OS protections. |
-| Linux    | DEB for Ubuntu/Debian/Mint families, RPM for Fedora, or AppImage; choose the matching x64/ARM64 package. Use a graphical session, unlocked GNOME Keyring/KWallet and working Electron sandbox. On Wayland, screen sharing needs PipeWire and a working desktop portal. | Treating a package's existence as full distro certification; claiming an APT/DNF repository or built-in updater. Never recommend `--no-sandbox` or disabling AppArmor.    |
-| Web      | Open the deployment's HTTPS URL in a browser that supports WebRTC. Microphone/camera permission is needed when using those devices; screen sharing support varies.                                                                                                     | A universal browser/version compatibility guarantee without testing.                                                                                                      |
+| Android | Android 8.0 или новее (`minSdk = 26`). Универсальный APK содержит `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`. Скачайте бета-APK, установите штатным установщиком Android, затем введите корневой HTTPS-адрес сервера и войдите. | Размещение в Play Store, автообновление, подпись финального выпуска и гарантированную совместимость обновлений. Историческое описание выпуска не подтверждает подпись текущего APK. |
+| Windows | Выберите EXE для x64 или ARM64. Описанные целевые системы: Windows 10 **22H2 x64**, Windows 11 x64 и Windows 11 с нативной ARM64. Запустите нужный установщик и выберите HTTPS-сервер. Сохраните видимую пометку «Тестовая бета-сборка без подписи». | Подтверждённую совместимость со всеми системами, x86, Windows 7/8/8.1, Windows 10 ARM64, подписанный финальный выпуск, автообновление и отключение защиты ОС. |
+| Linux | DEB для семейств Ubuntu/Debian/Mint, RPM для Fedora или AppImage; архитектура пакета — x64/ARM64. Нужны графический сеанс, разблокированный GNOME Keyring/KWallet и работающая изоляция Electron. На Wayland для демонстрации экрана нужны PipeWire и работающий desktop portal. | Нельзя считать наличие пакета подтверждением совместимости со всем дистрибутивом, заявлять репозиторий APT/DNF или встроенное обновление. Не рекомендовать `--no-sandbox` и отключение AppArmor. |
+| Web | Откройте HTTPS-адрес установки в браузере с WebRTC. Для камеры и микрофона нужны разрешения. Поддержка демонстрации экрана различается. | Гарантированную совместимость с любыми браузерами и версиями без проверки. |
 
-Desktop evidence:
+Источники по настольному приложению:
 [README](https://github.com/janickiy/meet-space-win/blob/main/desktop/README.md),
-[Windows installer acceptance](https://github.com/janickiy/meet-space-win/blob/main/docs/desktop/06_WINDOWS_INSTALLERS_CURRENT.md),
-[Linux QA](https://github.com/janickiy/meet-space-win/blob/main/docs/desktop/linux/07_FINAL_QA.md).
-Android requirements:
-[app configuration](https://github.com/janickiy/meet-space-android/blob/ba89d3cd8ba91ad7f1b7f2c89cb56d21aee7aa01/app/build.gradle.kts).
-Actual checks and checksum sources remain in `docs/landing-release-audit.md`.
+[приёмка установщиков Windows](https://github.com/janickiy/meet-space-win/blob/main/docs/desktop/06_WINDOWS_INSTALLERS_CURRENT.md),
+[проверки Linux](https://github.com/janickiy/meet-space-win/blob/main/docs/desktop/linux/07_FINAL_QA.md).
+Требования Android: [конфигурация приложения](https://github.com/janickiy/meet-space-android/blob/ba89d3cd8ba91ad7f1b7f2c89cb56d21aee7aa01/app/build.gradle.kts).
+Фактические проверки и источники контрольных сумм описаны в `docs/landing-release-audit.md`.
 
-## Content and route integration constraints
+## Ограничения содержания и маршрутизации
 
-Use the existing application routes for account actions: `/register`, `/login`,
-`/meetings/new`, `/personal`. Account-gated routes should be described as an
-action the user completes after sign-in, not an anonymous workspace preview.
+Для действий с аккаунтом используйте существующие маршруты: `/register`, `/login`, `/meetings/new`, `/personal`. Действия, требующие аккаунта, следует описывать как доступные после входа, а не как анонимный просмотр рабочего пространства.
 
-The public structure can use `/`, `/download`, `/self-hosted` and
-`/docs/self-hosted`, with capabilities and FAQ as home-page sections; `/welcome`
-remains the existing public alias. The current implementation provides a
-public prerender path and per-page metadata. The previous audit's assertion
-that the project has no prerender support is obsolete.
+Публичная структура может использовать `/`, `/download`, `/self-hosted` и `/docs/self-hosted`. Возможности и FAQ остаются разделами главной страницы; `/welcome` — её публичный альтернативный адрес. Реализация поддерживает предварительную генерацию публичного HTML и отдельные метаданные страниц. Прежнее утверждение аудита об отсутствии такой генерации устарело.
 
-The supplied copy can be translated faithfully while qualifying broad phrases
-such as “from any device.” User quotes, customer logos, performance figures,
-security absolutes and pricing must not be fabricated. Business and education
-sections may describe use cases, without claiming unimplemented enterprise
-administration, LMS features or compliance certifications.
+Текст задания можно переводить с сохранением смысла, уточняя слишком широкие обещания вроде «с любого устройства». Нельзя выдумывать отзывы, логотипы клиентов, показатели производительности, безусловные гарантии безопасности или цены. Разделы для бизнеса и образования могут описывать сценарии использования, но не должны обещать отсутствующие функции корпоративного администрирования, LMS или сертификаты соответствия.

@@ -5,16 +5,16 @@
 ## Возможности
 
 `cmd/media-worker` запускает SFU на Pion. Браузеры публикуют микрофон, камеру,
-видео и аудио экрана; SFU пересылает encoded RTP подписчикам и отдельным
-потоков записи. API хранит права, членство, сигнализацию и историю;
+видео и звук демонстрации экрана. SFU пересылает кодированные RTP-пакеты подписчикам
+и выдаёт отдельные потоки для записи. API хранит права, членство, сигнализацию и историю;
 Go record-worker обрабатывает запись в отдельном процессе.
 SFU используется как обычными конференциями, так и двухсторонними личными звонками.
-Запись для `kind=direct_call` запрещены на уровне приложения.
+Запись для `kind=direct_call` запрещена на уровне приложения.
 
 Реализованы trickle ICE, ограниченные очереди, RTCP/PLI, сериализация переговоров,
-повторное включение устройств без пересоздания PeerConnection, screen sharing,
-модераторские политики и Redis ownership. Выбор источника и разрешения браузера
-обрабатывает UI; источник `camera`/`video/screen` — заявленная клиентом семантика,
+повторное включение устройств без пересоздания PeerConnection, демонстрация экрана,
+политики модерации и учёт владельца комнаты в Redis. Выбор источника и разрешения браузера
+обрабатываются интерфейсом; источник `camera`/`video/screen` — заявленная клиентом семантика,
 а не серверная аппаратная аттестация.
 
 ## Архитектура медиа
@@ -26,89 +26,93 @@ Browser ⇄ encrypted WebRTC RTP/RTCP ⇄ media-worker SFU ⇄ other browsers
                                ├─ HTTP NDJSON → recorder → spool/FFmpeg/S3
 ```
 
-SFU не зависит от PostgreSQL, RabbitMQ, S3-хранилища или FFmpeg. Его engine принимает
-проверенную identity через интерфейс; подписи, активная сессия и ownership проверяются
-на границе worker. Данные conference CRUD и business permissions не перенесены в SFU.
-Room и MediaPeer не переиспользуют recorder ingest sessions.
+SFU не зависит от PostgreSQL, RabbitMQ, S3-хранилища или FFmpeg. Его медиадвижок получает
+проверенные данные участника через интерфейс; подписи, активная сессия и право обслуживать комнату проверяются
+при обращении к обработчику. Создание и изменение конференций (CRUD) и прикладные права остаются вне SFU.
+Room и MediaPeer не используют сессии приёма медиаданных прежнего обработчика записи.
 
-Глобальные mutex защищают только короткие операции с registry. Pion/Redis и ожидание
-закрытия не выполняются под глобальным lock. Peer lifecycle исключает добавление
-goroutines после начала Wait; регистрация публикации атомарна относительно close.
-У каждого subscriber отдельная bounded RTP queue; медленный subscriber не блокирует
-остальных. MID/RID/TWCC extensions publisher не копируются в чужой RTP transport.
+Глобальные мьютексы защищают только короткие операции с реестром. Вызовы Pion и Redis, а также ожидание
+закрытия не выполняются под глобальной блокировкой. Жизненный цикл peer исключает добавление
+горутин после начала Wait; регистрация публикации атомарна относительно закрытия (close).
+У каждого подписчика отдельная RTP-очередь ограниченного размера. Медленный подписчик не блокирует
+остальных. Расширения MID/RID/TWCC отправителя не копируются в RTP-транспорт другого участника.
 
 ## Сигнализация
 
-Сохраняется envelope v1, UUID сообщения, conferenceId, timestamp и replyTo.
-Media-команды не содержат client participant/session/connection IDs или targetConnectionId.
-API получает binding из аутентифицированной WebSocket-сессии.
+Сохраняется оболочка сообщения v1, UUID сообщения, conferenceId, timestamp и replyTo.
+Команды управления медиасессией не принимают от клиента participant/session/connection IDs или targetConnectionId.
+API определяет привязку отправителя (binding) по аутентифицированной WebSocket-сессии.
 
 | Событие | Направление и данные |
 | --- | --- |
-| `media.join` | Browser → API, `{}` |
-| `media.joined` | Server → browser: mediaPeerId, workerId, maxPeers, videoCapture, iceServers, tracks |
-| `media.offer` | Browser → worker через API: mediaPeerId, negotiationId, sdp, publications |
-| `media.answer` | Worker → browser через API: те же IDs и sdp, replyTo offer |
-| `media.ready` | Browser → worker через API: mediaPeerId, negotiationId после применения answer |
+| `media.join` | Браузер → API, `{}` |
+| `media.joined` | Сервер → браузер: mediaPeerId, workerId, maxPeers, videoCapture, iceServers, tracks |
+| `media.offer` | Браузер → обработчик через API: mediaPeerId, negotiationId, sdp, publications |
+| `media.answer` | Обработчик → браузер через API: те же IDs и sdp, replyTo offer |
+| `media.ready` | Браузер → обработчик через API: mediaPeerId, negotiationId после применения answer |
 | `media.ice` | Оба направления: mediaPeerId, candidate object либо null |
-| `media.renegotiate` | Worker → browser: mediaPeerId, monotonic revision |
-| `media.tracks` | Worker → subscriber: mediaPeerId, revision, актуальный массив tracks |
-| `media.published` | Worker → publisher: mediaPeerId, track |
-| `media.unpublished` | Worker → publisher: mediaPeerId, trackId |
-| `media.unpublish` | Browser → worker: mediaPeerId, собственный trackId |
-| `media.state` | Worker → browser: mediaPeerId, состояние PeerConnection |
-| `media.leave` | Browser → worker: mediaPeerId; `{}` отменяет pending join текущей сессии |
-| `media.left` | Server → browser: mediaPeerId |
+| `media.renegotiate` | Обработчик → браузер: mediaPeerId, возрастающая revision |
+| `media.tracks` | Обработчик → подписчик: mediaPeerId, revision, актуальный массив tracks |
+| `media.published` | Обработчик → отправитель: mediaPeerId, track |
+| `media.unpublished` | Обработчик → отправитель: mediaPeerId, trackId |
+| `media.unpublish` | Браузер → обработчик: mediaPeerId, собственный trackId |
+| `media.state` | Обработчик → браузер: mediaPeerId, состояние PeerConnection |
+| `media.leave` | Браузер → обработчик: mediaPeerId; `{}` отменяет незавершённый вход текущей сессии |
+| `media.left` | Сервер → браузер: mediaPeerId |
 
-Браузер — единственный инициатор offer, включая обновления подписок. Он заранее
-создаёт по `2 × (maxPeers−1)` receive slots каждого kind для двух аудио-
-и двух видеоисточников удалённого peer. Worker сериализует SDP и
-AddTrack/RemoveTrack; полный offer с retirement также сериализован, чтобы старые
-изменения не обгоняли новые. Subscription mutations вызывают coalesced revision
-notifications. Браузер ждёт соответствующий answer и объединяет следующие revisions.
-Server offer отсутствует, поэтому glare не требует случайного выбора владельца.
+Только браузер создаёт offer, в том числе при обновлении подписок. Он заранее
+резервирует по `2 × (maxPeers−1)` слотов приёма каждого kind для двух аудио-
+и двух видеоисточников удалённого peer. Обработчик последовательно выполняет операции SDP и
+AddTrack/RemoveTrack. Полная обработка offer, включая освобождение устаревших ресурсов (retirement), также последовательна, чтобы старые
+изменения не опережали новые. Изменения подписок объединяются в уведомления о новой revision.
+Браузер ждёт соответствующий answer и объединяет последующие revisions.
+Сервер не создаёт offer, поэтому конфликт одновременных предложений (glare) не требует случайного выбора инициатора.
 
-Передача subscriber приостанавливается на время offer. После setRemoteDescription
+Передача подписчику приостанавливается на время offer. После setRemoteDescription
 браузер подтверждает `media.ready` с тем же negotiationId; только тогда worker
 возобновляет RTP и запрашивает ключевой кадр. Устаревшее подтверждение отклоняется.
 Подтверждение включает только подписки из соответствующего answer; новые публикации
 ждут следующего offer/answer/ready и не могут начать RTP по старому подтверждению.
-Это также предотвращает раннюю передачу undeclared SSRC в Pion. Таймаут подтверждения закрывает endpoint.
+Это также предотвращает раннюю передачу необъявленного SSRC в Pion. Таймаут подтверждения закрывает endpoint.
 
-Remote ICE до SDP буферизуется: максимум 64 сообщения до offer и 128 на PeerConnection
-за lifecycle; null означает end-of-candidates и тоже учитывается в лимите.
-Malformed SDP, unsupported codecs, ICE и переполнение дают безопасные coded errors.
+Удалённые ICE-кандидаты до получения SDP сохраняются в буфере: максимум 64 сообщения до offer и 128 на PeerConnection
+за жизненный цикл; null означает end-of-candidates и тоже учитывается в лимите.
+Некорректные SDP и ICE, неподдерживаемые кодеки и переполнение приводят к ошибкам с безопасными кодами.
 Медиаконтракт ограничен SDP 128 KiB и ICE 4 KiB, даже если legacy WS config разрешает больше.
-Встроенные SDP candidates валидируются до Pion и ограничены 128 на offer;
+ICE-кандидаты внутри SDP проверяются до Pion и ограничены 128 на offer;
 для совместимости полного SDP допускаются компоненты 1/2, trickle принимает только 1.
 Прежний `webrtc.*` relay остаётся в протоколе совместимости; текущий frontend SFU его не использует.
 
-## Внутренний transport API и worker
+<a id="внутренний-transport-api-и-worker"></a>
+
+## Внутренний обмен между API и медиасервером
 
 Используется HTTP POST `/internal/media/{join,offer,ready,ice,unpublish,leave}`. Это короткие
 сигнальные операции, не канал RTP. RabbitMQ не используется для ICE или SDP.
-Запросы содержат UUID correlation ID одновременно в body и X-Request-ID, binding
-и worker route. Bearer `MEDIA_INTERNAL_SECRET` обязателен. Redirects запрещены,
-body/response ограничены, default timeout 5 секунд; upstream raw errors не раскрываются.
-Duplicate join возвращает тот же endpoint; duplicate last offer с тем же negotiationId
-и SDP использует cached answer; изменение SDP под тем же ID отклоняется. Leave идемпотентен.
+Запросы содержат UUID корреляции одновременно в теле и X-Request-ID, привязку отправителя
+и маршрут медиасервера. Bearer `MEDIA_INTERNAL_SECRET` обязателен. Перенаправления запрещены,
+размеры запросов и ответов ограничены, тайм-аут по умолчанию — 5 секунд. Исходные ошибки внутреннего сервиса не раскрываются.
+Повтор join возвращает тот же endpoint. Повтор последнего offer с теми же negotiationId
+и SDP использует сохранённый answer; изменение SDP с тем же ID отклоняется. Leave идемпотентен.
 
-Media ticket подписывается HS256, имеет issuer `go-recorder-api`, audience
+Внутренний билет медиасессии (media ticket) подписывается HS256, имеет issuer `go-recorder-api`, audience
 `go-recorder-media`, purpose `media`, UUID jti, conference/participant/session/connection/user
 binding, workerId и ownership leaseId. Admission exp — по умолчанию до 45 секунд и не позже `authorizationExpiresAt`.
 Для гостевого/legacy JWT этот срок ограничен исходным JWT. У постоянного аккаунта
 с `sid` conference WS после проверки сессии использует длительный authorization
 horizon и регулярно проверяет отзыв; истечение короткого access JWT само по себе
 не обрывает существующее медиа. Подробнее: [PERSISTENT_AUTH.md](PERSISTENT_AUTH.md).
-Ticket не выдаётся браузеру и не помещается в URL. Worker повторно проверяет живую
+Билет не выдаётся браузеру и не помещается в URL. Worker повторно проверяет живую
 Redis route перед командами. Отзыв/закрытие сессии и истечение применимого
-срока авторизации закрывают media.
+срока авторизации закрывают медиасессию.
 
-## Модели Room MediaPeer и Track
+<a id="модели-room-mediapeer-и-track"></a>
 
-Room привязан к conferenceId и содержит peers, published tracks и egress
-подписчиков. Комната удаляется, когда не осталось peers и outputs; recording
-subscriber может удерживать комнату после выхода последнего peer.
+## Модели Room, MediaPeer и Track
+
+Room привязан к conferenceId и содержит подключения (peers), опубликованные дорожки и подписчиков
+исходящих потоков (egress). Комната удаляется, когда не остаётся peers и outputs. Подписчик
+записи может сохранять комнату после выхода последнего peer.
 MediaPeer содержит собственный UUID, binding, PeerConnection, publications и subscriptions.
 Несколько вкладок одного membership — разные session/connection/mediaPeer IDs.
 Собственные треки не возвращаются тому же participantId, включая его другие вкладки.
@@ -118,7 +122,7 @@ typed kind и source: `audio/microphone`, `video/camera`, `video/screen`,
 `audio/screen`. Камера и экран имеют разные streamId; `media.offer.publications`
 связывает SDP MID с source и поколением browser capture. Browser receiver track ID может быть другим после
 preallocated transceiver; frontend использует streamId + kind для привязки и server UUID
-для lifecycle. Metadata snapshot удаляет исчезнувшие streams, даже если браузер не прислал ended.
+для lifecycle. Снимок метаданных удаляет исчезнувшие потоки, даже если браузер не прислал событие ended.
 
 ## Кодеки и ограничения
 
@@ -140,24 +144,26 @@ PLI/FIR subscribers превращаются в ограниченные зап�
 | `MEDIA_VIDEO_MAX_WIDTH/HEIGHT/FPS` | 1280 / 720 / 30 | 160–1280 / 90–720 / 1–30 |
 
 Вкладки расходуют лимит MediaPeers отдельно. Личные звонки дополнительно ограничены
-двумя аккаунтами и владеющими медиа вкладками через call authorization; SFU работает
+двумя аккаунтами и владеющими медиа вкладками проверкой прав личного звонка; SFU работает
 с теми же общими ресурсами. Второй экран сверх лимита получает `screen_sharing_conflict`.
-UI откатывает offer и останавливает отклонённый захват, сохраняя остальное медиа.
+Интерфейс откатывает offer и останавливает отклонённый захват, сохраняя остальное медиа.
 
-Worker передаёт `videoCapture` в `media.joined`; браузер применяет target к локальному
-видео до первого offer. Это не серверная проверка разрешения/bitrate произвольного
+Worker передаёт `videoCapture` в `media.joined`; браузер применяет целевые параметры к локальному
+видео до первого offer. Это не серверная проверка разрешения и битрейта произвольного
 клиента. Simulcast/SVC и H.264 в SFU не поддерживаются; конфигурационные лимиты не
-подтверждают capacity или защиту от любого bandwidth flooding.
+подтверждают доступную производительность и не гарантируют защиту от любой перегрузки сетевого канала.
 
 При скрытии входящего видео клиент добавляет SDP `a=x-meet-receive-video:0`.
 SFU убирает видеоподписки, сохраняя входящее аудио и собственные публикации.
 Снятие настройки возобновляет видео через negotiation/ready без повторного join;
 подробности — [AUDIO_VIDEO_SETTINGS.md](AUDIO_VIDEO_SETTINGS.md).
 
-## ICE STUN TURN и адреса
+<a id="ice-stun-turn-и-адреса"></a>
 
-Настройки SFU независимы от recorder порта 50000. Base Compose использует UDP mux
-50010 и optional engine TCP mux 50010. Internal signaling — 8091, только Docker network.
+## ICE, STUN, TURN и сетевые адреса
+
+Настройки SFU не зависят от порта 50000 обработчика записи. Базовый Compose использует UDP mux
+50010 и необязательный TCP mux 50010 медиадвижка. Внутренняя сигнализация доступна на порту 8091 только в сети Docker.
 `MEDIA_NAT_IPS` должен содержать IP, достижимый браузером. Для Docker Desktop/Firefox
 укажите достижимый LAN IP хоста, а не IP контейнера/127.0.0.1;
 конкретный адрес зависит от текущей сети. На сервере нужен корректный public/NAT IP
@@ -165,20 +171,22 @@ SFU убирает видеоподписки, сохраняя входящее
 origin с доверенным сертификатом, иначе getUserMedia будет недоступен.
 
 `MEDIA_ICE_SERVERS_JSON` задаёт массив STUN/TURN; при отсутствии используется
-`WEBRTC_ICE_SERVERS_JSON`. Явный `[]` отключает fallback. Неявного public STUN нет.
+`WEBRTC_ICE_SERVERS_JSON`. Явный `[]` отключает fallback. Неявного обращения к публичному STUN нет.
 Coturn входит в Compose. `TURN_URLS` и `TURN_SHARED_SECRET` задаются оператором;
 `TURN_CREDENTIAL_TTL=10m` по умолчанию (1m–1h), `TURN_FORCE_RELAY=false`.
-API формирует временные HMAC credentials, передаваемые браузеру вместе с
-`iceTransportPolicy` и `expiresAt`; общий TURN secret не передаётся.
+API формирует временные учётные данные HMAC, передаваемые браузеру вместе с
+`iceTransportPolicy` и `expiresAt`; общий секрет TURN не передаётся.
 
-Base Compose публикует SFU 50010 UDP/TCP; дефолт конфигурации `MEDIA_TCP_PORT=0`
-может быть переопределён Compose. Relay диапазон Coturn в production примере —
-49160–49259/UDP. Hardened installer создаёт `config/turn.yml` с host network,
-сбрасывая обычные network/port mappings. Настройте firewall/NAT в соответствии
-с фактическим overlay и подтвердите релей реальным звонком; доступность порта
+Базовый Compose публикует SFU 50010 UDP/TCP; значение по умолчанию `MEDIA_TCP_PORT=0`
+может быть переопределён Compose. Диапазон ретрансляции Coturn в production примере —
+49160–49259/UDP. Защищённый установщик создаёт `config/turn.yml` с сетевым режимом хоста (host network),
+отменяя обычные настройки сетей и проброса портов. Настройте межсетевой экран и NAT в соответствии
+с фактической дополнительной конфигурацией Compose и проверьте ретрансляцию реальным звонком; доступность порта
 сама по себе этого не доказывает.
 
-## Маршрутизация и ownership
+<a id="маршрутизация-и-ownership"></a>
+
+## Маршрутизация и владение комнатой
 
 Redis namespace SFU по умолчанию `go-recorder:media:v1`, отдельно от realtime.
 Worker heartbeat регистрирует identity/endpoint с TTL; API выбирает healthy worker
@@ -193,7 +201,7 @@ Ownership loss, Redis outage и истечение локального срок
 новый join требует повторной проверки и действующей lease. Это минимальный routing,
 не распределённый scheduler и не бесшовная миграция активной room.
 
-Структурированные logs содержат только IDs, тип события, kind/source и состояния.
+Структурированные журналы содержат только IDs, тип события, kind/source и состояния.
 Pion использует безопасный logger для транспортов, interceptors и UDP/TCP mux:
 сырые сообщения, строки форматирования и аргументы отбрасываются без их преобразования.
 Сохраняются только ограниченное имя компонента и уровень события; raw SDP, candidates,
@@ -201,21 +209,21 @@ JWT/tickets и ICE/TURN credentials не журналируются.
 
 ## Основные файлы
 
-- [`internal/app/media_worker.go`](../internal/app/media_worker.go), `cmd/media-worker` — bootstrap;
-- [`internal/infrastructure/sfu`](../internal/infrastructure/sfu) — engine, peer/track lifecycle, SDP, policy, egress;
+- [`internal/app/media_worker.go`](../internal/app/media_worker.go), `cmd/media-worker` — запуск и инициализация;
+- [`internal/infrastructure/sfu`](../internal/infrastructure/sfu) — медиадвижок, жизненный цикл подключений и дорожек, SDP, политики и исходящие потоки;
 - [`internal/transport/mediaworker`](../internal/transport/mediaworker) — защищённые команды и поток NDJSON;
-- [`internal/usecase/media`](../internal/usecase/media) — API controller и HTTP client;
+- [`internal/usecase/media`](../internal/usecase/media) — контроллер API и HTTP-клиент;
 - [`internal/domain/media`](../internal/domain/media) — контракты binding/route/publications/egress;
 - [`internal/infrastructure/security/media_ticket.go`](../internal/infrastructure/security/media_ticket.go) и
-  [`internal/infrastructure/redis/media.go`](../internal/infrastructure/redis/media.go) — билеты и ownership;
-- [`frontend/src/media.ts`](../frontend/src/media.ts), `frontend/src/useMedia.ts` — браузерный lifecycle;
-- [`internal/config/media.go`](../internal/config/media.go), [`internal/config/turn.go`](../internal/config/turn.go) — limits и ICE.
+  [`internal/infrastructure/redis/media.go`](../internal/infrastructure/redis/media.go) — билеты и владение комнатой;
+- [`frontend/src/media.ts`](../frontend/src/media.ts), `frontend/src/useMedia.ts` — жизненный цикл медиасессии в браузере;
+- [`internal/config/media.go`](../internal/config/media.go), [`internal/config/turn.go`](../internal/config/turn.go) — ограничения и ICE.
 
 ## Docker и запуск
 
 В production задайте отдельные случайные MEDIA_TICKET_SECRET и MEDIA_INTERNAL_SECRET
 не короче 32 байт. В local/dev пустые значения безопасно выводятся разными HMAC purposes
-из существующего JWT_SECRET; hardcoded общего секрета нет. Не сохраняйте секреты в Git.
+из существующего JWT_SECRET; общего секрета, зашитого в код, нет. Не сохраняйте секреты в Git.
 
 ```bash
 docker compose up -d --build media-worker api frontend https
@@ -225,13 +233,13 @@ docker compose ps media-worker api frontend
 UI: http://localhost:5173 или https://localhost:18482. Internal media HTTP/metrics
 не опубликованы на host/gateway. Health endpoint возвращает только готовность,
 `/metrics` и `/operations/drain` требуют `METRICS_SECRET`, media commands —
-`MEDIA_INTERNAL_SECRET`. Новый Docker image non-root и без FFmpeg.
+`MEDIA_INTERNAL_SECRET`. Новый Docker-образ работает без прав root и не содержит FFmpeg.
 PostgreSQL/RabbitMQ/S3-хранилища/record-worker не требуется пересоздавать для обновления SFU.
 После обновления проверяйте health/readiness и разрешения браузера.
 В production используйте
 полный набор Compose overlays/образов своей поставки и drain перед заменой SFU.
 
-Base Compose публикует TCP mux; для UDP-only или диапазона используйте один override
+Базовый Compose публикует TCP mux; для UDP-only или диапазона используйте один override
 (нужен Compose с поддержкой `!override`):
 
 ```bash
@@ -246,8 +254,8 @@ TCP mapping через override. Firewall должен разрешать выб
 ## Проверка подключения
 
 После обновления проверьте два/три браузера с реальным SFU: получение RTP и
-декодирование, поздний join, демонстрацию экрана, отключение и повторное включение
-устройств, reconnect и завершение комнаты. Проверьте освобождение tracks и
+декодирование, подключение после начала встречи, демонстрацию экрана, отключение и повторное включение
+устройств, переподключение и завершение комнаты. Проверьте освобождение дорожек и
 PeerConnections, затем отдельно forced relay через TURN/TURNS. Разрешения ОС,
 выбор системного аудио и качество физических устройств проверяются в браузере.
 
@@ -266,8 +274,8 @@ output закрывает его и приводит к ошибке запис�
 
 Go record-worker после `hello` переходит в `recording` (первый RTP может прийти
 позднее), пишет локальные IVF/Ogg/manifests, запускает compositor/FFmpeg и публикует
-проверенные файлы в S3. RabbitMQ доставляет команды start/stop, но не медиабайты.
-Полный lifecycle, четыре режима, leases и retention: [conference-recording.md](conference-recording.md).
+проверенные файлы в S3. RabbitMQ доставляет команды start/stop, но не медиаданные.
+Полный жизненный цикл, четыре режима, временные права на задачи и сроки хранения: [conference-recording.md](conference-recording.md).
 
 Legacy recorder ingest имеет отдельные PeerConnection и порты; текущий UI его
 не использует. Производственный record-worker отключает legacy mux-порты и принимает
@@ -277,7 +285,7 @@ NDJSON от SFU. Наличие legacy кода не расширяет набо
 
 - Redis Pub/Sub не хранит события. При потере подписки conference Hub закрывает
   текущие WS и сам восстанавливает подписку с backoff 100 ms–2 s; после этого
-  клиенты переподключаются и читают snapshot. Перезапуск API для этого не обязателен.
+  клиенты переподключаются и получают снимок состояния. Перезапуск API для этого не обязателен.
 - Потеря Redis ownership останавливает комнаты SFU. Автоматическое создание нового
   соединения не означает бесшовную миграцию существующего PeerConnection.
 - Redis Lua рассчитан на обычный Redis, не на Redis Cluster. У каждого SFU должны
@@ -287,5 +295,5 @@ NDJSON от SFU. Наличие legacy кода не расширяет набо
   использовать локально выведенные HMAC-секреты.
 - Для совместной нагрузки конференций, экранов, записи рассчитывайте
   ресурсы целевого хоста: [лимиты и планирование](CAPACITY_BASELINE.md).
-- Реальные Chrome/Firefox/Safari, NAT, TURN/TURNS и screen audio зависят от
+- Реальные Chrome/Firefox/Safari, NAT, TURN/TURNS и звук демонстрации экрана зависят от
   устройств и браузеров; их проверяют на целевой сети и клиентах перед выпуском.

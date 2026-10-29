@@ -1,8 +1,8 @@
 {
   "source": "/Users/aleksandranickij/htdocs/meet-space/docs/MEETSPACE_TECHNICAL_GUIDE_RU.md",
-  "source_sha256": "2777c4a24ece0377b99d8ea1e21ffee1e9b2f945fb2a036516a3773fd17951c4",
+  "source_sha256": "fcbbcd0ff54e1a702fec80fd2ddcb690eb1e2166620e3a46d27db156df305d9b",
   "pdf": "/Users/aleksandranickij/htdocs/meet-space/docs/MEETSPACE_TECHNICAL_GUIDE_RU.pdf",
-  "pdf_sha256": "43fa9eabab48278b4db7b5cbbc44ad715c470f7e3ed0f6758e6fb2347998b4e0",
+  "pdf_sha256": "f16b8d9aad88ca62b16c06dbf5b20b9843213f7a60586c531c21425ede624dfe",
   "commit": "b9677392fbe41be448d45be5e6ea8dbe2f7820b7",
   "date": "29 октября 2026 г.",
   "fonts": {
@@ -48,10 +48,10 @@
     "headings": 131,
     "list_items": 171,
     "paragraphs": 539,
-    "tables": 176,
-    "table_rows": 1438,
-    "figures": 11,
-    "code_blocks": 64
+    "tables": 175,
+    "table_rows": 1417,
+    "code_blocks": 65,
+    "figures": 11
   },
   "assets": [
     {
@@ -91,8 +91,8 @@
       "sha256": "b86c107f5c9e0ae72983fc8a2c3a5089d80ffbd79005027512ef175610d90482",
       "width": 2875,
       "height": 1731,
-      "display_width": 697.5736568457539,
-      "display_height": 420.0
+      "display_width": 592.9376083188909,
+      "display_height": 357.0
     },
     {
       "path": "/Users/aleksandranickij/htdocs/meet-space/docs/assets/technical-documentation/er-02-conferences-overview.png",
@@ -101,8 +101,8 @@
       "sha256": "cecc0058dca37a46b2ca152ad555da49230e1939a5731cbbe0caea2d578d91bc",
       "width": 4383,
       "height": 2446,
-      "display_width": 745.8897637795277,
-      "display_height": 416.25515907020866
+      "display_width": 634.0062992125985,
+      "display_height": 353.81688520967737
     },
     {
       "path": "/Users/aleksandranickij/htdocs/meet-space/docs/assets/technical-documentation/er-03-recording-overview.png",
@@ -111,8 +111,8 @@
       "sha256": "522d0c5158345e25efda10c22f71b223f96fd32ec5d19fa9e4a515ad0121762e",
       "width": 4498,
       "height": 2569,
-      "display_width": 735.3678474114441,
-      "display_height": 420.0
+      "display_width": 625.0626702997275,
+      "display_height": 357.0
     },
     {
       "path": "/Users/aleksandranickij/htdocs/meet-space/docs/assets/technical-documentation/er-04-conference-chat-overview.png",
@@ -141,8 +141,8 @@
       "sha256": "98c5da7b80633478cfd7fd588c61b1e2a0e7e27ff0defcec85060974826edd00",
       "width": 4012,
       "height": 2677,
-      "display_width": 629.4508778483378,
-      "display_height": 420.00000000000006
+      "display_width": 535.0332461710871,
+      "display_height": 357.0
     },
     {
       "path": "/Users/aleksandranickij/htdocs/meet-space/docs/assets/technical-documentation/er-09-notifications-jobs-overview.png",

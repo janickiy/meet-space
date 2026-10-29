@@ -1,23 +1,28 @@
 # Полный справочник API MeetSpace
 
 Актуализировано **29 октября 2026 года** после удаления функций распознавания речи.
-Общие маршруты Runtime указаны один раз, хотя используются разными процессами.
-Контракты сверены с регистрациями и обработчиками; запросы к рабочему серверу
+Общие служебные маршруты Runtime перечислены один раз, хотя доступны в разных процессах.
+Контракты сверены с регистрацией маршрутов и их обработчиками. Запросы к рабочему серверу
 при актуализации не выполнялись. Права проверяются на сервере для конкретного
-ресурса. `*` означает, что Go HTTP handler не ограничивает метод; обычно
+ресурса. `*` означает, что HTTP-обработчик Go не ограничивает метод; обычно
 используется GET. Символ `*` после имени поля означает обязательное поле.
 Этот документ дополняет [обзор API](API.md), [инструкции запуска](../README.md)
 и [Postman-коллекцию](postman/meetspace/MeetSpace.postman_collection.json).
 Краткий [каталог маршрутов `/api/v1`](../README.md#каталог-маршрутов)
 доступен прямо в README; [быстрый старт](API.md#быстрый-старт-rest) показывает
 последовательности запросов для встреч, переписок и закреплённых сообщений.
-Служебные адреса SFU/recorder/metrics не предназначены для публичного доступа.
-Подписанные ссылки и токены берите из ответов доступного вам окружения.
+Служебные адреса SFU, обработчика записи и метрик не предназначены для публичного доступа.
+Подписанные ссылки и токены нужно получать из ответов той установки MeetSpace, к которой у вас есть доступ.
 
-Перечень ошибок у маршрута описывает его основные проверки. Общие middleware
-и зависимости также могут вернуть `401`, `403`, `413`, `415`, `429`, `500`, `503`
+Перечень ошибок каждого маршрута отражает основные проверки этого обработчика.
+Общие промежуточные обработчики (middleware) и зависимые сервисы также могут вернуть `401`, `403`, `413`, `415`, `429`, `500`, `503`
 или `504`; учитывайте `Retry-After`, если он присутствует. JSON основного API
-использует camelCase; служебные HTTP handlers могут отвечать обычным текстом.
+использует camelCase; служебные HTTP-обработчики могут отвечать обычным текстом.
+
+В описаниях запросов `query` обозначает параметры URL, `JSON` — тело запроса.
+Значение в круглых скобках после диапазона — значение по умолчанию.
+Названия полей, ролей и состояний сохранены в том виде, в котором их использует API.
+Курсор (`cursor`) нужно передавать без изменений из ответа предыдущей страницы.
 ## Разделы
 
 - [Личные звонки](#api-group-1) — 8
@@ -37,12 +42,12 @@
 - [Аккаунты и конференции](#api-group-16) — 31
 - [Возможности платформы](#api-group-17) — 2
 - [Телеметрия](#api-group-18) — 1
-- [API health](#api-group-19) — 1
-- [WebSocket HTTP](#api-group-20) — 5
-- [Media worker](#api-group-21) — 11
-- [Operations](#api-group-22) — 6
+- [Проверка состояния API](#api-group-19) — 1
+- [HTTP-маршруты WebSocket](#api-group-20) — 5
+- [Медиасервер Media Worker](#api-group-21) — 11
+- [Эксплуатация и диагностика](#api-group-22) — 6
 - [Record Worker](#api-group-23) — 4
-- [Profiling (отдельный listener)](#api-group-24) — 7
+- [Профилирование на отдельном порту](#api-group-24) — 7
 
 <a id="api-group-1"></a>
 
@@ -52,13 +57,13 @@
 
 Позвонить зарегистрированному пользователю.
 
-- **Доступ:** Аккаунт
+- **Доступ:** Зарегистрированный аккаунт
 
-- **Запрос:** JSON targetUserId*,clientRequestId*,clientId* — канонические UUID; target не равен себе
+- **Запрос:** JSON targetUserId*,clientRequestId*,clientId* — канонические UUID; target не должен указывать на самого вызывающего пользователя
 
-- **Ответ:** 201 новый/200 повтор: status,item: Call (ringing)
+- **Ответ:** 201 при создании, 200 при повторе того же запроса: status,item: Call (ringing)
 
-- **Ошибки:** 422 поля; 409 пользователь занят/ключ использован иначе; 404 адресат
+- **Ошибки:** 422 — недопустимые поля запроса; 409 пользователь занят/ключ использован иначе; 404 — адресат не найден
 
 Источники: [internal/transport/http/call_routes.go:35](../internal/transport/http/call_routes.go#L35), [internal/app/calls/handler.go:31](../internal/app/calls/handler.go#L31).
 
@@ -66,9 +71,9 @@
 
 Текущий звонок пользователя.
 
-- **Доступ:** Аккаунт
+- **Доступ:** Зарегистрированный аккаунт
 
-- **Запрос:** Без тела/query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: status,item: Call либо null
 
@@ -80,13 +85,13 @@
 
 Состояние звонка.
 
-- **Доступ:** Аккаунт; caller или callee
+- **Доступ:** Зарегистрированный аккаунт; caller или callee
 
 - **Запрос:** id — канонический UUID
 
 - **Ответ:** 200: status,item: Call
 
-- **Ошибки:** 404 нет доступного звонка; 422 UUID
+- **Ошибки:** 404 нет доступного звонка; 422 — неверный UUID
 
 Источники: [internal/transport/http/call_routes.go:37](../internal/transport/http/call_routes.go#L37), [internal/app/calls/handler.go:61](../internal/app/calls/handler.go#L61).
 
@@ -94,7 +99,7 @@
 
 Принять входящий звонок.
 
-- **Доступ:** Аккаунт; callee
+- **Доступ:** Зарегистрированный аккаунт; callee
 
 - **Запрос:** id; JSON clientId* UUID выбранного клиента
 
@@ -108,13 +113,13 @@
 
 Отклонить входящий звонок.
 
-- **Доступ:** Аккаунт; callee
+- **Доступ:** Зарегистрированный аккаунт; callee
 
 - **Запрос:** id; JSON {} либо {clientId}; тело JSON обязательно, clientId необязателен
 
 - **Ответ:** 200: status,item: Call (declined)
 
-- **Ошибки:** 403 не callee; 409 состояние; 422 id
+- **Ошибки:** 403 не callee; 409 — операция недоступна в текущем состоянии; 422 id
 
 Источники: [internal/transport/http/call_routes.go:39](../internal/transport/http/call_routes.go#L39), [internal/app/calls/handler.go:95](../internal/app/calls/handler.go#L95).
 
@@ -122,13 +127,13 @@
 
 Отменить исходящий звонок.
 
-- **Доступ:** Аккаунт; caller и его clientId
+- **Доступ:** Зарегистрированный аккаунт; caller и его clientId
 
 - **Запрос:** id; JSON clientId* UUID
 
 - **Ответ:** 200: status,item: Call (cancelled)
 
-- **Ошибки:** 403 не владелец клиента; 409 состояние; 422
+- **Ошибки:** 403 не владелец клиента; 409 — операция недоступна в текущем состоянии; 422
 
 Источники: [internal/transport/http/call_routes.go:39](../internal/transport/http/call_routes.go#L39), [internal/app/calls/handler.go:95](../internal/app/calls/handler.go#L95).
 
@@ -136,21 +141,21 @@
 
 Завершить принятый звонок.
 
-- **Доступ:** Аккаунт; caller/callee, владеющий медиаклиентом
+- **Доступ:** Зарегистрированный аккаунт; caller/callee, владеющий медиаклиентом
 
 - **Запрос:** id; JSON clientId* UUID
 
 - **Ответ:** 200: status,item: Call (ended)
 
-- **Ошибки:** 403 не владелец клиента; 409 состояние; 422
+- **Ошибки:** 403 не владелец клиента; 409 — операция недоступна в текущем состоянии; 422
 
 Источники: [internal/transport/http/call_routes.go:39](../internal/transport/http/call_routes.go#L39), [internal/app/calls/handler.go:95](../internal/app/calls/handler.go#L95).
 
 ### `POST /api/v1/calls/:id/heartbeat`
 
-Продлить lease звонка.
+Продлить временное право клиента на поддержание звонка (lease).
 
-- **Доступ:** Аккаунт; владелец медиаклиента принятого звонка
+- **Доступ:** Зарегистрированный аккаунт; владелец медиаклиента принятого звонка
 
 - **Запрос:** id; JSON clientId* UUID
 
@@ -167,7 +172,7 @@
 
 ### `GET /api/v1/conferences/:id/chat/info`
 
-Название, описание и права конференционного чата.
+Название, описание и права доступа к чату конференции.
 
 - **Доступ:** Bearer; допущенный участник joined/left, не вышедший из чата
 
@@ -181,7 +186,7 @@
 
 ### `GET /api/v1/conferences/:id/chat/members`
 
-Участники чата и presence.
+Участники чата и их статус присутствия.
 
 - **Доступ:** Bearer; допущенный участник joined/left, не вышедший из чата
 
@@ -195,7 +200,7 @@
 
 ### `PATCH /api/v1/conferences/:id/chat/info`
 
-Изменить метаданные чата/конференции.
+Изменить название или описание чата конференции.
 
 - **Доступ:** Bearer; owner с доступом к чату
 
@@ -203,7 +208,7 @@
 
 - **Ответ:** 200: status,item: ChatInfo
 
-- **Ошибки:** 403 право canEdit; 422 поля; 404
+- **Ошибки:** 403 право canEdit; 422 — недопустимые поля запроса; 404
 
 Источники: [internal/transport/http/chat_actions_routes.go:51](../internal/transport/http/chat_actions_routes.go#L51), [internal/app/chat/actions_handler.go:86](../internal/app/chat/actions_handler.go#L86).
 
@@ -329,7 +334,7 @@
 
 - **Ответ:** 200: status=success; идемпотентно
 
-- **Ошибки:** 403; 422 UUID
+- **Ошибки:** 403; 422 — неверный UUID
 
 Источники: [internal/transport/http/chat_actions_routes.go:60](../internal/transport/http/chat_actions_routes.go#L60), [internal/app/chat/actions_handler.go:255](../internal/app/chat/actions_handler.go#L255).
 
@@ -356,7 +361,7 @@
 
 История сообщений.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation)
 
 - **Запрос:** id; query before cursor, limit 1–100 (50)
 
@@ -368,29 +373,29 @@
 
 ### `POST /api/v1/conferences/:id/messages`
 
-Отправить сообщение с идемпотентностью.
+Отправить сообщение с защитой от повторного создания при повторе запроса.
 
 - **Доступ:** Bearer; допущенный joined участник active конференции, не вышедший из чата
 
 - **Запрос:** id; JSON clientRequestId* UUID, text ≤4000 символов, replyTo UUID, attachmentIds ≤5; нужен текст или вложение
 
-- **Ответ:** 201 новый/200 повтор: status,item: Message
+- **Ответ:** 201 при создании, 200 при повторе того же запроса: status,item: Message
 
-- **Ошибки:** 409 ключ использован с другим содержимым/чат read-only/вложение не готово; 422 поля; 403
+- **Ошибки:** 409 ключ использован с другим содержимым/чат доступен только для чтения/вложение не готово; 422 — недопустимые поля запроса; 403
 
 Источники: [internal/transport/http/chat_routes.go:70](../internal/transport/http/chat_routes.go#L70), [internal/app/chat/handler.go:84](../internal/app/chat/handler.go#L84).
 
 ### `POST /api/v1/conversations/:id/messages`
 
-Отправить сообщение с идемпотентностью.
+Отправить сообщение с защитой от повторного создания при повторе запроса.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation)
 
 - **Запрос:** id; JSON clientRequestId* UUID, text ≤4000 символов, replyTo UUID, attachmentIds ≤5; нужен текст или вложение
 
-- **Ответ:** 201 новый/200 повтор: status,item: Message
+- **Ответ:** 201 при создании, 200 при повторе того же запроса: status,item: Message
 
-- **Ошибки:** 409 ключ использован с другим содержимым/чат read-only/вложение не готово; 422 поля; 403
+- **Ошибки:** 409 ключ использован с другим содержимым/чат доступен только для чтения/вложение не готово; 422 — недопустимые поля запроса; 403
 
 Источники: [internal/transport/http/chat_routes.go:70](../internal/transport/http/chat_routes.go#L70), [internal/app/chat/handler.go:84](../internal/app/chat/handler.go#L84).
 
@@ -404,7 +409,7 @@
 
 - **Ответ:** 200: status,item: Message с новой version
 
-- **Ошибки:** 403 чужое/служебное сообщение; 409 удалено/read-only; 422 пустой текст; 404
+- **Ошибки:** 403 чужое/служебное сообщение; 409 сообщение удалено или чат доступен только для чтения; 422 пустой текст; 404
 
 Источники: [internal/transport/http/chat_routes.go:71](../internal/transport/http/chat_routes.go#L71), [internal/app/chat/handler.go:109](../internal/app/chat/handler.go#L109).
 
@@ -412,7 +417,7 @@
 
 Изменить текст сообщения.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation; только автор
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation); только автор
 
 - **Запрос:** id,messageId; JSON text ≤4000; пусто только при вложениях
 
@@ -420,13 +425,13 @@
 
 Системная история звонка (`call`) не редактируется и не удаляется, в том числе автором: `403`.
 
-- **Ошибки:** 403 чужое/служебное сообщение; 409 удалено/read-only; 422 пустой текст; 404
+- **Ошибки:** 403 чужое/служебное сообщение; 409 сообщение удалено или чат доступен только для чтения; 422 пустой текст; 404
 
 Источники: [internal/transport/http/chat_routes.go:71](../internal/transport/http/chat_routes.go#L71), [internal/app/chat/handler.go:109](../internal/app/chat/handler.go#L109).
 
 ### `DELETE /api/v1/conferences/:id/messages/:messageId`
 
-Мягко удалить сообщение.
+Логически удалить сообщение, сохранив его место в истории.
 
 - **Доступ:** Bearer; допущенный joined участник active конференции, не вышедший из чата; автор; в конференции также owner/co_host
 
@@ -434,13 +439,13 @@
 
 - **Ответ:** 200: status,item: Message с deletedAt и пустым text
 
-- **Ошибки:** 403 чужое/история звонка; 409 read-only; 404
+- **Ошибки:** 403 чужое/история звонка; 409 — чат доступен только для чтения; 404
 
 Источники: [internal/transport/http/chat_routes.go:72](../internal/transport/http/chat_routes.go#L72), [internal/app/chat/handler.go:135](../internal/app/chat/handler.go#L135).
 
 ### `DELETE /api/v1/conversations/:id/messages/:messageId`
 
-Мягко удалить сообщение.
+Логически удалить сообщение, сохранив его место в истории.
 
 - **Доступ:** Bearer аккаунта; действующий член conversation; только автор сообщения
 
@@ -450,7 +455,7 @@
 
 Системная история звонка (`call`) не редактируется и не удаляется, в том числе автором: `403`.
 
-- **Ошибки:** 403 чужое/история звонка; 409 read-only; 404
+- **Ошибки:** 403 чужое/история звонка; 409 — чат доступен только для чтения; 404
 
 Источники: [internal/transport/http/chat_routes.go:72](../internal/transport/http/chat_routes.go#L72), [internal/app/chat/handler.go:135](../internal/app/chat/handler.go#L135).
 
@@ -472,7 +477,7 @@
 
 Текущая граница прочтения.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation)
 
 - **Запрос:** id
 
@@ -484,7 +489,7 @@
 
 ### `PUT /api/v1/conferences/:id/chat/read`
 
-Монотонно отметить прочитанное.
+Продвинуть границу прочитанных сообщений; сдвиг назад не допускается.
 
 - **Доступ:** Bearer; допущенный участник joined/left, не вышедший из чата
 
@@ -492,49 +497,49 @@
 
 - **Ответ:** 200: status,item: lastReadMessageId,unreadCount
 
-- **Ошибки:** 422 UUID; 403; 404 сообщение вне доступной истории
+- **Ошибки:** 422 — неверный UUID; 403; 404 сообщение вне доступной истории
 
 Источники: [internal/transport/http/chat_routes.go:74](../internal/transport/http/chat_routes.go#L74), [internal/app/chat/handler.go:174](../internal/app/chat/handler.go#L174).
 
 ### `PUT /api/v1/conversations/:id/chat/read`
 
-Монотонно отметить прочитанное.
+Продвинуть границу прочитанных сообщений; сдвиг назад не допускается.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation)
 
 - **Запрос:** id; JSON messageId* UUID
 
 - **Ответ:** 200: status,item: lastReadMessageId,unreadCount
 
-- **Ошибки:** 422 UUID; 403; 404 сообщение вне доступной истории
+- **Ошибки:** 422 — неверный UUID; 403; 404 сообщение вне доступной истории
 
 Источники: [internal/transport/http/chat_routes.go:74](../internal/transport/http/chat_routes.go#L74), [internal/app/chat/handler.go:174](../internal/app/chat/handler.go#L174).
 
 ### `POST /api/v1/conferences/:id/attachments/init`
 
-Создать резервирование вложения.
+Зарезервировать вложение перед загрузкой файла.
 
 - **Доступ:** Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец загрузки
 
 - **Запрос:** id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; изображения, документы и архивы из [списка поддерживаемых вложений](ATTACHMENTS.md)
 
-- **Ответ:** 201 новый/200 повтор: status,item: Attachment,uploadUrl
+- **Ответ:** 201 при создании, 200 при повторе того же запроса: status,item: Attachment,uploadUrl
 
-- **Ошибки:** 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403
+- **Ошибки:** 422 метаданные/MIME/размер; 409 конфликт ключа или чат доступен только для чтения; 403
 
 Источники: [internal/transport/http/chat_routes.go:75](../internal/transport/http/chat_routes.go#L75), [internal/app/chat/handler.go:196](../internal/app/chat/handler.go#L196).
 
 ### `POST /api/v1/conversations/:id/attachments/init`
 
-Создать резервирование вложения.
+Зарезервировать вложение перед загрузкой файла.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation; владелец загрузки
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation); владелец загрузки
 
 - **Запрос:** id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; изображения, документы и архивы из [списка поддерживаемых вложений](ATTACHMENTS.md)
 
-- **Ответ:** 201 новый/200 повтор: status,item: Attachment,uploadUrl
+- **Ответ:** 201 при создании, 200 при повторе того же запроса: status,item: Attachment,uploadUrl
 
-- **Ошибки:** 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403
+- **Ошибки:** 422 метаданные/MIME/размер; 409 конфликт ключа или чат доступен только для чтения; 403
 
 Источники: [internal/transport/http/chat_routes.go:75](../internal/transport/http/chat_routes.go#L75), [internal/app/chat/handler.go:196](../internal/app/chat/handler.go#L196).
 
@@ -544,11 +549,11 @@
 
 - **Доступ:** Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец вложения
 
-- **Запрос:** id,attachmentId; raw body, до 10 MiB; размер должен совпасть с init
+- **Запрос:** id,attachmentId; бинарное тело запроса, до 10 MiB; размер должен совпасть с init
 
 - **Ответ:** 200: status,item: Attachment
 
-- **Ошибки:** 422 размер/содержимое; 409 истекло/занято/read-only; 403; 404
+- **Ошибки:** 422 размер/содержимое; 409 истёк срок загрузки, она уже выполняется или чат доступен только для чтения; 403; 404
 
 Источники: [internal/transport/http/chat_routes.go:76](../internal/transport/http/chat_routes.go#L76), [internal/app/chat/handler.go:221](../internal/app/chat/handler.go#L221).
 
@@ -556,13 +561,13 @@
 
 Передать байты в зарезервированное вложение.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation; владелец вложения
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation); владелец вложения
 
-- **Запрос:** id,attachmentId; raw body, до 10 MiB; размер должен совпасть с init
+- **Запрос:** id,attachmentId; бинарное тело запроса, до 10 MiB; размер должен совпасть с init
 
 - **Ответ:** 200: status,item: Attachment
 
-- **Ошибки:** 422 размер/содержимое; 409 истекло/занято/read-only; 403; 404
+- **Ошибки:** 422 размер/содержимое; 409 истёк срок загрузки, она уже выполняется или чат доступен только для чтения; 403; 404
 
 Источники: [internal/transport/http/chat_routes.go:76](../internal/transport/http/chat_routes.go#L76), [internal/app/chat/handler.go:221](../internal/app/chat/handler.go#L221).
 
@@ -584,7 +589,7 @@
 
 Проверить и завершить загрузку.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation; владелец вложения
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation); владелец вложения
 
 - **Запрос:** id,attachmentId; пусто или {}
 
@@ -612,7 +617,7 @@
 
 Получить способ скачивания вложения.
 
-- **Доступ:** Bearer аккаунта; действующий член нескрытого conversation
+- **Доступ:** Bearer аккаунта; действующий участник нескрытой переписки (conversation)
 
 - **Запрос:** id,attachmentId
 
@@ -665,13 +670,13 @@
 
 - **Ответ:** 200: status, item: RecordCard с files, segments и URL
 
-- **Ошибки:** 403; 404 чужая/удаленная запись
+- **Ошибки:** 403; 404 — запись относится к другой конференции или удалена
 
 Источники: [internal/transport/http/conference_recording_routes.go:21](../internal/transport/http/conference_recording_routes.go#L21), [internal/app/recordings/handler.go:181](../internal/app/recordings/handler.go#L181).
 
 ### `DELETE /api/v1/conferences/:id/recordings/:recordingId`
 
-Удалить завершенную запись и ее артефакты.
+Удалить завершённую запись и связанные файлы.
 
 - **Доступ:** Bearer; зарегистрированный owner или requestedBy; доступ к истории
 
@@ -679,7 +684,7 @@
 
 - **Ответ:** 200: status=success
 
-- **Ошибки:** 403; 409 еще обрабатывается; 404; ошибка хранилища 500/503
+- **Ошибки:** 403; 409 — запись ещё обрабатывается; 404; ошибка хранилища 500/503
 
 Источники: [internal/transport/http/conference_recording_routes.go:22](../internal/transport/http/conference_recording_routes.go#L22), [internal/app/recordings/handler.go:161](../internal/app/recordings/handler.go#L161).
 
@@ -691,7 +696,7 @@
 
 - **Запрос:** id,recordingId; пусто или {}
 
-- **Ответ:** 202: status, item: RecordCard; остановка асинхронна и идемпотентна для terminal/processing
+- **Ответ:** 202: status, item: RecordCard; остановка выполняется асинхронно; повтор запроса не меняет результат для конечных состояний (terminal) и processing
 
 - **Ошибки:** 403; 404
 
@@ -744,7 +749,7 @@
 
 Список папок и, опционально, принадлежность элемента.
 
-- **Доступ:** Аккаунт; собственные папки
+- **Доступ:** Зарегистрированный аккаунт; собственные папки
 
 - **Запрос:** Query itemKind=conversation/conference и itemId UUID совместно
 
@@ -758,7 +763,7 @@
 
 Создать папку.
 
-- **Доступ:** Аккаунт
+- **Доступ:** Зарегистрированный аккаунт
 
 - **Запрос:** JSON name* 1–50 символов
 
@@ -772,7 +777,7 @@
 
 Переставить папки.
 
-- **Доступ:** Аккаунт; собственные папки
+- **Доступ:** Зарегистрированный аккаунт; собственные папки
 
 - **Запрос:** JSON ids* UUID[]; полный список без повторов
 
@@ -786,7 +791,7 @@
 
 Карточка папки.
 
-- **Доступ:** Аккаунт; владелец папки
+- **Доступ:** Зарегистрированный аккаунт; владелец папки
 
 - **Запрос:** id
 
@@ -800,7 +805,7 @@
 
 Переименовать папку.
 
-- **Доступ:** Аккаунт; владелец папки
+- **Доступ:** Зарегистрированный аккаунт; владелец папки
 
 - **Запрос:** id; JSON name* 1–50
 
@@ -814,7 +819,7 @@
 
 Удалить папку.
 
-- **Доступ:** Аккаунт; владелец папки
+- **Доступ:** Зарегистрированный аккаунт; владелец папки
 
 - **Запрос:** id
 
@@ -828,7 +833,7 @@
 
 Содержимое папки.
 
-- **Доступ:** Аккаунт; владелец папки
+- **Доступ:** Зарегистрированный аккаунт; владелец папки
 
 - **Запрос:** id; before; limit 1–100 (50),type=all/conversation/conference,search
 
@@ -842,7 +847,7 @@
 
 Доступные элементы для добавления в папку.
 
-- **Доступ:** Аккаунт
+- **Доступ:** Зарегистрированный аккаунт
 
 - **Запрос:** Query folderId UUID, before,limit 1–100 (50),type=all/conversation/conference,search
 
@@ -856,7 +861,7 @@
 
 Добавить элемент в папку.
 
-- **Доступ:** Аккаунт; владелец папки и доступ к элементу
+- **Доступ:** Зарегистрированный аккаунт; владелец папки и доступ к элементу
 
 - **Запрос:** id,itemId UUID; kind=conversation/conference; без тела
 
@@ -870,7 +875,7 @@
 
 Убрать элемент из папки.
 
-- **Доступ:** Аккаунт; владелец папки
+- **Доступ:** Зарегистрированный аккаунт; владелец папки
 
 - **Запрос:** id,itemId UUID; kind=conversation/conference
 
@@ -910,7 +915,7 @@
 
 - **Доступ:** Bearer аккаунта
 
-- **Запрос:** Без тела/query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: объект invitation,reminder,recording,email,push (без status)
 
@@ -938,7 +943,7 @@
 
 - **Доступ:** Bearer аккаунта
 
-- **Запрос:** Без тела/query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: items: Device[] без токенов
 
@@ -956,7 +961,7 @@
 
 - **Ответ:** 201: item: Device без токена
 
-- **Ошибки:** 422 поля; 503 push/cipher недоступны
+- **Ошибки:** 422 — недопустимые поля запроса; 503 push/cipher недоступны
 
 Источники: [internal/transport/http/integration_routes.go:55](../internal/transport/http/integration_routes.go#L55), [internal/app/integrations/handler.go:85](../internal/app/integrations/handler.go#L85).
 
@@ -970,7 +975,7 @@
 
 - **Ответ:** 204 без тела
 
-- **Ошибки:** 422 UUID; 404 чужое/не найдено
+- **Ошибки:** 422 — неверный UUID; 404 чужое/не найдено
 
 Источники: [internal/transport/http/integration_routes.go:56](../internal/transport/http/integration_routes.go#L56), [internal/app/integrations/handler.go:102](../internal/app/integrations/handler.go#L102).
 
@@ -980,7 +985,7 @@
 
 - **Доступ:** Bearer аккаунта
 
-- **Запрос:** Без тела/query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: email,push,calendar,calendarOAuthConfigured,mockConnectAllowed
 
@@ -994,7 +999,7 @@
 
 - **Доступ:** Bearer аккаунта
 
-- **Запрос:** Без тела/query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: items: CalendarConnection[] без секретов
 
@@ -1040,7 +1045,7 @@
 
 - **Ответ:** 200: item: CalendarConnection
 
-- **Ошибки:** 422 поля/истекший или использованный state; 503 provider/cipher/обмен OAuth
+- **Ошибки:** 422 — недопустимые поля запроса/истекший или использованный state; 503 provider/cipher/обмен OAuth
 
 Источники: [internal/transport/http/integration_routes.go:62](../internal/transport/http/integration_routes.go#L62), [internal/app/integrations/handler.go:172](../internal/app/integrations/handler.go#L172).
 
@@ -1068,7 +1073,7 @@
 
 - **Ответ:** 200: items: CalendarMapping[], не более 10
 
-- **Ошибки:** 403 нет роли/допуска; 422 UUID
+- **Ошибки:** 403 нет роли/допуска; 422 — неверный UUID
 
 Источники: [internal/transport/http/integration_routes.go:66](../internal/transport/http/integration_routes.go#L66), [internal/app/integrations/handler.go:206](../internal/app/integrations/handler.go#L206).
 
@@ -1081,7 +1086,7 @@
 
 Найти адресатов приглашения.
 
-- **Доступ:** Аккаунт; owner либо вошедший co_host в active конференции
+- **Доступ:** Зарегистрированный аккаунт; owner либо вошедший co_host в active конференции
 
 - **Запрос:** id; query* 2–100 символов
 
@@ -1093,9 +1098,9 @@
 
 ### `POST /api/v1/conferences/:id/invitations`
 
-Поставить доставку приглашений.
+Поставить отправку приглашений в очередь.
 
-- **Доступ:** Аккаунт; owner либо вошедший co_host в active конференции
+- **Доступ:** Зарегистрированный аккаунт; owner либо вошедший co_host в active конференции
 
 - **Запрос:** id; JSON emails[] и/или userIds[] UUID; всего 1–20 адресатов
 
@@ -1130,7 +1135,7 @@
 
 - **Доступ:** Bearer аккаунта в заголовке; query запрещен
 
-- **Запрос:** Без query/body; Authorization: Bearer; Last-Event-ID не воспроизводит историю
+- **Запрос:** Без параметров URL и тела; Authorization: Bearer; Last-Event-ID не воспроизводит историю
 
 - **Ответ:** 200: text/event-stream; data: Envelope для notification.created/read; keepalive 15 c
 
@@ -1148,7 +1153,7 @@
 
 - **Ответ:** 200: item: Notification (без status); идемпотентно
 
-- **Ошибки:** 404 недоступное уведомление; 422 UUID
+- **Ошибки:** 404 недоступное уведомление; 422 — неверный UUID
 
 Источники: [internal/transport/http/notification_routes.go:20](../internal/transport/http/notification_routes.go#L20), [internal/app/notifications/handler.go:73](../internal/app/notifications/handler.go#L73).
 
@@ -1161,7 +1166,7 @@
 
 Загрузить аватар группы.
 
-- **Доступ:** Аккаунт; owner/admin группы
+- **Доступ:** Зарегистрированный аккаунт; owner/admin группы
 
 - **Запрос:** id; raw JPEG/PNG; Content-Type image/jpeg или image/png; ≤2 MiB, стороны ≤2048 и ≤4 Mi pixels
 
@@ -1175,7 +1180,7 @@
 
 Удалить аватар группы.
 
-- **Доступ:** Аккаунт; owner/admin группы
+- **Доступ:** Зарегистрированный аккаунт; owner/admin группы
 
 - **Запрос:** id
 
@@ -1187,9 +1192,9 @@
 
 ### `GET /api/v1/conversations/:id/avatar/content`
 
-Прочитать аватар через авторизованный поток.
+Получить содержимое аватара с проверкой авторизации.
 
-- **Доступ:** Аккаунт; действующий член группы
+- **Доступ:** Зарегистрированный аккаунт; действующий член группы
 
 - **Запрос:** id
 
@@ -1203,7 +1208,7 @@
 
 Скачать вложение через авторизованный поток.
 
-- **Доступ:** Аккаунт; действующий член группы
+- **Доступ:** Зарегистрированный аккаунт; действующий член группы
 
 - **Запрос:** id,attachmentId
 
@@ -1222,7 +1227,7 @@
 
 Найти пользователей для диалога.
 
-- **Доступ:** Аккаунт
+- **Доступ:** Зарегистрированный аккаунт
 
 - **Запрос:** Query search* 2–100 символов; поиск по displayName; до 20 других зарегистрированных пользователей
 
@@ -1236,7 +1241,7 @@
 
 Список личных/групповых диалогов.
 
-- **Доступ:** Аккаунт
+- **Доступ:** Зарегистрированный аккаунт
 
 - **Запрос:** Query before,limit 1–100 (50),type пусто/direct/group; значение all недопустимо (422),search ≤100,unreadOnly bool
 
@@ -1250,13 +1255,13 @@
 
 Открыть или создать личный диалог.
 
-- **Доступ:** Аккаунт
+- **Доступ:** Зарегистрированный аккаунт
 
 - **Запрос:** JSON userId* UUID другого зарегистрированного пользователя
 
 - **Ответ:** 201 новый/200 существующий: status,item: Conversation
 
-- **Ошибки:** 422 UUID/сам с собой; 403/404 адресат недоступен
+- **Ошибки:** 422 — неверный UUID/сам с собой; 403/404 — адресат не найден недоступен
 
 Источники: [internal/transport/http/personal_routes.go:43](../internal/transport/http/personal_routes.go#L43), [internal/app/personal/handler.go:204](../internal/app/personal/handler.go#L204).
 
@@ -1264,13 +1269,13 @@
 
 Создать группу с идемпотентностью.
 
-- **Доступ:** Аккаунт
+- **Доступ:** Зарегистрированный аккаунт
 
 - **Запрос:** JSON clientRequestId* UUID,name* 1–50,description ≤200,memberIds UUID[]; всего ≤100 участников
 
-- **Ответ:** 201 новый/200 повтор: status,item: Conversation
+- **Ответ:** 201 при создании, 200 при повторе того же запроса: status,item: Conversation
 
-- **Ошибки:** 422 поля; 409 ключ с другим запросом/лимит; 404 участник
+- **Ошибки:** 422 — недопустимые поля запроса; 409 ключ с другим запросом/лимит; 404 участник
 
 Источники: [internal/transport/http/personal_routes.go:44](../internal/transport/http/personal_routes.go#L44), [internal/app/personal/group_handler.go:172](../internal/app/personal/group_handler.go#L172).
 
@@ -1278,7 +1283,7 @@
 
 Карточка диалога.
 
-- **Доступ:** Аккаунт; член conversation
+- **Доступ:** Зарегистрированный аккаунт; член conversation
 
 - **Запрос:** id
 
@@ -1292,7 +1297,7 @@
 
 Онлайн-статус собеседника.
 
-- **Доступ:** Аккаунт; член direct conversation
+- **Доступ:** Зарегистрированный аккаунт; член direct conversation
 
 - **Запрос:** id
 
@@ -1306,7 +1311,7 @@
 
 Личная настройка уведомлений.
 
-- **Доступ:** Аккаунт; член conversation
+- **Доступ:** Зарегистрированный аккаунт; член conversation
 
 - **Запрос:** id; JSON notificationsEnabled* bool
 
@@ -1320,7 +1325,7 @@
 
 Скрыть прежнюю историю только для себя.
 
-- **Доступ:** Аккаунт; член direct conversation
+- **Доступ:** Зарегистрированный аккаунт; член direct conversation
 
 - **Запрос:** id; без тела
 
@@ -1334,7 +1339,7 @@
 
 Скрыть диалог для себя.
 
-- **Доступ:** Аккаунт; член direct conversation
+- **Доступ:** Зарегистрированный аккаунт; член direct conversation
 
 - **Запрос:** id; без тела
 
@@ -1348,7 +1353,7 @@
 
 Общие закрепленные сообщения диалога.
 
-- **Доступ:** Аккаунт; член conversation
+- **Доступ:** Зарегистрированный аккаунт; член conversation
 
 - **Запрос:** id; before; limit 1–100 (50)
 
@@ -1362,7 +1367,7 @@
 
 Закрепить доступное текстовое сообщение для диалога.
 
-- **Доступ:** Аккаунт; член conversation
+- **Доступ:** Зарегистрированный аккаунт; член conversation
 
 - **Запрос:** id,messageId; без тела
 
@@ -1376,7 +1381,7 @@
 
 Открепить сообщение диалога.
 
-- **Доступ:** Аккаунт; член conversation
+- **Доступ:** Зарегистрированный аккаунт; член conversation
 
 - **Запрос:** id,messageId; без тела
 
@@ -1390,13 +1395,13 @@
 
 Изменить имя и описание группы.
 
-- **Доступ:** Аккаунт; owner/admin группы
+- **Доступ:** Зарегистрированный аккаунт; owner/admin группы
 
 - **Запрос:** id; JSON name 1–50 и/или description ≤200
 
 - **Ответ:** 200: status,item: Conversation
 
-- **Ошибки:** 403 роль; 422 поля; 404
+- **Ошибки:** 403 роль; 422 — недопустимые поля запроса; 404
 
 Источники: [internal/transport/http/personal_routes.go:53](../internal/transport/http/personal_routes.go#L53), [internal/app/personal/group_handler.go:197](../internal/app/personal/group_handler.go#L197).
 
@@ -1404,7 +1409,7 @@
 
 Удалить группу.
 
-- **Доступ:** Аккаунт; owner группы
+- **Доступ:** Зарегистрированный аккаунт; owner группы
 
 - **Запрос:** id; без тела
 
@@ -1418,7 +1423,7 @@
 
 Список участников группы.
 
-- **Доступ:** Аккаунт; член группы
+- **Доступ:** Зарегистрированный аккаунт; член группы
 
 - **Запрос:** id
 
@@ -1432,7 +1437,7 @@
 
 Добавить зарегистрированных участников.
 
-- **Доступ:** Аккаунт; owner/admin группы
+- **Доступ:** Зарегистрированный аккаунт; owner/admin группы
 
 - **Запрос:** id; JSON userIds* UUID[]; итог ≤100 участников
 
@@ -1446,7 +1451,7 @@
 
 Удалить участника; admin может удалить только member.
 
-- **Доступ:** Аккаунт; owner/admin группы
+- **Доступ:** Зарегистрированный аккаунт; owner/admin группы
 
 - **Запрос:** id,userId; без тела
 
@@ -1460,7 +1465,7 @@
 
 Назначить admin/member.
 
-- **Доступ:** Аккаунт; owner группы
+- **Доступ:** Зарегистрированный аккаунт; owner группы
 
 - **Запрос:** id,userId; JSON role*=admin/member
 
@@ -1474,7 +1479,7 @@
 
 Выйти из группы.
 
-- **Доступ:** Аккаунт; член группы
+- **Доступ:** Зарегистрированный аккаунт; член группы
 
 - **Запрос:** id; пусто или {}
 
@@ -1488,13 +1493,13 @@
 
 Передать владение другому участнику; прежний owner становится admin.
 
-- **Доступ:** Аккаунт; owner группы
+- **Доступ:** Зарегистрированный аккаунт; owner группы
 
 - **Запрос:** id; JSON userId* UUID участника
 
 - **Ответ:** 200: status,item: Conversation
 
-- **Ошибки:** 403 сам себе/не owner; 404 участник; 422 UUID
+- **Ошибки:** 403 сам себе/не owner; 404 участник; 422 — неверный UUID
 
 Источники: [internal/transport/http/personal_routes.go:60](../internal/transport/http/personal_routes.go#L60), [internal/app/personal/group_handler.go:314](../internal/app/personal/group_handler.go#L314).
 
@@ -1502,13 +1507,13 @@
 
 Алиас отметки прочитанного.
 
-- **Доступ:** Аккаунт; член conversation
+- **Доступ:** Зарегистрированный аккаунт; член conversation
 
 - **Запрос:** id; JSON messageId* UUID
 
 - **Ответ:** 200: status,item: lastReadMessageId,unreadCount
 
-- **Ошибки:** 403; 404 сообщение; 422 UUID
+- **Ошибки:** 403; 404 сообщение; 422 — неверный UUID
 
 Источники: [internal/transport/http/personal_routes.go:61](../internal/transport/http/personal_routes.go#L61), [internal/app/chat/handler.go:174](../internal/app/chat/handler.go#L174).
 
@@ -1521,7 +1526,7 @@
 
 Поиск сообщений личного/группового диалога.
 
-- **Доступ:** Аккаунт; член conversation
+- **Доступ:** Зарегистрированный аккаунт; член conversation
 
 - **Запрос:** id; q* 2–200 символов; before; limit 1–50 (20)
 
@@ -1535,7 +1540,7 @@
 
 Контекст сообщения диалога.
 
-- **Доступ:** Аккаунт; член conversation
+- **Доступ:** Зарегистрированный аккаунт; член conversation
 
 - **Запрос:** id,messageId
 
@@ -1560,7 +1565,7 @@
 
 - **Ответ:** 201: status, user
 
-- **Ошибки:** 409 email занят; 422 поля; 403 origin; 415 Content-Type
+- **Ошибки:** 409 email занят; 422 — недопустимые поля запроса; 403 origin; 415 Content-Type
 
 Источники: [internal/transport/http/platform_routes.go:22](../internal/transport/http/platform_routes.go#L22), [internal/app/auth/handler.go:86](../internal/app/auth/handler.go#L86).
 
@@ -1580,7 +1585,7 @@
 
 ### `POST /api/v1/auth/refresh`
 
-Новый access token из постоянной сессии.
+Получить новый токен доступа по постоянной сессии.
 
 - **Доступ:** Cookie; same-origin
 
@@ -1616,7 +1621,7 @@
 
 - **Ответ:** 200: LoginResponse; Set-Cookie meetrix_session
 
-- **Ошибки:** 401 cookie недействителен; 403 несовпадение владельца; 422 UUID; 503 функция выключена
+- **Ошибки:** 401 cookie недействителен; 403 несовпадение владельца; 422 — неверный UUID; 503 функция выключена
 
 Источники: [internal/transport/http/platform_routes.go:26](../internal/transport/http/platform_routes.go#L26), [internal/app/auth/accounts.go:192](../internal/app/auth/accounts.go#L192).
 
@@ -1661,7 +1666,7 @@
 
 - **Доступ:** Bearer; гость допустим в своей области
 
-- **Запрос:** Без тела и query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: status, user; у гостя email пустой, guestConferenceId
 
@@ -1755,7 +1760,7 @@
 
 ### `POST /api/v1/conferences/:id/start`
 
-Начать created/scheduled конференцию.
+Начать конференцию в состоянии created или scheduled.
 
 - **Доступ:** Bearer; owner конференции
 
@@ -1783,7 +1788,7 @@
 
 ### `POST /api/v1/conferences/:id/cancel`
 
-Отменить created/scheduled конференцию.
+Отменить конференцию в состоянии created или scheduled.
 
 - **Доступ:** Bearer; owner конференции
 
@@ -1805,7 +1810,7 @@
 
 - **Ответ:** 200: status, item: Participant, включая admissionState
 
-- **Ошибки:** 403 неверное приглашение/rejected/kicked; 409 состояние конференции; 422 code
+- **Ошибки:** 403 неверное приглашение/rejected/kicked; 409 — операция недоступна в текущем состоянии конференции; 422 code
 
 Источники: [internal/transport/http/platform_routes.go:46](../internal/transport/http/platform_routes.go#L46), [internal/app/conferences/handler.go:321](../internal/app/conferences/handler.go#L321).
 
@@ -1861,7 +1866,7 @@
 
 - **Ответ:** 200: status, item: Participant
 
-- **Ошибки:** 403 роль; 409 состояние допуска/конференции; 422 decision; 404
+- **Ошибки:** 403 роль; 409 — операция недоступна в текущем состоянии допуска/конференции; 422 decision; 404
 
 Источники: [internal/transport/http/platform_routes.go:50](../internal/transport/http/platform_routes.go#L50), [internal/app/conferences/product_handler.go:37](../internal/app/conferences/product_handler.go#L37).
 
@@ -1931,7 +1936,7 @@
 
 - **Ответ:** 200: status, item: Participant
 
-- **Ошибки:** 403 запрет повторного входа; 404 code; 409 состояние
+- **Ошибки:** 403 запрет повторного входа; 404 code; 409 — операция недоступна в текущем состоянии
 
 Источники: [internal/transport/http/platform_routes.go:59](../internal/transport/http/platform_routes.go#L59), [internal/app/conferences/handler.go:378](../internal/app/conferences/handler.go#L378).
 
@@ -1945,7 +1950,7 @@
 
 - **Ответ:** 200: status,item: Participant; старый/повторный sequence игнорируется
 
-- **Ошибки:** 403 нет допуска/подключения/источник заблокирован; 409 комната не active/created; 422 поля
+- **Ошибки:** 403 нет допуска/подключения/источник заблокирован; 409 комната не active/created; 422 — недопустимые поля запроса
 
 Источники: [internal/transport/http/platform_routes.go:74](../internal/transport/http/platform_routes.go#L74), [internal/app/conferences/control_handler.go:97](../internal/app/conferences/control_handler.go#L97).
 
@@ -1974,7 +1979,7 @@
 
 - **Доступ:** Bearer; гостям разрешено
 
-- **Запрос:** Без тела/query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: status,capabilities: recordingModes; buildVersion
 
@@ -1988,7 +1993,7 @@
 
 - **Доступ:** Bearer аккаунта; users.is_admin=true, проверка БД на каждом запросе
 
-- **Запрос:** Без тела/query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: status,item: asOf,activeConferences,joinedParticipants,activeRecordings,queuedJobs,failed*24h,apiReady,mediaWorkerReady,dependencies,recentFailures
 
@@ -2018,7 +2023,9 @@
 
 <a id="api-group-19"></a>
 
-## API health
+<a id="api-health"></a>
+
+## Проверка состояния API
 
 ### `GET /health`
 
@@ -2026,7 +2033,7 @@
 
 - **Доступ:** Публичный
 
-- **Запрос:** Без тела/query
+- **Запрос:** Без тела и параметров URL
 
 - **Ответ:** 200: {status:"ok"}
 
@@ -2037,7 +2044,9 @@
 
 <a id="api-group-20"></a>
 
-## WebSocket HTTP
+<a id="websocket-http"></a>
+
+## HTTP-маршруты WebSocket
 
 ### `POST /api/v1/conferences/:id/ws-ticket`
 
@@ -2049,7 +2058,7 @@
 
 - **Ответ:** 201 {ticket:string,expiresAt:RFC3339}; Cache-Control:no-store. Одноразовый билет привязан к конференции; TTL=min(WS_TICKET_TTL,остаток срока access token).
 
-- **Ошибки:** HTTP JSON {status:"failed",message}; 401 невалидная авторизация, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 невалидные параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке. При 30 билетах/мин на пользователя: 429 {error:"too many connection tickets"}, Retry-After:60.
+- **Ошибки:** HTTP JSON {status:"failed",message}; 401 недействительные данные авторизации, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 недопустимые параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке. При 30 билетах/мин на пользователя: 429 {error:"too many connection tickets"}, Retry-After:60.
 
 Источники: [internal/transport/websocket/handler.go:271](../internal/transport/websocket/handler.go#L271).
 
@@ -2063,27 +2072,27 @@
 
 - **Ответ:** 101 Switching Protocols; начальное conference.state; затем события и ответы JSON Envelope v1.
 
-- **Ошибки:** HTTP JSON {status:"failed",message}; 401 невалидная авторизация, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 невалидные параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке. 503 без тела при MaxConnections; ошибки Upgrade 400/403/405 по Gorilla. После Upgrade ошибки/закрытие уже WS.
+- **Ошибки:** HTTP JSON {status:"failed",message}; 401 недействительные данные авторизации, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 недопустимые параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке. 503 без тела при MaxConnections; ошибки Upgrade 400/403/405 по Gorilla. После Upgrade ошибки/закрытие уже WS.
 
 Источники: [internal/transport/websocket/handler.go:379](../internal/transport/websocket/handler.go#L379).
 
 ### `GET /api/v1/webrtc/config`
 
-Получить ICE/TURN конфигурацию клиента.
+Получить конфигурацию ICE/TURN для клиента.
 
 - **Доступ:** Bearer access token; разрешено гостям
 
-- **Запрос:** Без тела и обязательных query.
+- **Запрос:** Без тела; обязательных параметров URL нет.
 
 - **Ответ:** 200 {iceServers:[{urls:string[],username?:string,credential?:string}],iceTransportPolicy?:string,expiresAt?:UnixSeconds}; Cache-Control:no-store.
 
-- **Ошибки:** HTTP JSON {status:"failed",message}; 401 невалидная авторизация, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 невалидные параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке.
+- **Ошибки:** HTTP JSON {status:"failed",message}; 401 недействительные данные авторизации, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 недопустимые параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке.
 
 Источники: [internal/transport/websocket/handler.go:338](../internal/transport/websocket/handler.go#L338).
 
 ### `POST /api/v1/ws-ticket`
 
-Получить одноразовый билет глобального канала пользователя.
+Получить одноразовый токен (ticket) для общего канала событий пользователя.
 
 - **Доступ:** Bearer зарегистрированного аккаунта; Account и активная серверная сессия; гости запрещены
 
@@ -2091,7 +2100,7 @@
 
 - **Ответ:** 201 {ticket:string,expiresAt:RFC3339}; Cache-Control:no-store. TTL=WS_TICKET_TTL; scope global.
 
-- **Ошибки:** HTTP JSON {status:"failed",message}; 401 невалидная авторизация, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 невалидные параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке. 429 без тела при 30 билетах/мин, Retry-After:60. Ошибка limiter:503.
+- **Ошибки:** HTTP JSON {status:"failed",message}; 401 недействительные данные авторизации, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 недопустимые параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке. 429 без тела при 30 билетах/мин, Retry-After:60. Ошибка limiter:503.
 
 Источники: [internal/transport/websocket/user_handler.go:199](../internal/transport/websocket/user_handler.go#L199).
 
@@ -2105,18 +2114,20 @@
 
 - **Ответ:** 101; односторонние JSON Envelope v1 с conferenceId:"". Серверные Ping и клиентские Pong.
 
-- **Ошибки:** HTTP JSON {status:"failed",message}; 401 невалидная авторизация, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 невалидные параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке. 503 без тела при drain/MaxConnections; неверный query:401. Прикладное клиентское сообщение завершает соединение.
+- **Ошибки:** HTTP JSON {status:"failed",message}; 401 недействительные данные авторизации, 403 запрет, 404 отсутствующий ресурс, 409 конфликт, 422 недопустимые параметры, 429 ограничение, 500 внутренняя ошибка, 503 недоступность, 504 тайм-аут — по возвращённой доменной ошибке. 503 без тела при drain/MaxConnections; неверный query:401. Прикладное клиентское сообщение завершает соединение.
 
 Источники: [internal/transport/websocket/user_handler.go:241](../internal/transport/websocket/user_handler.go#L241).
 
 
 <a id="api-group-21"></a>
 
-## Media worker
+<a id="media-worker"></a>
+
+## Медиасервер Media Worker
 
 ### `GET /healthz`
 
-Готовность media worker.
+Проверить готовность медиасервера.
 
 - **Доступ:** Не требуется
 
@@ -2144,7 +2155,7 @@
 
 ### `POST /internal/media/join`
 
-Создать/получить peer и конфигурацию SFU.
+Создать медиасоединение участника (peer) или получить существующее вместе с конфигурацией SFU.
 
 - **Доступ:** Authorization: Bearer <MEDIA_INTERNAL_SECRET>, точное значение; Cache-Control:no-store
 
@@ -2158,7 +2169,7 @@
 
 ### `POST /internal/media/offer`
 
-Применить SDP offer; повтор той же negotiationId с тем же SDP/publications возвращает сохранённый answer, с другим содержимым — конфликт.
+Применить предложение SDP (offer). Повтор запроса с тем же negotiationId и теми же SDP/publications возвращает сохранённый ответ (answer). Если содержимое изменилось, возвращается конфликт.
 
 - **Доступ:** Authorization: Bearer <MEDIA_INTERNAL_SECRET>, точное значение; Cache-Control:no-store
 
@@ -2172,7 +2183,7 @@
 
 ### `POST /internal/media/ready`
 
-Подтвердить применение answer клиентом.
+Подтвердить, что клиент применил ответ согласования (answer).
 
 - **Доступ:** Authorization: Bearer <MEDIA_INTERNAL_SECRET>, точное значение; Cache-Control:no-store
 
@@ -2186,7 +2197,7 @@
 
 ### `POST /internal/media/ice`
 
-Добавить ICE candidate либо завершить сбор кандидатов.
+Добавить ICE-кандидата либо сообщить о завершении сбора кандидатов.
 
 - **Доступ:** Authorization: Bearer <MEDIA_INTERNAL_SECRET>, точное значение; Cache-Control:no-store
 
@@ -2200,7 +2211,7 @@
 
 ### `POST /internal/media/leave`
 
-Удалить peer. Допускается cleanup после потери readiness/lease/срока сессии; чужая binding запрещена.
+Удалить медиасоединение участника (peer). Очистка разрешена и после потери готовности (readiness), права владения (lease) или истечения сессии. Использовать чужую привязку (binding) запрещено.
 
 - **Доступ:** Authorization: Bearer <MEDIA_INTERNAL_SECRET>, точное значение; Cache-Control:no-store
 
@@ -2214,7 +2225,7 @@
 
 ### `POST /internal/media/unpublish`
 
-Снять опубликованный серверный track.
+Прекратить публикацию дорожки, указанной серверным идентификатором track.
 
 - **Доступ:** Authorization: Bearer <MEDIA_INTERNAL_SECRET>, точное значение; Cache-Control:no-store
 
@@ -2256,7 +2267,7 @@
 
 ### `POST /internal/media/egress`
 
-Пассивно получать RTP для записи конференции; не WebSocket.
+Получать RTP-поток конференции для записи без участия в звонке. Передача идёт по HTTP, а не WebSocket.
 
 - **Доступ:** Authorization: Bearer <MEDIA_INTERNAL_SECRET>, точное значение; Cache-Control:no-store
 
@@ -2271,7 +2282,9 @@
 
 <a id="api-group-22"></a>
 
-## Operations
+<a id="operations"></a>
+
+## Эксплуатация и диагностика
 
 ### `GET /version`
 
@@ -2281,15 +2294,15 @@
 
 - **Запрос:** Без тела.
 
-- **Ответ:** 200 {version,commit,buildTime}; dev/unknown при отсутствии build metadata; Cache-Control:no-store; X-Content-Type-Options:nosniff.
+- **Ответ:** 200 {version,commit,buildTime}; dev/unknown при отсутствии метаданных сборки; Cache-Control:no-store; X-Content-Type-Options:nosniff.
 
-- **Ошибки:** Специальных ошибок handler нет.
+- **Ошибки:** Специальных ошибок обработчика нет.
 
 Источники: [internal/operations/runtime.go:258](../internal/operations/runtime.go#L258).
 
 ### `GET /health/live`
 
-Проверка живости процесса.
+Проверить, что процесс работает.
 
 - **Доступ:** Не требуется
 
@@ -2297,13 +2310,13 @@
 
 - **Ответ:** 200 {status:"alive"}; Cache-Control:no-store.
 
-- **Ошибки:** Специальных ошибок handler нет.
+- **Ошибки:** Специальных ошибок обработчика нет.
 
 Источники: [internal/operations/runtime.go:195](../internal/operations/runtime.go#L195).
 
 ### `GET /health/ready`
 
-Готовность зависимостей и процесса.
+Проверить готовность процесса и его зависимостей.
 
 - **Доступ:** Не требуется
 
@@ -2317,7 +2330,7 @@
 
 ### `GET /operations/drain`
 
-Запросить статус graceful drain.
+Получить состояние режима корректного завершения текущих задач (graceful drain).
 
 - **Доступ:** Authorization: Bearer <METRICS_SECRET>, секрет минимум 32 байта
 
@@ -2331,7 +2344,7 @@
 
 ### `POST /operations/drain`
 
-Включить drain, снять readiness и вызвать service hook; вернуть статус.
+Включить режим завершения текущих задач (drain), снять признак готовности (readiness) и вызвать обработчик сервиса (service hook). Вернуть текущее состояние.
 
 - **Доступ:** Authorization: Bearer <METRICS_SECRET>, секрет минимум 32 байта
 
@@ -2345,11 +2358,11 @@
 
 ### `GET /metrics`
 
-Метрики процесса/приложения; не JSON.
+Получить метрики процесса и приложения. Ответ возвращается не в формате JSON.
 
 - **Доступ:** Authorization: Bearer <METRICS_SECRET>, секрет минимум 32 байта
 
-- **Запрос:** Без тела; HTTP negotiation формата Prometheus.
+- **Запрос:** Без тела; формат Prometheus согласуется через HTTP.
 
 - **Ответ:** 200 метрики Prometheus text/openmetrics.
 
@@ -2364,7 +2377,7 @@
 
 ### `* /health`
 
-Legacy health record-worker.
+Прежний маршрут проверки работоспособности record-worker.
 
 - **Доступ:** Не требуется
 
@@ -2372,17 +2385,17 @@ Legacy health record-worker.
 
 - **Ответ:** 200 {status:"ok"}.
 
-- **Ошибки:** Специальных ошибок нет; readiness не проверяется.
+- **Ошибки:** Специальных ошибок нет; готовность сервиса (readiness) не проверяется.
 
 Источники: [internal/app/record_worker.go:201](../internal/app/record_worker.go#L201).
 
 ### `POST /records/:id/start`
 
-Передать legacy record.start; устаревшие переходы идемпотентны.
+Передать команду record.start прежнему механизму записи. Переходы состояний в этом механизме идемпотентны.
 
 - **Доступ:** Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready
 
-- **Запрос:** id: существующая legacy recording, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.
+- **Запрос:** id: существующая запись прежнего механизма, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.
 
 - **Ответ:** 200 {status:"success"}.
 
@@ -2392,11 +2405,11 @@ Legacy health record-worker.
 
 ### `POST /records/:id/stop`
 
-Передать legacy record.stop; устаревшие переходы идемпотентны.
+Передать команду record.stop прежнему механизму записи. Переходы состояний в этом механизме идемпотентны.
 
 - **Доступ:** Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready
 
-- **Запрос:** id: существующая legacy recording, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.
+- **Запрос:** id: существующая запись прежнего механизма, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.
 
 - **Ответ:** 200 {status:"success"}.
 
@@ -2406,11 +2419,11 @@ Legacy health record-worker.
 
 ### `POST /records/:id/webrtc/offer`
 
-Передать SDP legacy WebRTC ingest. GET/download в этом /records/ handler не реализован.
+Передать SDP прежнему механизму прямого приёма WebRTC. В обработчике /records/ не реализованы GET и скачивание (download).
 
 - **Доступ:** Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready
 
-- **Запрос:** id: существующая legacy запись; JSON {type:"offer",sdp:string}; ограничение HTTP_MAX_BODY_BYTES.
+- **Запрос:** id: существующая запись прежнего механизма; JSON {type:"offer",sdp:string}; ограничение HTTP_MAX_BODY_BYTES.
 
 - **Ответ:** 200 {type:"answer",sdp:string}.
 
@@ -2421,17 +2434,19 @@ Legacy health record-worker.
 
 <a id="api-group-24"></a>
 
-## Profiling (отдельный listener)
+<a id="profiling-отдельный-listener"></a>
+
+## Профилирование на отдельном порту
 
 ### `* /debug/pprof/`
 
-Одна из 7 явных регистраций profiling. /debug/pprof/ — также prefix fallback для имён runtime profiles.
+Один из 7 явно зарегистрированных маршрутов профилирования. Префикс /debug/pprof/ также обрабатывает запросы к именованным профилям среды выполнения (runtime profiles).
 
-- **Доступ:** Без token; только 127.0.0.1:PPROF_PORT, отключено при порте 0
+- **Доступ:** Без токена; доступ только через 127.0.0.1:PPROF_PORT. При порте 0 профилирование отключено
 
 - **Запрос:** Маршрутизатор не ограничивает метод; обычно GET. Необязательный seconds должен быть числом 0<seconds<=60. Остальные параметры стандартного net/http/pprof.
 
-- **Ответ:** 200 HTML index для /; для профиля — стандартный текст/бинарный профиль; для trace — trace.
+- **Ответ:** 200: для / возвращается HTML-список профилей; для профиля — стандартный текстовый или бинарный формат; для trace — трассировка.
 
 - **Ошибки:** 400 text/plain при недопустимом seconds; стандартные ошибки pprof (например, неизвестный профиль 404).
 
@@ -2439,13 +2454,13 @@ Legacy health record-worker.
 
 ### `* /debug/pprof/profile`
 
-Одна из 7 явных регистраций profiling. /debug/pprof/ — также prefix fallback для имён runtime profiles.
+Один из 7 явно зарегистрированных маршрутов профилирования. Префикс /debug/pprof/ также обрабатывает запросы к именованным профилям среды выполнения (runtime profiles).
 
-- **Доступ:** Без token; только 127.0.0.1:PPROF_PORT, отключено при порте 0
+- **Доступ:** Без токена; доступ только через 127.0.0.1:PPROF_PORT. При порте 0 профилирование отключено
 
 - **Запрос:** Маршрутизатор не ограничивает метод; обычно GET. Необязательный seconds должен быть числом 0<seconds<=60. Остальные параметры стандартного net/http/pprof.
 
-- **Ответ:** 200 HTML index для /; для профиля — стандартный текст/бинарный профиль; для trace — trace.
+- **Ответ:** 200: для / возвращается HTML-список профилей; для профиля — стандартный текстовый или бинарный формат; для trace — трассировка.
 
 - **Ошибки:** 400 text/plain при недопустимом seconds; стандартные ошибки pprof (например, неизвестный профиль 404).
 
@@ -2453,13 +2468,13 @@ Legacy health record-worker.
 
 ### `* /debug/pprof/trace`
 
-Одна из 7 явных регистраций profiling. /debug/pprof/ — также prefix fallback для имён runtime profiles.
+Один из 7 явно зарегистрированных маршрутов профилирования. Префикс /debug/pprof/ также обрабатывает запросы к именованным профилям среды выполнения (runtime profiles).
 
-- **Доступ:** Без token; только 127.0.0.1:PPROF_PORT, отключено при порте 0
+- **Доступ:** Без токена; доступ только через 127.0.0.1:PPROF_PORT. При порте 0 профилирование отключено
 
 - **Запрос:** Маршрутизатор не ограничивает метод; обычно GET. Необязательный seconds должен быть числом 0<seconds<=60. Остальные параметры стандартного net/http/pprof.
 
-- **Ответ:** 200 HTML index для /; для профиля — стандартный текст/бинарный профиль; для trace — trace.
+- **Ответ:** 200: для / возвращается HTML-список профилей; для профиля — стандартный текстовый или бинарный формат; для trace — трассировка.
 
 - **Ошибки:** 400 text/plain при недопустимом seconds; стандартные ошибки pprof (например, неизвестный профиль 404).
 
@@ -2467,13 +2482,13 @@ Legacy health record-worker.
 
 ### `* /debug/pprof/heap`
 
-Одна из 7 явных регистраций profiling. /debug/pprof/ — также prefix fallback для имён runtime profiles.
+Один из 7 явно зарегистрированных маршрутов профилирования. Префикс /debug/pprof/ также обрабатывает запросы к именованным профилям среды выполнения (runtime profiles).
 
-- **Доступ:** Без token; только 127.0.0.1:PPROF_PORT, отключено при порте 0
+- **Доступ:** Без токена; доступ только через 127.0.0.1:PPROF_PORT. При порте 0 профилирование отключено
 
 - **Запрос:** Маршрутизатор не ограничивает метод; обычно GET. Необязательный seconds должен быть числом 0<seconds<=60. Остальные параметры стандартного net/http/pprof.
 
-- **Ответ:** 200 HTML index для /; для профиля — стандартный текст/бинарный профиль; для trace — trace.
+- **Ответ:** 200: для / возвращается HTML-список профилей; для профиля — стандартный текстовый или бинарный формат; для trace — трассировка.
 
 - **Ошибки:** 400 text/plain при недопустимом seconds; стандартные ошибки pprof (например, неизвестный профиль 404).
 
@@ -2481,13 +2496,13 @@ Legacy health record-worker.
 
 ### `* /debug/pprof/goroutine`
 
-Одна из 7 явных регистраций profiling. /debug/pprof/ — также prefix fallback для имён runtime profiles.
+Один из 7 явно зарегистрированных маршрутов профилирования. Префикс /debug/pprof/ также обрабатывает запросы к именованным профилям среды выполнения (runtime profiles).
 
-- **Доступ:** Без token; только 127.0.0.1:PPROF_PORT, отключено при порте 0
+- **Доступ:** Без токена; доступ только через 127.0.0.1:PPROF_PORT. При порте 0 профилирование отключено
 
 - **Запрос:** Маршрутизатор не ограничивает метод; обычно GET. Необязательный seconds должен быть числом 0<seconds<=60. Остальные параметры стандартного net/http/pprof.
 
-- **Ответ:** 200 HTML index для /; для профиля — стандартный текст/бинарный профиль; для trace — trace.
+- **Ответ:** 200: для / возвращается HTML-список профилей; для профиля — стандартный текстовый или бинарный формат; для trace — трассировка.
 
 - **Ошибки:** 400 text/plain при недопустимом seconds; стандартные ошибки pprof (например, неизвестный профиль 404).
 
@@ -2495,13 +2510,13 @@ Legacy health record-worker.
 
 ### `* /debug/pprof/mutex`
 
-Одна из 7 явных регистраций profiling. /debug/pprof/ — также prefix fallback для имён runtime profiles.
+Один из 7 явно зарегистрированных маршрутов профилирования. Префикс /debug/pprof/ также обрабатывает запросы к именованным профилям среды выполнения (runtime profiles).
 
-- **Доступ:** Без token; только 127.0.0.1:PPROF_PORT, отключено при порте 0
+- **Доступ:** Без токена; доступ только через 127.0.0.1:PPROF_PORT. При порте 0 профилирование отключено
 
 - **Запрос:** Маршрутизатор не ограничивает метод; обычно GET. Необязательный seconds должен быть числом 0<seconds<=60. Остальные параметры стандартного net/http/pprof.
 
-- **Ответ:** 200 HTML index для /; для профиля — стандартный текст/бинарный профиль; для trace — trace.
+- **Ответ:** 200: для / возвращается HTML-список профилей; для профиля — стандартный текстовый или бинарный формат; для trace — трассировка.
 
 - **Ошибки:** 400 text/plain при недопустимом seconds; стандартные ошибки pprof (например, неизвестный профиль 404).
 
@@ -2509,13 +2524,13 @@ Legacy health record-worker.
 
 ### `* /debug/pprof/block`
 
-Одна из 7 явных регистраций profiling. /debug/pprof/ — также prefix fallback для имён runtime profiles.
+Один из 7 явно зарегистрированных маршрутов профилирования. Префикс /debug/pprof/ также обрабатывает запросы к именованным профилям среды выполнения (runtime profiles).
 
-- **Доступ:** Без token; только 127.0.0.1:PPROF_PORT, отключено при порте 0
+- **Доступ:** Без токена; доступ только через 127.0.0.1:PPROF_PORT. При порте 0 профилирование отключено
 
 - **Запрос:** Маршрутизатор не ограничивает метод; обычно GET. Необязательный seconds должен быть числом 0<seconds<=60. Остальные параметры стандартного net/http/pprof.
 
-- **Ответ:** 200 HTML index для /; для профиля — стандартный текст/бинарный профиль; для trace — trace.
+- **Ответ:** 200: для / возвращается HTML-список профилей; для профиля — стандартный текстовый или бинарный формат; для trace — трассировка.
 
 - **Ошибки:** 400 text/plain при недопустимом seconds; стандартные ошибки pprof (например, неизвестный профиль 404).
 

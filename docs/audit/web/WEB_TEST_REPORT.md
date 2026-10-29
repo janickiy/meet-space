@@ -1,62 +1,62 @@
-# MeetSpace web test report
+# Отчёт о тестировании веб-приложения MeetSpace
 
 > Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](../../ARCHITECTURE.md).
 
-Audit date: 2026-10-26. Baseline commit: `3ea9a4e83e82484c25402963b2e68a0642d986f6`.
-This report records the original working-tree audit, not a published release. For the later integration with upstream `d896401` and its rerun checks, see [the publication follow-up](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). Historical image IDs and browser metrics below do not describe that newer combined tree.
+Дата аудита: 2026-10-26. Исходный коммит: `3ea9a4e83e82484c25402963b2e68a0642d986f6`.
+Отчёт описывает первоначальный аудит рабочей копии, а не опубликованный выпуск. Последующее объединение с удалённой версией `d896401` и повторные проверки приведены в [отчёте о подготовке к публикации](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). Исторические идентификаторы образов и браузерные метрики ниже не описывают новый объединённый код.
 
-## Environment and boundaries
+## Окружение и границы проверки
 
-| Component | Actual environment |
+| Компонент | Фактическое окружение |
 | --- | --- |
-| Host | macOS 27.0.1 (26A434), arm64, 18 logical CPUs, 48 GiB RAM |
-| Go | Baseline 1.26.9; final 1.26.10, darwin/arm64; database runner also Linux/arm64 |
-| Node | Supported 24.19.0; globally installed 23.1.0 was excluded from comparable measurements |
-| Frontend | Locked React 19.3.0, TypeScript 7.0.2, Vite 8.3.5 |
-| Browser | Chrome 156.0.8078.47, headless, 1440×1000 and 390×844 viewports |
-| Docker | Client/server 29.9.2; locally built Linux/arm64 images |
-| Database | PostgreSQL 16.15, disposable `postgres:16-alpine` container |
-| Scanners | govulncheck v1.8.0; Staticcheck v0.7.0; Trivy 0.75.0 |
+| Хост | macOS 27.0.1 (26A434), arm64, 18 логических CPU, 48 GiB RAM |
+| Go | Исходная 1.26.9; итоговая 1.26.10, darwin/arm64; проверки БД также на Linux/arm64 |
+| Node | Поддерживаемая 24.19.0; глобально установленная 23.1.0 исключена из сопоставимых измерений |
+| Веб-клиент | Зафиксированные React 19.3.0, TypeScript 7.0.2, Vite 8.3.5 |
+| Браузер | Chrome 156.0.8078.47 без графического окна; размеры 1440×1000 и 390×844 |
+| Docker | Клиент/сервер 29.9.2; локально собранные образы Linux/arm64 |
+| База данных | PostgreSQL 16.15, временный контейнер `postgres:16-alpine` |
+| Сканеры | govulncheck v1.8.0; Staticcheck v0.7.0; Trivy 0.75.0 |
 
-No production or remote staging instance was contacted. No production credentials, user data, `.env`, Docker volumes or existing databases were used. PostgreSQL used synthetic accounts, 512 MiB RAM, 1 CPU and a 256 MiB temporary filesystem; its port was bound only to loopback. The optional Go test container used 2 GiB RAM and 2 CPUs. Image scans were limited to 2 GiB and 2 CPUs. These are test-resource limits, not load-test results.
+Рабочие и удалённые тестовые установки не использовались. Обращений к рабочим учётным данным, данным пользователей, `.env`, томам Docker и существующим БД не было. PostgreSQL использовала синтетические аккаунты, 512 MiB RAM, 1 CPU и временную файловую систему на 256 MiB; порт был доступен только через loopback. Дополнительный контейнер тестов Go имел 2 GiB RAM и 2 CPU. Сканирование образов ограничивалось 2 GiB и 2 CPU. Это пределы ресурсов тестов, а не результаты нагрузки.
 
-The initial checkout had no Go or frontend regression tests. Baseline `go test ./...` succeeded with `[no test files]`; that is compilation evidence, not initial behavioral coverage. Existing changes to `RealtimePanel.tsx` and `conference.css` were preserved and were not authored by this audit.
+В исходной копии не было регрессионных тестов Go и веб-клиента. Первоначальный `go test ./...` завершился с `[no test files]`; это подтверждает компиляцию, но не исходное покрытие поведения. Существовавшие изменения `RealtimePanel.tsx` и `conference.css` сохранены и не относятся к этому аудиту.
 
-## Executed checks
+## Выполненные проверки
 
-| Suite | Result and coverage |
+| Проверка | Результат и покрытие |
 | --- | --- |
-| `go mod verify` | PASS; downloaded module checksums verified |
-| `go vet ./...` | PASS, baseline and final |
-| Staticcheck v0.7.0 | PASS after correcting an identical-expression error in a newly added test |
-| `go test -race -count=1 ./...` | PASS; 82 root packages, with tests now in nine packages; PostgreSQL tests skip without their explicit synthetic DSN |
-| Isolated PostgreSQL integration | PASS separately in host-Go and container-Go modes; real 35 migrations, durable session/JWT revocation and 14 repository authorization subtests |
-| Auth resource regressions | PASS; third concurrent password derivation rejected at capacity two; canceled work never starts; capacity released after errors; sequential work succeeds |
-| HTTP/JWT/guest controls | PASS; origin checks, secure cookie creation/deletion, required claims, guest resource boundaries |
-| Development port configuration | PASS, 12 subtests; ten formerly wildcard mappings failed before the fix |
-| SFU lifecycle/races | PASS; 80 join/leave cycles, concurrent join/shutdown, rebinding denial, bounded egress overflow |
-| WebSocket queues | PASS; critical overflow and oversized messages close the client; low-priority overflow remains bounded without stopping media |
-| Subprocess lifecycle | PASS; output capped at 64 KiB; SIGTERM-resistant helper killed and reaped in approximately 3.003 seconds |
-| Go entry-point compilation | PASS: `go build ./cmd/... ./tools/...` |
-| Frontend formatting/types/build | PASS under Node 24.19.0 with locked dependencies |
-| Frontend Node regressions | PASS, 12/12: seven notification-stream tests and five media lifecycle tests |
-| Browser notification reproduction | PASS after fix: five unfinished HTTP 503 responses and five wrong-content-type responses each leave zero open connections; baseline leaves five in each scenario |
-| Built frontend browser smoke | PASS, 40/40 checks combined across two builds and two viewports; a further patched-only snapshot run passed 20/20 |
-| Browser navigation memory | Executed: 50 warmup + 100 measured navigation cycles per build; see the memory report for GC/snapshot limitations |
-| Local frontend container | PASS: health, SPA route, CSP, nosniff, referrer policy, uncached HTML, one-year hashed-asset caching, missing-asset 404 and `nginx -t` |
-| Docker builds | PASS: final API, frontend and reverse-proxy images for Linux/arm64 |
-| npm audit | Zero known advisories in the audited lockfile snapshot; not proof of security |
-| govulncheck | Two reachable findings before dependency updates; zero reachable after; one advisory in an unused OpenPGP package remains module-only |
-| Trivy image scan | Final API/frontend/proxy: zero HIGH/CRITICAL findings in this database snapshot; frontend previously had two affected packages for one curl advisory |
-| Trivy configuration scan | Six HIGH root-user heuristic flags; contextualized in the security report, not counted as six demonstrated exploitable defects |
-| Tracked secret-pattern search | No match for the limited private-key/AWS/GitHub-token patterns; not a history or comprehensive secret scan |
-| Patch whitespace | `git diff --check` PASS |
+| `go mod verify` | Пройдено; проверены контрольные суммы загруженных модулей |
+| `go vet ./...` | Пройдено для исходной и итоговой версий |
+| Staticcheck v0.7.0 | Пройдено после исправления сравнения одинаковых выражений в новом тесте |
+| `go test -race -count=1 ./...` | Пройдено; 82 корневых пакета, тесты появились в девяти; PostgreSQL-тесты пропускаются без явного тестового DSN |
+| Изолированная интеграция PostgreSQL | Пройдено отдельно с Go на хосте и в контейнере; 35 реальных миграций, отзыв постоянной сессии/JWT и 14 проверок прав репозиториев |
+| Ресурсы авторизации | Пройдено; третье вычисление пароля отклонено при пределе два; отменённая работа не начинается; ошибки освобождают слот; последовательная работа успешна |
+| HTTP/JWT/гостевые права | Пройдено; origin, безопасное создание/удаление cookie, обязательные claims, границы гостевых ресурсов |
+| Порты разработки | Пройдено, 12 проверок; десять прежних привязок ко всем интерфейсам не проходили до исправления |
+| Жизненный цикл/гонки SFU | Пройдено; 80 входов/выходов, параллельный вход/остановка, запрет перепривязки, ограниченное переполнение Egress |
+| Очереди WebSocket | Пройдено; переполнение важной очереди и слишком крупное сообщение закрывают клиента; низкий приоритет остаётся ограниченным без остановки медиа |
+| Жизненный цикл дочернего процесса | Пройдено; вывод ограничен 64 KiB; игнорирующий SIGTERM тестовый процесс принудительно завершён, его выход обработан примерно за 3.003 секунды |
+| Компиляция точек входа Go | Пройдено: `go build ./cmd/... ./tools/...` |
+| Форматирование/типы/сборка веб-клиента | Пройдено с Node 24.19.0 и зафиксированными зависимостями |
+| Регрессионные Node-тесты веб-клиента | Пройдено 12/12: семь тестов потока уведомлений и пять жизненного цикла медиа |
+| Воспроизведение уведомлений в браузере | После исправления пройдено: пять незавершённых HTTP 503 и пять ответов неверного типа оставляют ноль соединений; исходная версия оставляет по пять |
+| Базовая браузерная проверка сборки | Пройдено 40/40 для двух сборок и размеров окна; дополнительный запуск снимков исправленной версии прошёл 20/20 |
+| Память при навигации | Выполнено по 50 прогревочных и 100 измеряемых циклов на сборку; ограничения GC/снимков приведены в отчёте памяти |
+| Локальный контейнер веб-клиента | Пройдено: состояние, маршрут SPA, CSP, nosniff, политика referrer, некэшируемый HTML, годовой кэш ресурсов с хешем, 404 отсутствующего ресурса, `nginx -t` |
+| Сборки Docker | Пройдено: итоговые API, frontend и обратный прокси для Linux/arm64 |
+| npm audit | В проверенном lockfile известных уязвимостей нет; это не доказательство безопасности |
+| govulncheck | До обновления две достижимые уязвимости, после — ноль; предупреждение неиспользуемого OpenPGP остаётся только на уровне модуля |
+| Сканирование образов Trivy | Итоговые API/frontend/proxy без HIGH/CRITICAL в этой версии базы; ранее два пакета frontend были затронуты одной уязвимостью curl |
+| Сканирование конфигурации Trivy | Шесть эвристических замечаний HIGH о root; контекст разобран в отчёте безопасности, это не шесть доказанных эксплуатируемых дефектов |
+| Поиск шаблонов секретов в отслеживаемых файлах | Ограниченный поиск закрытых ключей/AWS/GitHub-токенов совпадений не дал; история и все виды секретов не проверены |
+| Пробелы в изменениях | `git diff --check` пройдено |
 
-The nine Go test files contain 22 `Test...` functions, including one subprocess helper, with additional table-driven subtests. Do not interpret this as full API coverage. Media tests use synthetic tracks/peers or unnegotiated local Pion connections; subprocess tests use a helper rather than an actual recorded conference.
+Девять тестовых файлов Go содержат 22 функции `Test...`, включая вспомогательный дочерний процесс, и дополнительные табличные проверки. Это не полное покрытие API. Медиатесты используют имитации дорожек/участников либо локальные Pion-соединения без согласования; тесты процессов используют помощник, а не настоящую запись конференции.
 
-## Reproduction commands
+## Команды воспроизведения
 
-Run from the repository root with Go 1.26.10 and a supported Node version. On the audited Mac, Node was selected by prefixing `PATH` with `/Users/aleksandranickij/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin`.
+Запускайте из корня репозитория с Go 1.26.10 и поддерживаемой Node. На проверенном Mac нужная Node выбиралась добавлением в начало `PATH` каталога `/Users/aleksandranickij/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin`.
 
 ```sh
 go mod verify
@@ -70,7 +70,7 @@ bash scripts/audit-postgres.sh
 AUDIT_GO_IN_DOCKER=true bash scripts/audit-postgres.sh
 ```
 
-The database runner creates and removes only its own disposable container. Integration tests additionally reject non-loopback DSNs, unexpected databases/query parameters and databases with existing user relations. Do not replace this DSN with an operator's database.
+Сценарий БД создаёт и удаляет только собственный временный контейнер. Интеграционные тесты также отклоняют DSN вне loopback, неожиданные БД/параметры URL и БД с существующими пользовательскими объектами. Не заменяйте DSN адресом рабочей БД администратора.
 
 ```sh
 cd frontend
@@ -79,7 +79,7 @@ npm run check
 npm audit --audit-level=high
 ```
 
-Browser scripts use Playwright and an installed Chromium-compatible browser. These variables selected the existing local tools, without adding dependencies to the product lockfile:
+Браузерные сценарии используют Playwright и установленный Chromium-совместимый браузер. Эти переменные выбрали существующие локальные инструменты без добавления зависимостей в lockfile продукта:
 
 ```sh
 export PLAYWRIGHT_MODULE_PATH=/Users/aleksandranickij/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs
@@ -95,11 +95,11 @@ AUDIT_HEAP_SNAPSHOTS=1 AUDIT_OUTPUT_DIR=tmp/web-audit-recheck \
 node tools/audit/frontend-image-smoke.mjs meetspace-web-audit-frontend:20261026-fixed
 ```
 
-The notification comparison obtains its baseline from `git show HEAD:frontend/src/api.ts`; after committing the patch, reproduce against the recorded baseline revision instead. Static build directories are local audit artifacts, not committed fixtures. The browser runner serves them on loopback, mocks unauthenticated API calls and blocks external requests. The initial build using Node 23/Vite 8.3.1 is not a valid before/after comparison; the retained `locked-baseline-dist` was built with Node 24.19/Vite 8.3.5.
+Сравнение уведомлений получает исходник через `git show HEAD:frontend/src/api.ts`; после коммита используйте записанную исходную версию. Каталоги статических сборок — локальные материалы аудита, а не сохранённые в Git тестовые данные. Браузерный инструмент выдаёт их через loopback, имитирует анонимные API-вызовы и блокирует внешние запросы. Первая сборка с Node 23/Vite 8.3.1 не подходит для сравнения; сохранённая `locked-baseline-dist` собрана с Node 24.19/Vite 8.3.5.
 
-Runtime images were built with the repository Dockerfiles, explicit `BUILD_VERSION=audit-local-dirty` and the baseline SHA as `BUILD_COMMIT`. API used `--target runtime --build-arg TARGETARCH=arm64`. A first diagnostic frontend build used a non-SHA build marker and was correctly rejected by build metadata validation; the valid-SHA builds passed. No release manifest or provenance claim was made for this dirty checkout.
+Исполняемые образы собраны Dockerfile репозитория с явным `BUILD_VERSION=audit-local-dirty` и SHA исходной версии в `BUILD_COMMIT`. API использовал `--target runtime --build-arg TARGETARCH=arm64`. Первая диагностическая сборка frontend имела маркер не в формате SHA и корректно отклонена проверкой метаданных; сборки с допустимым SHA прошли. Для копии с незакоммиченными изменениями манифест выпуска и подтверждение происхождения не заявлялись.
 
-Image scanning used `docker image save`, then a read-only archive mount, not the Docker socket:
+Сканирование использовало `docker image save` и архив, подключённый только для чтения, а не сокет Docker:
 
 ```sh
 docker run --rm --memory=2g --cpus=2 \
@@ -109,48 +109,48 @@ docker run --rm --memory=2g --cpus=2 \
   --format json --input /image.tar
 ```
 
-During this audit, explicit local evidence/cache mounts also saved JSON results. Trivy DB `UpdatedAt` was `2026-10-26T07:15:18.945937093Z`. The scope does not include lower severities, all worker/infrastructure images, all architectures or every build tool dependency.
+При аудите также явно подключались локальные каталоги результатов/кэша для сохранения JSON. Значение `UpdatedAt` базы Trivy: `2026-10-26T07:15:18.945937093Z`. Проблемы меньшей серьёзности, все образы обработчиков/инфраструктуры, все архитектуры и каждая зависимость инструментов сборки не входят в область проверки.
 
-| Final local image | Image ID |
+| Итоговый локальный образ | Идентификатор образа |
 | --- | --- |
 | API | `sha256:a29842ce5d9bba8ac8c088777416aeed0b84cbd0966a769f0db18ce169df2ef5` |
 | Frontend | `sha256:2c795c96351a30bc16861b82545acfb8e8ecd645b5e708009f2ee602e5b00cbc` |
 | Proxy | `sha256:d75c6e3c6ea0d0fbc806852d4eb1b8e1cfbbf2766f6661583310df512362a259` |
 
-## Evidence retained locally
+## Локально сохранённые материалы
 
-Raw outputs, browser screenshots, heap snapshots, profiles and image archives are under the ignored directory `tmp/web-audit-20261026/`; they are not part of the repository patch. Reports contain the relevant redacted results. Important files:
+Исходный вывод, снимки браузера/кучи, профили и архивы образов находятся в игнорируемом каталоге `tmp/web-audit-20261026/` и не входят в изменения репозитория. Отчёты содержат соответствующие результаты без чувствительных данных. Основные файлы:
 
 - `evidence/go-race-final.log`, `go-vet-final.log`, `staticcheck-final.log`, `go-build-final.log`.
 - `evidence/postgres-final.log`, `postgres-ci-mode.log`, `lifecycle-final.log`.
 - `evidence/frontend-check-final.log`, `notification-stream-browser-final.log`, `frontend-image-smoke.log`.
 - `evidence/govulncheck-before.log`, `govulncheck-after.log`, `npm-audit-before.json`.
 - `evidence/trivy-api-final.json`, `trivy-frontend.json`, `trivy-frontend-after.json`, `trivy-proxy-after.json`, `trivy-config-baseline.json`.
-- `browser/frontend-smoke.json`, `browser-warmed/frontend-smoke.json`, `browser-snapshots/heap-comparison.json` and associated PNG/heap snapshot files.
+- `browser/frontend-smoke.json`, `browser-warmed/frontend-smoke.json`, `browser-snapshots/heap-comparison.json` и связанные PNG/снимки кучи.
 
-`evidence/auth-security.log` is the auth reviewer's redacted execution transcription; the independently rerun PostgreSQL logs above are raw command output. Empty successful Go build/vet logs are expected. Diagnostic image archives/cache were retained for reproducibility; disposable test containers were removed, and no unrelated Docker resources were pruned.
+`evidence/auth-security.log` — запись выполненных проверок авторизации с удалёнными чувствительными данными; независимо повторённые журналы PostgreSQL выше содержат исходный вывод команд. Пустые журналы успешных Go build/vet ожидаемы. Архивы диагностических образов и кэш сохранены для воспроизведения; временные тестовые контейнеры удалены, посторонние ресурсы Docker не очищались.
 
-## CI changes
+## Изменения CI
 
-Added `.github/workflows/web-audit.yml`: Go race/vet/build/checksums/govulncheck, a separate disposable-database authorization job, frontend formatting/tests/types/build/npm audit. Checkout is SHA-pinned with read-only permissions and no persisted Git credentials. `.gitlab-ci.yml` now runs Go race tests and frontend regressions and uses Go 1.26.10. `npm run check` includes the new tests.
+Добавлен `.github/workflows/web-audit.yml`: гонки/vet/сборка/контрольные суммы/govulncheck Go, отдельное задание прав с временной БД, форматирование/тесты/типы/сборка/npm audit веб-клиента. Действие checkout зафиксировано SHA, имеет права только чтения и не сохраняет учётные данные Git. `.gitlab-ci.yml` теперь запускает проверки гонок Go и регрессии веб-клиента с Go 1.26.10. `npm run check` включает новые тесты.
 
-Equivalent commands passed locally, including the Docker-based database runner. The hosted GitHub/GitLab workflows have **not** been executed in this task. Browser smoke remains an explicit local tool, not a claimed hosted E2E gate. Container provenance/license review and a full-image scanner matrix remain release work.
+Соответствующие команды прошли локально, включая контейнерный сценарий БД. Удалённые процессы GitHub/GitLab **не запускались в этой задаче**. Базовая браузерная проверка остаётся явным локальным инструментом, а не заявленным удалённым критерием E2E. Проверка происхождения/лицензий контейнеров и сканирование всех образов остаются задачами выпуска.
 
-## Compatibility and unexecuted scenarios
+## Совместимость и невыполненные сценарии
 
-| Area | Status |
+| Область | Состояние |
 | --- | --- |
-| Anonymous desktop/mobile Chromium UI | Executed; no horizontal overflow or uncaught errors in covered screens |
-| Firefox, Safari, real mobile browsers/tablets | Not executed |
-| Desktop/Android packaged clients | Not executed; no API route, response schema or database migration changed |
-| Authentication | Unit and repository/service integration executed; real browser login/logout/register against the API not executed |
-| Meetings/guest/waiting-room/moderation | Selected scope and repository authorization tests only; no complete workflow E2E |
-| Real 2–5-user WebRTC, TURN/NAT, devices, screen sharing, reconnect/multi-tab | Not executed; requires isolated full stack, synthetic users and agreed resources |
-| Messaging/uploads/replies/edit/delete/folders | Selected authorization and client lifecycle tests; full API contract/UI workflows not executed |
-| Recording/playback/download/storage failure | Authorization and subprocess cleanup only; no real recording or outage run |
-| Redis/RabbitMQ outage, DB saturation, restart/drain/backup restore | Static inspection only; no fault injection |
-| Load/latency/throughput/CPU/FDs/packet loss/jitter | Not measured; no agreed full-stack load scenario |
-| CWV/Lighthouse/React profiler/throttled network | Not measured; static loopback smoke is not a realistic performance environment |
-| Production TLS/firewall/storage ACLs/SMTP/provider delivery | Not tested or changed |
+| Анонимный интерфейс Chromium на настольной/мобильной ширине | Проверен; на охваченных экранах нет горизонтального переполнения и необработанных ошибок |
+| Firefox, Safari, реальные мобильные браузеры/планшеты | Не проверены |
+| Установленные Desktop/Android-клиенты | Не проверены; маршруты API, схемы ответов и миграции БД не менялись |
+| Авторизация | Выполнены модульные и интеграционные проверки репозиториев/сервисов; реальный браузерный вход/выход/регистрация через API не проверялись |
+| Встречи/гости/зал ожидания/модерация | Только выбранные границы прав и репозитории; полного сквозного сценария нет |
+| Реальные 2–5 пользователей WebRTC, TURN/NAT, устройства, экран, переподключение/несколько вкладок | Не проверены; нужен изолированный полный стенд, тестовые пользователи и согласованные ресурсы |
+| Сообщения/загрузки/ответы/редактирование/удаление/папки | Выбранные проверки прав и клиентского жизненного цикла; полный контракт API и интерфейсные сценарии не проверялись |
+| Запись/просмотр/скачивание/отказ хранилища | Только права и освобождение дочернего процесса; реальная запись и отказ не запускались |
+| Отказ Redis/RabbitMQ, насыщение БД, перезапуск/завершение обслуживания/восстановление копии | Только чтение кода; сбои не моделировались |
+| Нагрузка/задержки/пропускная способность/CPU/FD/потери пакетов/джиттер | Не измерены; согласованного нагрузочного сценария полного стенда не было |
+| CWV/Lighthouse/React Profiler/ограниченная сеть | Не измерены; локальная статическая проверка не представляет реальную нагрузку |
+| Рабочие TLS/брандмауэр/ACL хранилища/SMTP/доставка провайдерам | Не проверялись и не менялись |
 
-The password concurrency cap intentionally adds HTTP 429 under aggregate overload, including account deletion password checks. This needs realistic staging concurrency/UX validation; it is not an API schema break. Passing the above tests supports review and staged acceptance of the narrow fixes, not an unconditional production-readiness certificate.
+Ограничение параллельного хеширования намеренно добавляет HTTP 429 при общей перегрузке, в том числе при проверке пароля для удаления аккаунта. Это требует реалистичной проверки параллелизма и удобства интерфейса на стенде, но не меняет схему API. Пройденные тесты позволяют провести проверку кода и поэтапную приёмку адресных исправлений, а не безусловно объявить весь продукт готовым к рабочей эксплуатации.

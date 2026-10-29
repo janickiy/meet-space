@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import {
-  ArrowDown,
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
@@ -131,37 +130,42 @@ function ArchitectureMap() {
   return (
     <figure
       className="docs-architecture"
-      aria-label="Архитектура сервиса MeetSpace"
+      aria-label="Упрощённая схема архитектуры MeetSpace"
     >
       <div className="docs-diagram-top">
         <Globe2 size={19} />
         <strong> Веб-, десктопные и Android-клиенты </strong>
-        <span> HTTPS · WebSocket · WebRTC </span>
+        <span> HTTPS · WebSocket · SSE · WebRTC </span>
       </div>
-      <div className="docs-diagram-arrows" aria-hidden="true">
-        <ArrowDown size={19} />
-      </div>
-      <div className="docs-diagram-row">
-        <div>
-          <strong> Веб-шлюз </strong>
-          <span> Фронтенд и обратный прокси-сервер </span>
+      <div className="docs-diagram-flows">
+        <div className="docs-diagram-flow">
+          <strong>Интерфейс и управление</strong>
+          <span>Клиенты → Proxy → Frontend / API</span>
         </div>
-        <div>
-          <strong> Go API </strong>
-          <span> Аккаунты, чаты и доступ к встречам </span>
+        <div className="docs-diagram-flow">
+          <strong>Медиасвязь</strong>
+          <span>
+            Клиенты ↔ WebRTC ↔ Media Worker (SFU). Через Coturn (TURN), если
+            прямое соединение недоступно.
+          </span>
         </div>
-        <div>
-          <strong> Медиа SFU + TURN </strong>
-          <span> Аудио, видео и демонстрация экрана </span>
+        <div className="docs-diagram-flow">
+          <strong>Команды записи</strong>
+          <span>API → Outbox в PostgreSQL → RabbitMQ → Record Worker</span>
         </div>
-      </div>
-      <div className="docs-diagram-arrows" aria-hidden="true">
-        <ArrowDown size={19} />
+        <div className="docs-diagram-flow">
+          <strong>Медиапоток записи</strong>
+          <span>Media Worker → Record Worker (Spool + FFmpeg) → S3</span>
+        </div>
+        <div className="docs-diagram-flow">
+          <strong>Фоновые задачи</strong>
+          <span>PostgreSQL ↔ Product Worker → почта, Push и календари</span>
+        </div>
       </div>
       <div className="docs-diagram-row docs-diagram-storage">
         <div>
           <strong> PostgreSQL </strong>
-          <span> Данные приложения </span>
+          <span> История, права и задания </span>
         </div>
         <div>
           <strong> Redis </strong>
@@ -169,7 +173,7 @@ function ArchitectureMap() {
         </div>
         <div>
           <strong> RabbitMQ </strong>
-          <span> Команды управления записью </span>
+          <span> Команды записи </span>
         </div>
         <div>
           <strong> Хранилище S3 </strong>
@@ -178,9 +182,8 @@ function ArchitectureMap() {
       </div>
       <figcaption>
         {" "}
-        Рабочие процессы записи и дополнительные интеграции работают параллельно
-        с основными сервисами. Медиатрафик и трафик приложений используют
-        отдельные пути.{" "}
+        Команды и медиапотоки передаются разными путями. API и RabbitMQ не
+        пересылают аудио и видео участников.{" "}
       </figcaption>
     </figure>
   );

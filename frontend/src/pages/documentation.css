@@ -824,6 +824,40 @@
   margin: 13px 0;
   color: #adbddd;
 }
+.docs-diagram-flows {
+  display: grid;
+  gap: 9px;
+  margin: 20px 0;
+}
+.docs-diagram-flow {
+  display: grid;
+  grid-template-columns: minmax(125px, 0.9fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 16px;
+  padding: 13px 16px;
+  background: white;
+  border: 1px solid #dfe7f7;
+  border-radius: 7px;
+}
+.docs-diagram-flow > strong {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #4e68a1;
+}
+.docs-diagram-flow > span {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #65748c;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .docs-diagram-flow {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 12px;
+  }
+}
 .docs-diagram-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

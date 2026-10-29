@@ -1,124 +1,132 @@
-# Docker image build optimization: measurements and verification
+# Оптимизация сборки Docker-образов: замеры и проверки
 
 > Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](../ARCHITECTURE.md).
 
-Date: 2026-10-22. Baseline source: `ac8b8826908a69c0d3de073d0c0f56a6f3dc4687`.
-See [the pre-change audit](DOCKER_INSTALL_AUDIT.md) for scope and the distinction
-between installing Docker Engine and compiling application images.
+Дата: 2026-10-22. Исходная версия для сравнения: `ac8b8826908a69c0d3de073d0c0f56a6f3dc4687`.
+Область проверки и различия между установкой Docker Engine и сборкой образов
+описаны в [первоначальном аудите](DOCKER_INSTALL_AUDIT.md).
 
-## Environment and method
+## Окружение и методика
 
-The real before/after benchmark used local Docker Desktop, native Linux ARM64
-containers, Docker Engine/CLI 29.4.2 and Buildx v0.33.0-desktop.1. The Docker VM
-exposed 10 CPUs and 16,748,032,000 bytes RAM. Both independent builders used the
-installer's pinned BuildKit image, one CPU (`period=100000`, `quota=100000`),
-2048 MiB RAM and an equal RAM+swap limit. The host had approximately 346 GiB
-free disk at preflight. No application server installation was modified.
+Сравнительный замер до и после изменений выполнен в локальном Docker Desktop,
+в нативных контейнерах Linux ARM64. Использованы Docker Engine/CLI 29.4.2 и
+Buildx v0.33.0-desktop.1. Виртуальной машине Docker доступны 10 CPU и
+16,748,032,000 байт памяти. Оба независимых сборщика использовали закреплённый
+в установщике образ BuildKit. Каждому выделены один CPU (`period=100000`,
+`quota=100000`), 2048 МиБ памяти и такой же суммарный лимит памяти со swap.
+Перед проверкой на хосте было свободно примерно 346 ГиБ диска.
+Установки приложения на серверах не менялись.
 
-Each builder started with an independent empty cache. API was built first,
-then worker, using the original Dockerfiles for the baseline and optimized
-Dockerfiles afterward. Go settings were identical: `GOMAXPROCS=1`, `GOFLAGS=-p=1`,
-`GOGC=20`, `GOMEMLIMIT=768MiB`, `CGO_ENABLED=0`, target `linux/arm64`. Application
-Go sources, runtime dependencies and binary build arguments were unchanged.
+Каждый сборщик начинал с отдельного пустого кеша. Сначала собирался API,
+затем worker: до изменений — с исходными Dockerfile, после — с оптимизированными.
+Настройки Go совпадали: `GOMAXPROCS=1`, `GOFLAGS=-p=1`, `GOGC=20`,
+`GOMEMLIMIT=768MiB`, `CGO_ENABLED=0`, целевая платформа `linux/arm64`.
+Исходники Go, зависимости рабочих образов и аргументы сборки бинарников не менялись.
 
-Wall time was measured with Python's monotonic `time.perf_counter()`. Individual
-RUN durations came from BuildKit plain logs. Network download times varied;
-they are not attributed to the compiler-cache improvement. APK runtime work
-can overlap Go compilation. Additional Dockerfile smoke builds started only
-after the timed worker compiler RUN had completed; their network activity can
-affect full-image wall times, so compiler RUN durations are the primary result.
+Полное время измерялось монотонными часами Python `time.perf_counter()`.
+Время отдельных шагов RUN взято из текстовых журналов BuildKit. Время скачивания
+зависело от сети и не отнесено к эффекту кеша компилятора. Установка рабочих
+пакетов APK может идти одновременно с компиляцией Go. Дополнительные пробные
+сборки Dockerfile запускались только после завершения измеряемого шага компиляции
+worker. Их сетевые запросы могли повлиять на полное время сборки образов, поэтому
+основной результат — длительность шагов компиляции RUN.
 
-## Measured results
+## Результаты измерений
 
-| Operation | Before | After | Interpretation |
+| Операция | До | После | Как понимать результат |
 | --- | ---: | ---: | --- |
-| API module download RUN | 58.9 s | 48.6 s | Network-dependent cold downloads; not a claimed cache speedup |
-| API compilation RUN (cold) | 105.3 s | 109.0 s | First compilation still required; cache population adds work |
-| API complete image wall time | 186.959 s | 186.362 s | Essentially unchanged first image |
-| Worker compilation RUN after API | 106.0 s | 1.1 s | Shared compiler cache removes repeated dependency compilation |
-| Worker APK/runtime dependency RUN | 40.1 s | 65.2 s | Network variation; no runtime package optimization claimed |
-| Worker complete image wall time | 111.015 s | 69.871 s | Remaining time dominated by FFmpeg/runtime installation |
-| API + worker complete wall time | 297.974 s | 256.233 s | Scoped two-image sample, not a full installer benchmark |
-| Unchanged cached API rerun | Not measured | 1.076 s | All build layers reused |
-| Unchanged cached worker rerun | Not measured | 1.210 s | All build layers reused |
-| Unchanged cached API + worker rerun | Not measured | 2.286 s | Uses the already populated after builder |
-| Fresh Prometheus compilation | Previous server: 746.9 s | Not remeasured | Cache improves retries; first compilation is still necessary |
-| Whole fresh MeetSpace installation | Not measured | Not measured | No claim of a total installation speedup or time guarantee |
+| Шаг RUN скачивания модулей API | 58.9 s | 48.6 s | Первое скачивание зависит от сети; ускорение за счёт кеша не заявляется |
+| Шаг RUN компиляции API без кеша | 105.3 s | 109.0 s | Первая компиляция всё ещё нужна; заполнение кеша требует работы |
+| Полное время сборки образа API | 186.959 s | 186.362 s | Время первого образа практически не изменилось |
+| Шаг RUN компиляции worker после API | 106.0 s | 1.1 s | Общий кеш исключает повторную компиляцию зависимостей |
+| Шаг RUN установки APK и рабочих зависимостей worker | 40.1 s | 65.2 s | Разница связана с сетью; оптимизация установки этих пакетов не заявляется |
+| Полное время сборки образа worker | 111.015 s | 69.871 s | Основная оставшаяся задержка — установка FFmpeg и рабочих зависимостей |
+| Полное время сборки API + worker | 297.974 s | 256.233 s | Выборка из двух образов, а не замер всего установщика |
+| Повторная сборка неизменённого API с кешем | Не измерялось | 1.076 s | Повторно использованы все слои |
+| Повторная сборка неизменённого worker с кешем | Не измерялось | 1.210 s | Повторно использованы все слои |
+| Повторная сборка неизменённых API + worker с кешем | Не измерялось | 2.286 s | Использован сборщик после изменений с уже заполненным кешем |
+| Компиляция Prometheus с нуля | Предыдущий сервер: 746.9 s | Повторно не измерялась | Кеш ускоряет повторные попытки; первая компиляция остаётся необходимой |
+| Полная установка MeetSpace с нуля | Не измерялась | Не измерялась | Ускорение всей установки или гарантированное время не заявляется |
 
-The worker compiler RUN was about **96 times faster** (approximately 99% less
-time) in this sample. This does not mean that first installation, image download,
-FFmpeg installation, or a complete production deployment is 96 times faster.
+В этой выборке шаг компиляции worker стал примерно **в 96 раз быстрее**
+(время уменьшилось приблизительно на 99%). Это не означает такого же ускорения
+первой установки, скачивания образов, установки FFmpeg или полного рабочего развёртывания.
 
-## Changes
+## Внесённые изменения
 
-- The five application Go Dockerfiles share locked module and compiler cache
-  mounts scoped to Go toolchain family and target architecture.
-- Go compilation stages copy `cmd`, `internal` and `tools`, excluding unrelated
-  documentation/frontend inputs. Runtime assets and debug stages are unchanged.
-- Prometheus retains module/compiler caches across attempts. Upstream hashes,
-  dependency patching, build flags and flattened runtime are unchanged.
-- The source installer keeps the same build/version/registry identity on retry.
-- `build.sh --resume` saves `build-progress.json` atomically after each image.
-  Every reused image must match the checkpoint's immutable ID, source fingerprint,
-  commit, version, platform, creation label and build options. Unrecorded existing
-  release tags are never overwritten.
-- Each image reports its start, elapsed time and saved progress. Failure reports
-  name the current image and exit status with retry guidance.
-- Packaging, SBOM generation, all 13 security scans, HIGH/CRITICAL gates, pinned
-  upstream inputs and package integrity verification remain required and unchanged.
+- Пять Dockerfile Go-сервисов используют общий кеш модулей и компилятора
+  с блокировкой одновременного доступа. Кеш разделён по семейству инструментария Go
+  и целевой архитектуре.
+- На этапы компиляции копируются `cmd`, `internal` и `tools`, без не связанных
+  со сборкой файлов документации и интерфейса. Ресурсы рабочих образов и отладочные этапы не менялись.
+- Prometheus сохраняет кеш модулей и компилятора между попытками. Хеши внешних
+  исходников, исправления зависимостей, параметры сборки и итоговый рабочий слой не менялись.
+- При повторной попытке установщик сохраняет идентификаторы сборки, версии и реестра.
+- `build.sh --resume` атомарно сохраняет `build-progress.json` после каждого образа.
+  Для повторного использования должны совпадать неизменяемый ID образа, отпечаток
+  исходников, коммит, версия, платформа, метка создания и параметры сборки.
+  Существующие теги, не записанные в контрольной точке, не перезаписываются.
+- Для каждого образа показываются начало, затраченное время и сохранённый прогресс.
+  При ошибке выводятся имя текущего образа, код завершения и порядок повторной попытки.
+- Упаковка, формирование SBOM, все 13 проверок безопасности, блокировка при
+  HIGH/CRITICAL, закреплённые внешние компоненты и проверка целостности пакета
+  остаются обязательными и не менялись.
 
-## Verification performed
+## Выполненные проверки
 
-Syntax and whitespace checks:
+Проверка синтаксиса и пробелов:
 
 ```bash
 bash -n scripts/release/build.sh install.sh
 git diff --check
 ```
 
-The modified Python installer was parsed with `ast.parse`, without generating
-bytecode in the checkout. Temporary verification programs are under ignored
-`tmp/docker-build-optimization/`, not shipped as project tests:
+Изменённый установщик Python проверен через `ast.parse` без создания байткода
+в рабочей копии. Временные программы проверки находятся в игнорируемом каталоге
+`tmp/docker-build-optimization/` и не поставляются как тесты проекта:
 
 ```bash
 python3 -I tmp/docker-build-optimization/check-resume.py
 python3 -I tmp/docker-build-optimization/check-source-resume.py
 ```
 
-All **17 isolated checks passed**. They exercise an actual copied release script
-in temporary Git fixtures with a fake Docker CLI, not a production daemon:
+Все **17 изолированных проверок пройдены**. Они запускают копию настоящего
+скрипта выпуска во временных Git-репозиториях с имитацией Docker CLI,
+а не с рабочим демоном Docker:
 
-- Failure at image 3 preserves the first two checkpoints; resume builds only
-  the remaining 10 images and a completed retry performs zero builds.
-- Source fingerprint, commit, version/creation/source labels, image ID,
-  architecture, platform, memory mode and telemetry mismatches are rejected.
-- Missing checkpoint images and unrecorded pre-existing tags fail safely.
-- The source installer preserves its release identity and passes `--resume`;
-  tampered state is rejected before external commands.
+- Ошибка на образе 3 сохраняет первые две контрольные точки. Продолжение собирает
+  только оставшиеся 10 образов; повторный запуск завершённой сборки не собирает ничего.
+- Отклоняются несовпадения отпечатка исходников, коммита, меток версии/создания/
+  исходников, ID образа, архитектуры, платформы, режима памяти и телеметрии.
+- При отсутствии сохранённого образа или наличии неизвестного прежнего тега
+  выполнение безопасно останавливается.
+- Установщик сохраняет идентификаторы выпуска и передаёт `--resume`.
+  Подменённое состояние отклоняется до вызова внешних команд.
 
-Real Docker verification built all five optimized application images successfully:
+При проверке с настоящим Docker все пять оптимизированных образов приложения
+собраны успешно:
 
-| Additional image with shared cache | Complete wall time | Exit code |
+| Дополнительный образ с общим кешем | Полное время | Код завершения |
 | --- | ---: | ---: |
 | media-worker | 3.493 s | 0 |
 | product-worker | 60.074 s | 0 |
 | live-worker | 3.720 s | 0 |
 
-The product-worker compiler RUN took 1.5 s; its runtime package installation
-took 56.1 s. API and worker main binaries extracted from the before/after images
-had identical SHA-256 values, respectively:
+Шаг компиляции product-worker занял 1.5 s, установка рабочих пакетов — 56.1 s.
+Основные бинарники API и worker, извлечённые из образов до и после изменений,
+имеют одинаковые SHA-256 соответственно:
 
 ```text
 API    816b4276aa309af103517120e1a299cf8a61fb714502b1c236330742cd046dbd
 worker 68affe42d1da287b260c25cc2bfaf2519730e256c0dc04797472aaebd2f185eb
 ```
 
-Prometheus compile-stage configuration also passed BuildKit's
-`--call=check --target build` without warnings. This is not a full compile or a
-whole-installer architecture compatibility test.
+Конфигурация этапа компиляции Prometheus также прошла проверку BuildKit
+`--call=check --target build` без предупреждений. Это не полная компиляция
+и не проверка совместимости всего установщика с архитектурой.
 
-Baseline Dockerfiles and raw timing/log artifacts are retained in the same
-ignored temporary directory. The benchmark command is:
+Исходные Dockerfile, журналы и результаты замеров сохранены в том же игнорируемом
+временном каталоге. Команда сравнительного замера:
 
 ```bash
 for phase in before after; do
@@ -133,38 +141,38 @@ python3 -I tmp/docker-build-optimization/benchmark.py extras
 python3 -I tmp/docker-build-optimization/benchmark.py warm
 ```
 
-After verification, only these two temporary benchmark builders, their caches
-and the nine benchmark image tags were removed. The timing logs, baseline
-Dockerfile copies and verification scripts were retained. Recreating the test
-builders is required before rerunning the benchmark; deleted images are
-reproducible from those inputs. The temporary macOS sleep assertion was released.
+После проверки удалены только эти два временных сборщика, их кеши и девять
+тегов тестовых образов. Журналы времени, копии исходных Dockerfile и программы
+проверки сохранены. Для повторного замера нужно заново создать сборщики;
+удалённые образы воспроизводятся из сохранённых исходных данных.
+Временный запрет перехода macOS в спящий режим снят.
 
-Changed files: `README.md`, `docs/INSTALLATION.md`, the two audit documents in
+Изменённые файлы: `README.md`, `docs/INSTALLATION.md`, два отчёта в
 `docs/installer/`, `scripts/release/build.sh`, `scripts/install/from-source.py`,
-the five application Go Dockerfiles, and
-`dockers/observability/Dockerfile.release`.
+Dockerfile пяти Go-сервисов и `dockers/observability/Dockerfile.release`.
 
-## Checks not run and limitations
+## Невыполненные проверки и ограничения
 
-- No fresh Ubuntu 22.04/24.04 or Debian VM installation of Engine was timed.
-  OS detection, daemon/Compose detection, APT locks, DNS/repository probes,
-  `apt-get update`, GPG key retrieval/repository setup, package downloads,
-  dpkg configuration, systemd startup and daemon readiness therefore have no
-  before/after installation timings. Engine/APT code was not changed.
-- A full fresh MeetSpace deployment and production end-to-end smoke test were
-  not rerun. The user's retained ready-to-install server package is unchanged.
-- Prometheus was not fully recompiled after this cache-only change. Local
-  BuildKit lint emitted an `InvalidBaseImagePlatform` warning for the existing
-  amd64-pinned Prometheus runtime on the ARM64 build host; it also did so with
-  an explicit amd64 lint target. This is not treated as ARM64 installer validation.
-  Native amd64 infrastructure verification and ARM64 infrastructure portability
-  remain separate checks. The relevant upstream pins were not changed here.
-- Cold Prometheus and SeaweedFS compilation remains expensive. Avoiding that
-  work on a new server requires a separately designed, verified prebuilt-image
-  release path (for example CI), not disabling security scans or silently using
-  unverified upstream images.
-- A crash after an image is loaded but before its checkpoint is saved can leave
-  an unrecorded tag. Resume refuses to overwrite it; restore validated progress
-  or use a fresh build directory after investigation.
-- Deleting the private workspace/cache can require recompilation. No shared
-  server caches, Docker volumes, application data or services were deleted.
+- Установка Engine на новой Ubuntu 22.04/24.04 или Debian не измерялась.
+  Нет сравнительных замеров определения ОС, демона и Compose, ожидания блокировок
+  APT, проверок DNS и репозиториев, `apt-get update`, получения GPG-ключа,
+  настройки репозитория, скачивания пакетов, настройки dpkg, запуска systemd
+  и готовности демона. Код Engine/APT не менялся.
+- Полное развёртывание MeetSpace с нуля и сквозная проверка рабочего сервера
+  повторно не выполнялись. Готовый серверный пакет пользователя не изменён.
+- Prometheus после изменения кеша полностью не перекомпилировался. Локальная
+  проверка BuildKit выдала `InvalidBaseImagePlatform` для рабочего образа
+  Prometheus, закреплённого за amd64, на ARM64-хосте. Предупреждение сохранялось
+  и при явном выборе amd64 для проверки. Это не подтверждает работу ARM64-установщика.
+  Нативная проверка инфраструктуры amd64 и переносимость инфраструктуры на ARM64
+  требуют отдельных проверок. Закреплённые версии внешних компонентов не менялись.
+- Первая компиляция Prometheus и SeaweedFS по-прежнему занимает много времени.
+  Чтобы не выполнять её на новом сервере, нужен отдельно спроектированный
+  и проверенный выпуск готовых образов, например через CI. Отключение проверок
+  безопасности или незаметная подмена непроверенными образами недопустимы.
+- Если процесс аварийно завершится после загрузки образа, но до сохранения
+  контрольной точки, останется незарегистрированный тег. Продолжение не
+  перезапишет его: после проверки причин нужно восстановить подтверждённое
+  состояние или использовать новый каталог сборки.
+- Удаление рабочего каталога или кеша может потребовать повторной компиляции.
+  Общие серверные кеши, Docker-тома, данные приложения и службы не удалялись.

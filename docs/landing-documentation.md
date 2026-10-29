@@ -1,127 +1,61 @@
-# Public documentation
+# Публичная документация
 
-Reviewed on 20 October 2026.
+Проверено 20 октября 2026 года.
 
-## Scope
+## Содержание и возможности
 
-The landing links to `/docs`. It contains an overview and ten Russian articles:
-features, architecture, interface, support, preparation, system requirements,
-source and releases, installation, updates and backups, and troubleshooting.
-The existing Russian marketing pages retain their language.
+Публичный сайт ведёт в раздел `/docs`. В нём размещены обзор и десять статей на русском языке: возможности, архитектура, интерфейс, поддержка, подготовка, системные требования, исходный код и выпуски, установка, обновления и резервные копии, устранение неполадок. Остальные страницы публичного сайта также остаются на русском языке.
 
-The layout follows the requested documentation pattern: grouped chapter
-navigation, an article column, section contents, previous/next navigation and
-full-text section search. Search covers prose, lists, commands and tables.
-The interface includes mobile chapter navigation, responsive tables, copyable
-commands, print styles and a service architecture diagram.
+Оформление соответствует выбранному образцу: главы объединены в группы, статья занимает основную колонку, рядом доступны оглавление и переходы к предыдущей и следующей статье. Полнотекстовый поиск охватывает абзацы, списки, команды и таблицы. Для мобильных устройств предусмотрена отдельная навигация по главам. Таблицы адаптируются к ширине экрана, команды можно копировать. Есть стили для печати и схема взаимодействия сервисов.
 
-## Evidence and source boundaries
+## Источники и границы проверки
 
-- Product and architecture content was audited against local source revision
-  `893566bb90f07bdcec4542eec5e00116c423e852`, including registered HTTP routes,
-  permissions, UI components, `USER_GUIDE.md`, `ARCHITECTURE.md`, `DATA_FLOWS.md`,
-  direct-call, group-chat, account and folder implementations.
-- The public repository and GitHub issue/release destinations were inspected.
-  The ispmanager page was used for information hierarchy, not copied content.
-- The live web application was inspected using authorized sign-in. Observations
-  covered Home, Meetings, Personal, Calendar, Recordings, Folders, account
-  settings and the create-meeting form. No meeting, chat, account setting or
-  production deployment was created or modified. No private conversation,
-  credential or screenshot from the signed-in account is included in the docs.
-- Active meeting behavior is documented from the implementation and user guide.
-  No live call or recording was started for this documentation task.
-- The published `downloads/install.sh`, checksum and source metadata were
-  inspected. The script selected
-  `12ba606bb98c10638fa6512d970f57c4ebe70de0`. Its bootstrap, source builder, wizard,
-  deployment configuration and release/backup tools were reviewed read-only.
-  Installation source links are pinned to that revision.
-- Installation, update, backup and restore commands were not executed against
-  a server. Thirteen Bash examples were checked with `bash -n`.
+- Описание продукта и архитектуры сверено с локальной редакцией исходников `893566bb90f07bdcec4542eec5e00116c423e852`: регистрацией HTTP-маршрутов, проверками прав, компонентами интерфейса, `USER_GUIDE.md`, `ARCHITECTURE.md`, `DATA_FLOWS.md` и реализацией личных звонков, групп, аккаунтов и папок.
+- Проверены публичный репозиторий и адреса разделов GitHub с выпусками и обращениями. Страница ispmanager использовалась только как образец структуры, её текст не копировался.
+- Работающее приложение просмотрено после разрешённого входа. Проверены главная страница, встречи, личные сообщения, календарь, записи, папки, настройки аккаунта и форма создания встречи. Встречи, чаты, настройки и рабочая установка не создавались и не изменялись. Личная переписка, учётные данные и снимки авторизованного аккаунта в эту проверку документации не включены.
+- Поведение активной встречи описано по реализации и руководству пользователя. Звонки и запись для этой задачи не запускались.
+- Проверены опубликованный `downloads/install.sh`, контрольная сумма и сведения об исходниках. Скрипт выбирал коммит `12ba606bb98c10638fa6512d970f57c4ebe70de0`. Загрузчик, сборщик, мастер установки, конфигурация развёртывания и инструменты выпуска и резервного копирования просмотрены без изменений. Ссылки на исходники установщика закреплены на этой редакции.
+- Команды установки, обновления, резервного копирования и восстановления на сервере не выполнялись. Синтаксис тринадцати примеров Bash проверен командой `bash -n`.
 
-Important distinctions are explicit in the articles: valid invitation links
-bypass waiting admission but not removal/rejection; recordings expire after
-seven days; personal/group chat has no shared-media gallery; optional providers
-must be configured; classic object storage and the hardened installer differ.
-The installer has no update command, and its generated project/layout cannot
-use the operator release and backup commands unchanged.
+В статьях явно указаны важные ограничения. Действующая ссылка-приглашение позволяет пройти без ожидания допуска, но не отменяет исключение или отказ. Срок хранения записей — семь дней. В личных и групповых чатах нет общей галереи материалов. Дополнительные провайдеры требуют настройки. Классическое объектное хранилище и защищённый вариант установки различаются. У установщика нет команды обновления; команды выпуска и резервного копирования для операторов нельзя без адаптации применять к созданной им структуре каталогов и проекту.
 
-## Implementation
+## Реализация
 
-- `frontend/src/landing/docs.ts`: types, article ordering and chapter groups.
-- `docs-product.ts`, `docs-interface.ts`, `docs-install.ts`: content.
-- `frontend/src/pages/DocumentationPage.tsx` and `documentation.css`: reader,
-  search, code copying, navigation and diagram.
-- Public routing, metadata, SSR, Vite preview and Nginx serve every article
-  directly without authentication or API providers.
-- `/docs/overview` is an alias of `/docs`; `/docs/self-hosted` displays the
-  installation article with canonical `/docs/installation`. The old article's
-  fragment names are not preserved.
-- Each article has Russian document language, social metadata, structured data
-  and a canonical URL. The sitemap excludes aliases.
+- `frontend/src/landing/docs.ts`: типы данных, порядок статей и группы глав.
+- `docs-product.ts`, `docs-interface.ts`, `docs-install.ts`: тексты статей.
+- `frontend/src/pages/DocumentationPage.tsx` и `documentation.css`: просмотр статей, поиск, копирование кода, навигация и схема.
+- Маршрутизация, метаданные, SSR, Vite preview и Nginx позволяют открывать каждую статью напрямую, без авторизации и подключения провайдеров API.
+- `/docs/overview` — альтернативный адрес `/docs`. По адресу `/docs/self-hosted` открывается статья об установке, канонический адрес которой — `/docs/installation`. Якоря прежней статьи не сохранены.
+- Для каждой статьи заданы русский язык документа, метаданные для социальных сетей, структурированные данные и канонический URL. Альтернативные адреса не входят в карту сайта.
 
-## Validation
+## Проверки
 
-- Production TypeScript/Vite build succeeds.
-- `check-public-build.mjs` passes for all 17 public documents, including one H1,
-  document language, canonical metadata, sitemap, local assets, protected
-  external links, article links and cross-page fragment targets.
-- Sitemap contains 14 canonical pages: eleven documentation pages and three
-  marketing pages.
-- Alias article content, selected sidebar entry and section ID uniqueness were
-  independently checked.
-- Browser checks at desktop and 390 px mobile width confirm no horizontal page
-  overflow, working mobile chapter navigation and search for a table-only port
-  number. Search navigates to the correct section below the sticky header.
-- Copying a command reports success. Browser console inspection found no
-  warning or error for the checked documentation pages.
-- The existing large JavaScript chunk warning remains a build advisory.
+- Сборка TypeScript/Vite для публикации прошла успешно.
+- `check-public-build.mjs` успешно проверил все 17 публичных документов: единственный H1, язык, канонические метаданные, карту сайта, локальные ресурсы, защиту внешних ссылок, ссылки между статьями и якоря на других страницах.
+- Карта сайта содержит 14 канонических страниц: одиннадцать страниц документации и три страницы публичного сайта.
+- Отдельно проверены содержимое альтернативных адресов, выбранный пункт бокового меню и уникальность идентификаторов разделов.
+- Браузерная проверка настольной версии и мобильной ширины 390 px подтвердила отсутствие горизонтального переполнения, работу мобильной навигации и поиск номера порта, встречающегося только в таблице. Поиск переводит к нужному разделу, не скрывая его под закреплённой шапкой.
+- После копирования команды показано подтверждение. На проверенных страницах предупреждений и ошибок в консоли браузера не обнаружено.
+- Существующее предупреждение о крупном JavaScript-фрагменте сборки осталось; оно не блокирует сборку.
 
-## Russian translation
+## Перевод на русский язык
 
-On 20 October 2026, the complete text was translated through the English-to-Russian
-interface at https://translate.yandex.ru/. Nine text batches covered 637 unique
-article and interface strings; two additional batches covered command comments
-and architecture labels. The machine translation was reviewed and corrected for
-technical meaning, service names, configuration variables, units, admission rules
-and the release drain procedure. Navigation, search, accessibility labels and
-metadata are also Russian.
+20 октября 2026 года полный текст переведён с английского на русский через https://translate.yandex.ru/. Девять наборов включали 637 уникальных строк статей и интерфейса; ещё два — комментарии к командам и подписи схемы. Машинный перевод вычитан: исправлены технический смысл, названия сервисов, переменные конфигурации, единицы измерения, правила допуска и процедура завершения работы перед выпуском (drain). Навигация, поиск, подписи для средств доступности и метаданные также переведены.
 
-An AST comparison verified that 141 technical identifiers and links and all
-11 command bodies remain unchanged. Six command comments and the explanatory
-architecture diagram were translated. The source-and-releases article still
-contains only the requested repository link.
+Сравнение синтаксических деревьев (AST) подтвердило сохранность 141 технического идентификатора и ссылки, а также всех 11 команд. Переведены шесть комментариев к командам и пояснения архитектурной схемы. Статья об исходниках и выпусках по-прежнему содержит только запрошенную ссылку на репозиторий.
 
-The local preview runs at `http://127.0.0.1:4183/docs`. The documentation is also
-published at `https://meet-space.janickiy.com/docs`.
+На момент проверки локальный просмотр был доступен по адресу `http://127.0.0.1:4183/docs`. Документация также опубликована по адресу `https://meet-space.janickiy.com/docs`.
 
 
-## Real interface screenshots
+## Снимки работающего интерфейса
 
-On 20 October 2026, nine JPEG screenshots were captured directly from the
-running web application at `https://meeting.janickiy.com/` through its browser UI.
-The interface article now illustrates workspace navigation, the scheduling form
-and calendar, audio settings, the conference room, an empty group chat, the
-recording library, folder creation and appearance settings.
+20 октября 2026 года из браузерного интерфейса работающего приложения `https://meeting.janickiy.com/` получены девять снимков JPEG. Статья об интерфейсе показывает навигацию рабочего пространства, форму планирования и календарь, настройки звука, окно конференции, пустой групповой чат, библиотеку записей, создание папки и настройки оформления.
 
-The images in `frontend/public/media/docs/` are original browser captures;
-framing excludes account email and private conversation content. The scheduling
-and folder forms were captured as unsaved drafts and cancelled. The room image
-shows the existing interface before connecting media, with camera and microphone
-off; its caption states that condition. No meeting, folder, message, recording
-or account setting was created or changed to produce these screenshots.
+Изображения в `frontend/public/media/docs/` — оригинальные снимки браузера. Кадрирование исключает email аккаунта и личную переписку. Формы планирования и создания папки сняты до сохранения, затем отменены. Окно встречи показано до подключения медиа, с выключенными камерой и микрофоном; это указано в подписи. Для снимков не создавались и не изменялись встречи, папки, сообщения, записи и настройки аккаунта.
 
-Each image has Russian alternative text, a factual caption and a link to its
-full size. The reader reserves the source aspect ratio before lazy loading,
-limits tall captures to 640px, and preserves the complete image on narrow screens.
-The public-build checker validates both screenshot images and their local
-full-size links. Production build evidence is in
-`frontend/test-results/landing/interface-screenshots-build.log`.
+У каждого изображения есть альтернативный текст на русском, фактическая подпись и ссылка на полный размер. До отложенной загрузки сохраняется место с исходными пропорциями изображения. Высокие снимки ограничены высотой 640px; на узких экранах изображение остаётся целым. Проверка публичной сборки проверяет и сами снимки, и локальные ссылки на полный размер. Журнал сборки для публикации: `frontend/test-results/landing/interface-screenshots-build.log`.
 
 
-## Simplified installer download
+## Упрощённое скачивание установщика
 
-At the user's request, the first installation step now uses only
-`wget https://meeting.janickiy.com/downloads/install.sh`. The previous working
-directory setup, curl flags and inline checksum/inspection sequence were removed
-from this step. Direct installer and SHA-256 links remain available.
-The download was checked for HTTPS 200; the installer was not executed.
+По просьбе пользователя первый шаг установки теперь содержит только `wget https://meeting.janickiy.com/downloads/install.sh`. Из этого шага убраны подготовка рабочего каталога, параметры curl и последовательность проверки контрольной суммы и просмотра файла. Прямые ссылки на установщик и SHA-256 сохранены. При проверке скачивания получен ответ HTTPS 200; установщик не запускался.

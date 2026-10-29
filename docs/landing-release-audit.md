@@ -1,27 +1,21 @@
-# MeetSpace download verification
+# Проверка файлов MeetSpace для скачивания
 
 > Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](ARCHITECTURE.md).
 
-Checked on **23 October 2026**. The landing now links to Desktop **0.1.2-beta**
-and Android **0.3.8-beta**. Client versions are independent from server versions.
-The desktop repository has been renamed to `janickiy/meet-space-desktop`;
-the former `meet-space-win` URL redirects there.
+Проверено **23 октября 2026 года**. Публичный сайт предлагает Desktop **0.1.2-beta** и Android **0.3.8-beta**. Версии клиентских приложений не зависят от версии сервера. Репозиторий настольного приложения переименован в `janickiy/meet-space-desktop`; прежний адрес `meet-space-win` перенаправляет в него.
 
-## Sources
+## Источники
 
-- [Desktop release 0.1.2-beta](https://github.com/janickiy/meet-space-desktop/releases/tag/0.1.2-beta), pinned publication commit `7c5840267ad2c08cfbf1a97b99b1a30a64c98d82`.
-- [Desktop catalog](https://github.com/janickiy/meet-space-desktop/blob/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/catalog.json) and [checksums](https://github.com/janickiy/meet-space-desktop/blob/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/SHA256SUMS).
-- [Android release 0.3.8-beta](https://github.com/janickiy/meet-space-android/releases/tag/0.3.8-beta), pinned publication commit `86915851ca4ea7d0717ce4e98fdc9d11b2b0fda5`.
-- [Android checksum](https://github.com/janickiy/meet-space-android/blob/86915851ca4ea7d0717ce4e98fdc9d11b2b0fda5/dist/MeetSpace-0.3.8-beta.apk.sha256).
+- [Выпуск Desktop 0.1.2-beta](https://github.com/janickiy/meet-space-desktop/releases/tag/0.1.2-beta), коммит публикации `7c5840267ad2c08cfbf1a97b99b1a30a64c98d82`.
+- [Каталог Desktop](https://github.com/janickiy/meet-space-desktop/blob/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/catalog.json) и [контрольные суммы](https://github.com/janickiy/meet-space-desktop/blob/7c5840267ad2c08cfbf1a97b99b1a30a64c98d82/source/SHA256SUMS).
+- [Выпуск Android 0.3.8-beta](https://github.com/janickiy/meet-space-android/releases/tag/0.3.8-beta), коммит публикации `86915851ca4ea7d0717ce4e98fdc9d11b2b0fda5`.
+- [Контрольная сумма Android](https://github.com/janickiy/meet-space-android/blob/86915851ca4ea7d0717ce4e98fdc9d11b2b0fda5/dist/MeetSpace-0.3.8-beta.apk.sha256).
 
-Both GitHub Releases entries have empty assets arrays. Their release notes link
-to actual binaries committed in Git: desktop packages are in `source/` via Git
-LFS, Android in `dist/`. URLs in the landing are pinned to the publication
-commits, not the mutable main branch. A source archive is not an installer.
+В обоих выпусках GitHub Releases массивы вложений assets пусты. Описания выпусков ведут к готовым файлам в Git: настольные пакеты находятся в `source/` и хранятся через Git LFS, Android — в `dist/`. Ссылки сайта закреплены на коммитах публикации, а не на изменяемой ветке main. Архив исходного кода не является установщиком.
 
-## Published package records
+## Опубликованные пакеты
 
-| File | Architecture | Size, bytes | SHA-256 |
+| Файл | Архитектура | Размер, байт | SHA-256 |
 | --- | --- | ---: | --- |
 | MeetSpace-0.1.2-beta-linux-arm64-test.AppImage | ARM64 | 119,067,319 | `7e008f306090dc1703fc2a27c37959bd12f15100791dc890479ea1886f6e84cc` |
 | MeetSpace-0.1.2-beta-linux-x86_64-test.AppImage | x64 | 126,888,488 | `c0ac2540941a1066d1aac42ebf0a89b209714420fcecfa4af5180f3bc5ef9657` |
@@ -33,48 +27,20 @@ commits, not the mutable main branch. A source archive is not an installer.
 | MeetSpace-0.1.2-beta-win-x64-test-setup.exe | x64 | 121,753,483 | `3b21846b1f73141743a1dd69829f48e3790332b77b3bef47b6c7cd909b83656e` |
 | MeetSpace-0.3.8-beta.apk | Universal | 52,850,224 | `fac7bcdbbd307e10be611c3dd34b822f986fd4b8ed47a8ae45b66fbb1ad69ee2` |
 
-## Verification
+## Проверки
 
-All eight desktop binary URLs returned HTTP 206 with expected Content-Range
-total sizes. Initial bytes matched EXE/PE, DEB/ar, RPM, or AppImage/ELF.
-The Git LFS SHA-256 object IDs and sizes matched the catalog and checksum list;
-links also matched the published release notes. Full desktop binaries were
-not downloaded or independently rehashed.
+Все восемь адресов настольных пакетов вернули HTTP 206 с ожидаемыми полными размерами в Content-Range. Начальные байты соответствовали форматам EXE/PE, DEB/ar, RPM и AppImage/ELF. Идентификаторы объектов Git LFS (SHA-256) и размеры совпали с каталогом и списком контрольных сумм. Ссылки также совпали с описаниями выпусков. Настольные пакеты целиком не скачивались; их хеши независимо не пересчитывались.
 
-The Android APK was fully downloaded read-only (HTTP 200, 52,850,224 bytes)
-and SHA-256 matched the publisher checksum. ZIP contents confirmed all four
-native ABIs (arm64-v8a, armeabi-v7a, x86, x86_64). Gradle declares minSdk26,
-versionCode26 and versionName0.3.8-beta. The APK v2 signing block and certificate
-fingerprint match publisher metadata; no separate apksigner cryptographic
-verification was performed.
+Android APK скачан полностью без изменения источника (HTTP 200, 52,850,224 байт). Его SHA-256 совпал с контрольной суммой издателя. В ZIP-содержимом присутствуют все четыре нативных ABI: arm64-v8a, armeabi-v7a, x86 и x86_64. В Gradle заданы minSdk26, versionCode26 и versionName0.3.8-beta. Блок подписи APK v2 и отпечаток сертификата соответствуют метаданным издателя. Отдельная криптографическая проверка через apksigner не проводилась.
 
-Browser checks covered Windows x64/ARM64, Android universal, and Ubuntu,
-Debian and Fedora on both Linux architectures. All nine selection states
-showed the matching pinned URL, version and SHA-256. AppImage records remain
-in the data catalog as before; the distribution selector offers DEB or RPM.
-The production build and all 17 existing public-document checks passed.
+В браузере проверен выбор Windows x64/ARM64, универсального Android APK, а также Ubuntu, Debian и Fedora для обеих архитектур Linux. Все девять вариантов показали соответствующие закреплённые URL, версии и SHA-256. Записи AppImage сохранены в каталоге данных; переключатель дистрибутива предлагает DEB или RPM. Сборка для публикации и все 17 существующих проверок публичных документов прошли успешно.
 
-## Compatibility and scope
+## Совместимость и границы проверки
 
-Windows targets remain Windows10 22H2/Windows11 x64 and Windows11 ARM64,
-confirmed by the new EXE metadata. Desktop apps remain **unsigned beta test
-builds** with automatic updates disabled. A signature on the embedded server
-installer does not sign the desktop application.
+Целевые версии Windows не изменились: Windows10 22H2/Windows11 x64 и Windows11 ARM64. Это подтверждают метаданные новых EXE. Настольные приложения остаются **тестовыми бета-сборками без цифровой подписи**, автоматическое обновление выключено. Подпись встроенного серверного установщика не является подписью самого настольного приложения.
 
-The latest Linux packages declare GLIBC>=2.35 and have static package checks.
-Existing distro target labels remain unchanged; older 0.1.1 runtime results
-must not be described as runtime acceptance for 0.1.2. Debian/Fedora ARM64
-remain explicitly unconfirmed in the UI. No new cross-distribution claim
-was added. Android remains a universal beta APK for Android8.0+ using its
-existing development/beta certificate, not a store production release.
+Новые пакеты Linux требуют GLIBC>=2.35 и прошли статическую проверку. Список целевых дистрибутивов не изменён. Результаты запуска версии 0.1.1 нельзя считать приёмкой версии 0.1.2. В интерфейсе по-прежнему явно указано, что Debian/Fedora ARM64 не подтверждены. Новых заявлений о совместимости между дистрибутивами нет. Android остаётся универсальным бета-APK для Android8.0+ с прежним сертификатом разработки/бета-тестирования, а не финальным выпуском для магазина приложений.
 
-No installer or application was executed. Installation, upgrades and calls
-were not tested. Server installer files, server release metadata and application
-services were not changed. Website publication changes only shared download
-records and canonical desktop repository links. Unrelated pending workspace
-changes are excluded through an isolated build.
+Установщики и приложения не запускались. Установка, обновления и звонки не проверялись. Файлы серверного установщика, метаданные серверного выпуска и сервисы приложения не изменялись. Публикация сайта затронула только общие данные загрузок и канонические ссылки на репозиторий настольного приложения. Посторонние незавершённые изменения рабочего каталога исключены благодаря отдельной сборке.
 
-Evidence: `frontend/test-results/landing/download-update-audit.json`,
-`download-update-ui.json`, `download-update-build.log` and
-`published-download-update.jpg`. Audit source files and the isolated frontend
-are in `/private/tmp/meetspace-download-update.nd2i_yfh`.
+Материалы проверки: `frontend/test-results/landing/download-update-audit.json`, `download-update-ui.json`, `download-update-build.log` и `published-download-update.jpg`. Исходные файлы аудита и отдельная копия веб-клиента находятся в `/private/tmp/meetspace-download-update.nd2i_yfh`.

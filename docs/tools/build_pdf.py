@@ -440,7 +440,7 @@ class Renderer:
         self.stats["table_rows"] += len(rows)
         return table
 
-    def figure(self, label, reference):
+    def figure(self, label, reference, display_scale=1.0):
         path = (self.source.parent / reference).resolve()
         if not path.is_file():
             raise FileNotFoundError(f"Missing diagram: {path}")
@@ -452,7 +452,7 @@ class Renderer:
             # This previously inline portrait diagram already fits the shorter
             # landscape page: retain its original physical display dimensions.
             figure_width = BODY_W
-        scale = min(figure_width / width, max_height / height)
+        scale = min(figure_width / width, max_height / height) * display_scale
         # ReportLab embeds the original full-resolution raster without resampling.
         figure = Image(str(path), width=width * scale, height=height * scale,
             kind="direct", mask="auto", lazy=2)

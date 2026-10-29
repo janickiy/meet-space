@@ -1,102 +1,107 @@
-# Docker image build and installation performance audit
+# Анализ времени сборки Docker-образов и установки
 
 > Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](../ARCHITECTURE.md).
 
-Date: 2026-10-22. Audited source: `ac8b8826908a69c0d3de073d0c0f56a6f3dc4687`.
+Дата: 2026-10-22. Проверенная версия исходников: `ac8b8826908a69c0d3de073d0c0f56a6f3dc4687`.
 
-## Scope and evidence
+## Область проверки и исходные данные
 
-The user's request identifies **Docker image compilation** as the slow stage.
-The supplied audit template instead describes installing Docker Engine. These
-are separate operations. This audit follows the actual request, records the
-Engine installation path, and does not claim an unmeasured Engine bottleneck.
-This initial audit was written before production code changes.
+Пользователь указал, что много времени занимает **компиляция Docker-образов**.
+Приложенный шаблон аудита описывает другую операцию — установку Docker Engine.
+В этом отчёте рассматривается именно сборка образов. Порядок установки Engine
+зафиксирован отдельно; утверждать, что он замедляет установку, без измерений нельзя.
+Этот первоначальный отчёт составлен до изменения кода приложения.
 
-The real entrypoint is `install.sh`, which fetches a fixed GitHub revision and
-runs `scripts/install/from-source.py`. The latter makes a retained clean checkout,
-calls `scripts/install/wizard.py:docker_setup()`, creates a bounded BuildKit in
-low-memory mode, then runs `scripts/release/build.sh` and `package.sh`. Deployment
-uses a verified image archive and Compose `--no-build`.
+Установка начинается с `install.sh`: он получает закреплённую версию исходников
+из GitHub и запускает `scripts/install/from-source.py`. Этот скрипт создаёт
+чистую рабочую копию и сохраняет её для повторного запуска. Затем он вызывает
+`scripts/install/wizard.py:docker_setup()`, в экономном режиме создаёт BuildKit
+с ограниченными ресурсами и запускает `scripts/release/build.sh` и `package.sh`.
+Для развёртывания используются проверенный архив образов и Compose `--no-build`.
 
-## Baseline observations
+## Исходные наблюдения
 
-The previous retained server build ran on Ubuntu 24.04, Linux amd64, approximately
-4 GiB host RAM and a 30 GiB root disk. Its dedicated builder was restricted to
-one CPU and 2048 MiB RAM, without extra swap; Go used `-p=1`, `GOMAXPROCS=1`,
-`GOGC=20`, and `GOMEMLIMIT=768MiB`. The hostname, IP, credentials and application
-data are deliberately omitted. Exact host CPU count, network characteristics,
-mirror timings and Engine/Compose versions were not captured for that run.
+Предыдущая серверная сборка выполнялась на Ubuntu 24.04, Linux amd64, с примерно
+4 ГиБ оперативной памяти и корневым диском 30 ГиБ. Для отдельного сборщика
+установлены ограничения: один CPU и 2048 МиБ памяти, без дополнительного swap.
+Go использовал `-p=1`, `GOMAXPROCS=1`, `GOGC=20` и `GOMEMLIMIT=768MiB`.
+Имя хоста, IP-адрес, учётные данные и данные приложения намеренно не приводятся.
+Точное число CPU сервера, характеристики сети, время ответа зеркал и версии
+Engine/Compose для этого запуска не зафиксированы.
 
-| Operation | Observed baseline | Evidence / limitation |
+| Операция | Исходный результат | Подтверждение и ограничения |
 | --- | --- | --- |
-| Prometheus binary build RUN | 746.9 s | Retained `build-resume.log`, step 17; successful build |
-| Prometheus final image export | 8.4 s | Same log, step 22 |
-| Five application Go builds | Repeated overlapping dependency compilation | Dockerfile inspection; no trustworthy per-service baseline table retained |
-| SeaweedFS build | Long compilation observed | Exact duration not retained here; no invented value |
-| Whole fresh image build | Not measured continuously | Earlier run was cancelled for disk pressure, then resumed separately |
-| Docker Engine installation | Not measured | Engine was already running during the observed build |
-| APT locks / DNS / repository / package download / dpkg / systemd startup | Not measured | No fresh disposable Ubuntu/Debian installation benchmark was run |
+| Шаг RUN сборки бинарников Prometheus | 746.9 s | Сохранённый `build-resume.log`, шаг 17; сборка завершилась успешно |
+| Экспорт итогового образа Prometheus | 8.4 s | Тот же журнал, шаг 22 |
+| Сборка пяти Go-сервисов приложения | Общие зависимости компилируются повторно | Подтверждено чтением Dockerfile; достоверные исходные замеры каждого сервиса не сохранены |
+| Сборка SeaweedFS | Наблюдалась длительная компиляция | Точное время не сохранено; оценка не подставляется вместо измерения |
+| Полная сборка образов с нуля | Непрерывного замера нет | Предыдущий запуск остановлен из-за нехватки диска, затем продолжен отдельно |
+| Установка Docker Engine | Не измерялась | Во время наблюдаемой сборки Engine уже работал |
+| Блокировки APT / DNS / репозиторий / скачивание пакетов / dpkg / запуск systemd | Не измерялись | Установка на новой временной Ubuntu/Debian для замера не выполнялась |
 
-The compilation delay is independently visible in the active Go compiler and
-in the Dockerfile RUN duration. A read-only attempt to retrieve more server
-diagnostics during this audit timed out. No package-management experiment was
-run on that host, which the user is reserving for their own installation.
+Задержка видна как по работе компилятора Go, так и по времени шага RUN в Dockerfile.
+Попытка получить дополнительные диагностические сведения без изменения сервера
+завершилась по тайм-ауту. Эксперименты с пакетным менеджером на этом хосте не
+проводились: пользователь оставил его для самостоятельной проверки установки.
 
-## Confirmed code findings
+## Подтверждённые особенности кода
 
-- `dockers/{api,media-worker,worker,product-worker,live-worker}/Dockerfile` share
-  a `go mod download` layer, but none mounts a shared Go compiler cache. Each
-  binary build starts without the previous service's compiled dependency cache.
-- Those build stages use `COPY . .`; changes to frontend, documentation and
-  deployment files unnecessarily invalidate the Go source-copy layer.
-- `dockers/observability/Dockerfile.release` compiles both upstream Prometheus
-  binaries, but has no persistent module/compiler cache for interrupted RUNs.
-- `dockers/object-storage/Dockerfile` already uses module and compiler cache
-  mounts. Its pinned rebuild patches vulnerable upstream binaries; replacing it
-  with an unverified upstream image would weaken the security policy.
-- `from-source.py:build_and_bundle()` generates a new version, registry prefix
-  and build directory on every incomplete retry.
-- `build.sh` records `build.json` only after all images complete and refuses any
-  existing release tag. A late failure therefore repeats completed image work.
-- The low-memory mode deliberately trades speed for bounded RAM and CPU. Its
-  hard limits must remain in force; removing them is not an optimization fix.
-- `package.sh` scans all 13 deployed components. HIGH/CRITICAL findings block
-  the package. This is a separate, required gate and must not be skipped.
+- `dockers/{api,media-worker,worker,product-worker,live-worker}/Dockerfile` используют
+  общий слой `go mod download`, но не подключают общий кеш компилятора Go.
+  Сборка каждого бинарника начинается без скомпилированных зависимостей предыдущего сервиса.
+- На этих этапах используется `COPY . .`. Поэтому изменения интерфейса,
+  документации и файлов развёртывания без необходимости сбрасывают кеш слоя исходников Go.
+- `dockers/observability/Dockerfile.release` компилирует оба бинарника Prometheus,
+  но не сохраняет кеш модулей и компилятора между прерванными шагами RUN.
+- `dockers/object-storage/Dockerfile` уже подключает кеш модулей и компилятора.
+  Закреплённая пересборка устраняет уязвимости исходных бинарников; замена на
+  непроверенный готовый образ ослабила бы требования безопасности.
+- `from-source.py:build_and_bundle()` при каждой повторной попытке незавершённой
+  сборки создаёт новую версию, префикс реестра и рабочий каталог.
+- `build.sh` записывает `build.json` только после сборки всех образов и отклоняет
+  уже существующие теги выпуска. Поэтому ошибка на позднем этапе заставляет
+  повторять уже выполненную работу.
+- Экономный режим намеренно снижает скорость ради ограничения CPU и памяти.
+  Эти ограничения нужно сохранить: их снятие не является оптимизацией.
+- `package.sh` проверяет все 13 развёртываемых компонентов. Уязвимости
+  HIGH/CRITICAL блокируют выпуск пакета. Это отдельная обязательная проверка.
 
-## Docker Engine path (not the measured bottleneck)
+## Установка Docker Engine: отдельный, не измеренный этап
 
-`install.sh` may run `apt-get update` and install prerequisites. `wizard.py:apt()`
-refreshes indexes on each call. `docker_setup()` supports automatic installation
-on Ubuntu/Debian, checks distro/codename and architecture, uses Docker's official
-HTTPS APT repository and a fingerprint-checked signed-by keyring, installs
-Engine/CLI/containerd/Buildx/Compose, enables the service, and verifies the local
-daemon plus Compose >= 2.24.4. Already installed Engine is not reinstalled.
-There is no host `apt-get upgrade` or `dist-upgrade` in this path.
+`install.sh` может выполнить `apt-get update` и установить зависимости.
+`wizard.py:apt()` обновляет индексы при каждом вызове. `docker_setup()` поддерживает
+автоматическую установку на Ubuntu/Debian: проверяет дистрибутив, его кодовое имя
+и архитектуру; использует официальный HTTPS-репозиторий Docker и ключ с проверенным
+отпечатком через signed-by. Затем устанавливает Engine/CLI/containerd/Buildx/Compose,
+включает службу и проверяет локальный демон и Compose >= 2.24.4.
+Уже установленный Engine не переустанавливается. Команды `apt-get upgrade`
+или `dist-upgrade` на хосте не выполняются.
 
-Secondary issues: missing Compose aborts instead of a targeted repair; repeated
-index refreshes outside repository changes may be redundant; APT lock/network
-waits are not bounded explicitly; partially created repository files are not
-reused on retry. These are documented rather than mixed into the image build
-optimization. Fresh Engine benchmarks require disposable supported Linux hosts.
+Дополнительные замечания: при отсутствии Compose установка останавливается,
+а не исправляет только этот компонент; обновление индексов без изменения
+репозиториев может быть лишним; ожидание блокировок APT и сети явно не ограничено;
+частично созданные файлы репозитория не используются повторно. Эти вопросы
+зафиксированы отдельно от оптимизации сборки образов. Для замера установки Engine
+нужны новые временные Linux-хосты поддерживаемых версий.
 
-## Implementation plan
+## План изменений
 
-1. Measure a scoped before/after Go image benchmark with an isolated local
-   builder. Record architecture/resources and distinguish it from a fresh VPS.
-2. Add shared module/compiler cache mounts to the application Go build stages
-   and persistent caches to the Prometheus rebuild. Keep runtime contents,
-   compiler arguments, upstream pins and verification unchanged.
-3. Copy only Go build inputs into Go compilation stages.
-4. Preserve the release identity across `--resume`; atomically checkpoint each
-   completed image. Reuse requires matching source fingerprint, commit, platform,
-   build options, immutable image ID and provenance labels. Unknown existing
-   tags remain an error, never an overwrite.
-5. Print meaningful per-image status and wall-clock durations, including failure
-   and retry guidance, without fabricated completion percentages.
-6. Run interruption/resume/provenance-mismatch checks and real Docker cache
-   measurements. Document measured results and checks that were not run in
-   `DOCKER_INSTALL_BEFORE_AFTER.md`.
+1. Сравнить время сборки Go-образов до и после изменений в отдельном локальном
+   сборщике. Зафиксировать архитектуру и ресурсы; не приравнивать этот замер к установке на новом VPS.
+2. Подключить общий кеш модулей и компилятора к этапам сборки Go и постоянный кеш
+   к пересборке Prometheus. Сохранить состав рабочих образов, аргументы компилятора,
+   закреплённые версии внешних компонентов и проверки.
+3. Копировать на этап компиляции Go только необходимые исходные файлы.
+4. Сохранять идентификаторы выпуска при `--resume` и атомарно фиксировать каждый
+   готовый образ. Для повторного использования должны совпадать отпечаток исходников,
+   коммит, платформа, параметры сборки, неизменяемый ID образа и метки происхождения.
+   Неизвестный существующий тег по-прежнему должен вызывать ошибку, а не перезаписываться.
+5. Показывать понятное состояние каждого образа и затраченное время. При ошибке
+   указывать порядок продолжения; не показывать выдуманный процент готовности.
+6. Проверить прерывание, продолжение и отказ при несовпадении происхождения,
+   измерить реальное использование кеша Docker. Записать результаты и невыполненные
+   проверки в `DOCKER_INSTALL_BEFORE_AFTER.md`.
 
-Do not change the user's retained installer package, start their installation,
-alter server containers/volumes, bypass scans, or publish changes as part of this
-local optimization request.
+Границы этой локальной задачи: не изменять сохранённый установочный пакет
+пользователя, не запускать его установку, не менять контейнеры и тома сервера,
+не обходить проверки безопасности и не публиковать изменения.

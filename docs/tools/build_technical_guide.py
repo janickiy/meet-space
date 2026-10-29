@@ -101,6 +101,17 @@ class ContentsEntry(Flowable):
 class GuideRenderer(base.Renderer):
     inline_figures = frozenset()
     toc_pages = {}
+    reduced_figures = frozenset({
+        "er-01-identity-overview.png",
+        "er-02-conferences-overview.png",
+        "er-03-recording-overview.png",
+        "er-06-calls-folders-overview.png",
+    })
+
+    def figure(self, label, reference):
+        """Reduce only the four selected ER diagrams, preserving source pixels."""
+        scale = .85 if Path(reference).name in self.reduced_figures else 1.0
+        return super().figure(label, reference, display_scale=scale)
 
     def parse(self, text):
         entries=contents_entries(text)
@@ -115,6 +126,9 @@ class GuideRenderer(base.Renderer):
             ContentsEntry(title,key,level,self.toc_pages.get(key,"000"),self.fmt)
             for level,title,key in entries]
         for i,item in enumerate(story[:-1]):
+            if isinstance(item,base.CodeBlock) and item.language=="tree":
+                item.size=9.3
+                item.leading=13
             if isinstance(item,base.Paragraph) and not isinstance(item,base.Heading):
                 plain=item.getPlainText()
                 following=story[i+1]
@@ -123,7 +137,16 @@ class GuideRenderer(base.Renderer):
                     not isinstance(following,base.Heading))
                 if source_intro or (isinstance(following,base.PaginatedTable) and len(plain)<550):
                     item.keepWithNext=1
-        return story
+        grouped=[]
+        for item in story:
+            if isinstance(item,base.CodeBlock) and item.language=="tree":
+                if not grouped or not isinstance(grouped[-1],base.Heading):
+                    raise ValueError("Directory tree must follow its section heading")
+                heading=grouped.pop()
+                grouped.append(base.KeepTogether([heading,item]))
+            else:
+                grouped.append(item)
+        return grouped
 
     def running_page(self, canvas, doc):
         canvas.saveState()

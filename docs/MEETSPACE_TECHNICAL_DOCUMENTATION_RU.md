@@ -5,6 +5,8 @@
 Версия исходного кода: `189631b5a50665c8c6b8725cfa21f3d46e895e52`<br>
 Дата обновления текста: **28 октября 2026 г.**
 
+> Архивная редакция для указанного коммита. Она описывает в том числе функции, удалённые из более поздних версий. Актуальное описание приложения и порядок установки приведены в [техническом руководстве](MEETSPACE_TECHNICAL_GUIDE_RU.md).
+
 ## Содержание
 
   - [Об этом документе](#section-001)
@@ -28,13 +30,13 @@
   - [3.9. Сохранённые элементы прежнего механизма записи](#section-019)
   - [3.10. Как отличать текущую запись от прежней реализации](#section-020)
 - [4. API и протоколы реального времени](#section-021)
-  - [4.1. Общие соглашения и правила доступа](#section-022)
+  - [4.1. Общие правила работы с API](#section-022)
   - [4.2. Аутентификация и аккаунты](#section-023)
   - [4.3. Конференции, участники и приглашения](#section-024)
   - [4.4. Записи конференций](#section-025)
   - [4.5. Сообщения и вложения конференций](#section-026)
   - [4.6. Управление чатом конференции](#section-027)
-  - [4.7. Личные диалоги и группы](#section-028)
+  - [4.7. Личные сообщения и групповые чаты](#section-028)
   - [4.8. Сообщения и вложения личных и групповых диалогов](#section-029)
   - [4.9. Поиск в диалогах и защищённые файлы групп](#section-030)
   - [4.10. Папки пользователя](#section-031)
@@ -757,7 +759,7 @@ curl --fail --location --show-error "$URL" --output final.mp4
 
 <a id="section-022"></a>
 
-## 4.1. Общие соглашения и правила доступа
+## 4.1. Общие правила работы с API
 
 Основной префикс REST API — `/api/v1`. Обозначения `:id`, `:participantId`, `:recordingId`, `:messageId`, `:attachmentId`, `:userId`, `:deviceId`, `:itemId` обозначают параметры пути. Если отдельно не сказано иное, каждый из них должен быть ненулевым UUID. Параметр `:code` содержит код приглашения, а `:kind` — вид элемента папки.
 
@@ -836,9 +838,9 @@ Cookie `meetrix_session` и `meetrix_account_<UUID>` имеют атрибуты
 | `POST /api/v1/conferences/:id/finish` | Bearer; владелец конференции (owner)<br>Завершить активную конференцию (active) | id; пустое тело или {} | 200: status, item со status=finished<br>Ошибки: 403; 409 — текущее состояние не active; 404 |
 | `POST /api/v1/conferences/:id/cancel` | Bearer; владелец конференции (owner)<br>Отменить конференцию в состоянии created/scheduled | id; пустое тело или {} | 200: status, item со status=cancelled<br>Ошибки: 403; 409 — переход из текущего состояния запрещён; 404 |
 | `POST /api/v1/conferences/:id/join` | Bearer в разрешённой области доступа<br>Создать или возобновить участие | id; пустое тело либо JSON {inviteCode}; для нового участника обязателен действующий inviteCode | 200: status, item: Participant, включая admissionState<br>Ошибки: 403 — неверное приглашение или состояние rejected/kicked; 409 — недопустимое состояние конференции; 422 — неверный code |
-| `POST /api/v1/conferences/:id/leave` | Bearer; только собственное участие<br>Выйти из конференции | id; пустое тело или {} | 200: status, item: Participant<br>Ошибки: 403 — пользователь не является участником; 404 |
+| `POST /api/v1/conferences/:id/leave` | Bearer; только участие текущего пользователя<br>Выйти из конференции | id; пустое тело или {} | 200: status, item: Participant<br>Ошибки: 403 — пользователь не является участником; 404 |
 | `GET /api/v1/conferences/:id/participants` | Bearer; требуется доступ к истории<br>Получить список участников; состояния waiting/rejected видны владельцу и соорганизатору (owner/co_host) | id; limit — 1–100 (20), offset ≥0 | 200: status, items: Participant[]<br>Ошибки: 403 — нет допуска; 404; 422 — неверные параметры страницы |
-| `GET /api/v1/conferences/:id/participants/me` | Bearer; только собственное участие<br>Узнать состояние допуска текущего участника | id | 200: status, item: Participant<br>Ошибки: 403/404 — доступное участие не найдено |
+| `GET /api/v1/conferences/:id/participants/me` | Bearer; только участие текущего пользователя<br>Узнать состояние допуска текущего участника | id | 200: status, item: Participant<br>Ошибки: 403/404 — доступное участие не найдено |
 | `POST /api/v1/conferences/:id/participants/:participantId/admission` | Bearer; вошедший владелец или соорганизатор (owner/co_host)<br>Допустить или отклонить ожидающего участника | id, participantId — UUID; JSON decision*=admit/reject | 200: status, item: Participant<br>Ошибки: 403 — недостаточная роль; 409 — недопустимое состояние допуска или конференции; 422 — неверный decision; 404 |
 | `PUT /api/v1/conferences/:id/schedule` | Bearer; владелец (owner)<br>Изменить расписание конференции в состоянии scheduled | id; JSON scheduledAt* — время в будущем в формате RFC3339; plannedDurationMin — 1–1440 | 200: status, item: Conference<br>Ошибки: 403 — пользователь не owner; 409 — конференция не в состоянии scheduled; 422 — неверное время или длительность; 404 |
 | `GET /api/v1/conferences/:id/history` | Bearer; требуется доступ к истории<br>Получить историю завершённой или отменённой конференции (finished/cancelled) | id | 200: status, item: conference, owner, durationSec, participantCount, participants, participantsTruncated, recordings, chatAvailable, chatReadOnly<br>Ошибки: 403; 409 — конференция ещё не завершена; 404 |
@@ -892,8 +894,8 @@ Cookie `meetrix_session` и `meetrix_account_<UUID>` имеют атрибуты
 | `DELETE /api/v1/conferences/:id/messages/:messageId` | Bearer; допущенный участник со статусом joined в активной конференции (active), не покинувший чат; автор либо владелец или соорганизатор конференции (owner/co_host)<br>Пометить сообщение удалённым | id,messageId; без тела | 200: status,item: Message с deletedAt и пустым text<br>Ошибки: 403 — нельзя удалить чужое сообщение или запись истории звонка; 409 — чат в режиме read-only; 404 |
 | `GET /api/v1/conferences/:id/chat/read` | Bearer; допущенный участник со статусом joined/left, не покинувший чат<br>Получить текущую отметку прочтения | id | 200: status,item: lastReadMessageId,unreadCount<br>Ошибки: 403; 404 |
 | `PUT /api/v1/conferences/:id/chat/read` | Bearer; допущенный участник со статусом joined/left, не покинувший чат<br>Перенести отметку прочтения вперёд; перемещение назад запрещено | id; JSON messageId* — UUID | 200: status,item: lastReadMessageId,unreadCount<br>Ошибки: 422 — неверный UUID; 403; 404 — сообщение за пределами доступной истории |
-| `POST /api/v1/conferences/:id/attachments/init` | Bearer; допущенный участник со статусом joined в активной конференции (active), не покинувший чат; владелец загрузки<br>Зарезервировать вложение для последующей передачи файла | id; JSON clientRequestId* — UUID, filename* — 1–180 символов без компонентов пути, size* — 1–10485760; mimeType необязателен; допустимые форматы перечислены выше | 201 при создании, 200 при повторе: status,item: Attachment,uploadUrl<br>Ошибки: 422 — неверные метаданные, MIME-тип или размер; 409 — конфликт ключа либо режим read-only; 403 |
-| `PUT /api/v1/conferences/:id/attachments/:attachmentId/content` | Bearer; допущенный участник со статусом joined в активной конференции (active), не покинувший чат; владелец вложения<br>Загрузить байты файла в зарезервированное вложение | id,attachmentId; raw body — до 10 МиБ; размер должен совпадать с указанным в init | 200: status,item: Attachment<br>Ошибки: 422 — неверный размер или содержимое; 409 — срок загрузки истёк, вложение занято либо включён режим read-only; 403; 404 |
+| `POST /api/v1/conferences/:id/attachments/init` | Bearer; допущенный участник со статусом joined в активной конференции (active), не покинувший чат; владелец загрузки<br>Зарезервировать вложение для последующей передачи файла | id; JSON clientRequestId* — UUID, filename* — 1–180 символов без компонентов пути, size* — 1–10485760; mimeType необязателен; допустимые форматы перечислены выше | 201 при создании, 200 при повторе: status,item: Attachment,uploadUrl<br>Ошибки: 422 — неверные метаданные, MIME-тип или размер; 409 — конфликт ключа либо режим только для чтения (read-only); 403 |
+| `PUT /api/v1/conferences/:id/attachments/:attachmentId/content` | Bearer; допущенный участник со статусом joined в активной конференции (active), не покинувший чат; владелец вложения<br>Загрузить байты файла в зарезервированное вложение | id,attachmentId; raw body — до 10 МиБ; размер должен совпадать с указанным в init | 200: status,item: Attachment<br>Ошибки: 422 — неверный размер или содержимое; 409 — срок загрузки истёк, вложение занято либо включён режим только для чтения (read-only); 403; 404 |
 | `POST /api/v1/conferences/:id/attachments/:attachmentId/finalize` | Bearer; допущенный участник со статусом joined в активной конференции (active), не покинувший чат; владелец вложения<br>Проверить файл и завершить загрузку | id,attachmentId; пустое тело или {} | 200: status,item: Attachment<br>Ошибки: 409 — файл не загружен или вложение в неподходящем состоянии; 422 — недопустимое содержимое; 403; 404 |
 | `GET /api/v1/conferences/:id/attachments/:attachmentId/download` | Bearer; допущенный участник со статусом joined/left, не покинувший чат<br>Получить временную ссылку для скачивания вложения | id,attachmentId | 200: status,url,expiresAt (+5 минут)<br>Ошибки: 403; 404 — вложение недоступно или удалено |
 
@@ -920,7 +922,7 @@ Cookie `meetrix_session` и `meetrix_account_<UUID>` имеют атрибуты
 
 <a id="section-028"></a>
 
-## 4.7. Личные диалоги и группы
+## 4.7. Личные сообщения и групповые чаты
 
 Регистрация маршрутов и обработчики: `internal/transport/http/personal_routes.go`.
 
@@ -966,8 +968,8 @@ Cookie `meetrix_session` и `meetrix_account_<UUID>` имеют атрибуты
 | `DELETE /api/v1/conversations/:id/messages/:messageId` | Bearer аккаунта; действующий участник диалога conversation; только автор сообщения<br>Пометить сообщение удалённым | id,messageId; без тела | 200: status,item: Message с deletedAt и пустым text<br>Ошибки: 403 — чужое сообщение или запись истории звонка; 409 — чат в режиме read-only; 404 |
 | `GET /api/v1/conversations/:id/chat/read` | Bearer аккаунта; действующий участник нескрытого диалога conversation<br>Получить текущую отметку прочтения | id | 200: status,item: lastReadMessageId,unreadCount<br>Ошибки: 403; 404 |
 | `PUT /api/v1/conversations/:id/chat/read` | Bearer аккаунта; действующий участник нескрытого диалога conversation<br>Перенести отметку прочтения вперёд; перемещение назад запрещено | id; JSON messageId* — UUID | 200: status,item: lastReadMessageId,unreadCount<br>Ошибки: 422 — неверный UUID; 403; 404 — сообщение за пределами доступной истории |
-| `POST /api/v1/conversations/:id/attachments/init` | Bearer аккаунта; действующий участник нескрытого диалога conversation; владелец загрузки<br>Зарезервировать вложение для последующей передачи файла | id; JSON clientRequestId* — UUID, filename* — 1–180 символов без компонентов пути, size* — 1–10485760; mimeType необязателен; допустимые форматы перечислены в разделе 4.5 | 201 при создании, 200 при повторе: status,item: Attachment,uploadUrl<br>Ошибки: 422 — неверные метаданные, MIME-тип или размер; 409 — конфликт ключа либо режим read-only; 403 |
-| `PUT /api/v1/conversations/:id/attachments/:attachmentId/content` | Bearer аккаунта; действующий участник нескрытого диалога conversation; владелец вложения<br>Загрузить байты файла в зарезервированное вложение | id,attachmentId; raw body — до 10 МиБ; размер должен совпадать с указанным в init | 200: status,item: Attachment<br>Ошибки: 422 — неверный размер или содержимое; 409 — срок загрузки истёк, вложение занято либо включён режим read-only; 403; 404 |
+| `POST /api/v1/conversations/:id/attachments/init` | Bearer аккаунта; действующий участник нескрытого диалога conversation; владелец загрузки<br>Зарезервировать вложение для последующей передачи файла | id; JSON clientRequestId* — UUID, filename* — 1–180 символов без компонентов пути, size* — 1–10485760; mimeType необязателен; допустимые форматы перечислены в разделе 4.5 | 201 при создании, 200 при повторе: status,item: Attachment,uploadUrl<br>Ошибки: 422 — неверные метаданные, MIME-тип или размер; 409 — конфликт ключа либо режим только для чтения (read-only); 403 |
+| `PUT /api/v1/conversations/:id/attachments/:attachmentId/content` | Bearer аккаунта; действующий участник нескрытого диалога conversation; владелец вложения<br>Загрузить байты файла в зарезервированное вложение | id,attachmentId; raw body — до 10 МиБ; размер должен совпадать с указанным в init | 200: status,item: Attachment<br>Ошибки: 422 — неверный размер или содержимое; 409 — срок загрузки истёк, вложение занято либо включён режим только для чтения (read-only); 403; 404 |
 | `POST /api/v1/conversations/:id/attachments/:attachmentId/finalize` | Bearer аккаунта; действующий участник нескрытого диалога conversation; владелец вложения<br>Проверить файл и завершить загрузку | id,attachmentId; пустое тело или {} | 200: status,item: Attachment<br>Ошибки: 409 — файл не загружен или вложение в неподходящем состоянии; 422 — недопустимое содержимое; 403; 404 |
 | `GET /api/v1/conversations/:id/attachments/:attachmentId/download` | Bearer аккаунта; действующий участник нескрытого диалога conversation<br>Получить ссылку для скачивания вложения | id,attachmentId | 200: status,url,expiresAt (+5 минут). Для группы group также возвращается authenticated=true, а url ведёт на защищённый маршрут content<br>Ошибки: 403; 404 — вложение недоступно или удалено |
 
@@ -1019,7 +1021,7 @@ Cookie `meetrix_session` и `meetrix_account_<UUID>` имеют атрибуты
 | `POST /api/v1/calls/:id/accept` | Аккаунт; адресат звонка (callee)<br>Принять входящий звонок | id; JSON clientId* — UUID выбранного клиента | 200: status,item: Call в состоянии accepted, conferenceId для медиасоединения<br>Ошибки: 403 — пользователь не callee; 409 — звонок уже не в состоянии ringing или занят другим клиентом; 422 |
 | `POST /api/v1/calls/:id/decline` | Аккаунт; адресат звонка (callee)<br>Отклонить входящий звонок | id; JSON {} либо {clientId}; JSON-тело обязательно, поле clientId необязательно | 200: status,item: Call в состоянии declined<br>Ошибки: 403 — пользователь не callee; 409 — действие невозможно в текущем состоянии; 422 — неверный id |
 | `POST /api/v1/calls/:id/cancel` | Аккаунт; вызывающий пользователь caller с соответствующим clientId<br>Отменить исходящий звонок | id; JSON clientId* — UUID | 200: status,item: Call в состоянии cancelled<br>Ошибки: 403 — пользователь не владеет клиентом; 409 — действие невозможно в текущем состоянии; 422 |
-| `POST /api/v1/calls/:id/end` | Аккаунт; caller/callee, владеющий медиаклиентом<br>Завершить принятый звонок | id; JSON clientId* — UUID | 200: status,item: Call в состоянии ended<br>Ошибки: 403 — пользователь не владеет клиентом; 409 — действие невозможно в текущем состоянии; 422 |
+| `POST /api/v1/calls/:id/end` | Аккаунт; инициатор или получатель звонка (caller/callee), владеющий медиаклиентом<br>Завершить принятый звонок | id; JSON clientId* — UUID | 200: status,item: Call в состоянии ended<br>Ошибки: 403 — пользователь не владеет клиентом; 409 — действие невозможно в текущем состоянии; 422 |
 | `POST /api/v1/calls/:id/heartbeat` | Аккаунт; владелец медиаклиента принятого звонка<br>Подтвердить активность и продлить удержание звонка | id; JSON clientId* — UUID | 200: status,item: Call<br>Ошибки: 409 — звонок не в состоянии accepted или передан чужой clientId; 422 |
 
 <a id="section-033"></a>
@@ -1067,7 +1069,7 @@ SSE (Server-Sent Events) — длительное HTTP-соединение дл
 | Метод и путь | Доступ и назначение | Запрос | Ответ и ошибки |
 |---|---|---|---|
 | `GET /api/v1/notifications` | Bearer аккаунта; только собственные видимые уведомления<br>Получить ленту уведомлений | Query: cursor,limit — 1–100 (30) | 200: items: Notification[],nextCursor,unreadCount; поле status отсутствует<br>Ошибки: 422 — неверный cursor/limit; 403 — запрос от гостя |
-| `GET /api/v1/notifications/events` | Bearer аккаунта в заголовке; параметры query запрещены<br>Подключиться к потоку уведомлений SSE | Без query и тела; Authorization: Bearer; Last-Event-ID не обеспечивает повторную передачу истории | 200: text/event-stream; data: Envelope для notification.created/read; служебный keepalive каждые 15 с<br>Ошибки: 401 — переданы query или неверный токен; 429 — &gt;4 потоков на пользователя либо &gt;12 подключений в минуту; 503 — &gt;256 потоков или недоступен Redis |
+| `GET /api/v1/notifications/events` | Bearer аккаунта в заголовке; параметры URL запрещены<br>Подключиться к потоку уведомлений SSE | Без параметров URL и тела запроса; Authorization: Bearer; Last-Event-ID не обеспечивает повторную передачу истории | 200: text/event-stream; data: Envelope для notification.created/read; служебный keepalive каждые 15 с<br>Ошибки: 401 — переданы query или неверный токен; 429 — &gt;4 потоков на пользователя либо &gt;12 подключений в минуту; 503 — &gt;256 потоков или недоступен Redis |
 | `POST /api/v1/notifications/:notificationId/read` | Bearer аккаунта; собственное видимое уведомление<br>Отметить уведомление как прочитанное | notificationId — UUID; пустое тело или {} | 200: item: Notification без поля status; повторный запрос идемпотентен<br>Ошибки: 404 — уведомление недоступно; 422 — неверный UUID |
 
 <a id="section-036"></a>

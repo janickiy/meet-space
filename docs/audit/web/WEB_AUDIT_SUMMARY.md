@@ -1,80 +1,82 @@
-# MeetSpace web audit summary
+# Итоги аудита веб-приложения MeetSpace
 
 > Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](../../ARCHITECTURE.md).
 
-Date: 2026-10-26. Baseline: `3ea9a4e83e82484c25402963b2e68a0642d986f6` on `main`, with pre-existing meeting-toolbar edits preserved. The original audit produced a local patch without publication, deployment, remote deletion or production testing. Repository-publication integration is recorded separately below.
+Дата: 2026-10-26. Исходная версия: `3ea9a4e83e82484c25402963b2e68a0642d986f6` в ветке `main`. Ранее внесённые правки панели встречи сохранены. Первоначальный аудит подготовил локальные изменения без публикации, развёртывания, удаления на удалённом сервере и испытаний рабочей установки. Последующая подготовка к публикации в репозитории описана отдельно.
 
-## Repository-publication integration, 2026-10-26
+<a id="repository-publication-integration-2026-10-26"></a>
 
-At the user's subsequent request to publish the changes, `origin/main` had advanced to `d896401`. The audit and toolbar commits were rebased on that revision without dropping its landing-page, attachment-policy, guest-session or Desktop-download changes. Original audit measurements below and in the companion reports remain tied to the original baseline; they are not new measurements of the expanded upstream code.
+## Подготовка к публикации в репозитории, 2026-10-26
 
-Integration exposed two existing upstream build blockers: undefined `users.GuestSessionTTL` in Go and a missing `accessTokenTTLSeconds` frontend export. Added the intended three-hour guest constant, a matching client cache ceiling, and regression tests; ordinary access tokens retain their one-hour lifetime. The client cache remains only a hint and does not replace server JWT/membership checks. Formatting-only changes in `frontend/vite.config.ts` restore the existing formatting gate.
+После просьбы пользователя опубликовать изменения ветка `origin/main` уже указывала на `d896401`. Коммиты аудита и панели встречи перенесены поверх этой версии без потери новых изменений главной страницы, правил вложений, гостевой сессии и загрузок Desktop. Первоначальные измерения в этом и связанных отчётах относятся к исходной версии аудита, а не к расширенному коду из обновлённой ветки.
 
-The combined tree passed `go test -race -count=1 ./...`, `go vet ./...`, `go build ./cmd/... ./tools/...`, the disposable PostgreSQL authorization suite, `govulncheck` (zero reachable advisories), and `npm run check` including 15 frontend tests, TypeScript, Vite and public-page prerendering. Raw follow-up outputs are local `tmp/web-audit-20261026/evidence/publish-*.log`. The extra tests cover guest/ordinary JWT lifetime and cache reload/ceiling rejection. The original report's 12 frontend tests and 22 Go test functions describe the earlier audit, not these additions.
+При объединении обнаружены две существовавшие в новой ветке ошибки сборки: в Go отсутствовала `users.GuestSessionTTL`, а в веб-клиенте — экспорт `accessTokenTTLSeconds`. Добавлены предусмотренная трёхчасовая константа гостевой сессии, соответствующий верхний предел клиентского кэша и регрессионные тесты. Обычный токен доступа по-прежнему действует один час. Клиентский кэш служит только подсказкой и не заменяет серверную проверку JWT и участия. Изменения только форматирования в `frontend/vite.config.ts` восстановили прохождение проверки оформления.
 
-The browser heap/bundle profiles, Docker image scans and image IDs below were not rerun for the newer upstream landing/attachment code; those are historical audit evidence only. Server deployment, installer publication and release creation are outside this repository-publication request.
+Объединённый код прошёл `go test -race -count=1 ./...`, `go vet ./...`, `go build ./cmd/... ./tools/...`, проверки авторизации на временной PostgreSQL, `govulncheck` (доступных из кода известных уязвимостей не найдено) и `npm run check`. Последняя команда включала 15 тестов веб-клиента, TypeScript, Vite и предварительную генерацию публичных страниц. Необработанные журналы находятся локально в `tmp/web-audit-20261026/evidence/publish-*.log`. Дополнительные тесты охватывают срок действия гостевого и обычного JWT, повторную загрузку кэша и отказ при превышении его срока. Указанные ниже 12 тестов веб-клиента и 22 тестовые функции Go относятся к первоначальному аудиту, без этих дополнений.
 
-## Executive result
+Профили памяти браузера и состава сборки, сканирование Docker-образов и указанные ниже идентификаторы образов не перепроверялись для нового кода главной страницы и вложений. Это исторические материалы аудита. Обновление сервера, публикация установщика и создание выпуска не входили в запрос на публикацию репозитория.
 
-The audit confirmed and fixed a notification-stream resource leak, unbounded aggregate password-hashing work, two reachable Go dependency advisories, a vulnerable curl package in a locally built web image, and unintended development-service exposure on all host interfaces. Regression tests, repeatable local browser checks and CI definitions were added. No P0 issue was confirmed in the inspected scope.
+## Основной результат
 
-The narrow fixes are suitable for code review and isolated staging acceptance. **Do not label the entire application production-ready from this audit:** real authenticated multi-user browser flows, negotiated WebRTC/TURN, recording, long-running calls and infrastructure failure recovery were not executed. No measured claim of faster video, lower production latency or lower process RSS is made.
+Подтверждены и исправлены утечка ресурсов потока уведомлений, отсутствие общего ограничения параллельного хеширования паролей, две достижимые уязвимости зависимостей Go, уязвимый пакет curl в локальном веб-образе и непреднамеренная публикация сервисов разработки на всех сетевых интерфейсах. Добавлены регрессионные тесты, воспроизводимые локальные браузерные проверки и задания CI. В исследованной области проблем уровня P0 не подтверждено.
 
-## Verified fixes and before/after evidence
+Исправления готовы к проверке кода и приёмке на отдельном испытательном стенде. **Этот аудит не подтверждает готовность всего приложения к рабочей эксплуатации.** Не выполнялись реальные многопользовательские браузерные сценарии с авторизацией, установление WebRTC/TURN-соединений, запись, длительные звонки и восстановление после отказов инфраструктуры. Ускорение видео, снижение задержек рабочей системы или уменьшение RSS процесса не измерялись и не заявляются.
 
-| Finding | Before | After |
+## Подтверждённые исправления: до и после
+
+| Проблема | До исправления | После исправления |
 | --- | --- | --- |
-| Rejected notification SSE responses were not released | Synthetic errors: 0/50 bodies canceled; Chrome: 5/5 connections still open after GC for both HTTP 503 and invalid MIME | 50/50 bodies canceled; Chrome: 0/5 open in each case; stale identity/abort paths also covered |
-| Password derivations had no shared concurrency ceiling | Third derivation entered a blocking fake hasher; already-canceled requests could start password work | Two slots shared by login, registration and account deletion; excess returns existing rate-limit error/HTTP 429; cancellation and release tested |
-| Go standard-library/RabbitMQ advisories | govulncheck reported two reachable advisories | Go minimum 1.26.10 and amqp091-go 1.14.0; zero reachable advisories in the checked snapshot |
-| Cached web-image package layer retained vulnerable curl | curl and libcurl 8.22.0-r0 flagged for one HIGH advisory | Both web/proxy Dockerfiles enforce at least 8.23.0-r0; final API/frontend/proxy image scans report zero HIGH/CRITICAL findings |
-| Development listeners were exposed beyond loopback | Ten wildcard host mappings, including database/cache/storage/debug interfaces | Bound to 127.0.0.1; all 12 configuration assertions pass; public HTTPS/media ports unchanged |
+| Отклонённые SSE-ответы уведомлений не освобождались | В синтетическом тесте отменено 0/50 тел; в Chrome после GC оставались открыты 5/5 соединений и при HTTP 503, и при неверном MIME | Отменено 50/50 тел; в Chrome в обоих случаях осталось 0/5 открытых соединений. Проверены также устаревшая идентичность и отмена |
+| У вычисления хешей пароля не было общего ограничения параллелизма | Третье вычисление попадало в блокирующий тестовый обработчик; работа могла начаться даже для уже отменённого запроса | Два общих слота для входа, регистрации и удаления аккаунта. При перегрузке возвращается существующая ошибка ограничения частоты/HTTP 429; отмена и освобождение слота проверены |
+| Уязвимости стандартной библиотеки Go и RabbitMQ-клиента | govulncheck показывал две достижимые уязвимости | Минимальная Go 1.26.10 и amqp091-go 1.14.0; в проверенной версии достижимых уязвимостей не найдено |
+| Слой кэша веб-образа сохранял уязвимый curl | Для curl и libcurl 8.22.0-r0 найдена одна уязвимость HIGH | Dockerfile веб-клиента и прокси требуют минимум 8.23.0-r0. Итоговое сканирование API/frontend/proxy не выявило HIGH/CRITICAL |
+| Сервисы разработки были доступны не только через loopback | Десять привязок ко всем интерфейсам, включая БД, кэш, хранилище и отладку | Привязка к 127.0.0.1; все 12 проверок конфигурации прошли. Публичные HTTPS- и медиапорты не изменены |
 
-The Argon2 limit corresponds to **128 MiB of concurrently active derivation working memory by configuration**, not a measured process-memory ceiling. Existing 64 MiB password parameters were not weakened. Completed allocations may remain until GC; in-flight derivations are not interruptible. The limit is per API service instance, not cluster-wide.
+Ограничение Argon2 означает **128 MiB рабочей памяти одновременно выполняемых вычислений по конфигурации**, а не измеренный предел всей памяти процесса. Прежние параметры пароля с 64 MiB не ослаблены. Выделенная память может сохраняться до GC; начатое вычисление прервать нельзя. Ограничение действует на экземпляр API, а не на весь кластер.
 
-Total JavaScript assets changed from 833,591 to 833,870 bytes (+279); consistently gzipped assets changed from 259,174 to 259,225 bytes (+51). No meaningful bundle reduction was claimed or attempted without a measured bottleneck.
+Общий размер JavaScript-ресурсов изменился с 833,591 до 833,870 байт (+279), а при одинаковом gzip-сжатии — с 259,174 до 259,225 байт (+51). Существенное уменьшение сборки не заявляется; без измеренного узкого места оно не было целью работы.
 
-## Testing and memory results
+## Результаты тестирования и проверки памяти
 
-- Go module verification, vet, Staticcheck, full race-enabled test run and entry-point compilation passed.
-- New PostgreSQL regressions passed separately with actual migrations and synthetic data: durable session revocation plus 14 cross-user/role authorization cases. Ordinary `go test` skips these integration cases without the explicit audit DSN; the new CI has a separate disposable-database job.
-- Frontend formatting, TypeScript, production build and 12 Node regression tests passed.
-- Browser smoke passed 40/40 checks combined across baseline/patched builds at desktop/mobile widths; an additional patched-only snapshot run passed 20/20.
-- SFU tests completed 80 join/leave cycles with application registries empty and goroutines stable at two. Bounded WebSocket/egress queues and subprocess kill/reap behavior were verified.
-- After 50 warmup + 100 anonymous SPA navigation cycles, DOM nodes/listeners/documents stayed at 693/179/4. Heap increased similarly in both builds; separate snapshots primarily attribute growth to compiled code/browser instrumentation, with zero net growth in grouped object/closure/string shallow sizes. This is not retained-dominator analysis or proof about authenticated/media paths.
-- API, frontend and proxy images built locally for Linux/arm64. Frontend container startup, security headers and asset-cache behavior passed. Production TLS and all worker/infrastructure images were not verified.
+- Проверка модулей Go, vet, Staticcheck, полный запуск тестов с обнаружением гонок и сборка точек входа прошли успешно.
+- Отдельно выполнены новые регрессионные проверки PostgreSQL с реальными миграциями и тестовыми данными: постоянный отзыв сессии и 14 сценариев доступа между пользователями и ролями. Обычный `go test` пропускает эти интеграционные проверки без явно заданного DSN аудита. Новый CI запускает отдельное задание с временной БД.
+- Форматирование, TypeScript, сборка для публикации и 12 регрессионных тестов Node прошли успешно.
+- Базовая браузерная проверка прошла 40/40 пунктов суммарно для исходной и исправленной сборок на настольной и мобильной ширине. Дополнительный запуск со снимками только исправленной сборки прошёл 20/20.
+- Тесты SFU выполнили 80 циклов входа и выхода: реестры приложения оставались пустыми, количество горутин — равным двум. Проверены ограниченные очереди WebSocket/egress и принудительное завершение дочерних процессов с ожиданием их выхода.
+- После 50 прогревочных и 100 измеряемых циклов анонимной навигации SPA число DOM-узлов/слушателей/документов осталось 693/179/4. Куча росла сходным образом в обеих сборках. Отдельные снимки связывают основную часть прироста со скомпилированным кодом и средствами измерения браузера; суммарный собственный размер групп объектов, замыканий и строк не вырос. Это не анализ удерживающих объектов и не доказательство для авторизованных медиасценариев.
+- Образы API, frontend и proxy собраны локально для Linux/arm64. Запуск контейнера веб-клиента, заголовки безопасности и кэширование ресурсов проверены. Рабочий TLS и все образы обработчиков и инфраструктуры не проверялись.
 
-There is no confirmed unresolved critical/high finding from the reproduced defects in this patch. That statement is bounded by the tests above, not an assertion that the entire project has no vulnerabilities. The six root-user image/config scanner flags, module-only unused OpenPGP advisory and untested areas are explicitly retained in the security report.
+Среди воспроизведённых проблем этой правки не осталось подтверждённых неисправленных уязвимостей критического или высокого уровня. Это вывод только в пределах перечисленных тестов, а не заявление об отсутствии уязвимостей во всём проекте. Шесть замечаний сканера к запуску от root и конфигурации, неиспользуемая уязвимость OpenPGP, обнаруженная на уровне модулей, и непроверенные области сохранены в отчёте безопасности.
 
-## Prioritized remaining work
+## Оставшаяся работа по приоритетам
 
-| Priority | Item | Evidence/status and acceptance needed |
+| Приоритет | Задача | Состояние и необходимая приёмка |
 | --- | --- | --- |
-| Release gate | Authenticated 2–5-user full-stack acceptance | Not executed. Exercise registration/login/logout, meetings, guest/waiting room, moderation, chat/files/folders, access revocation and real recording with synthetic accounts |
-| Release gate | Real media reliability/soak | No negotiated multi-client call/TURN fallback, network loss, screen-share/device switching or recording-failure run; agree resource limits before long-running/load tests |
-| Release gate | All release images/platforms and deployment checks | Only three Linux/arm64 images scanned; scan workers/storage/infra and AMD64 release artifacts; validate TLS, migrations, backup/restore and rollback in disposable staging |
-| P2 policy | Durable session expiry | Revocation works, but no server-enforced idle/absolute expiration was found; browser refresh-cookie age is 400 days. Decide intended session policy before changing compatibility |
-| P2 policy | Signed recording link lifetime | A 24-hour signed URL remains a bearer capability after membership changes; decide acceptable lifetime/revocation behavior |
-| P2 hardening | Root-user/config flags and build provenance | Review actual entrypoint privilege dropping and Compose user overrides; avoid blindly setting `USER` on stateful images. Finish license/provenance/complete secret-history review |
-| P2 hypothesis | Long-lived client maps/sets | Caption announcement IDs, call intent IDs and unconsumed prejoin devices need targeted long-session/expiry tests before changing retention behavior |
-| P2 performance | Large chat histories and public entry bundle | Manually loaded pages are not virtualized/capped and shared layout is eager; measure realistic LCP/INP/CLS, React commit cost and history/network growth before optimizing |
-| P2 capacity | Password concurrency limit UX | Validate expected concurrency and overload handling on staging; preserve the bound and password strength rather than disabling protection |
-| P2 coverage | Failure/recovery and database performance | Redis/RabbitMQ/S3 outages, pool saturation, query plans, queue depths, p50/p95/p99, FD counts and packet loss/jitter remain unmeasured |
+| Условие выпуска | Полный сценарий с 2–5 авторизованными пользователями | Не выполнен. На тестовых аккаунтах проверить регистрацию/вход/выход, встречи, гостя и зал ожидания, модерацию, чаты/файлы/папки, отзыв доступа и реальную запись |
+| Условие выпуска | Надёжность и длительная работа медиасвязи | Не проверены установленные многоклиентские соединения, резервный TURN, потери сети, переключение экрана/устройств и сбои записи. До длительных и нагрузочных тестов согласовать ресурсные лимиты |
+| Условие выпуска | Все образы, платформы и развёртывание | Просканированы только три образа Linux/arm64. Проверить обработчики, хранилище, инфраструктуру и выпуск AMD64; на отдельном стенде проверить TLS, миграции, резервное копирование/восстановление и откат |
+| P2, политика | Срок действия постоянной сессии | Отзыв работает, но серверный предел простоя или абсолютного срока не найден; срок refresh-cookie браузера — 400 дней. До изменения совместимости определить политику сессий |
+| P2, политика | Срок подписанной ссылки записи | Подписанный URL на 24 часа продолжает предоставлять доступ владельцу ссылки после изменения участия. Определить допустимый срок и правила отзыва |
+| P2, защита | Замечания к root/конфигурации и происхождение сборки | Проверить фактическое понижение привилегий в точках входа и переопределение пользователя Compose. Не добавлять `USER` вслепую в образы с постоянными данными. Завершить проверку лицензий, происхождения и полной истории секретов |
+| P2, гипотеза | Долгоживущие клиентские map/set | Идентификаторам объявлений субтитров, намерений звонка и невостребованным устройствам предварительного входа нужны адресные проверки долгих сессий и истечения срока до изменения удержания |
+| P2, производительность | Большая история чатов и публичная начальная сборка | Загруженные вручную страницы не виртуализированы и не ограничены; общий каркас загружается сразу. До оптимизации измерить реалистичные LCP/INP/CLS, стоимость React commit и рост истории/сети |
+| P2, ёмкость | Удобство работы при ограничении хеширования пароля | На стенде проверить ожидаемый параллелизм и обработку перегрузки. Сохранить ограничение и стойкость пароля, не отключать защиту |
+| P2, покрытие | Отказы, восстановление и производительность БД | Не измерены отказы Redis/RabbitMQ/S3, насыщение пулов, планы запросов, глубина очередей, p50/p95/p99, число файловых дескрипторов, потери пакетов и джиттер |
 
-These release gates are missing evidence, not newly proven vulnerabilities. No changes to session policy, signed-link compatibility, database schema, API contracts or media codec/transport behavior were made speculatively.
+Эти условия выпуска указывают на недостающие проверки, а не на вновь доказанные уязвимости. Политика сессий, совместимость подписанных ссылок, схема БД, контракты API, кодеки и транспорт медиа не изменялись на основании предположений.
 
-## Changed files
+## Изменённые файлы
 
-Production/runtime changes:
+Изменения рабочего кода и конфигурации:
 
-- `frontend/src/api.ts`: cancel rejected/stale notification response bodies and reject obsolete requests.
-- `internal/usecase/auth/password_work.go`, `service.go`, `accounts.go`: shared bounded password derivations.
-- `go.mod`, `go.sum`, `Makefile`, `.gitlab-ci.yml`: corrected dependency/toolchain minimum and validation gates.
-- `docker-compose.yml`, `docs/DEPLOYMENT.md`: loopback-only development service access and SSH-tunnel guidance.
-- `frontend/Dockerfile`, `dockers/production/Dockerfile`: patched curl/libcurl floor, including cached-layer invalidation.
-- `frontend/package.json`, `.github/workflows/web-audit.yml`: repeatable frontend/Go/database checks.
+- `frontend/src/api.ts`: отмена тел отклонённых и устаревших ответов уведомлений, отказ от устаревших запросов.
+- `internal/usecase/auth/password_work.go`, `service.go`, `accounts.go`: общий предел параллельного вычисления хешей паролей.
+- `go.mod`, `go.sum`, `Makefile`, `.gitlab-ci.yml`: исправленные минимальные версии зависимостей/инструментов и обязательные проверки.
+- `docker-compose.yml`, `docs/DEPLOYMENT.md`: доступ к сервисам разработки только через loopback и инструкции SSH-туннеля.
+- `frontend/Dockerfile`, `dockers/production/Dockerfile`: минимальная исправленная версия curl/libcurl и обновление соответствующего кэшированного слоя.
+- `frontend/package.json`, `.github/workflows/web-audit.yml`: воспроизводимые проверки веб-клиента, Go и БД.
 
-Regression tests and audit tools:
+Регрессионные тесты и инструменты аудита:
 
 - `internal/app/auth/session_security_test.go`.
 - `internal/config/deployment_test.go`.
@@ -89,13 +91,13 @@ Regression tests and audit tools:
 - `scripts/audit-postgres.sh`.
 - `tools/audit/notification-stream-browser.mjs`, `frontend-browser-smoke.mjs`, `compare-heap-snapshots.mjs`, `frontend-image-smoke.mjs`.
 
-The existing edits in `frontend/src/components/RealtimePanel.tsx` and `frontend/src/pages/conference.css` belong to prior work, were included in the checkout used for builds, and were not changed by this audit. Local test containers were removed; audit images, raw evidence and scanner cache remain available locally. No global Docker cleanup was performed.
+Ранее существовавшие изменения `frontend/src/components/RealtimePanel.tsx` и `frontend/src/pages/conference.css` относятся к другой работе. Они присутствовали в собиравшейся рабочей копии, но аудит их не изменял. Локальные тестовые контейнеры удалены. Образы аудита, исходные материалы и кэш сканера сохранены локально. Общая очистка Docker не выполнялась.
 
-## Detailed reports
+## Подробные отчёты
 
-- [Security and threat model](WEB_SECURITY_AUDIT.md).
-- [Memory/resource lifecycle](WEB_MEMORY_LEAK_AUDIT.md).
-- [Performance and measurement limits](WEB_PERFORMANCE_REPORT.md).
-- [Tests, environment, exact commands and unexecuted suites](WEB_TEST_REPORT.md).
+- [Безопасность и модель угроз](WEB_SECURITY_AUDIT.md).
+- [Память и жизненный цикл ресурсов](WEB_MEMORY_LEAK_AUDIT.md).
+- [Производительность и ограничения измерений](WEB_PERFORMANCE_REPORT.md).
+- [Тесты, окружение, точные команды и невыполненные проверки](WEB_TEST_REPORT.md).
 
-Raw local artifacts are under ignored `tmp/web-audit-20261026/`. They contain synthetic-test output and are not automatically included in a commit or release. Run the missing full-stack acceptance suite in an explicitly agreed isolated environment before publishing a release. Repository publication does not deploy the fixes or update the installer.
+Исходные локальные материалы находятся в игнорируемом каталоге `tmp/web-audit-20261026/`. Они содержат результаты тестов с синтетическими данными и автоматически не входят в коммит или выпуск. До публикации выпуска выполните недостающую комплексную приёмку в явно согласованном изолированном окружении. Публикация репозитория сама по себе не развёртывает исправления и не обновляет установщик.

@@ -3,37 +3,39 @@
 Источники: [`.gitlab-ci.yml`](../.gitlab-ci.yml),
 [`scripts/ci-deploy.sh`](../scripts/ci-deploy.sh).
 
-Pipeline запускается для веток и тегов. `deploy-dev` автоматически выполняется
-после успешных предыдущих стадий в ветке **`main`**. Это прежний development
-workflow: rsync исходников, сборка на удалённом хосте и базовый
-`docker-compose.yml`. Он не выполняет immutable production promotion и не
-подходит для обновления standalone-установки `install.sh`.
+Процесс CI запускается для веток и тегов. `deploy-dev` автоматически выполняется
+после успешных предыдущих стадий в ветке **`main`**. Это прежний способ
+развёртывания для разработки: копирование исходников через rsync, сборка
+на удалённом сервере и базовый `docker-compose.yml`. Он не переносит проверенный
+неизменяемый пакет в рабочее окружение и не подходит для обновления установки,
+созданной на отдельном сервере через `install.sh`.
 
-## Загрузка исходников для всех jobs
+## Загрузка исходников для всех заданий
 
-`GIT_STRATEGY=none`: job получает архив конкретного `CI_COMMIT_SHA` через GitLab
-API во временный каталог. Поэтому следующая переменная нужна не только deploy:
+При `GIT_STRATEGY=none` задание получает архив конкретного `CI_COMMIT_SHA` через
+GitLab API во временный каталог. Поэтому следующая переменная нужна не только
+для развёртывания:
 
 | Переменная | Тип / хранение | Назначение |
 | --- | --- | --- |
-| `CI_SOURCE_ARCHIVE_TOKEN_B64` | Variable, masked/hidden | Base64 токена с доступом `read_api` к архиву этого проекта |
+| `CI_SOURCE_ARCHIVE_TOKEN_B64` | Переменная с настройками masked/hidden | Base64 токена с доступом `read_api` к архиву этого проекта |
 
 Base64 — кодирование, не шифрование. Отключите подстановку ссылок на другие
-переменные для секретов. Ограничьте scopes, срок токенов и доступ к runner.
+переменные для секретов. Ограничьте права и срок действия токенов, а также доступ к исполнителю CI.
 `Protected` переменные доступны только подходящим защищённым веткам/тегам:
-согласуйте это с правилами job. Не выводите секреты и не включайте `set -x`.
+согласуйте это с правилами запуска задания. Не выводите секреты и не включайте `set -x`.
 
 ## Проверки и инструменты
 
-| Job | Текущее поведение |
+| Задание | Текущее поведение |
 | --- | --- |
-| `validate` | Go 1.26.9: gofmt, vet, staticcheck v0.7.0; `bash -n` для deploy/release scripts |
-| `frontend-check` | Node 24: `npm ci`, lint, typecheck, build |
+| `validate` | Go 1.26.9: gofmt, vet, staticcheck v0.7.0; `bash -n` для скриптов развёртывания и выпуска |
+| `frontend-check` | Node 24: `npm ci`, проверка стиля, типов и сборка |
 | `security-go` | govulncheck v1.8.0 |
 | `security-frontend` | `npm audit --audit-level=high` |
-| `go-build` | Бинарники api, record-worker, media-worker, product-worker, main с version/commit/time |
-| `release-package` | Теги `vX.Y.Z` / prerelease: сборка, scan, SBOM и registry package |
-| `deploy-dev` | Только `main`: legacy rsync/build/up |
+| `go-build` | Исполняемые файлы api, record-worker, media-worker, product-worker, main с версией, коммитом и временем сборки |
+| `release-package` | Теги `vX.Y.Z` и предварительных выпусков: сборка, проверка уязвимостей, SBOM и пакет для реестра образов |
+| `deploy-dev` | Только `main`: прежний порядок копирования через rsync, сборки и запуска |
 
 Ручные продуктовые проверки дополняют CI и описаны в
 [чеклисте](operations/RELEASE_CHECKLIST.md).
@@ -42,55 +44,58 @@ Base64 — кодирование, не шифрование. Отключите
 
 | Переменная | Назначение |
 | --- | --- |
-| `TRIVY_IMAGE` | Проверенный scanner, закреплённый `@sha256:…`; обязателен |
-| `CI_REGISTRY`, `CI_REGISTRY_IMAGE`, `CI_REGISTRY_USER`, `CI_REGISTRY_PASSWORD` | Доступные job registry параметры; пароль передаётся `docker login --password-stdin` |
-| `RELEASE_INFRASTRUCTURE_MANIFEST` | Защищённая File variable с предыдущим проверенным `release.json` для обычного обновления |
+| `TRIVY_IMAGE` | Проверенный сканер уязвимостей, закреплённый `@sha256:…`; обязателен |
+| `CI_REGISTRY`, `CI_REGISTRY_IMAGE`, `CI_REGISTRY_USER`, `CI_REGISTRY_PASSWORD` | Параметры доступа задания к реестру образов; пароль передаётся `docker login --password-stdin` |
+| `RELEASE_INFRASTRUCTURE_MANIFEST` | Защищённая файловая переменная (File variable) с предыдущим проверенным `release.json` для обычного обновления |
 | `RELEASE_BOOTSTRAP` | `true` только для первой установки без предыдущей инфраструктуры |
-| `CLIENT_TELEMETRY_ENABLED` | Необязательный build-флаг frontend; по умолчанию выключен |
+| `CLIENT_TELEMETRY_ENABLED` | Необязательный флаг сборки интерфейса; по умолчанию выключен |
 
 `RELEASE_INFRASTRUCTURE_MANIFEST` и `RELEASE_BOOTSTRAP=true` взаимоисключающие.
-Без выбора режима package job останавливается. Нужен runner с Docker-in-Docker,
-TLS к daemon и разрешениями для сборки. Текущий CI вызывает `build.sh` без
-`--layout`, то есть classic. Source installer отдельно строит hardened archive;
-эти процессы нельзя считать одинаковыми. Подробности формата, scan и promotion —
+Без выбора режима задание упаковки останавливается. Нужен исполнитель CI
+с Docker-in-Docker, TLS-подключением к службе Docker и разрешениями на сборку.
+Текущий CI вызывает `build.sh` без `--layout`, то есть использует classic.
+Установщик из исходников отдельно собирает защищённый архив hardened;
+эти процессы различаются. Формат пакета, проверка уязвимостей и порядок выпуска —
 [RELEASE_PROCESS.md](RELEASE_PROCESS.md).
 
-## Legacy development deploy
+## Прежний способ развёртывания для разработки
 
-Настраивайте только для выделенного development-хоста с подготовленными `.env`,
+Настраивайте только для выделенного сервера разработки с подготовленными `.env`,
 сертификатами и внешней сетью gateway. Не направляйте его на каталог `/opt/meetspace`
-установки мастером или на действующий production project.
+установки мастером или на действующий проект рабочего окружения.
 
 | Переменная | Тип / хранение | Назначение |
 | --- | --- | --- |
-| `DEPLOY_HOST` | Variable | Проверенный IP/DNS development-хоста |
+| `DEPLOY_HOST` | Variable | Проверенный IP-адрес или DNS-имя сервера разработки |
 | `DEPLOY_USER` | Variable | Выделенный SSH-пользователь с доступом к Docker |
-| `DEPLOY_PATH` | Variable | Абсолютный каталог development checkout на сервере |
+| `DEPLOY_PATH` | Variable | Абсолютный путь к рабочей копии проекта на сервере разработки |
 | `DEPLOY_PORT` | Variable | SSH-порт, по умолчанию `22` |
-| `DEPLOY_SSH_PRIVATE_KEY_B64` | Variable, masked/hidden | Предпочтительный отдельный SSH-ключ в base64 |
+| `DEPLOY_SSH_PRIVATE_KEY_B64` | Переменная с настройками masked/hidden | Предпочтительный отдельный SSH-ключ в base64 |
 | `DEPLOY_SSH_PRIVATE_KEY` | File variable | Альтернатива base64 ключу; скрипт также принимает текст значения |
-| `DEPLOY_PASSWORD` | Variable, masked/hidden | Парольная альтернатива, если ключ не настроен |
-| `DEPLOY_ENV_FILE_B64` | Variable, masked/hidden | Необязательная полная development-конфигурация `.env` в base64 |
+| `DEPLOY_PASSWORD` | Переменная с настройками masked/hidden | Парольная альтернатива, если ключ не настроен |
+| `DEPLOY_ENV_FILE_B64` | Переменная с настройками masked/hidden | Необязательная полная конфигурация окружения разработки `.env` в base64 |
 | `DEPLOY_ENV_FILE` | File variable | Альтернатива env в base64 |
-| `BUILD_VERSION` | Variable | Безопасный ID сборки; при отсутствии берётся первые 12 символов `CI_COMMIT_SHA` |
+| `BUILD_VERSION` | Variable | Безопасный ID сборки; при отсутствии берутся первые 12 символов `CI_COMMIT_SHA` |
 
 Приоритет авторизации: ключ base64, затем ключ File/text, затем пароль. Приоритет
 конфигурации: env base64, затем env File/text; иначе используется серверный `.env`.
 При его отсутствии скрипт копирует `.env.example`, однако пустые обязательные
 пароли/ключи не создают готовую рабочую конфигурацию. Подготовьте их заранее по
 [README](../README.md). Основной медиатракт использует `MEDIA_NAT_IPS` и порт
-50010; `WEBRTC_NAT_IPS` относится к legacy recorder ingest. Публичный origin и
+50010; `WEBRTC_NAT_IPS` относится к прежнему прямому приёму потока сервисом записи.
+Публичный адрес приложения (origin) и
 `MINIO_PUBLIC_ENDPOINT` должны соответствовать реальному HTTPS входу.
 
-Скрипт выполняет `rsync --delete`, сохраняя перечисленные в нём data/cert/env
-каталоги. Новые нестандартные каталоги автоматически не защищаются. Затем он
+Скрипт выполняет `rsync --delete`, сохраняя перечисленные в нём каталоги данных,
+сертификатов и конфигурации. Новые нестандартные каталоги автоматически не защищаются. Затем он
 собирает сервисы базового Compose и проверяет остановку старых служб через
 `retire-legacy-services.py --check-migration`, затем запускает готовые образы
 без сборки. Перед миграцией 000037 все прикладные процессы должны быть
-остановлены оператором. Автоматического backup и rollback здесь нет. `StrictHostKeyChecking=accept-new` принимает первый неизвестный ключ;
-предварительно проверьте host key и подготовьте доверенный `known_hosts` runner.
+остановлены оператором. Автоматическое резервное копирование и откат здесь не предусмотрены. `StrictHostKeyChecking=accept-new` принимает первый неизвестный ключ;
+предварительно проверьте ключ сервера и подготовьте доверенный `known_hosts`
+для исполнителя CI.
 
 Изменение пароля зависимости в `.env` не обновляет учётную запись существующего
 PostgreSQL/RabbitMQ/S3 автоматически. Не удаляйте данные для смены пароля.
-Production процедуры находятся в [DEPLOYMENT.md](DEPLOYMENT.md), а не в этой
-legacy job.
+Процедуры для рабочего окружения описаны в [DEPLOYMENT.md](DEPLOYMENT.md).
+Это прежнее задание CI их не выполняет.

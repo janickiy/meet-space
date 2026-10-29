@@ -1,180 +1,180 @@
-# MeetSpace web security audit
+# Аудит безопасности веб-приложения MeetSpace
 
 > Исторический отчёт: отражает состояние проекта на дату проверки. После удаления распознавания речи и переименования сервиса записи его перечень компонентов не является описанием текущей версии. Актуальные сведения: [архитектура](../../ARCHITECTURE.md).
 
-Audit date: 2026-10-26. Baseline commit: `3ea9a4e83e82484c25402963b2e68a0642d986f6` plus the existing working-tree changes. Findings and fixes below describe the locally audited working tree, not a deployed release.
+Дата аудита: 2026-10-26. Исходный коммит: `3ea9a4e83e82484c25402963b2e68a0642d986f6` с уже существовавшими изменениями рабочей копии. Выводы и исправления относятся к проверенной локальной копии, а не к развёрнутому выпуску.
 
-For subsequent integration with upstream `d896401`, including its expanded attachment policy and guest-session changes, see [the publication follow-up](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). Source-review observations and image scans here describe the original audit baseline and patch, not a complete re-audit of those upstream additions.
+Последующее объединение с удалённой версией `d896401`, включая расширенные правила вложений и изменения гостевой сессии, описано в [отчёте о подготовке к публикации](WEB_AUDIT_SUMMARY.md#repository-publication-integration-2026-10-26). Результаты чтения кода и сканирования образов ниже относятся к исходной версии и исправлениям аудита, а не к полной повторной проверке этих дополнений.
 
-## Scope and assurance boundary
+## Область проверки и ограничения выводов
 
-The review covered the React/TypeScript web client, Go API and selected workers, authentication and authorization, attachment/recording access, outbound integrations, development networking, dependencies, and selected runtime images. It combined source review, regression tests, real PostgreSQL authorization tests, local browser fixtures, and dependency/image scanning.
+Проверка охватила веб-клиент React/TypeScript, API Go и отдельные обработчики, аутентификацию и права доступа, вложения/записи, внешние интеграции, сетевые настройки разработки, зависимости и отдельные исполняемые образы. Использовались чтение кода, регрессионные тесты, проверки прав на реальной PostgreSQL, локальные браузерные стенды и сканирование зависимостей/образов.
 
-Execution was limited to the developer machine and newly created, isolated audit containers. Production websites, SSH servers, real accounts, email delivery, production databases, and existing application volumes were not used. External access was limited to public dependency/advisory sources and image/module downloads. No production penetration test, load test, release publication, or deployment was performed.
+Проверки выполнялись только на компьютере разработчика и в новых изолированных контейнерах аудита. Рабочие сайты, SSH-серверы, реальные аккаунты, отправка писем, рабочие БД и существующие тома приложения не использовались. Внешние обращения ограничивались публичными источниками зависимостей/уязвимостей и загрузкой образов/модулей. Проверки на проникновение и нагрузки рабочей системы, публикации выпуска и развёртывания не было.
 
-Existing changes in `frontend/src/components/RealtimePanel.tsx` and `frontend/src/pages/conference.css` were preserved. They are not security fixes attributable to this audit.
+Существовавшие изменения `frontend/src/components/RealtimePanel.tsx` и `frontend/src/pages/conference.css` сохранены. Они не относятся к исправлениям безопасности этого аудита.
 
-The results support the individual claims below. They do not certify the application as vulnerability-free or constitute complete OWASP ASVS coverage.
+Результаты подтверждают только перечисленные ниже утверждения. Они не удостоверяют отсутствие уязвимостей во всём приложении и не означают полного покрытия OWASP ASVS.
 
-## Architecture and threat model
+## Архитектура и модель угроз
 
-MeetSpace is a collaboration application: meetings, personal/group messaging, attachments, recordings, invitations, and notifications. The web client reaches the Go HTTP API through Nginx. PostgreSQL stores identities, durable sessions, memberships, messages, and recording metadata. Redis supports realtime coordination and rate limiting; RabbitMQ carries asynchronous commands. Workers handle media/recording and product tasks; S3-compatible storage holds objects. WebSocket/SSE and the Pion-based media layer add long-lived connections beyond ordinary request/response traffic.
+MeetSpace объединяет встречи, личные/групповые сообщения, вложения, записи, приглашения и уведомления. Веб-клиент обращается к HTTP API Go через Nginx. PostgreSQL хранит пользователей, постоянные сессии, участие, сообщения и метаданные записей. Redis обеспечивает координацию в реальном времени и ограничение частоты запросов; RabbitMQ передаёт асинхронные команды. Обработчики выполняют медиазадачи, запись и прикладные задачи; объекты размещаются в S3-совместимом хранилище. WebSocket/SSE и медиаслой Pion используют долгоживущие соединения помимо обычных запросов/ответов.
 
-| Boundary | Untrusted input or actor | Security property reviewed |
+| Граница | Недоверенный источник или участник | Проверенное свойство защиты |
 | --- | --- | --- |
-| Browser → API | Anonymous callers, signed-in users, scoped guests | Authentication, CSRF protection for cookie-backed operations, input limits, resource budgets |
-| User → other users' resources | Guessed IDs, revoked memberships, wrong-owner requests | Server-side ownership/membership checks, not UI-only restrictions |
-| API → PostgreSQL/object storage | Request-derived IDs, filenames, attachment references | Scoped queries, safe names/content validation, download authorization |
-| Browser → realtime/media | Long-lived connections and interrupted navigation | Stream cleanup, bounded queues, lifecycle isolation |
-| API/workers → external providers | Provider responses, configured SMTP/HTTP endpoints | TLS verification, timeouts, bounded responses, redirect handling |
-| Host → containers | Development listeners, image dependencies, runtime identity | Least network exposure, patched dependencies, contextual hardening |
+| Браузер → API | Анонимные клиенты, авторизованные пользователи, гости с ограниченными правами | Аутентификация, защита от CSRF для операций с cookie, ограничения входных данных и ресурсов |
+| Пользователь → чужие ресурсы | Подобранные идентификаторы, отозванное участие, обращения не от владельца | Серверная проверка владельца/участия, а не только ограничения интерфейса |
+| API → PostgreSQL/объектное хранилище | Идентификаторы, имена файлов и ссылки вложений из запросов | Ограничение выборок правами, безопасные имена, проверка содержимого, разрешение скачивания |
+| Браузер → события/медиа | Долгоживущие соединения и прерванные переходы | Освобождение потоков, ограниченные очереди, независимый жизненный цикл |
+| API/обработчики → внешние провайдеры | Ответы провайдеров, настроенные SMTP/HTTP-адреса | Проверка TLS, тайм-ауты, ограничение ответов, обработка перенаправлений |
+| Хост → контейнеры | Порты разработки, зависимости образов, пользователь процесса | Минимальная сетевая доступность, исправленные зависимости, защита с учётом окружения |
 
-Assets at risk include account/session credentials, private conversations, meeting participation, recordings and attachments, and server/client availability. Relevant adversaries include unauthenticated request floods, authenticated outsiders, revoked participants, and compromised or misbehaving upstream services. Operator access to configuration and private signing material is a separate privileged trust boundary.
+Защищаемые данные и ресурсы: учётные данные и сессии, частная переписка, участие во встречах, записи/вложения и доступность сервера/клиента. Рассмотрены потоки анонимных запросов, авторизованные посторонние пользователи, исключённые участники и скомпрометированные либо некорректно работающие внешние сервисы. Доступ администратора к конфигурации и закрытым ключам подписи — отдельная привилегированная граница доверия.
 
-### Implemented service layout and exposure
+### Реализованные сервисы и доступность портов
 
-The source entry points are API, media worker (Pion SFU), recording worker (FFmpeg/storage), product worker (asynchronous product/provider jobs), and live-caption worker. These paths are implemented, but provider delivery, transcription, summaries and live captions depend on operator configuration and were not exercised here. Their presence in code is not evidence that a particular deployment has them enabled.
+В исходниках предусмотрены точки входа API, медиасервера Pion SFU, обработчика записи FFmpeg/хранилища, обработчика прикладных/внешних задач и обработчика живых субтитров. Отправка провайдерам, расшифровка, сводки и субтитры зависят от настройки администратором и здесь не проверялись. Наличие кода не доказывает, что функции включены в конкретной установке.
 
-| Listener/data flow | Production template default | Boundary |
+| Порт или поток данных | По умолчанию в шаблоне рабочей установки | Граница доступа |
 | --- | --- | --- |
-| Browser HTTPS/WSS → Nginx | Host 443/TCP | Public entry; shared-host overlay instead binds proxy 8080 to host 127.0.0.1:19080 behind an existing TLS proxy |
-| Nginx → frontend/API | Frontend 8080, API 8085 | Private Compose network; no production API host mapping |
-| API → worker controls | Recording 8090, media 8091, product 8092, live captions 8093 | Private HTTP control/health/metrics listeners |
-| Browser ↔ Pion media | Host 50010/UDP and TCP | Deliberately public media transport; HTTP authentication does not replace media authorization |
-| Browser ↔ TURN | 3478/UDP+TCP, 5349/TCP, relay 49160–49259/UDP | Public NAT traversal; credentials and expiry must remain separate from HTTP access tokens |
-| API/workers → PostgreSQL, Redis, RabbitMQ, object storage | Private network, no base production host mappings | Membership/session persistence, coordination, jobs and private object access |
-| Metrics/profiling | Prometheus 127.0.0.1:19090 when enabled; pprof disabled by default and loopback-bound | Operator-only; API operations also use configured authorization |
+| Браузер HTTPS/WSS → Nginx | 443/TCP хоста | Публичный вход; дополнительная конфигурация общего хоста вместо этого связывает порт proxy 8080 с 127.0.0.1:19080 за существующим TLS-прокси |
+| Nginx → frontend/API | Frontend 8080, API 8085 | Закрытая сеть Compose; API рабочей установки не опубликован на хосте |
+| API → управление обработчиками | Запись 8090, медиа 8091, прикладные задачи 8092, живые субтитры 8093 | Внутренние HTTP-интерфейсы управления, состояния и метрик |
+| Браузер ↔ медиа Pion | 50010/UDP и TCP хоста | Намеренно публичный медиатранспорт; HTTP-аутентификация не заменяет проверку доступа к медиа |
+| Браузер ↔ TURN | 3478/UDP+TCP, 5349/TCP, ретрансляция 49160–49259/UDP | Публичный обход NAT; учётные данные и их срок должны оставаться отдельными от токенов HTTP |
+| API/обработчики → PostgreSQL, Redis, RabbitMQ, объектное хранилище | Закрытая сеть, без публикации на хосте в базовой рабочей конфигурации | Хранение участия/сессий, координация, задачи и закрытый доступ к объектам |
+| Метрики/профилирование | Prometheus 127.0.0.1:19090 при включении; pprof по умолчанию выключен и привязан к loopback | Только для администратора; операции API также используют настроенную авторизацию |
 
-The hardened installation overlay replaces the historical MinIO implementation with SeaweedFS behind the same storage service name. Do not infer the deployed object-store implementation from that name alone. These facts come from `docker-compose.production.yml`, `docker-compose.hardened.yml`, `docker-compose.shared-host.yml` and application configuration; no live firewall or host-port audit was performed.
+Защищённая конфигурация заменяет прежний MinIO на SeaweedFS, сохраняя имя сервиса хранилища. По одному имени нельзя определить фактическую реализацию. Эти сведения получены из `docker-compose.production.yml`, `docker-compose.hardened.yml`, `docker-compose.shared-host.yml` и настроек приложения. Брандмауэр и порты работающего хоста не проверялись.
 
-JWT bearer tokens protect ordinary API requests; refresh uses a Secure/HttpOnly/SameSite cookie scoped to auth routes. WebSocket tickets are scoped and short-lived; origin checks and bounded payloads/queues are present. Provider jobs may transfer message/recording data to configured STT/AI/calendar/email services. Their retention, consent and data-processing policies require operator review beyond code-level TLS checks. Object retention/backup/restore was not exercised; signed-link lifetime is discussed below.
+Обычные запросы API защищены bearer-токенами JWT; обновление сессии использует cookie Secure/HttpOnly/SameSite с областью маршрутов авторизации. Билеты WebSocket имеют ограниченные права и короткий срок; предусмотрены проверки origin, размеров данных и очередей. Задачи провайдеров могут передавать сообщения/записи настроенным сервисам STT/ИИ/календаря/email. Правила хранения, согласия пользователей и обработки данных требуют проверки администратором отдельно от TLS в коде. Хранение, резервное копирование и восстановление объектов не проверялись; срок подписанных ссылок описан ниже.
 
-## Confirmed findings and local fixes
+## Подтверждённые проблемы и локальные исправления
 
-### SEC-01 — P1: concurrent password derivations were not globally bounded
+### SEC-01 — P1: не было общего предела параллельного вычисления хешей паролей
 
-**Affected paths:** `internal/usecase/auth/service.go`, `internal/usecase/auth/accounts.go`, and `internal/infrastructure/security/password.go`.
+**Затронутые файлы:** `internal/usecase/auth/service.go`, `internal/usecase/auth/accounts.go` и `internal/infrastructure/security/password.go`.
 
-Each Argon2id derivation reserves 64 MiB. Registration, login, and password-confirmed account deletion previously called the hasher without a shared concurrent-work budget. Per-IP request rate limits do not bound simultaneous work across different clients. This creates an availability risk from concurrent expensive derivations; it is not a password-hashing weakness.
+Каждое вычисление Argon2id выделяет 64 MiB. Регистрация, вход и удаление аккаунта с подтверждением пароля ранее вызывали функцию хеширования без общего предела параллелизма. Ограничения частоты по IP не ограничивают одновременную работу разных клиентов. Это риск доступности из-за дорогих параллельных вычислений, а не недостаток стойкости хеша.
 
-**Reproduction:** before the fix, `TestPasswordWorkRejectsOverload` admitted a third concurrent derivation for all three operation paths. Cancellation tests also showed password work starting for already-canceled contexts. The regression uses a deterministic blocking hasher: it measures admitted concurrency, not process memory consumption or a successful denial-of-service attack.
+**Воспроизведение:** до исправления `TestPasswordWorkRejectsOverload` допускал третье одновременное вычисление во всех трёх операциях. Тесты отмены также показали начало вычисления для уже отменённого контекста. Детерминированная блокирующая имитация хеширования измеряет допустимый параллелизм, а не память процесса и не успешность атаки отказа в обслуживании.
 
-**Fix:** `internal/usecase/auth/password_work.go` provides two shared slots on the auth service used by the API. Excess work immediately returns the existing rate-limit error, mapped to HTTP 429, without building a waiting queue. Context cancellation is checked before work starts; every completed/error path releases its slot. Existing Argon2 parameters and ordinary authentication behavior are preserved.
+**Исправление:** `internal/usecase/auth/password_work.go` предоставляет два общих слота сервиса авторизации API. При превышении предела немедленно возвращается существующая ошибка ограничения частоты, преобразуемая в HTTP 429; очередь ожидания не создаётся. До начала проверяется отмена контекста; все завершения и ошибки освобождают слот. Параметры Argon2 и обычное поведение авторизации сохранены.
 
-**Verification:** overload, canceled-context, error/slot-release, and 24 sequential-success checks pass with the race detector. The theoretical active Argon2 allocation budget is now `2 × 64 MiB = 128 MiB` per auth service, excluding other allocations. This is not an observed RSS ceiling. Already-running Argon2 work cannot be interrupted; multiple API processes each have their own budget.
+**Проверка:** тесты перегрузки, отменённого контекста, ошибки/освобождения слота и 24 последовательных успешных операций прошли с обнаружением гонок. Расчётный объём памяти активных вычислений теперь составляет `2 × 64 MiB = 128 MiB` на сервис авторизации без учёта других выделений. Это не измеренный предел RSS. Начатое вычисление Argon2 прервать нельзя; у каждого процесса API свой предел.
 
-Evidence: `tmp/web-audit-20261026/evidence/auth-security.log`, explicitly labeled as a redacted transcription of executed results, including the baseline failures.
+Подтверждение: `tmp/web-audit-20261026/evidence/auth-security.log`, явно обозначенный как запись выполненных результатов с удалёнными чувствительными данными, включая исходные ошибки.
 
-### SEC-02 — P1: rejected notification streams could retain connections
+### SEC-02 — P1: отклонённые потоки уведомлений могли удерживать соединения
 
-**Affected path:** `frontend/src/api.ts`, `api.notificationEvents`.
+**Затронутый код:** `frontend/src/api.ts`, `api.notificationEvents`.
 
-HTTP errors and successful responses with an invalid SSE content type were rejected without canceling their response bodies. If a server or proxy kept such a response open, notification retries could accumulate live connections and exhaust the browser's per-origin connection pool.
+HTTP-ошибки и успешные ответы с неверным типом SSE отклонялись без отмены тела. Если сервер или прокси оставлял ответ открытым, повторные попытки уведомлений могли накапливать соединения и исчерпать пул браузера для одного origin.
 
-**Reproduction:** a loopback-only Chrome 156 fixture issued five sequential requests for each scenario. For HTTP 503 and HTTP 200 with `text/html`, all five baseline responses remained open after garbage collection. With the fix, both scenarios retained zero open responses. The seven SSE unit regressions changed from six failures/one pass to seven passes.
+**Воспроизведение:** локальный стенд Chrome 156 выполнял по пять последовательных запросов каждого сценария. При HTTP 503 и HTTP 200 с `text/html` все пять ответов исходной версии оставались открытыми после сборки мусора. После исправления в обоих случаях осталось ноль открытых ответов. Семь регрессионных тестов SSE до исправления дали шесть ошибок и один успешный результат, после — семь успешных.
 
-**Fix:** cancel rejected bodies, release a 401 response before session recovery, and cancel a response received after abort or identity change. A valid SSE response remains open for its caller to consume.
+**Исправление:** отмена отклонённых тел, освобождение ответа 401 до восстановления сессии, отмена ответа после отмены запроса или смены пользователя. Корректный SSE-ответ остаётся открытым для чтения вызывающим кодом.
 
-This is a reproduced resource/reliability defect, not demonstrated authentication bypass or cross-account data disclosure. Heap figures from this small fixture include module warmup and are not a memory-leak rate measurement.
+Это воспроизведённая проблема ресурсов и надёжности, а не доказанный обход авторизации или раскрытие чужих данных. Малые замеры кучи стенда включают прогрев модулей и не измеряют скорость утечки памяти.
 
-Evidence: `tmp/web-audit-20261026/evidence/notification-stream-browser-final.log`, `frontend/tests/notification-stream.test.mjs`, and `tmp/web-audit-20261026/evidence/frontend-check-final.log`.
+Подтверждение: `tmp/web-audit-20261026/evidence/notification-stream-browser-final.log`, `frontend/tests/notification-stream.test.mjs` и `tmp/web-audit-20261026/evidence/frontend-check-final.log`.
 
-### SEC-03 — P1: reachable Go dependency advisories
+### SEC-03 — P1: достижимые уязвимости зависимостей Go
 
-The baseline `govulncheck` run found two reachable advisories across 82 root packages and 73 modules:
+Исходный `govulncheck` обнаружил две достижимые уязвимости среди 82 корневых пакетов и 73 модулей:
 
-| Advisory | Baseline → local fix | Reachability evidence |
+| Уязвимость | Исходная версия → локальное исправление | Достижимый вызов |
 | --- | --- | --- |
-| [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) | Go 1.26.9 → 1.26.10 | SMTP TLS handshake reaches `crypto/x509.Certificate.Verify`; the update distrusts specified compromised intermediate certificates |
-| [GO-2026-6700](https://pkg.go.dev/vuln/GO-2026-6700) | `amqp091-go` 1.13.0 → 1.14.0 | RabbitMQ connection setup reaches `amqp091.DialConfig`; the update enforces the pre-negotiation frame bound |
+| [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) | Go 1.26.9 → 1.26.10 | TLS-согласование SMTP вызывает `crypto/x509.Certificate.Verify`; обновление исключает доверие к указанным скомпрометированным промежуточным сертификатам |
+| [GO-2026-6700](https://pkg.go.dev/vuln/GO-2026-6700) | `amqp091-go` 1.13.0 → 1.14.0 | Подключение RabbitMQ вызывает `amqp091.DialConfig`; обновление ограничивает размер кадра до согласования параметров |
 
-The standard-library/toolchain floor and build/CI references were aligned, and `go.mod`/`go.sum` updated. Existing application Dockerfiles already selected Go 1.26.10; the inconsistent local minimum, Makefile and GitLab version were corrected. The Go 1.26.9 finding is therefore not proof that the deployed Docker binary used that version. The subsequent scan reports no reachable symbol or imported-package findings. Reachability identifies an affected call path; neither advisory was exploited against a running service during this audit.
+Минимальная версия стандартной библиотеки/инструментария согласована со сборкой и CI; `go.mod`/`go.sum` обновлены. Dockerfile приложения уже выбирали Go 1.26.10; исправлены несогласованные локальный минимум, Makefile и версия GitLab. Поэтому обнаружение Go 1.26.9 не доказывает использование этой версии в рабочем Docker-бинарном файле. Последующее сканирование не выявило достижимых уязвимых символов и импортируемых пакетов. Достижимость означает наличие затронутого пути вызова; ни одна уязвимость не эксплуатировалась на работающем сервисе.
 
-One module-level warning remains: [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932), concerning the unmaintained `golang.org/x/crypto/openpgp` package. The application requires the containing module but does not import this package in the scanned graph. It is not counted as an exploitable application finding, and unrelated cryptographic functionality was not removed to silence it.
+На уровне модулей остаётся предупреждение [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) о неподдерживаемом пакете `golang.org/x/crypto/openpgp`. Приложению нужен содержащий его модуль, но в проверенном графе пакет не импортируется. Предупреждение не засчитано как эксплуатируемая уязвимость приложения; несвязанные криптографические функции не удалялись ради его устранения.
 
-Evidence: `tmp/web-audit-20261026/evidence/govulncheck-before.log` and `govulncheck-after.log`.
+Подтверждение: `tmp/web-audit-20261026/evidence/govulncheck-before.log` и `govulncheck-after.log`.
 
-### SEC-04 — P1 dependency remediation: vulnerable curl in runtime images
+### SEC-04 — P1: исправление уязвимого curl в исполняемых образах
 
-The baseline frontend runtime image contained `curl` and `libcurl` `8.22.0-r0`, both flagged HIGH for [CVE-2026-92392](https://curl.se/docs/CVE-2026-92392.html). This is one advisory affecting two installed packages, not two independent vulnerabilities. The upstream issue concerns an HTTP/2 upload use-after-free; application-specific exploitability was not demonstrated.
+Исходный образ веб-клиента содержал `curl` и `libcurl` версии `8.22.0-r0`. Оба пакета получили уровень HIGH по [CVE-2026-92392](https://curl.se/docs/CVE-2026-92392.html). Это одна уязвимость двух установленных пакетов, а не две независимые проблемы. Она связана с обращением к освобождённой памяти при загрузке HTTP/2; возможность эксплуатации именно в приложении не доказана.
 
-`frontend/Dockerfile` and `dockers/production/Dockerfile` now enforce `curl>=8.23.0-r0` and `libcurl>=8.23.0-r0` after package updates. The explicit floor invalidates an older cached upgrade layer. Newly rebuilt frontend and proxy images, plus the final rebuilt API image containing all source fixes, reported zero HIGH/CRITICAL findings in their final Trivy vulnerability scans.
+После обновления пакетов `frontend/Dockerfile` и `dockers/production/Dockerfile` теперь требуют `curl>=8.23.0-r0` и `libcurl>=8.23.0-r0`. Явный минимум не позволяет использовать старый кэшированный слой обновления. Пересобранные frontend/proxy и итоговый API со всеми исправлениями не получили HIGH/CRITICAL в итоговом сканировании Trivy.
 
-These results apply to the specific locally built images and scanner database at audit time, not every dependency image, architecture, registry artifact, or production container. No claim is made that lower-severity findings or future advisories are absent.
+Вывод относится только к конкретным локальным образам и базе сканера на дату аудита, а не ко всем зависимостям, архитектурам, файлам реестра и рабочим контейнерам. Отсутствие проблем меньшей серьёзности и будущих уязвимостей не заявляется.
 
-Evidence: `trivy-frontend.json`, `trivy-frontend-after.json`, `trivy-proxy-after.json`, and `trivy-api-final.json` under `tmp/web-audit-20261026/evidence/`.
+Подтверждение: `trivy-frontend.json`, `trivy-frontend-after.json`, `trivy-proxy-after.json` и `trivy-api-final.json` в `tmp/web-audit-20261026/evidence/`.
 
-### SEC-05 — P1 deployment hardening: development listeners exposed beyond loopback
+### SEC-05 — P1: ограничение сетевой доступности сервисов разработки
 
-The development Compose template published internal services and debugger/API ports on all host interfaces by default. Combined with development credentials and debugger capabilities, use on an untrusted network could expose services that should be local. This was confirmed from the template and failing regression, not by probing a user's host or the internet.
+Шаблон Compose для разработки по умолчанию публиковал внутренние сервисы и порты отладки/API на всех интерфейсах хоста. Вместе с тестовыми учётными данными и возможностями отладчика это могло раскрыть локальные сервисы в недоверенной сети. Проблема подтверждена шаблоном и неуспешным регрессионным тестом, а не сканированием компьютера пользователя или интернета.
 
-Ten wildcard mappings were changed to `127.0.0.1`: API/debug API, debugger ports, worker control/debug control, PostgreSQL, Redis, and both MinIO ports. Twelve regression subtests also cover RabbitMQ's two already-loopback mappings. Public WebRTC transport ports were deliberately not changed, and production Compose networking was not rewritten.
+Десять привязок ко всем интерфейсам заменены на `127.0.0.1`: API/отладочный API, отладчики, управление/отладочное управление обработчиком, PostgreSQL, Redis и оба порта MinIO. Двенадцать регрессионных проверок также охватывают два порта RabbitMQ, уже привязанных к loopback. Публичные порты WebRTC намеренно не менялись; сеть рабочей Compose-конфигурации не перерабатывалась.
 
-Evidence: `internal/config/deployment_test.go`, `tmp/web-audit-20261026/evidence/dev-ports-before.log`, and `dev-ports-after.log`. The documented development connection model was updated in `docs/DEPLOYMENT.md`.
+Подтверждение: `internal/config/deployment_test.go`, `tmp/web-audit-20261026/evidence/dev-ports-before.log` и `dev-ports-after.log`. Модель подключения для разработки обновлена в `docs/DEPLOYMENT.md`.
 
-## Authentication and authorization verification
+## Проверка аутентификации и прав доступа
 
-The following controls were tested rather than inferred only from their presence in code:
+Следующие механизмы проверены тестами, а не только по наличию в коде:
 
-| Control | Executed coverage | Result |
+| Механизм | Выполненная проверка | Результат |
 | --- | --- | --- |
-| Cookie-backed session request origin protection | Eight cases: trusted origin, CLI request, foreign/null origin, cross-site metadata, missing browser origin, form/text content | Passed |
-| Session cookie flags | Secure configuration, HttpOnly, SameSite=Lax, host-only scope, auth path, deletion flags | Passed |
-| JWT validation | Ten cases including wrong algorithm, missing/expired claims, future issue time, issuer/audience, subject, conflicting guest/session identity | Passed |
-| Guest resource scope | Eight middleware route cases exercising conference scope and blocked unrelated resources | Passed |
-| Durable session revocation | Real PostgreSQL repositories: login/refresh, wrong-user session binding, access/refresh rejected after logout | Passed |
-| Resource authorization | Fourteen real PostgreSQL subtests, listed below | Passed |
+| Проверка источника запросов сессионных cookie | Восемь случаев: доверенный origin, CLI, чужой/null origin, межсайтовые метаданные, отсутствующий браузерный origin, содержимое form/text | Пройдено |
+| Флаги сессионной cookie | Secure, HttpOnly, SameSite=Lax, область одного хоста, путь авторизации, флаги удаления | Пройдено |
+| Проверка JWT | Десять случаев, включая неверный алгоритм, отсутствующие/просроченные claims, будущее время выпуска, issuer/audience, subject, конфликт гостевого/сессионного пользователя | Пройдено |
+| Область ресурсов гостя | Восемь случаев middleware: ограничение конференцией и запрет несвязанных ресурсов | Пройдено |
+| Постоянный отзыв сессии | Реальные репозитории PostgreSQL: вход/обновление, привязка сессии к чужому пользователю, отказ access/refresh после выхода | Пройдено |
+| Доступ к ресурсам | Четырнадцать проверок реальной PostgreSQL, перечисленных ниже | Пройдено |
 
-The database cases cover allowed member recording access; denied outsider recording access; non-owner recording stop and meeting finish; outsider meeting/direct/group chat access; editing another sender's message; group self-promotion; unauthorized group avatar access; attachment/folder ownership; and removed/kicked membership access.
+Проверки БД охватывают доступ участника к записи; запрет доступа постороннему; остановку записи и завершение встречи не владельцем; доступ постороннего к встрече, личному и групповому чату; редактирование чужого сообщения; повышение собственной роли в группе; доступ к аватару группы без разрешения; владение вложением/папкой; доступ удалённого/исключённого участника.
 
-All 35 migrations were applied to fresh test schemas. The final helper permits only an explicitly named loopback `meetspace_audit` database, rejects connection-override query parameters, requires an empty database, and uses a schema-only `search_path`. Cleanup drops only the newly created schema/container. No application `.env` or production credentials are read.
+Все 35 миграций применены к новым тестовым схемам. Итоговый инструмент допускает только явно названную БД `meetspace_audit` на loopback, отклоняет параметры URL, переопределяющие подключение, требует пустую БД и ограничивает `search_path` тестовой схемой. Очистка удаляет только новую схему/контейнер. Файлы `.env` приложения и рабочие учётные данные не читаются.
 
-`scripts/audit-postgres.sh` creates a temporary PostgreSQL container with a 512 MiB memory limit, one CPU, loopback-only ephemeral port, and a 256 MiB tmpfs database. Both host-Go mode and isolated Go-container mode passed. The initial PostgreSQL image was 16.15, linux/arm64, digest `sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab`. Initial audit containers were removed; their cached images may remain.
+`scripts/audit-postgres.sh` создаёт временный контейнер PostgreSQL: 512 MiB памяти, один CPU, временный порт только на loopback и БД в tmpfs на 256 MiB. Успешно прошли режимы Go на хосте и в отдельном контейнере. Первоначально использован PostgreSQL 16.15, linux/arm64, digest `sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab`. Первоначальные контейнеры аудита удалены; кэшированные образы могут оставаться.
 
-Evidence: `auth-security.log`, `postgres-final.log`, and `postgres-ci-mode.log` under `tmp/web-audit-20261026/evidence/`. The early transcribed log records a then-open schema-isolation recommendation; the final helper and later two logs supersede that limitation.
+Подтверждение: `auth-security.log`, `postgres-final.log` и `postgres-ci-mode.log` в `tmp/web-audit-20261026/evidence/`. Ранняя запись результатов содержит ещё не выполненную рекомендацию изоляции схемы; итоговый инструмент и два поздних журнала снимают это ограничение.
 
-These tests exercise selected repository/service boundaries, not the full HTTP routing/authentication stack for every endpoint. A skipped PostgreSQL test without its explicit environment variable must not be interpreted as an authorization pass; use the supplied runner.
+Тесты проверяют выбранные границы репозиториев/сервисов, а не весь HTTP-маршрут и авторизацию каждого эндпоинта. Пропуск PostgreSQL-теста без нужной переменной окружения нельзя считать успешной проверкой прав; используйте предусмотренный сценарий запуска.
 
-## Additional source review and local runtime checks
+## Дополнительная проверка кода и локальных контейнеров
 
-### Uploads and object access
+### Загрузка файлов и доступ к объектам
 
-The inspected upload path validates filenames, size and allowed extensions/content types, and checks scope/membership/ownership on attachment operations. The audited checkout allows JPEG, PNG, WebP, PDF, TXT, and CSV; it does not establish support for every archive format mentioned in historical requests. The upload limit is 10 MiB, and JPEG/PNG dimensions are checked against a 40-million-pixel bound. Text validation and MIME sniffing are present. No archive-extraction path was found in the reviewed upload flow.
+Изученный путь загрузки проверяет имена, размер, разрешённые расширения/типы содержимого и права участия/владения при работе с вложениями. Проверенная версия разрешает JPEG, PNG, WebP, PDF, TXT и CSV; она не подтверждает поддержку всех архивов из прежних запросов. Предел загрузки — 10 MiB, размеры JPEG/PNG ограничены 40 миллионами пикселей. Есть проверка текста и определение MIME по содержимому. Извлечение архивов в проверенном пути загрузки не обнаружено.
 
-The tested SQL boundaries prevented the selected cross-user attachment, folder, recording, and conversation operations. Real object-store transfer, antivirus scanning, malicious-document rendering, and exhaustive content-parser fuzzing were not performed. Authorization checks do not make arbitrary uploaded documents safe to open.
+Проверенные SQL-границы запретили выбранные операции с чужими вложениями, папками, записями и диалогами. Реальная передача объектов, антивирусная проверка, отображение вредоносных документов и исчерпывающий фаззинг обработчиков содержимого не выполнялись. Проверка прав не делает произвольные загруженные документы безопасными для открытия.
 
-### Outbound integrations
+### Внешние интеграции
 
-Reviewed provider clients use configured endpoints rather than arbitrary request-supplied recording URLs, bounded timeouts/responses, and disabled automatic redirects. HTTPS is required except for explicit local HTTP configuration. SMTP uses hostname verification and a TLS 1.2 minimum. No actual SMTP message or third-party provider request was sent. These observations do not substitute for network egress controls or validation of an operator's deployed configuration.
+Проверенные клиенты провайдеров используют настроенные адреса, а не произвольные URL записей из запроса; ограничивают время и объём ответа; отключают автоматические перенаправления. Требуется HTTPS, кроме явно настроенного локального HTTP. SMTP проверяет имя хоста и требует минимум TLS 1.2. Реальные письма и запросы сторонним провайдерам не отправлялись. Эти наблюдения не заменяют ограничения исходящей сети и проверку фактической конфигурации администратора.
 
-### Browser and Nginx controls
+### Защита браузера и Nginx
 
-An isolated frontend image smoke check passed health and Nginx syntax checks, CSP checks including `script-src 'self'` and `frame-ancestors 'none'`, `nosniff`, `no-referrer`, SPA no-cache behavior, one-year hashed-asset caching, and a missing-asset 404. Its allowed WebSocket origin was a synthetic `audit.invalid` value.
+Базовая проверка изолированного образа веб-клиента подтвердила состояние сервиса, синтаксис Nginx, CSP с `script-src 'self'` и `frame-ancestors 'none'`, `nosniff`, `no-referrer`, отсутствие кэширования SPA, годовое кэширование ресурсов с хешем и ответ 404 для отсутствующего ресурса. Разрешённый origin WebSocket был тестовым `audit.invalid`.
 
-Evidence: `tmp/web-audit-20261026/evidence/frontend-image-smoke.log` and `tools/audit/frontend-image-smoke.mjs`. This was a local HTTP container check; production TLS, certificate chains, reverse-proxy configuration, and external headers were not tested.
+Подтверждение: `tmp/web-audit-20261026/evidence/frontend-image-smoke.log` и `tools/audit/frontend-image-smoke.mjs`. Проверялся локальный HTTP-контейнер; рабочий TLS, цепочки сертификатов, настройки обратного прокси и внешние заголовки не проверялись.
 
-### Runtime identities and scanner interpretation
+### Пользователи процессов и трактовка результатов сканера
 
-The baseline Dockerfile configuration scan reported six HIGH `DS-0002` root-user flags: MinIO, PostgreSQL, Redis, recording worker, production proxy, and frontend Dockerfiles. These are six contextual hardening flags, not six demonstrated exploitable vulnerabilities. Entry-point privilege dropping, filesystem ownership, process behavior, Linux capabilities, and actual Compose overrides must be reviewed together before changing `USER`.
+Исходное сканирование Dockerfile выявило шесть замечаний HIGH `DS-0002` о root: MinIO, PostgreSQL, Redis, обработчик записи, рабочий прокси и веб-клиент. Это шесть зависящих от окружения замечаний к защите, а не шесть доказанных эксплуатируемых уязвимостей. Перед изменением `USER` нужно вместе проверить понижение привилегий точками входа, владельцев файлов, поведение процессов, возможности Linux и реальные переопределения Compose.
 
-PostgreSQL/Redis entrypoints drop privileges, and the production recording-worker service explicitly selects `1000:1000`; those context details are not reflected by a Dockerfile-only check. Nginx root-master behavior and the historical MinIO default still require runtime hardening review. No blanket `USER` change or suppression was added merely to reduce the count. Follow-up should validate non-root execution and least privileges for each affected runtime without breaking database initialization, media processing, or Nginx startup. Evidence: `tmp/web-audit-20261026/evidence/trivy-config-baseline.json`.
+Точки входа PostgreSQL/Redis понижают привилегии, а рабочий сервис записи явно выбирает `1000:1000`; проверка одного Dockerfile этого не учитывает. Поведение главного процесса Nginx от root и прежние настройки MinIO ещё требуют проверки. Массовое добавление `USER` и подавление предупреждений ради уменьшения счётчика не выполнялись. Следующий этап должен проверить запуск без root и минимальные права каждого процесса, не нарушая инициализацию БД, обработку медиа и запуск Nginx. Подтверждение: `tmp/web-audit-20261026/evidence/trivy-config-baseline.json`.
 
-### JavaScript dependencies and secrets
+### Зависимости JavaScript и секреты
 
-The locked frontend dependency audit reported zero advisories at audit time. This is a package-database result, not a source-code security review. The filename/pattern-based secret check produced no matches in its inspected scope. It was a heuristic check, not a complete entropy scan, Git-history audit, or assurance that credentials were never disclosed. Secret values were not printed, copied into reports, or used for testing.
+Аудит зафиксированных зависимостей веб-клиента не выявил уязвимостей на дату проверки. Это результат базы пакетов, а не аудит безопасности исходников. Проверка секретов по именам файлов и шаблонам не нашла совпадений в своей области. Она эвристическая и не заменяет полного анализа энтропии, истории Git или подтверждения, что учётные данные никогда не раскрывались. Значения секретов не печатались, не копировались в отчёты и не использовались в тестах.
 
-## Remaining risks and unverified areas
+## Оставшиеся риски и непроверенные области
 
-1. **P2 policy review — durable session lifetime:** session cookies permit 400 days and the inspected durable-session lookup enforces revocation without an independent server-side absolute/idle expiry. Define an explicit lifetime/re-authentication policy before changing compatibility. Short access-token expiry alone does not invalidate a durable refresh session.
-2. **P2 policy review — issued object links:** the recording presign path uses a 24-hour lifetime. A URL already issued remains a bearer capability until expiry even if membership changes. Consider shorter lifetimes or an authenticated proxy where immediate revocation is required. Existing direct-chat attachment links have a shorter lifetime, and group streaming rechecks membership.
-3. **P2 hardening — six runtime identity flags:** validate effective processes/capabilities and introduce per-image restrictions, as described above. Do not confuse a Dockerfile-level warning with verified remote exploitability.
-4. **Coverage gap:** no production TLS/headers, SMTP delivery, object-storage policy, TURN/network egress, full multi-user HTTP/browser workflow, long-duration soak, or cross-platform installer audit was executed. Authorization coverage is representative, not exhaustive.
-5. **Coverage gap:** mocked browser media lifecycle tests and local stream fixtures do not establish stability under real camera/network conditions. The separate performance/memory reports describe the measured lifecycle cases and their limits.
-6. **Supply-chain follow-up:** rebuild and publish approved artifacts through the release process, then repeat scans on their exact digests and architectures. Local fixes have not changed the running service or published installer.
+1. **P2, политика постоянных сессий.** Cookie допускают 400 дней; изученный поиск постоянной сессии проверяет отзыв, но не отдельный серверный предел абсолютного срока или простоя. До изменения совместимости нужна явная политика срока и повторной авторизации. Короткий срок access-токена сам по себе не аннулирует постоянную refresh-сессию.
+2. **P2, политика выданных ссылок.** Подписанные ссылки записи действуют 24 часа. Уже выданный URL сохраняет доступ владельцу ссылки до истечения срока даже после изменения участия. При необходимости немедленного отзыва можно рассмотреть короткий срок или авторизованный прокси. Ссылки личных вложений действуют меньше, а потоковая выдача группы заново проверяет участие.
+3. **P2, шесть замечаний к пользователям процессов.** Проверить фактические процессы/возможности и добавить ограничения для каждого образа, как описано выше. Предупреждение Dockerfile не равно доказанной удалённой эксплуатации.
+4. **Пробел покрытия.** Не проверялись рабочие TLS/заголовки, отправка SMTP, политика хранилища, TURN/исходящая сеть, полный многопользовательский HTTP/браузерный сценарий, длительная работа и установщики разных платформ. Покрытие прав доступа выборочное, не исчерпывающее.
+5. **Пробел покрытия.** Имитации браузерных медиа и локальные потоки не подтверждают стабильность реальной камеры/сети. Измеренные случаи и ограничения описаны в отдельных отчётах производительности/памяти.
+6. **Последующая проверка цепочки поставки.** Пересобрать и опубликовать одобренные файлы через процесс выпуска, затем повторить сканирование точных digest и архитектур. Локальные исправления не изменили работающий сервис и опубликованный установщик.
 
-## Reproduction and evidence
+## Воспроизведение и подтверждающие материалы
 
-From the repository root, the following commands reproduce the targeted controls without contacting production:
+Следующие команды из корня репозитория воспроизводят адресные проверки без обращения к рабочей системе:
 
 ```sh
 go test -race -count=1 ./internal/app/auth ./internal/infrastructure/security ./internal/transport/http/middleware ./internal/usecase/auth
@@ -186,6 +186,6 @@ npm --prefix frontend run check
 npm --prefix frontend audit --audit-level=high
 ```
 
-The PostgreSQL script creates and removes its own disposable resources and uses only synthetic credentials. Do not point the integration helper at a nonempty or shared database. The optional browser tools require the documented local Playwright/Chromium setup; they block non-loopback traffic for their page fixtures.
+Сценарий PostgreSQL создаёт и удаляет собственные временные ресурсы и использует только тестовые учётные данные. Не направляйте инструмент интеграционных проверок в непустую или общую БД. Дополнительным браузерным инструментам нужна описанная локальная установка Playwright/Chromium; они блокируют для своих тестовых страниц трафик вне loopback.
 
-Raw and redacted audit evidence is stored locally under `tmp/web-audit-20261026/`, not committed as production data. The new CI workflow reproduces core Go, PostgreSQL, frontend, and dependency checks; its constituent commands were exercised locally, but the workflow has not been represented as a completed remote GitHub run.
+Исходные и очищенные от чувствительных данных материалы находятся локально в `tmp/web-audit-20261026/` и не публикуются как рабочие данные. Новый процесс CI воспроизводит основные проверки Go, PostgreSQL, веб-клиента и зависимостей. Его команды выполнены локально, но успешный удалённый запуск GitHub здесь не заявляется.
