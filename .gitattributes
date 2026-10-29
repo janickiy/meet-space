@@ -1,0 +1,2 @@
+# PDF files must not receive text diffs or line-ending normalization.
+*.pdf binary

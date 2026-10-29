@@ -1,0 +1,27 @@
+digraph architecture {
+graph [rankdir=TB, bgcolor="white", pad=0.12, margin=0, nodesep=0.22, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="Arial", fontsize=14, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3"><TR><TD COLSPAN="4"><FONT POINT-SIZE="19"><B>MeetSpace · клиент, API и медиа</B></FONT></TD></TR><TR><TD><FONT COLOR="#2c5d8a">━━ Управление</FONT></TD><TD><FONT COLOR="#067566">━━ Медиа</FONT></TD><TD><FONT COLOR="#7b439a">━━ Файлы</FONT></TD><TD><FONT COLOR="#94630d">━━ SQL / RESP</FONT></TD></TR><TR><TD COLSPAN="4">Продолжение: фоновые процессы и запись — architecture-workers</TD></TR></TABLE>>, labelloc=t];
+node [shape=box, style="rounded,filled", fillcolor="#eef4fa", color="#55738f", fontname="Arial", fontsize=15, margin="0.12,0.08", penwidth=1.15];
+edge [fontname="Arial", fontsize=14, arrowsize=0.75, penwidth=1.5];
+browser [label="Браузер\nReact + WebRTC", fillcolor="#dbeafa", shape=box];
+proxy [label="Nginx proxy / https\nTLS, маршрутизация", fillcolor="#eef4fa", shape=box];
+frontend [label="frontend\nReact assets", fillcolor="#eef4fa", shape=box];
+api [label="api · Go / Gin\nREST, WS, авторизация", fillcolor="#eef4fa", shape=box];
+sfu [label="media-worker\nPion SFU · :8091", fillcolor="#def1eb", shape=box];
+turn [label="coturn\nTURN relay", fillcolor="#def1eb", shape=box];
+pg [label="PostgreSQL\nсостояние, outbox, jobs", fillcolor="#fff2d4", shape=cylinder];
+redis [label="Redis\nregistry, Pub/Sub", fillcolor="#fff2d4", shape=cylinder];
+objects [label="S3 · minio:9000\nSeaweedFS / MinIO", fillcolor="#f3e8f8", shape=cylinder];
+browser -> proxy [label="HTTPS / WSS\nAPI, signaling", color="#2c5d8a", fontcolor="#2c5d8a", dir=both, penwidth=1.4];
+browser -> proxy [label="HTTPS\nassets / signed GET", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+proxy -> frontend [label="HTTP\nassets", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+proxy -> api [label="HTTP / WS", color="#2c5d8a", fontcolor="#2c5d8a", dir=both, penwidth=1.4];
+proxy -> objects [label="S3 GET\n↔ байты файла", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+api -> pg [label="SQL", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+api -> redis [label="RESP\nPub/Sub", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+api -> sfu [label="HTTP :8091\nSDP / ICE", color="#2c5d8a", fontcolor="#2c5d8a", dir=both, penwidth=1.4];
+browser -> sfu [label="SRTP\nсвои / удалённые треки", color="#067566", fontcolor="#067566", dir=both, penwidth=2];
+browser -> turn [label="SRTP\nесли нужен relay", color="#067566", fontcolor="#067566", dir=both, style=dashed, penwidth=2];
+turn -> sfu [label="SRTP relay", color="#067566", fontcolor="#067566", dir=both, style=dashed, penwidth=2];
+sfu -> redis [label="RESP\nregistry / events", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+api -> objects [label="S3 API\nвложения / cleanup", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+}

@@ -1,0 +1,25 @@
+digraph media_flow {
+graph [rankdir=TB, bgcolor="white", pad=0.12, margin=0, nodesep=0.22, ranksep=0.42, splines=spline, outputorder=edgesfirst, fontname="Arial", fontsize=14, label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3"><TR><TD COLSPAN="4"><FONT POINT-SIZE="19"><B>MeetSpace · от медиапотока до просмотра записи</B></FONT></TD></TR><TR><TD><FONT COLOR="#2c5d8a">━━ Управление</FONT></TD><TD><FONT COLOR="#067566">━━ Медиа</FONT></TD><TD><FONT COLOR="#7b439a">━━ Файлы</FONT></TD><TD><FONT COLOR="#94630d">━━ SQL / RESP</FONT></TD></TR><TR><TD COLSPAN="4">1. Upload → 2. SQL commit ready → 3. API выдаёт URL → 4. Signed GET через proxy</TD></TR></TABLE>>, labelloc=t];
+node [shape=box, style="rounded,filled", fillcolor="#eef4fa", color="#55738f", fontname="Arial", fontsize=15, margin="0.12,0.08", penwidth=1.15];
+edge [fontname="Arial", fontsize=14, arrowsize=0.75, penwidth=1.5];
+source [label="Браузер участника\ngetUserMedia / screen", fillcolor="#dbeafa", shape=box];
+sfu [label="media-worker / SFU\nPion · VP8 + Opus", fillcolor="#def1eb", shape=box];
+worker [ordering=out, label="Go record-worker\ncapture → FFmpeg → publish\nVP8/Opus → H.264/AAC", fillcolor="#def1eb", shape=box];
+spool [label="/storage/records/UUID\nsources: IVF / Ogg\nsegments → final.mp4", fillcolor="#f3e8f8", shape=cylinder];
+objects [label="S3 bucket recordings\nMP4 / preview / tracks.zip", fillcolor="#f3e8f8", shape=cylinder];
+pg [label="PostgreSQL\nrecord_file + record_segment\nrecord.status = ready", fillcolor="#fff2d4", shape=cylinder];
+api [label="API: авторизация\nчтение метаданных\nгенерация files[].url", fillcolor="#eef4fa", shape=box];
+proxy [label="Nginx HTTPS proxy\nAPI + /recordings/", fillcolor="#eef4fa", shape=box];
+viewer [label="Браузер просмотра\nкарточка / playback", fillcolor="#dbeafa", shape=box];
+source -> sfu [label="SRTP\nсвои / удалённые треки", color="#067566", fontcolor="#067566", dir=both, penwidth=2];
+sfu -> worker [label="HTTP NDJSON\nRTP base64", color="#067566", fontcolor="#067566", dir=forward, penwidth=2];
+worker -> spool [label="file I/O\nFFmpeg", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+worker -> objects [label="1. S3 PUT\n+ StatObject", color="#7b439a", fontcolor="#7b439a", dir=forward, penwidth=1.4];
+worker -> pg [label="2. SQL ready\nпосле upload", color="#94630d", fontcolor="#94630d", dir=forward, penwidth=1.4];
+api -> pg [label="SQL read\nметаданные", color="#94630d", fontcolor="#94630d", dir=both, penwidth=1.4];
+proxy -> api [label="HTTP JSON\n↔ files[].url", color="#2c5d8a", fontcolor="#2c5d8a", dir=both, penwidth=1.4];
+viewer -> proxy [label="3. HTTPS\nкарточка ↔ JSON", color="#2c5d8a", fontcolor="#2c5d8a", dir=both, penwidth=1.4];
+viewer -> proxy [label="4. signed GET\n↔ байты файла", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+proxy -> objects [label="S3 GET\n↔ байты файла", color="#7b439a", fontcolor="#7b439a", dir=both, penwidth=1.4];
+{ rank=same; spool; objects; pg; }
+}
