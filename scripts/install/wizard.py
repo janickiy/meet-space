@@ -778,7 +778,7 @@ def make_configuration(root, manifest, state, smtp=None):
         raise RuntimeError('Docker не сообщил допустимое количество CPU сервера.')
     domain, address = state['domain'], state['ip']
     values = {key: secrets.token_hex(32) for key in (
-        'JWT_SECRET', 'MEDIA_TICKET_SECRET', 'MEDIA_INTERNAL_SECRET', 'WORKER_INTERNAL_SECRET',
+        'JWT_SECRET', 'MEDIA_TICKET_SECRET', 'MEDIA_INTERNAL_SECRET',
         'METRICS_SECRET', 'TURN_SHARED_SECRET', 'POSTGRES_PASSWORD', 'REDIS_PASSWORD',
         'RABBIT_MQ_PASSWORD', 'MINIO_ROOT_PASSWORD')}
     values.update({key: 'meetspace' for key in ('POSTGRES_USER', 'POSTGRES_DB', 'RABBIT_MQ_USER', 'MINIO_ROOT_USER')})

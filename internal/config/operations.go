@@ -17,17 +17,15 @@ import (
 	"time"
 )
 
-// OperationsConfig определяет операционные ограничения для каждого процесса. Зависимость ProbeTimeout определяет границы
-// проверяет; ProbeInterval объединяет проверки готовности; ShutdownTimeout определяет границы завершения работы. DBMaxOpen,
-// DBMaxIdle и DBLifetime управляют пулом баз данных; HTTPBodyBytes ограничивает JSON. InternalSecret
-// защищает протокол записи HTTP, а MetricsSecret защищает Prometheus. PprofPort=0 отключает профилирование.;
-// включенное профилирование прослушивается только при обратной связи.
+// OperationsConfig defines process health, shutdown, database and HTTP limits.
+// MetricsSecret protects monitoring and drain controls. PprofPort=0 disables
+// profiling; an enabled profiling listener is bound to loopback only.
 type OperationsConfig struct {
 	ProbeTimeout, ProbeInterval, ShutdownTimeout time.Duration
 	DBMaxOpen, DBMaxIdle                         int
 	DBLifetime                                   time.Duration
 	HTTPBodyBytes                                int64
-	InternalSecret, MetricsSecret                string
+	MetricsSecret                                string
 	PprofPort                                    int
 	DiskMinBytes                                 uint64
 	HTTPReadTimeout                              time.Duration
@@ -48,13 +46,10 @@ func loadOperations(local bool) (OperationsConfig, error) {
 		ProbeTimeout: envDuration("HEALTH_PROBE_TIMEOUT", time.Second), ProbeInterval: envDuration("HEALTH_PROBE_INTERVAL", 2*time.Second),
 		ShutdownTimeout: envDuration("SHUTDOWN_TIMEOUT", 20*time.Second),
 		DBMaxOpen:       envInt("DB_MAX_OPEN", 20), DBMaxIdle: envInt("DB_MAX_IDLE", 10), DBLifetime: envDuration("DB_CONNECTION_LIFETIME", 30*time.Minute),
-		HTTPBodyBytes: int64(envInt("HTTP_MAX_BODY_BYTES", 1<<20)), InternalSecret: os.Getenv("WORKER_INTERNAL_SECRET"),
+		HTTPBodyBytes: int64(envInt("HTTP_MAX_BODY_BYTES", 1<<20)),
 		MetricsSecret: os.Getenv("METRICS_SECRET"), PprofPort: envInt("PPROF_PORT", 0),
 		DiskMinBytes:    uint64(envInt("RECORDING_DISK_RESERVE_MIB", 256)) << 20,
 		HTTPReadTimeout: envDuration("HTTP_READ_TIMEOUT", 60*time.Second),
-	}
-	if local && c.InternalSecret == "" && len(os.Getenv("JWT_SECRET")) >= 32 {
-		c.InternalSecret = mediaDerivedSecret(os.Getenv("JWT_SECRET"), "recorder-internal-v1")
 	}
 	if c.ProbeTimeout < 50*time.Millisecond || c.ProbeTimeout > 5*time.Second || c.ProbeInterval < time.Second || c.ProbeInterval > time.Minute ||
 		c.ShutdownTimeout < time.Second || c.ShutdownTimeout > 2*time.Minute || c.DBMaxOpen < 1 || c.DBMaxOpen > 500 || c.DBMaxIdle < 0 || c.DBMaxIdle > c.DBMaxOpen ||
@@ -67,8 +62,8 @@ func loadOperations(local bool) (OperationsConfig, error) {
 	if c.HTTPReadTimeout < time.Second || c.HTTPReadTimeout > 2*time.Minute {
 		return c, fmt.Errorf("HTTP_READ_TIMEOUT must be 1s..2m")
 	}
-	if !local && (len(c.InternalSecret) < 32 || len(c.MetricsSecret) < 32) {
-		return c, fmt.Errorf("production requires WORKER_INTERNAL_SECRET and METRICS_SECRET (32+ bytes)")
+	if !local && len(c.MetricsSecret) < 32 {
+		return c, fmt.Errorf("production requires METRICS_SECRET (32+ bytes)")
 	}
 	return c, nil
 }
@@ -88,7 +83,7 @@ func validateProduction(cfg Config) error {
 		return fmt.Errorf("APP_ENV must be local, dev, debug, test, prod or production")
 	}
 	seen := map[string]bool{}
-	for _, key := range []string{"JWT_SECRET", "MEDIA_TICKET_SECRET", "MEDIA_INTERNAL_SECRET", "WORKER_INTERNAL_SECRET", "METRICS_SECRET", "TURN_SHARED_SECRET"} {
+	for _, key := range []string{"JWT_SECRET", "MEDIA_TICKET_SECRET", "MEDIA_INTERNAL_SECRET", "METRICS_SECRET", "TURN_SHARED_SECRET"} {
 		value := os.Getenv(key)
 		if len(value) < 32 || strings.Contains(strings.ToLower(value), "replace") || seen[value] {
 			return fmt.Errorf("%s requires a dedicated production secret", key)
@@ -148,7 +143,7 @@ func validateTypedEnvironment() error {
 			return fmt.Errorf("RECORDING_DISK_RESERVE_MIB must be an integer")
 		}
 	}
-	ints := strings.Fields("APP_PORT APP_HOST_PORT WORKER_PORT WEBRTC_UDP_PORT WEBRTC_TCP_PORT WS_QUEUE_SIZE WS_MAX_MESSAGE_BYTES WS_MAX_OUTBOUND_BYTES WS_MAX_SDP_BYTES WS_MAX_ICE_BYTES WS_MESSAGES_PER_SECOND WS_MESSAGE_BURST WS_MAX_CONNECTIONS MEDIA_HTTP_PORT MEDIA_MAX_PEERS MEDIA_MAX_ROOMS MEDIA_MAX_PUBLISHED_TRACKS MEDIA_MAX_AUDIO_TRACKS MEDIA_MAX_VIDEO_TRACKS MEDIA_MAX_SCREEN_SHARERS MEDIA_EGRESS_QUEUE_SIZE MEDIA_VIDEO_MAX_WIDTH MEDIA_VIDEO_MAX_HEIGHT MEDIA_VIDEO_MAX_FPS MEDIA_UDP_PORT MEDIA_UDP_MIN_PORT MEDIA_UDP_MAX_PORT MEDIA_TCP_PORT DB_MAX_OPEN DB_MAX_IDLE HTTP_MAX_BODY_BYTES PPROF_PORT RECORDING_WIDTH RECORDING_HEIGHT RECORDING_FPS RECORDING_FFMPEG_CONCURRENCY RECORDING_MAX_ACTIVE RECORDING_MAX_MIB")
+	ints := strings.Fields("APP_PORT APP_HOST_PORT WORKER_PORT WS_QUEUE_SIZE WS_MAX_MESSAGE_BYTES WS_MAX_OUTBOUND_BYTES WS_MAX_SDP_BYTES WS_MAX_ICE_BYTES WS_MESSAGES_PER_SECOND WS_MESSAGE_BURST WS_MAX_CONNECTIONS MEDIA_HTTP_PORT MEDIA_MAX_PEERS MEDIA_MAX_ROOMS MEDIA_MAX_PUBLISHED_TRACKS MEDIA_MAX_AUDIO_TRACKS MEDIA_MAX_VIDEO_TRACKS MEDIA_MAX_SCREEN_SHARERS MEDIA_EGRESS_QUEUE_SIZE MEDIA_VIDEO_MAX_WIDTH MEDIA_VIDEO_MAX_HEIGHT MEDIA_VIDEO_MAX_FPS MEDIA_UDP_PORT MEDIA_UDP_MIN_PORT MEDIA_UDP_MAX_PORT MEDIA_TCP_PORT DB_MAX_OPEN DB_MAX_IDLE HTTP_MAX_BODY_BYTES PPROF_PORT RECORDING_WIDTH RECORDING_HEIGHT RECORDING_FPS RECORDING_FFMPEG_CONCURRENCY RECORDING_MAX_ACTIVE RECORDING_MAX_MIB")
 	for _, key := range ints {
 		if v := os.Getenv(key); v != "" {
 			if _, e := strconv.Atoi(v); e != nil {

@@ -70,49 +70,10 @@ func NewPostProcessor(ffmpegPath string) *PostProcessor {
 	}
 }
 
-// Функция Finalize объединяет пригодные для использования сегменты записи и подготавливает
-// финальный файл и предварительный просмотр.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - recordDir: Проверенный локальный каталог задания по записи.
-//
-// @returns:
-//   - result1: Результирующий результат.
-//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func (p *PostProcessor) Finalize(ctx context.Context, recordDir string) (Result, error) {
-	return p.finalize(ctx, recordDir, false)
-}
-
-// FinalizeComposite завершает формирование составного выходного файла и подготавливает
-// артефакты записи к публикации.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - recordDir: Проверенный локальный каталог задания по записи.
-//
-// @returns:
-//   - result1: Результирующий результат.
-//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
+// FinalizeComposite joins validated SFU recording segments and creates a preview.
+// ctx bounds FFmpeg operations; recordDir contains the completed local segments.
+// It returns artifact metadata only after output validation succeeds.
 func (p *PostProcessor) FinalizeComposite(ctx context.Context, recordDir string) (Result, error) {
-	return p.finalize(ctx, recordDir, true)
-}
-
-// Функция finalize выполняет общий путь финализации записи и проверяет сгенерированные
-// артефакты.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - recordDir: Проверенный локальный каталог задания по записи.
-//   - composite: Является ли этот выходной файл составной записью конференции.
-//
-// @returns:
-//   - result1: Результирующий результат.
-//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func (p *PostProcessor) finalize(ctx context.Context, recordDir string, composite bool) (Result, error) {
 	segments, err := findSegments(recordDir)
 	if err != nil {
 		return Result{}, err
@@ -129,23 +90,14 @@ func (p *PostProcessor) finalize(ctx context.Context, recordDir string, composit
 
 	finalPath := filepath.Join(recordDir, "final.mp4")
 	previewPath := filepath.Join(recordDir, "preview.jpg")
-	var concatErr error
-	if composite {
-		concatErr = p.concatComposite(ctx, listPath, finalPath)
-	} else {
-		concatErr = p.concat(ctx, listPath, finalPath)
+	if err := p.concatComposite(ctx, listPath, finalPath); err != nil {
+		return Result{}, err
 	}
-	if concatErr != nil {
-		return Result{}, concatErr
+	validated, err := p.ValidateOutput(ctx, finalPath, true)
+	if err != nil {
+		return Result{}, err
 	}
-	var durationSec int
-	if composite {
-		validated, err := p.ValidateOutput(ctx, finalPath, true)
-		if err != nil {
-			return Result{}, err
-		}
-		durationSec = int(validated.Duration + 0.5)
-	}
+	durationSec := int(validated.Duration + 0.5)
 	if err := p.preview(ctx, finalPath, previewPath); err != nil {
 		return Result{}, err
 	}
@@ -170,9 +122,6 @@ func (p *PostProcessor) finalize(ctx context.Context, recordDir string, composit
 	if err != nil {
 		return Result{}, err
 	}
-	if !composite {
-		durationSec, _ = p.durationSec(ctx, finalPath)
-	}
 
 	return Result{
 		FinalPath:        finalPath,
@@ -184,44 +133,6 @@ func (p *PostProcessor) finalize(ctx context.Context, recordDir string, composit
 		FinalChecksum:    finalChecksum,
 		PreviewChecksum:  previewChecksum,
 	}, nil
-}
-
-// Функция concat объединяет упорядоченные сегменты записи в один выходной файл.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - listPath: Путь к проверенному входному списку FFmpeg для объединения.
-//   - finalPath: Путь к итоговому сгенерированному медиаконтенту.
-//
-// @returns:
-//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func (p *PostProcessor) concat(ctx context.Context, listPath string, finalPath string) error {
-	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-	defer cancel()
-	args := []string{
-		"-hide_banner",
-		"-y",
-		"-f", "concat",
-		"-safe", "0",
-		"-i", listPath,
-		"-c:v", "libx264",
-		"-preset", "veryfast",
-		"-b:v", "6M",
-		"-maxrate", "6M",
-		"-bufsize", "12M",
-		"-r", "30",
-		"-pix_fmt", "yuv420p",
-		"-c:a", "aac",
-		"-movflags", "+faststart",
-		finalPath,
-	}
-	output, err := runBounded(runCtx, p.ffmpegPath, args...)
-	if err != nil {
-		return fmt.Errorf("concat final video: %w; ffmpeg=%s", err, strings.TrimSpace(string(output)))
-	}
-
-	return nil
 }
 
 // Функция preview создает изображение для предварительного просмотра записи, используя
@@ -276,26 +187,6 @@ func (p *PostProcessor) previewAt(ctx context.Context, finalPath string, preview
 	}
 
 	return nil
-}
-
-// durationSec считывает продолжительность медиафайла с округлением до значения, представленного
-// в метаданных записи.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - path: Проверенный путь к локальной файловой системе или объекту.
-//
-// @returns:
-//   - result1: Возвращает количество, размер или числовое значение.
-//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func (p *PostProcessor) durationSec(ctx context.Context, path string) (int, error) {
-	value, err := p.durationFloat(ctx, path)
-	if err != nil {
-		return 0, err
-	}
-
-	return int(value + 0.5), nil
 }
 
 // durationFloat определяет продолжительность медиафайла с точностью до долей секунды.

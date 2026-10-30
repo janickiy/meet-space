@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b32c978f-e1be-4b41-9588-3e0a2545d409",
     "name": "MeetSpace — API с полной документацией",
-    "description": "# MeetSpace — API\n\nСправочник API проекта github.com/janickiy/meet-space: Коллекция содержит 171 запрос: продуктовый API и служебные/диагностические адреса. Актуализировано 29 октября 2026: удалены функции речи; запись и поиск названий встреч сохраняются. /version.json — статический frontend-ресурс.\n\n## Как пользоваться\n\n1. По умолчанию baseUrl=http://localhost:8085 (локальный Docker), frontendBaseUrl=http://localhost:5173. Удалённый API: https://meeting.janickiy.com, задаётся вручную. Внутренние сервисы не открыты через публичный proxy; для них нужны отдельные закрытые адреса/туннели.\n2. POST /auth/register создаёт аккаунт, но токен не выдаёт. POST /auth/login возвращает accessToken; заполните accessToken только локальным значением/Vault. HttpOnly meetrix_session и meetrix_account_<userId> хранит Cookie Jar; refresh обновляет короткий JWT. Переключение аккаунтов использует cookies, DELETE /auth/me требует Bearer и пароль. Действующие пароли, cookies, JWT и service keys НЕ должны попадать в shared/export.\n3. Заполните UUID и курсоры только из доступных вам ресурсов. Примеры ответа вымышленные. Новые clientRequestId/requestId нужны согласно идемпотентности конкретного запроса; примеры не являются готовыми рабочими медиасессиями.\n4. Не запускайте всю коллекцию Runner: она содержит создание/удаление/очистку, завершение конференции, drain и бесконечные потоки. Автоматических pre-request/test scripts нет; реальные запросы при подготовке не выполнялись.\n5. WebSocket endpoints представлены как справочные GET handshake. Создайте WebSocket request в Postman вручную, поменяйте схему HTTP→WS/HTTPS→WSS, используйте свежий одноразовый ticket; обычный HTTP GET не является работающим WebSocket-клиентом. Account WS требует ticket и запрещает Authorization; conference WS допускает ticket либо Bearer согласно описанию. SSE /notifications/events — длительный text/event-stream.\n\n## Границы и ошибки\n\nОсновной JSON API camelCase, /api/v1, статус обычно {status,item/items/...}; точный ответ и ошибки в каждом описании. Middleware/handler могут дополнительно отвечать401/403/404/400/413/415/422/429/500/503/504; учитывайте Retry-After. Возможности email/push/calendar зависят от конфигурации и провайдеров. GET /capabilities не выдаёт права и не гарантирует готовность провайдера.\n\nУдалённые публичные /api/v1/records*, /api/records*, /debug/records* и /debug/webrtc-smoke не зарегистрированы и возвращают404; в коллекцию они не входят. Действующая запись встречи использует авторизованные /api/v1/conferences/:id/recordings. Внутренний record-worker по закрытому адресу остаётся отдельным сервисным протоколом. Общие operations endpoints существуют на API и всех внутренних worker; они представлены один раз с настраиваемым адресом, а не размножены по сервисам. Pprof опционален и только loopback, по умолчанию выключен.\n\nИсточники: internal/app/api.go; internal/transport/http/*_routes.go; internal/transport/websocket/*; internal/operations/*; internal/app/record_worker.go; internal/transport/mediaworker/*; docs/API.md. Устаревшие отдельные коллекции recorder исключены из репозитория. Существующие коллекции в приложении Postman и облаке пользователя не изменялись.\n",
+    "description": "# MeetSpace — API\n\nКоллекция содержит 168 запросов: API приложения, потоковые соединения и служебные адреса. Маршруты сверены с текущей рабочей редакцией исходного кода MeetSpace. Обновление от 30 октября 2026 года учитывает удаление функций распознавания речи, переименование record-worker, гостевые сессии на 3 часа, сортировку встреч, вложения, аватары и удаление прямых legacy WebRTC-маршрутов record-worker.\n\n## Начало работы\n\n1. Укажите адрес окружения в baseUrl. По умолчанию используется http://localhost:8085 для локального Docker; frontendBaseUrl — http://localhost:5173. Для удалённого приложения задайте его HTTPS-адрес, например https://meeting.janickiy.com. Внутренние сервисы доступны только через закрытую сеть или защищённый туннель.\n2. POST /api/v1/auth/register создаёт аккаунт, но не выдаёт токен. Выполните POST /api/v1/auth/login и сохраните accessToken только в локальном значении переменной или Postman Vault. HttpOnly cookies meetrix_session и meetrix_account_<userId> обрабатываются Cookie Jar. Обновление сессии выдаёт новый короткоживущий JWT. Переключение аккаунтов использует cookies; удаление аккаунта требует Bearer-токен и пароль.\n3. Заполните идентификаторы и курсоры значениями из ресурсов, к которым у вас есть доступ. Используйте новые clientRequestId/requestId там, где это требуется правилами идемпотентности. Примеры ответов вымышленные и не содержат рабочих секретов.\n\n## Безопасное использование\n\nНе запускайте всю коллекцию через Runner: в ней есть создание и удаление данных, завершение встреч, очистка ресурсов и перевод сервисов в drain. Выполняйте нужные запросы по отдельности в выбранном окружении. Автоматических pre-request и test scripts нет. При обновлении коллекции запросы к работающим серверам не выполнялись.\n\nНе сохраняйте пароли, JWT, cookies и служебные ключи в общих значениях переменных или экспортируемом файле.\n\n## WebSocket и события\n\nWebSocket-маршруты представлены справочными GET-запросами для начального подключения. Создайте отдельный WebSocket request в Postman, замените HTTP на WS или HTTPS на WSS и используйте свежий одноразовый ticket. Обычный HTTP GET не заменяет WebSocket-клиент. Пользовательский WebSocket требует ticket и не принимает Authorization; WebSocket конференции допускает ticket или Bearer согласно описанию запроса. GET /api/v1/notifications/events открывает длительный поток text/event-stream.\n\n## Ответы и ограничения\n\nОсновной API использует префикс /api/v1 и JSON с полями camelCase. Формат ответа, параметры, права и ограничения указаны в каждом запросе. Возможны дополнительные ошибки middleware: 400, 401, 403, 404, 413, 415, 422, 429, 500, 503 и 504. При повторных запросах учитывайте Retry-After. Отправка email, push-уведомления и календарные интеграции зависят от конфигурации. GET /capabilities сообщает о возможностях, но не выдаёт права доступа и не подтверждает доступность внешнего провайдера.\n\n## Служебные маршруты\n\nУдалённые публичные /api/v1/records*, /api/records*, /debug/records* и /debug/webrtc-smoke в коллекцию не входят. Запись конференций управляется через авторизованные /api/v1/conferences/:id/recordings. Прямые HTTP-маршруты record-worker /records/:recordId/start, /records/:recordId/stop и /records/:recordId/webrtc/offer удалены и не входят в коллекцию. Команды записи поступают через очередь, медиаданные — от SFU через Egress. HTTP-интерфейс record-worker используется только для проверки состояния и общих служебных операций.\n\nОбщие маршруты диагностики представлены один раз с переменной serviceBaseUrl для выбора API, record-worker, media-worker или product-worker. Pprof включается отдельно, доступен только через loopback и по умолчанию выключен. /version.json — статический ресурс frontend.\n\nИсточники: internal/app/api.go; internal/transport/http/*_routes.go; internal/transport/websocket/*; internal/operations/*; internal/app/record_worker.go; internal/transport/mediaworker/*; docs/API.md.\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -591,8 +591,130 @@
                     "avatar"
                   ]
                 },
-                "description": "Заменяет фото текущего постоянного аккаунта. Выберите локальный бинарный PNG/JPEG до 2 МиБ (не multipart); Content-Type должен соответствовать файлу. Ответ 200 {status,user}; гостю 403, неверный файл отклоняется, лимит 10 запросов/минуту. Файл нормализуется сервером. Изменяет данные: выполняйте вручную. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go."
-              }
+                "description": "Заменяет фото текущего постоянного аккаунта. Body → binary, не multipart: PNG/JPEG размером 1–2097152 байт (2 MiB), каждая сторона 1–2048 px. Content-Type image/png либо image/jpeg обязателен и должен соответствовать файлу. Сервер обрезает изображение по центру до квадрата не больше 512×512 px, сводит прозрачность на белый фон и повторно кодирует в JPEG quality 85 без исходных метаданных; сохранённый результат не больше 262144 байт (256 KiB). Ответ 200 {status,user}, user.avatarVersion — новый UUID. Ошибки: 401 — нет авторизации, 403 — гость, 422 — неверные тип/байты/размер/габариты, 429 — лимит запросов либо заняты оба слота обработки. Лимит 10 запросов/минуту; обработка до 20 секунд. Ответ private,no-store; nosniff. Изменяет данные: выполняйте вручную. Примеры ответа синтетические. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go; internal/usecase/profile/avatar.go; internal/domain/avatar/avatar.go."
+              },
+              "response": [
+                {
+                  "name": "200 OK — иллюстрация",
+                  "originalRequest": {
+                    "method": "PUT",
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{accessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "image/png"
+                      }
+                    ],
+                    "body": {
+                      "mode": "file",
+                      "file": {
+                        "src": null
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/auth/me/avatar",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "auth",
+                        "me",
+                        "avatar"
+                      ]
+                    },
+                    "description": "Заменяет фото текущего постоянного аккаунта. Body → binary, не multipart: PNG/JPEG размером 1–2097152 байт (2 MiB), каждая сторона 1–2048 px. Content-Type image/png либо image/jpeg обязателен и должен соответствовать файлу. Сервер обрезает изображение по центру до квадрата не больше 512×512 px, сводит прозрачность на белый фон и повторно кодирует в JPEG quality 85 без исходных метаданных; сохранённый результат не больше 262144 байт (256 KiB). Ответ 200 {status,user}, user.avatarVersion — новый UUID. Ошибки: 401 — нет авторизации, 403 — гость, 422 — неверные тип/байты/размер/габариты, 429 — лимит запросов либо заняты оба слота обработки. Лимит 10 запросов/минуту; обработка до 20 секунд. Ответ private,no-store; nosniff. Изменяет данные: выполняйте вручную. Примеры ответа синтетические. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go; internal/usecase/profile/avatar.go; internal/domain/avatar/avatar.go."
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json; charset=utf-8"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "private, no-store"
+                    },
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    }
+                  ],
+                  "body": "{\n  \"status\": \"success\",\n  \"user\": {\n    \"id\": \"{{userId}}\",\n    \"email\": \"user@example.com\",\n    \"displayName\": \"Тестовый пользователь\",\n    \"isAdmin\": false,\n    \"createdAt\": \"2026-10-11T09:00:00Z\",\n    \"updatedAt\": \"2026-10-30T09:00:00Z\",\n    \"avatarVersion\": \"{{avatarVersion}}\"\n  }\n}"
+                },
+                {
+                  "name": "422 Unprocessable Entity — иллюстрация",
+                  "originalRequest": {
+                    "method": "PUT",
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{accessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "image/png"
+                      }
+                    ],
+                    "body": {
+                      "mode": "file",
+                      "file": {
+                        "src": null
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/auth/me/avatar",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "auth",
+                        "me",
+                        "avatar"
+                      ]
+                    },
+                    "description": "Заменяет фото текущего постоянного аккаунта. Body → binary, не multipart: PNG/JPEG размером 1–2097152 байт (2 MiB), каждая сторона 1–2048 px. Content-Type image/png либо image/jpeg обязателен и должен соответствовать файлу. Сервер обрезает изображение по центру до квадрата не больше 512×512 px, сводит прозрачность на белый фон и повторно кодирует в JPEG quality 85 без исходных метаданных; сохранённый результат не больше 262144 байт (256 KiB). Ответ 200 {status,user}, user.avatarVersion — новый UUID. Ошибки: 401 — нет авторизации, 403 — гость, 422 — неверные тип/байты/размер/габариты, 429 — лимит запросов либо заняты оба слота обработки. Лимит 10 запросов/минуту; обработка до 20 секунд. Ответ private,no-store; nosniff. Изменяет данные: выполняйте вручную. Примеры ответа синтетические. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go; internal/usecase/profile/avatar.go; internal/domain/avatar/avatar.go."
+                  },
+                  "status": "Unprocessable Entity",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json; charset=utf-8"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "private, no-store"
+                    },
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    }
+                  ],
+                  "body": "{\n  \"status\": \"failed\",\n  \"message\": \"invalid avatar image or dimensions\"\n}"
+                }
+              ]
             },
             {
               "name": "DELETE · Удалить фото профиля",
@@ -622,8 +744,59 @@
                     "avatar"
                   ]
                 },
-                "description": "Удаляет фото текущего постоянного аккаунта. Тело отсутствует. Ответ 200 {status,user}; гостю 403. Лимит 30 запросов/минуту. Изменяет данные: выполняйте вручную. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go."
-              }
+                "description": "Удаляет фото текущего постоянного аккаунта; остальные поля профиля не меняет. Тело отсутствует. Ответ 200 {status,user}; поле user.avatarVersion отсутствует (omitempty), а не null. Повтор при отсутствии фото безопасен. Ошибки: 401 — нет авторизации, 403 — гость. Лимит 30 запросов/минуту; ответ private,no-store; nosniff. Изменяет данные: выполняйте вручную. Примеры ответа синтетические. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go; internal/infrastructure/postgres/user_avatar_repository.go; internal/domain/users/user.go."
+              },
+              "response": [
+                {
+                  "name": "200 OK — иллюстрация",
+                  "originalRequest": {
+                    "method": "DELETE",
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{accessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/auth/me/avatar",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "auth",
+                        "me",
+                        "avatar"
+                      ]
+                    },
+                    "description": "Удаляет фото текущего постоянного аккаунта; остальные поля профиля не меняет. Тело отсутствует. Ответ 200 {status,user}; поле user.avatarVersion отсутствует (omitempty), а не null. Повтор при отсутствии фото безопасен. Ошибки: 401 — нет авторизации, 403 — гость. Лимит 30 запросов/минуту; ответ private,no-store; nosniff. Изменяет данные: выполняйте вручную. Примеры ответа синтетические. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go; internal/infrastructure/postgres/user_avatar_repository.go; internal/domain/users/user.go."
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json; charset=utf-8"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "private, no-store"
+                    },
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    }
+                  ],
+                  "body": "{\n  \"status\": \"success\",\n  \"user\": {\n    \"id\": \"{{userId}}\",\n    \"email\": \"user@example.com\",\n    \"displayName\": \"Тестовый пользователь\",\n    \"isAdmin\": false,\n    \"createdAt\": \"2026-10-11T09:00:00Z\",\n    \"updatedAt\": \"2026-10-30T09:00:00Z\"\n  }\n}"
+                }
+              ]
             },
             {
               "name": "GET · Фото профиля пользователя",
@@ -661,8 +834,67 @@
                     }
                   ]
                 },
-                "description": "Доступно постоянному авторизованному аккаунту; гостю 403. Ответ 200 image/jpeg, отсутствующий аватар 404. Лимит 120 запросов/минуту. Cache-Control: private,no-store; nosniff. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go."
-              }
+                "description": "Доступно постоянному авторизованному аккаунту: фото другого постоянного пользователя видно участникам каталога, но не является публичным ресурсом. :id — ненулевой UUID пользователя. Ответ 200 — бинарный image/jpeg без JSON, квадрат не больше 512×512 px и 256 KiB; сохранение через Postman Save Response. Ошибки: 401 — нет авторизации, 403 — гость, 404 — фото отсутствует или пользователь недоступен, 422 — неверный UUID. Лимит 120 запросов/минуту. Cache-Control: private,no-store; nosniff. Пример ошибки синтетический. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go; internal/usecase/profile/avatar.go; internal/domain/avatar/avatar.go."
+              },
+              "response": [
+                {
+                  "name": "404 Not Found — иллюстрация",
+                  "originalRequest": {
+                    "method": "GET",
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{accessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/users/:id/avatar/content",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "users",
+                        ":id",
+                        "avatar",
+                        "content"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": "{{userId}}",
+                          "description": "UUID пользователя"
+                        }
+                      ]
+                    },
+                    "description": "Доступно постоянному авторизованному аккаунту: фото другого постоянного пользователя видно участникам каталога, но не является публичным ресурсом. :id — ненулевой UUID пользователя. Ответ 200 — бинарный image/jpeg без JSON, квадрат не больше 512×512 px и 256 KiB; сохранение через Postman Save Response. Ошибки: 401 — нет авторизации, 403 — гость, 404 — фото отсутствует или пользователь недоступен, 422 — неверный UUID. Лимит 120 запросов/минуту. Cache-Control: private,no-store; nosniff. Пример ошибки синтетический. Источники: internal/transport/http/profile_avatar_routes.go; internal/app/profile/avatar_handler.go; internal/usecase/profile/avatar.go; internal/domain/avatar/avatar.go."
+                  },
+                  "status": "Not Found",
+                  "code": 404,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json; charset=utf-8"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "private, no-store"
+                    },
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    }
+                  ],
+                  "body": "{\n  \"status\": \"failed\",\n  \"message\": \"not found\"\n}"
+                }
+              ]
             },
             {
               "name": "GET · Текущий пользователь",
@@ -2418,9 +2650,9 @@
                     }
                   ]
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта. Параметры: Query view=upcoming/active/past (upcoming), scope=all/owned/participating (all), status, from/to RFC3339, cursor, limit 1–100 (20). Ответ: 200: status, items: Conference[], nextCursor. Ошибки: 422 фильтры/курсор; 403 гость. Источник: internal/transport/http/platform_routes.go:53.\n\nGET /api/v1/me/conferences\n\nФильтрованный список встреч постоянного аккаунта (guest JWT запрещён), где сохранён admission admitted/waiting и не покинут постоянный чат. Query: view=upcoming|active|past (upcoming), scope=all|owned|participating (all), status необязательный created|scheduled|active|finished|cancelled, from/to необязательные RFC3339Nano с timezone (from<=to), limit 1–100 (20), cursor — непрозрачный nextCursor предыдущей страницы, максимум 256 символов строгого base64url. upcoming — created/scheduled; active — active; past — finished/cancelled и собственный admission admitted, status joined/left. Сортировка убывает по finishedAt/scheduledAt/createdAt, затем UUID. Ответ 200 {status,items:Conference[],nextCursor:string|null}; коды приглашений очищены. Ошибки: 401,403 — guest,422 — query/cursor. Общая форма ошибки: {status:\"failed\",message:\"...\"}; 500 — внутренняя ошибка, 503 — временно недоступная зависимость, 504 — тайм-аут.\nИсточник: internal/transport/http/platform_routes.go; internal/app/conferences/product_handler.go; internal/domain/conferences/product.go; internal/usecase/conferences/product.go; internal/infrastructure/postgres/conference_product_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта. Параметры: Query view=upcoming/active/past (upcoming), scope=all/owned/participating (all), sort=newest/oldest (newest), status, from/to RFC3339, cursor, limit 1–100 (20). Ответ: 200: status, items: Conference[], nextCursor. Ошибки: 422 фильтры/курсор; 403 гость. Источник: internal/transport/http/platform_routes.go:53.\n\nGET /api/v1/me/conferences\n\nФильтрованный список встреч постоянного аккаунта (guest JWT запрещён), где сохранён admission admitted/waiting и не покинут постоянный чат. Query: view=upcoming|active|past (upcoming), scope=all|owned|participating (all), sort=newest|oldest (newest), status необязательный created|scheduled|active|finished|cancelled, from/to необязательные RFC3339Nano с timezone (from<=to), limit 1–100 (20), cursor — непрозрачный nextCursor предыдущей страницы, максимум 256 символов строгого base64url. upcoming — created/scheduled; active — active; past — finished/cancelled и собственный admission admitted, status joined/left. Эффективная дата — первое непустое finishedAt, scheduledAt, createdAt. sort=newest сортирует по эффективной дате и UUID по убыванию, sort=oldest — по возрастанию. Курсор привязан к направлению сортировки: при смене sort начните без cursor; неверный sort или курсор противоположного направления → 422. Ответ 200 {status,items:Conference[],nextCursor:string|null}; коды приглашений очищены. Ошибки: 401,403 — guest,422 — query/cursor. Общая форма ошибки: {status:\"failed\",message:\"...\"}; 500 — внутренняя ошибка, 503 — временно недоступная зависимость, 504 — тайм-аут.\nИсточник: internal/transport/http/platform_routes.go; internal/app/conferences/product_handler.go; internal/domain/conferences/product.go; internal/usecase/conferences/product.go; internal/infrastructure/postgres/conference_product_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
-                  "raw": "{{baseUrl}}/api/v1/me/conferences?view=upcoming&scope=all&limit=20",
+                  "raw": "{{baseUrl}}/api/v1/me/conferences?view=upcoming&scope=all&sort=newest&limit=20",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -2440,6 +2672,11 @@
                       "key": "scope",
                       "value": "all",
                       "description": "all, owned или participating; по умолчанию all."
+                    },
+                    {
+                      "key": "sort",
+                      "value": "newest",
+                      "description": "newest — сначала новые, oldest — сначала старые; по умолчанию newest. При смене направления удалите cursor."
                     },
                     {
                       "key": "status",
@@ -2467,7 +2704,7 @@
                     {
                       "key": "cursor",
                       "value": "{{conferenceCursor}}",
-                      "description": "nextCursor предыдущего ответа; не конструируйте самостоятельно.",
+                      "description": "nextCursor предыдущего ответа с тем же направлением sort; до 256 символов strict base64url. Не конструируйте самостоятельно.",
                       "disabled": true
                     }
                   ]
@@ -2489,9 +2726,9 @@
                         }
                       ]
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта. Параметры: Query view=upcoming/active/past (upcoming), scope=all/owned/participating (all), status, from/to RFC3339, cursor, limit 1–100 (20). Ответ: 200: status, items: Conference[], nextCursor. Ошибки: 422 фильтры/курсор; 403 гость. Источник: internal/transport/http/platform_routes.go:53.\n\nGET /api/v1/me/conferences\n\nФильтрованный список встреч постоянного аккаунта (guest JWT запрещён), где сохранён admission admitted/waiting и не покинут постоянный чат. Query: view=upcoming|active|past (upcoming), scope=all|owned|participating (all), status необязательный created|scheduled|active|finished|cancelled, from/to необязательные RFC3339Nano с timezone (from<=to), limit 1–100 (20), cursor — непрозрачный nextCursor предыдущей страницы, максимум 256 символов строгого base64url. upcoming — created/scheduled; active — active; past — finished/cancelled и собственный admission admitted, status joined/left. Сортировка убывает по finishedAt/scheduledAt/createdAt, затем UUID. Ответ 200 {status,items:Conference[],nextCursor:string|null}; коды приглашений очищены. Ошибки: 401,403 — guest,422 — query/cursor. Общая форма ошибки: {status:\"failed\",message:\"...\"}; 500 — внутренняя ошибка, 503 — временно недоступная зависимость, 504 — тайм-аут.\nИсточник: internal/transport/http/platform_routes.go; internal/app/conferences/product_handler.go; internal/domain/conferences/product.go; internal/usecase/conferences/product.go; internal/infrastructure/postgres/conference_product_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта. Параметры: Query view=upcoming/active/past (upcoming), scope=all/owned/participating (all), sort=newest/oldest (newest), status, from/to RFC3339, cursor, limit 1–100 (20). Ответ: 200: status, items: Conference[], nextCursor. Ошибки: 422 фильтры/курсор; 403 гость. Источник: internal/transport/http/platform_routes.go:53.\n\nGET /api/v1/me/conferences\n\nФильтрованный список встреч постоянного аккаунта (guest JWT запрещён), где сохранён admission admitted/waiting и не покинут постоянный чат. Query: view=upcoming|active|past (upcoming), scope=all|owned|participating (all), sort=newest|oldest (newest), status необязательный created|scheduled|active|finished|cancelled, from/to необязательные RFC3339Nano с timezone (from<=to), limit 1–100 (20), cursor — непрозрачный nextCursor предыдущей страницы, максимум 256 символов строгого base64url. upcoming — created/scheduled; active — active; past — finished/cancelled и собственный admission admitted, status joined/left. Эффективная дата — первое непустое finishedAt, scheduledAt, createdAt. sort=newest сортирует по эффективной дате и UUID по убыванию, sort=oldest — по возрастанию. Курсор привязан к направлению сортировки: при смене sort начните без cursor; неверный sort или курсор противоположного направления → 422. Ответ 200 {status,items:Conference[],nextCursor:string|null}; коды приглашений очищены. Ошибки: 401,403 — guest,422 — query/cursor. Общая форма ошибки: {status:\"failed\",message:\"...\"}; 500 — внутренняя ошибка, 503 — временно недоступная зависимость, 504 — тайм-аут.\nИсточник: internal/transport/http/platform_routes.go; internal/app/conferences/product_handler.go; internal/domain/conferences/product.go; internal/usecase/conferences/product.go; internal/infrastructure/postgres/conference_product_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
-                      "raw": "{{baseUrl}}/api/v1/me/conferences?view=upcoming&scope=all&limit=20",
+                      "raw": "{{baseUrl}}/api/v1/me/conferences?view=upcoming&scope=all&sort=newest&limit=20",
                       "host": [
                         "{{baseUrl}}"
                       ],
@@ -2511,6 +2748,11 @@
                           "key": "scope",
                           "value": "all",
                           "description": "all, owned или participating; по умолчанию all."
+                        },
+                        {
+                          "key": "sort",
+                          "value": "newest",
+                          "description": "newest — сначала новые, oldest — сначала старые; по умолчанию newest. При смене направления удалите cursor."
                         },
                         {
                           "key": "status",
@@ -2538,7 +2780,7 @@
                         {
                           "key": "cursor",
                           "value": "{{conferenceCursor}}",
-                          "description": "nextCursor предыдущего ответа; не конструируйте самостоятельно.",
+                          "description": "nextCursor предыдущего ответа с тем же направлением sort; до 256 символов strict base64url. Не конструируйте самостоятельно.",
                           "disabled": true
                         }
                       ]
@@ -2861,7 +3103,7 @@
                 "auth": {
                   "type": "noauth"
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный; при возобновлении гостевой Bearer. Параметры: code; JSON displayName*; Authorization необязателен и должен содержать гостевой токен. Ответ: 200: status,accessToken,tokenType=Bearer,expiresIn=3600,user,item: Participant. Ошибки: 401 ошибочный токен; 403 обычный аккаунт/другая конференция/отклонен; 404 code; 409 завершена; 422 имя; 429. Источник: internal/transport/http/guest_routes.go:23.\n\nPOST /api/v1/conference-invites/:code/guest\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nПублично создаёт guest-идентичность и членство по коду приглашения :code (32 strict base64url символа); только created/active, scheduled не допускается. JSON displayName обязательный: trim, 1–100 Unicode-символов без управляющих знаков. Для возобновления можно передать Authorization: Bearer {{guestAccessToken}}; обычный аккаунтный Bearer запрещён (403). Guest JWT другой встречи создаёт новую гостевую идентичность для указанного кода. Верный inviteCode даёт admitted без ожидания; rejected/kicked не восстанавливаются. Ответ 200 {status,accessToken,tokenType,expiresIn:3600,user,item:Participant}; user.email скрыт, user.guestConferenceId содержит область JWT. Guest JWT допускает только /conferences/<scope>/* и отдельные me/logout/capabilities/webrtc; не даёт доступ к аккаунтным чатам, созданию встреч и старту/остановке записи. Постоянная cookie не создаётся. Лимит 10 запросов/мин/IP. Ошибки: 400 — JSON,401 — неверный переданный Bearer,403 — обычный токен/отозванное членство,404 — код,422 — имя,409 — не открыта,429. JSON строгое: неизвестные поля/лишний JSON и тело более 32 KiB → 400. Общая форма ошибки: {status:\"failed\",message:\"...\"}; 500 — внутренняя ошибка, 503 — временно недоступная зависимость, 504 — тайм-аут.\nИсточник: internal/transport/http/guest_routes.go; internal/app/conferences/guest_handler.go; internal/usecase/conferences/guests.go; internal/infrastructure/postgres/guest_repository.go; internal/transport/http/middleware/auth.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный; при возобновлении гостевой Bearer. Параметры: code; JSON displayName*; Authorization необязателен и должен содержать гостевой токен. Ответ: 200: status,accessToken,tokenType=Bearer,expiresIn=10800,user,item: Participant. Ошибки: 401 ошибочный токен; 403 обычный аккаунт/отклонённое членство; 404 code; 409 завершена; 422 имя; 429. Источник: internal/transport/http/guest_routes.go:23.\n\nPOST /api/v1/conference-invites/:code/guest\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nПублично создаёт guest-идентичность и членство по коду приглашения :code (32 strict base64url символа); только created/active, scheduled не допускается. JSON displayName обязательный: trim, 1–100 Unicode-символов без управляющих знаков. Для возобновления можно передать Authorization: Bearer {{guestAccessToken}}; обычный аккаунтный Bearer запрещён (403). Guest JWT другой встречи создаёт новую гостевую идентичность для указанного кода. Верный inviteCode даёт admitted без ожидания; rejected/kicked не восстанавливаются. Ответ 200 {status,accessToken,tokenType,expiresIn:10800,user,item:Participant}; user.email скрыт, user.guestConferenceId содержит область JWT. Guest JWT допускает только /conferences/<scope>/* и отдельные me/logout/capabilities/webrtc; не даёт доступ к аккаунтным чатам, созданию встреч и старту/остановке записи. Гостевой JWT действует 3 часа (10800 секунд). Постоянная cookie не создаётся. Лимит 10 запросов/мин/IP. Ошибки: 400 — JSON,401 — неверный переданный Bearer,403 — обычный токен/отозванное членство,404 — код,422 — имя,409 — не открыта,429. JSON строгое: неизвестные поля/лишний JSON и тело более 32 KiB → 400. Общая форма ошибки: {status:\"failed\",message:\"...\"}; 500 — внутренняя ошибка, 503 — временно недоступная зависимость, 504 — тайм-аут.\nИсточник: internal/transport/http/guest_routes.go; internal/app/conferences/guest_handler.go; internal/usecase/conferences/guests.go; internal/infrastructure/postgres/guest_repository.go; internal/transport/http/middleware/auth.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/conference-invites/:code/guest",
                   "host": [
@@ -2913,7 +3155,7 @@
                     "auth": {
                       "type": "noauth"
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный; при возобновлении гостевой Bearer. Параметры: code; JSON displayName*; Authorization необязателен и должен содержать гостевой токен. Ответ: 200: status,accessToken,tokenType=Bearer,expiresIn=3600,user,item: Participant. Ошибки: 401 ошибочный токен; 403 обычный аккаунт/другая конференция/отклонен; 404 code; 409 завершена; 422 имя; 429. Источник: internal/transport/http/guest_routes.go:23.\n\nPOST /api/v1/conference-invites/:code/guest\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nПублично создаёт guest-идентичность и членство по коду приглашения :code (32 strict base64url символа); только created/active, scheduled не допускается. JSON displayName обязательный: trim, 1–100 Unicode-символов без управляющих знаков. Для возобновления можно передать Authorization: Bearer {{guestAccessToken}}; обычный аккаунтный Bearer запрещён (403). Guest JWT другой встречи создаёт новую гостевую идентичность для указанного кода. Верный inviteCode даёт admitted без ожидания; rejected/kicked не восстанавливаются. Ответ 200 {status,accessToken,tokenType,expiresIn:3600,user,item:Participant}; user.email скрыт, user.guestConferenceId содержит область JWT. Guest JWT допускает только /conferences/<scope>/* и отдельные me/logout/capabilities/webrtc; не даёт доступ к аккаунтным чатам, созданию встреч и старту/остановке записи. Постоянная cookie не создаётся. Лимит 10 запросов/мин/IP. Ошибки: 400 — JSON,401 — неверный переданный Bearer,403 — обычный токен/отозванное членство,404 — код,422 — имя,409 — не открыта,429. JSON строгое: неизвестные поля/лишний JSON и тело более 32 KiB → 400. Общая форма ошибки: {status:\"failed\",message:\"...\"}; 500 — внутренняя ошибка, 503 — временно недоступная зависимость, 504 — тайм-аут.\nИсточник: internal/transport/http/guest_routes.go; internal/app/conferences/guest_handler.go; internal/usecase/conferences/guests.go; internal/infrastructure/postgres/guest_repository.go; internal/transport/http/middleware/auth.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный; при возобновлении гостевой Bearer. Параметры: code; JSON displayName*; Authorization необязателен и должен содержать гостевой токен. Ответ: 200: status,accessToken,tokenType=Bearer,expiresIn=10800,user,item: Participant. Ошибки: 401 ошибочный токен; 403 обычный аккаунт/отклонённое членство; 404 code; 409 завершена; 422 имя; 429. Источник: internal/transport/http/guest_routes.go:23.\n\nPOST /api/v1/conference-invites/:code/guest\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nПублично создаёт guest-идентичность и членство по коду приглашения :code (32 strict base64url символа); только created/active, scheduled не допускается. JSON displayName обязательный: trim, 1–100 Unicode-символов без управляющих знаков. Для возобновления можно передать Authorization: Bearer {{guestAccessToken}}; обычный аккаунтный Bearer запрещён (403). Guest JWT другой встречи создаёт новую гостевую идентичность для указанного кода. Верный inviteCode даёт admitted без ожидания; rejected/kicked не восстанавливаются. Ответ 200 {status,accessToken,tokenType,expiresIn:10800,user,item:Participant}; user.email скрыт, user.guestConferenceId содержит область JWT. Guest JWT допускает только /conferences/<scope>/* и отдельные me/logout/capabilities/webrtc; не даёт доступ к аккаунтным чатам, созданию встреч и старту/остановке записи. Гостевой JWT действует 3 часа (10800 секунд). Постоянная cookie не создаётся. Лимит 10 запросов/мин/IP. Ошибки: 400 — JSON,401 — неверный переданный Bearer,403 — обычный токен/отозванное членство,404 — код,422 — имя,409 — не открыта,429. JSON строгое: неизвестные поля/лишний JSON и тело более 32 KiB → 400. Общая форма ошибки: {status:\"failed\",message:\"...\"}; 500 — внутренняя ошибка, 503 — временно недоступная зависимость, 504 — тайм-аут.\nИсточник: internal/transport/http/guest_routes.go; internal/app/conferences/guest_handler.go; internal/usecase/conferences/guests.go; internal/infrastructure/postgres/guest_repository.go; internal/transport/http/middleware/auth.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{baseUrl}}/api/v1/conference-invites/:code/guest",
                       "host": [
@@ -2953,7 +3195,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"status\": \"success\",\n  \"accessToken\": \"{{guestAccessToken}}\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": 3600,\n  \"user\": {\n    \"id\": \"{{userId}}\",\n    \"email\": \"\",\n    \"displayName\": \"Тестовый гость\",\n    \"isAdmin\": false,\n    \"createdAt\": \"2026-10-11T09:00:00Z\",\n    \"updatedAt\": \"2026-10-11T09:00:00Z\",\n    \"guestConferenceId\": \"{{conferenceId}}\"\n  },\n  \"item\": {\n    \"id\": \"{{participantId}}\",\n    \"conferenceId\": \"{{conferenceId}}\",\n    \"userId\": \"{{userId}}\",\n    \"displayName\": \"Тестовый гость\",\n    \"role\": \"participant\",\n    \"status\": \"joined\",\n    \"joinedAt\": \"2026-10-11T09:00:00Z\",\n    \"leftAt\": null,\n    \"createdAt\": \"2026-10-11T09:00:00Z\",\n    \"updatedAt\": \"2026-10-11T09:00:00Z\",\n    \"microphoneEnabled\": false,\n    \"cameraEnabled\": false,\n    \"screenSharing\": false,\n    \"microphoneBlocked\": false,\n    \"cameraBlocked\": false,\n    \"screenBlocked\": false,\n    \"mediaPolicyVersion\": 1,\n    \"admissionState\": \"admitted\",\n    \"admissionDecidedAt\": null,\n    \"admissionVersion\": 1\n  }\n}"
+                  "body": "{\n  \"status\": \"success\",\n  \"accessToken\": \"{{guestAccessToken}}\",\n  \"tokenType\": \"Bearer\",\n  \"expiresIn\": 10800,\n  \"user\": {\n    \"id\": \"{{userId}}\",\n    \"email\": \"\",\n    \"displayName\": \"Тестовый гость\",\n    \"isAdmin\": false,\n    \"createdAt\": \"2026-10-11T09:00:00Z\",\n    \"updatedAt\": \"2026-10-11T09:00:00Z\",\n    \"guestConferenceId\": \"{{conferenceId}}\"\n  },\n  \"item\": {\n    \"id\": \"{{participantId}}\",\n    \"conferenceId\": \"{{conferenceId}}\",\n    \"userId\": \"{{userId}}\",\n    \"displayName\": \"Тестовый гость\",\n    \"role\": \"participant\",\n    \"status\": \"joined\",\n    \"joinedAt\": \"2026-10-11T09:00:00Z\",\n    \"leftAt\": null,\n    \"createdAt\": \"2026-10-11T09:00:00Z\",\n    \"updatedAt\": \"2026-10-11T09:00:00Z\",\n    \"microphoneEnabled\": false,\n    \"cameraEnabled\": false,\n    \"screenSharing\": false,\n    \"microphoneBlocked\": false,\n    \"cameraBlocked\": false,\n    \"screenBlocked\": false,\n    \"mediaPolicyVersion\": 1,\n    \"admissionState\": \"admitted\",\n    \"admissionDecidedAt\": null,\n    \"admissionVersion\": 1\n  }\n}"
                 }
               ]
             },
@@ -7289,7 +7531,7 @@
                     }
                   ]
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены JPG/PNG/WebP/PDF/TXT/CSV. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conferences/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Допустимы JPG/JPEG image/jpeg, PNG image/png, WebP image/webp, PDF application/pdf, TXT text/plain, CSV text/csv (заявленный text/plain также принимается для CSV). Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer аккаунта либо гостя, ограниченного этой конференцией. Читать могут admitted-участники со статусом joined/left, не покинувшие именно постоянный чат. Для записи новых сообщений, изменения/удаления и загрузки: конференция active и участник joined. Выход из видеовстречи сохраняет чтение, но не запись.\nПараметры пути: :id — UUID конференции; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}. Дополнительно 409 — чат только для чтения при записи вне active/joined.\nИсточники: internal/transport/http/chat_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены поддерживаемые изображения, документы, архивы, электронные книги и текстовые форматы; полный allowlist ниже. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conferences/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Разрешённые расширения: .jpg, .jpeg, .png, .webp, .pdf, .txt, .csv, .tsv, .md, .markdown, .rtf, .doc, .dot, .xls, .xlt, .ppt, .pot, .pps, .docx, .dotx, .xlsx, .xltx, .pptx, .potx, .ppsx, .docm, .dotm, .xlsm, .xlsb, .xltm, .pptm, .potm, .ppsm, .odt, .ods, .odp, .odg, .odf, .ott, .ots, .otp, .otg, .pages, .numbers, .key, .epub, .zip, .zipx, .7z, .rar, .tar, .gz, .gzip, .tgz, .bz2, .bzip2, .tbz, .tbz2, .xz, .txz, .zst, .zstd, .tzst, .lz4, .lz, .lzip, .lzma, .z, .taz, .cab, .cpio, .ar, .arj, .lha, .lzh, .bz, .bzip, .bz3, .bzip3, .lzo, .lzop, .tzo, .ace, .arc, .zpaq, .djvu, .djv, .fb2, .mobi, .prc, .azw, .azw3, .xps, .oxps, .ps, .eps, .xml, .json, .yaml, .yml, .odm, .oth, .otm, .odb, .sldx, .sldm, .vsd, .vst, .vss, .vsw, .vsdx, .vstx, .vssx, .vsdm, .vstm, .vssm, .one, .onetoc2, .tex, .ltx, .latex, .rst, .adoc, .asciidoc. MIME выводится по расширению, если mimeType пуст; application/octet-stream и явно перечисленные сервером MIME-алиасы нормализуются в канонический MIME. Несовпадающий MIME → 422. Актуальный allowlist и алиасы: internal/domain/chat/attachment_types.go; байты независимо проверяются по типу/сигнатуре контейнера, а не только по имени или заявленному MIME. Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer аккаунта либо гостя, ограниченного этой конференцией. Читать могут admitted-участники со статусом joined/left, не покинувшие именно постоянный чат. Для записи новых сообщений, изменения/удаления и загрузки: конференция active и участник joined. Выход из видеовстречи сохраняет чтение, но не запись.\nПараметры пути: :id — UUID конференции; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}. Дополнительно 409 — чат только для чтения при записи вне active/joined.\nИсточники: internal/transport/http/chat_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/conferences/:id/attachments/init",
                   "host": [
@@ -7343,7 +7585,7 @@
                         }
                       ]
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены JPG/PNG/WebP/PDF/TXT/CSV. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conferences/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Допустимы JPG/JPEG image/jpeg, PNG image/png, WebP image/webp, PDF application/pdf, TXT text/plain, CSV text/csv (заявленный text/plain также принимается для CSV). Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer аккаунта либо гостя, ограниченного этой конференцией. Читать могут admitted-участники со статусом joined/left, не покинувшие именно постоянный чат. Для записи новых сообщений, изменения/удаления и загрузки: конференция active и участник joined. Выход из видеовстречи сохраняет чтение, но не запись.\nПараметры пути: :id — UUID конференции; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}. Дополнительно 409 — чат только для чтения при записи вне active/joined.\nИсточники: internal/transport/http/chat_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены поддерживаемые изображения, документы, архивы, электронные книги и текстовые форматы; полный allowlist ниже. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conferences/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Разрешённые расширения: .jpg, .jpeg, .png, .webp, .pdf, .txt, .csv, .tsv, .md, .markdown, .rtf, .doc, .dot, .xls, .xlt, .ppt, .pot, .pps, .docx, .dotx, .xlsx, .xltx, .pptx, .potx, .ppsx, .docm, .dotm, .xlsm, .xlsb, .xltm, .pptm, .potm, .ppsm, .odt, .ods, .odp, .odg, .odf, .ott, .ots, .otp, .otg, .pages, .numbers, .key, .epub, .zip, .zipx, .7z, .rar, .tar, .gz, .gzip, .tgz, .bz2, .bzip2, .tbz, .tbz2, .xz, .txz, .zst, .zstd, .tzst, .lz4, .lz, .lzip, .lzma, .z, .taz, .cab, .cpio, .ar, .arj, .lha, .lzh, .bz, .bzip, .bz3, .bzip3, .lzo, .lzop, .tzo, .ace, .arc, .zpaq, .djvu, .djv, .fb2, .mobi, .prc, .azw, .azw3, .xps, .oxps, .ps, .eps, .xml, .json, .yaml, .yml, .odm, .oth, .otm, .odb, .sldx, .sldm, .vsd, .vst, .vss, .vsw, .vsdx, .vstx, .vssx, .vsdm, .vstm, .vssm, .one, .onetoc2, .tex, .ltx, .latex, .rst, .adoc, .asciidoc. MIME выводится по расширению, если mimeType пуст; application/octet-stream и явно перечисленные сервером MIME-алиасы нормализуются в канонический MIME. Несовпадающий MIME → 422. Актуальный allowlist и алиасы: internal/domain/chat/attachment_types.go; байты независимо проверяются по типу/сигнатуре контейнера, а не только по имени или заявленному MIME. Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer аккаунта либо гостя, ограниченного этой конференцией. Читать могут admitted-участники со статусом joined/left, не покинувшие именно постоянный чат. Для записи новых сообщений, изменения/удаления и загрузки: конференция active и участник joined. Выход из видеовстречи сохраняет чтение, но не запись.\nПараметры пути: :id — UUID конференции; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}. Дополнительно 409 — чат только для чтения при записи вне active/joined.\nИсточники: internal/transport/http/chat_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{baseUrl}}/api/v1/conferences/:id/attachments/init",
                       "host": [
@@ -7407,7 +7649,7 @@
                         }
                       ]
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены JPG/PNG/WebP/PDF/TXT/CSV. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conferences/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Допустимы JPG/JPEG image/jpeg, PNG image/png, WebP image/webp, PDF application/pdf, TXT text/plain, CSV text/csv (заявленный text/plain также принимается для CSV). Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer аккаунта либо гостя, ограниченного этой конференцией. Читать могут admitted-участники со статусом joined/left, не покинувшие именно постоянный чат. Для записи новых сообщений, изменения/удаления и загрузки: конференция active и участник joined. Выход из видеовстречи сохраняет чтение, но не запись.\nПараметры пути: :id — UUID конференции; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}. Дополнительно 409 — чат только для чтения при записи вне active/joined.\nИсточники: internal/transport/http/chat_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer; допущенный joined участник active конференции, не вышедший из чата; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены поддерживаемые изображения, документы, архивы, электронные книги и текстовые форматы; полный allowlist ниже. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conferences/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Разрешённые расширения: .jpg, .jpeg, .png, .webp, .pdf, .txt, .csv, .tsv, .md, .markdown, .rtf, .doc, .dot, .xls, .xlt, .ppt, .pot, .pps, .docx, .dotx, .xlsx, .xltx, .pptx, .potx, .ppsx, .docm, .dotm, .xlsm, .xlsb, .xltm, .pptm, .potm, .ppsm, .odt, .ods, .odp, .odg, .odf, .ott, .ots, .otp, .otg, .pages, .numbers, .key, .epub, .zip, .zipx, .7z, .rar, .tar, .gz, .gzip, .tgz, .bz2, .bzip2, .tbz, .tbz2, .xz, .txz, .zst, .zstd, .tzst, .lz4, .lz, .lzip, .lzma, .z, .taz, .cab, .cpio, .ar, .arj, .lha, .lzh, .bz, .bzip, .bz3, .bzip3, .lzo, .lzop, .tzo, .ace, .arc, .zpaq, .djvu, .djv, .fb2, .mobi, .prc, .azw, .azw3, .xps, .oxps, .ps, .eps, .xml, .json, .yaml, .yml, .odm, .oth, .otm, .odb, .sldx, .sldm, .vsd, .vst, .vss, .vsw, .vsdx, .vstx, .vssx, .vsdm, .vstm, .vssm, .one, .onetoc2, .tex, .ltx, .latex, .rst, .adoc, .asciidoc. MIME выводится по расширению, если mimeType пуст; application/octet-stream и явно перечисленные сервером MIME-алиасы нормализуются в канонический MIME. Несовпадающий MIME → 422. Актуальный allowlist и алиасы: internal/domain/chat/attachment_types.go; байты независимо проверяются по типу/сигнатуре контейнера, а не только по имени или заявленному MIME. Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer аккаунта либо гостя, ограниченного этой конференцией. Читать могут admitted-участники со статусом joined/left, не покинувшие именно постоянный чат. Для записи новых сообщений, изменения/удаления и загрузки: конференция active и участник joined. Выход из видеовстречи сохраняет чтение, но не запись.\nПараметры пути: :id — UUID конференции; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}. Дополнительно 409 — чат только для чтения при записи вне active/joined.\nИсточники: internal/transport/http/chat_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{baseUrl}}/api/v1/conferences/:id/attachments/init",
                       "host": [
@@ -8574,7 +8816,7 @@
                     }
                   ]
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта; действующий член нескрытого conversation; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены JPG/PNG/WebP/PDF/TXT/CSV. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conversations/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Допустимы JPG/JPEG image/jpeg, PNG image/png, WebP image/webp, PDF application/pdf, TXT text/plain, CSV text/csv (заявленный text/plain также принимается для CSV). Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer только зарегистрированного аккаунта; гостевые токены запрещены. Требуется активное членство нескрытого, неудалённого direct/group-чата. Состояние конференции не применяется. Личная очищенная история скрывает сообщения, replyPreview и вложения до cutoff.\nПараметры пути: :id — UUID переписки; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/chat_routes.go; internal/transport/http/personal_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта; действующий член нескрытого conversation; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены поддерживаемые изображения, документы, архивы, электронные книги и текстовые форматы; полный allowlist ниже. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conversations/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Разрешённые расширения: .jpg, .jpeg, .png, .webp, .pdf, .txt, .csv, .tsv, .md, .markdown, .rtf, .doc, .dot, .xls, .xlt, .ppt, .pot, .pps, .docx, .dotx, .xlsx, .xltx, .pptx, .potx, .ppsx, .docm, .dotm, .xlsm, .xlsb, .xltm, .pptm, .potm, .ppsm, .odt, .ods, .odp, .odg, .odf, .ott, .ots, .otp, .otg, .pages, .numbers, .key, .epub, .zip, .zipx, .7z, .rar, .tar, .gz, .gzip, .tgz, .bz2, .bzip2, .tbz, .tbz2, .xz, .txz, .zst, .zstd, .tzst, .lz4, .lz, .lzip, .lzma, .z, .taz, .cab, .cpio, .ar, .arj, .lha, .lzh, .bz, .bzip, .bz3, .bzip3, .lzo, .lzop, .tzo, .ace, .arc, .zpaq, .djvu, .djv, .fb2, .mobi, .prc, .azw, .azw3, .xps, .oxps, .ps, .eps, .xml, .json, .yaml, .yml, .odm, .oth, .otm, .odb, .sldx, .sldm, .vsd, .vst, .vss, .vsw, .vsdx, .vstx, .vssx, .vsdm, .vstm, .vssm, .one, .onetoc2, .tex, .ltx, .latex, .rst, .adoc, .asciidoc. MIME выводится по расширению, если mimeType пуст; application/octet-stream и явно перечисленные сервером MIME-алиасы нормализуются в канонический MIME. Несовпадающий MIME → 422. Актуальный allowlist и алиасы: internal/domain/chat/attachment_types.go; байты независимо проверяются по типу/сигнатуре контейнера, а не только по имени или заявленному MIME. Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer только зарегистрированного аккаунта; гостевые токены запрещены. Требуется активное членство нескрытого, неудалённого direct/group-чата. Состояние конференции не применяется. Личная очищенная история скрывает сообщения, replyPreview и вложения до cutoff.\nПараметры пути: :id — UUID переписки; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/chat_routes.go; internal/transport/http/personal_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/conversations/:id/attachments/init",
                   "host": [
@@ -8628,7 +8870,7 @@
                         }
                       ]
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта; действующий член нескрытого conversation; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены JPG/PNG/WebP/PDF/TXT/CSV. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conversations/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Допустимы JPG/JPEG image/jpeg, PNG image/png, WebP image/webp, PDF application/pdf, TXT text/plain, CSV text/csv (заявленный text/plain также принимается для CSV). Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer только зарегистрированного аккаунта; гостевые токены запрещены. Требуется активное членство нескрытого, неудалённого direct/group-чата. Состояние конференции не применяется. Личная очищенная история скрывает сообщения, replyPreview и вложения до cutoff.\nПараметры пути: :id — UUID переписки; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/chat_routes.go; internal/transport/http/personal_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта; действующий член нескрытого conversation; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены поддерживаемые изображения, документы, архивы, электронные книги и текстовые форматы; полный allowlist ниже. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conversations/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Разрешённые расширения: .jpg, .jpeg, .png, .webp, .pdf, .txt, .csv, .tsv, .md, .markdown, .rtf, .doc, .dot, .xls, .xlt, .ppt, .pot, .pps, .docx, .dotx, .xlsx, .xltx, .pptx, .potx, .ppsx, .docm, .dotm, .xlsm, .xlsb, .xltm, .pptm, .potm, .ppsm, .odt, .ods, .odp, .odg, .odf, .ott, .ots, .otp, .otg, .pages, .numbers, .key, .epub, .zip, .zipx, .7z, .rar, .tar, .gz, .gzip, .tgz, .bz2, .bzip2, .tbz, .tbz2, .xz, .txz, .zst, .zstd, .tzst, .lz4, .lz, .lzip, .lzma, .z, .taz, .cab, .cpio, .ar, .arj, .lha, .lzh, .bz, .bzip, .bz3, .bzip3, .lzo, .lzop, .tzo, .ace, .arc, .zpaq, .djvu, .djv, .fb2, .mobi, .prc, .azw, .azw3, .xps, .oxps, .ps, .eps, .xml, .json, .yaml, .yml, .odm, .oth, .otm, .odb, .sldx, .sldm, .vsd, .vst, .vss, .vsw, .vsdx, .vstx, .vssx, .vsdm, .vstm, .vssm, .one, .onetoc2, .tex, .ltx, .latex, .rst, .adoc, .asciidoc. MIME выводится по расширению, если mimeType пуст; application/octet-stream и явно перечисленные сервером MIME-алиасы нормализуются в канонический MIME. Несовпадающий MIME → 422. Актуальный allowlist и алиасы: internal/domain/chat/attachment_types.go; байты независимо проверяются по типу/сигнатуре контейнера, а не только по имени или заявленному MIME. Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer только зарегистрированного аккаунта; гостевые токены запрещены. Требуется активное членство нескрытого, неудалённого direct/group-чата. Состояние конференции не применяется. Личная очищенная история скрывает сообщения, replyPreview и вложения до cutoff.\nПараметры пути: :id — UUID переписки; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/chat_routes.go; internal/transport/http/personal_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{baseUrl}}/api/v1/conversations/:id/attachments/init",
                       "host": [
@@ -8692,7 +8934,7 @@
                         }
                       ]
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта; действующий член нескрытого conversation; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены JPG/PNG/WebP/PDF/TXT/CSV. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conversations/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Допустимы JPG/JPEG image/jpeg, PNG image/png, WebP image/webp, PDF application/pdf, TXT text/plain, CSV text/csv (заявленный text/plain также принимается для CSV). Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer только зарегистрированного аккаунта; гостевые токены запрещены. Требуется активное членство нескрытого, неудалённого direct/group-чата. Состояние конференции не применяется. Личная очищенная история скрывает сообщения, replyPreview и вложения до cutoff.\nПараметры пути: :id — UUID переписки; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/chat_routes.go; internal/transport/http/personal_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Bearer аккаунта; действующий член нескрытого conversation; владелец загрузки. Параметры: id; JSON clientRequestId* UUID, filename* 1–180 символов без путей, size* 1–10485760; mimeType необязателен; разрешены поддерживаемые изображения, документы, архивы, электронные книги и текстовые форматы; полный allowlist ниже. Ответ: 201 новый/200 повтор: status,item: Attachment,uploadUrl. Ошибки: 422 метаданные/MIME/размер; 409 конфликт ключа/read-only; 403. Источник: internal/transport/http/chat_routes.go:75.\n\nPOST /api/v1/conversations/:id/attachments/init\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nJSON: clientRequestId — UUID ключа повтора; filename — имя UTF-8 1–180 символов после trim, без пути, /, backslash, '..', control/format; mimeType — разрешённый MIME либо пусто (выводится по расширению); size — 1–10485760 байт (10 MiB). Разрешённые расширения: .jpg, .jpeg, .png, .webp, .pdf, .txt, .csv, .tsv, .md, .markdown, .rtf, .doc, .dot, .xls, .xlt, .ppt, .pot, .pps, .docx, .dotx, .xlsx, .xltx, .pptx, .potx, .ppsx, .docm, .dotm, .xlsm, .xlsb, .xltm, .pptm, .potm, .ppsm, .odt, .ods, .odp, .odg, .odf, .ott, .ots, .otp, .otg, .pages, .numbers, .key, .epub, .zip, .zipx, .7z, .rar, .tar, .gz, .gzip, .tgz, .bz2, .bzip2, .tbz, .tbz2, .xz, .txz, .zst, .zstd, .tzst, .lz4, .lz, .lzip, .lzma, .z, .taz, .cab, .cpio, .ar, .arj, .lha, .lzh, .bz, .bzip, .bz3, .bzip3, .lzo, .lzop, .tzo, .ace, .arc, .zpaq, .djvu, .djv, .fb2, .mobi, .prc, .azw, .azw3, .xps, .oxps, .ps, .eps, .xml, .json, .yaml, .yml, .odm, .oth, .otm, .odb, .sldx, .sldm, .vsd, .vst, .vss, .vsw, .vsdx, .vstx, .vssx, .vsdm, .vstm, .vssm, .one, .onetoc2, .tex, .ltx, .latex, .rst, .adoc, .asciidoc. MIME выводится по расширению, если mimeType пуст; application/octet-stream и явно перечисленные сервером MIME-алиасы нормализуются в канонический MIME. Несовпадающий MIME → 422. Актуальный allowlist и алиасы: internal/domain/chat/attachment_types.go; байты независимо проверяются по типу/сигнатуре контейнера, а не только по имени или заявленному MIME. Не более 20 непросроченных pending/ready файлов на владельца+область. 201/200 повтор: status,item Attachment,uploadUrl — относительный PUT URL. TTL 30 мин; ключ с иными параметрами/лимит pending → 409. Затем PUT байтов → POST finalize → POST message с attachmentIds. JSON до 32 KiB, ровно один объект; неизвестные поля, неверный JSON и лишние данные → 400.\n\nBearer только зарегистрированного аккаунта; гостевые токены запрещены. Требуется активное членство нескрытого, неудалённого direct/group-чата. Состояние конференции не применяется. Личная очищенная история скрывает сообщения, replyPreview и вложения до cutoff.\nПараметры пути: :id — UUID переписки; :messageId/:attachmentId — UUID ресурса в этой области. private,no-store; nosniff. Лимит 10/мин на пару аккаунт+область при включённом ограничителе.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/chat_routes.go; internal/transport/http/personal_routes.go; internal/app/chat/handler.go; internal/usecase/chat/service.go; internal/domain/chat/chat.go; internal/infrastructure/postgres/chat_repository.go; internal/infrastructure/postgres/chat_attachment_repository.go; internal/infrastructure/postgres/chat_scope.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{baseUrl}}/api/v1/conversations/:id/attachments/init",
                       "host": [
@@ -10667,7 +10909,7 @@
                     }
                   ]
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Аккаунт; owner/admin группы. Параметры: id; raw JPEG/PNG; Content-Type image/jpeg или image/png; ≤2 MiB, стороны ≤2048 и ≤4 Mi pixels. Ответ: 200: status,item: Conversation с avatarVersion. Ошибки: 422 формат/размер/изображение; 403 роль; 404. Источник: internal/transport/http/personal_asset_routes.go:41.\n\nPUT /api/v1/conversations/:id/avatar\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько активный owner/admin. Тело binary, не multipart: выберите JPEG/PNG; Content-Type image/jpeg либо image/png обязателен и должен совпадать с фактическим изображением. Файл 1–2097152 байт (2 MiB), каждая сторона 1–2048 px, до 4 194 304 пикселей. Сервер декодирует и повторно кодирует (JPEG quality 85), удаляя метаданные/хвост; перекодированный результат тоже ≤2 MiB. 200 status,item Conversation с новым avatarVersion UUID; событие conversation.updated, прежний объект очищается фоновым процессом. Неверный формат/размер → 422, перегружены 2 upload slots → 429, конкурирующее обновление → 409.\n\nТребуется Bearer зарегистрированного аккаунта, гостевые токены запрещены. Все :id/:userId/:messageId/:attachmentId — ненулевые UUID. Ответы private,no-store; nosniff. Эти asset-маршруты обслуживают только group (для direct → 404). Лимит 10/мин на аккаунт при включённом ограничителе. Передача до 30 сек.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/personal_asset_routes.go; internal/app/personal/assets_handler.go; internal/usecase/personal/assets.go; internal/infrastructure/postgres/personal_assets_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Аккаунт; owner/admin группы. Параметры: id; raw JPEG/PNG; Content-Type image/jpeg или image/png; ≤2 MiB, стороны ≤2048 и ≤4 Mi pixels. Ответ: 200: status,item: Conversation с avatarVersion. Ошибки: 422 формат/размер/изображение; 403 роль; 404. Источник: internal/transport/http/personal_asset_routes.go:41.\n\nPUT /api/v1/conversations/:id/avatar\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько активный owner/admin. Тело binary, не multipart: выберите JPEG/PNG; Content-Type image/jpeg либо image/png обязателен и должен совпадать с фактическим изображением. Файл 1–2097152 байт (2 MiB), каждая сторона 1–2048 px, до 4 194 304 пикселей. Сервер обрезает изображение по центру до квадрата не больше 512×512 px, сводит прозрачность на белый фон и повторно кодирует в JPEG quality 85 без исходных метаданных; сохранённый результат не больше 262144 байт (256 KiB). 200 status,item Conversation с новым avatarVersion UUID; событие conversation.updated, прежний объект очищается фоновым процессом. Неверный формат/размер → 422, перегружены 2 upload slots → 429, конкурирующее обновление → 409.\n\nТребуется Bearer зарегистрированного аккаунта, гостевые токены запрещены. Все :id/:userId/:messageId/:attachmentId — ненулевые UUID. Ответы private,no-store; nosniff. Эти asset-маршруты обслуживают только group (для direct → 404). Лимит 10/мин на аккаунт при включённом ограничителе. Передача до 30 сек.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/personal_asset_routes.go; internal/app/personal/assets_handler.go; internal/usecase/personal/assets.go; internal/infrastructure/postgres/personal_assets_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/conversations/:id/avatar",
                   "host": [
@@ -10717,7 +10959,7 @@
                         }
                       ]
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Аккаунт; owner/admin группы. Параметры: id; raw JPEG/PNG; Content-Type image/jpeg или image/png; ≤2 MiB, стороны ≤2048 и ≤4 Mi pixels. Ответ: 200: status,item: Conversation с avatarVersion. Ошибки: 422 формат/размер/изображение; 403 роль; 404. Источник: internal/transport/http/personal_asset_routes.go:41.\n\nPUT /api/v1/conversations/:id/avatar\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько активный owner/admin. Тело binary, не multipart: выберите JPEG/PNG; Content-Type image/jpeg либо image/png обязателен и должен совпадать с фактическим изображением. Файл 1–2097152 байт (2 MiB), каждая сторона 1–2048 px, до 4 194 304 пикселей. Сервер декодирует и повторно кодирует (JPEG quality 85), удаляя метаданные/хвост; перекодированный результат тоже ≤2 MiB. 200 status,item Conversation с новым avatarVersion UUID; событие conversation.updated, прежний объект очищается фоновым процессом. Неверный формат/размер → 422, перегружены 2 upload slots → 429, конкурирующее обновление → 409.\n\nТребуется Bearer зарегистрированного аккаунта, гостевые токены запрещены. Все :id/:userId/:messageId/:attachmentId — ненулевые UUID. Ответы private,no-store; nosniff. Эти asset-маршруты обслуживают только group (для direct → 404). Лимит 10/мин на аккаунт при включённом ограничителе. Передача до 30 сек.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/personal_asset_routes.go; internal/app/personal/assets_handler.go; internal/usecase/personal/assets.go; internal/infrastructure/postgres/personal_assets_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Аккаунт; owner/admin группы. Параметры: id; raw JPEG/PNG; Content-Type image/jpeg или image/png; ≤2 MiB, стороны ≤2048 и ≤4 Mi pixels. Ответ: 200: status,item: Conversation с avatarVersion. Ошибки: 422 формат/размер/изображение; 403 роль; 404. Источник: internal/transport/http/personal_asset_routes.go:41.\n\nPUT /api/v1/conversations/:id/avatar\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько активный owner/admin. Тело binary, не multipart: выберите JPEG/PNG; Content-Type image/jpeg либо image/png обязателен и должен совпадать с фактическим изображением. Файл 1–2097152 байт (2 MiB), каждая сторона 1–2048 px, до 4 194 304 пикселей. Сервер обрезает изображение по центру до квадрата не больше 512×512 px, сводит прозрачность на белый фон и повторно кодирует в JPEG quality 85 без исходных метаданных; сохранённый результат не больше 262144 байт (256 KiB). 200 status,item Conversation с новым avatarVersion UUID; событие conversation.updated, прежний объект очищается фоновым процессом. Неверный формат/размер → 422, перегружены 2 upload slots → 429, конкурирующее обновление → 409.\n\nТребуется Bearer зарегистрированного аккаунта, гостевые токены запрещены. Все :id/:userId/:messageId/:attachmentId — ненулевые UUID. Ответы private,no-store; nosniff. Эти asset-маршруты обслуживают только group (для direct → 404). Лимит 10/мин на аккаунт при включённом ограничителе. Передача до 30 сек.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/personal_asset_routes.go; internal/app/personal/assets_handler.go; internal/usecase/personal/assets.go; internal/infrastructure/postgres/personal_assets_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{baseUrl}}/api/v1/conversations/:id/avatar",
                       "host": [
@@ -10861,7 +11103,7 @@
                     }
                   ]
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Аккаунт; действующий член группы. Параметры: id. Ответ: 200: байты image/jpeg или image/png, Content-Length, private/no-store. Ошибки: 403; 404 отсутствует; поток может оборваться при отзыве доступа. Источник: internal/transport/http/personal_asset_routes.go:43.\n\nGET /api/v1/conversations/:id/avatar/content\n\nАктивный участник группы. 200 — байты текущего PNG/JPEG, Content-Type фактического изображения, Content-Length, private,no-store и nosniff. Без JSON-обёртки/query/тела, сохранение через Postman Save Response. Отсутствует активный аватар → 404. Новая проверка членства и share-lock держатся до конца передачи, удалённый из группы участник не получает новый доступ. До 8 одновременных asset-streams; заняты слоты → 429; сбой объекта → 503.\n\nТребуется Bearer зарегистрированного аккаунта, гостевые токены запрещены. Все :id/:userId/:messageId/:attachmentId — ненулевые UUID. Ответы private,no-store; nosniff. Эти asset-маршруты обслуживают только group (для direct → 404). Лимит 120/мин на аккаунт при включённом ограничителе. Передача до 30 сек.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/personal_asset_routes.go; internal/app/personal/assets_handler.go; internal/usecase/personal/assets.go; internal/infrastructure/postgres/personal_assets_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Аккаунт; действующий член группы. Параметры: id. Ответ: 200: байты image/jpeg или image/png, Content-Length, private/no-store. Ошибки: 403; 404 отсутствует; поток может оборваться при отзыве доступа. Источник: internal/transport/http/personal_asset_routes.go:43.\n\nGET /api/v1/conversations/:id/avatar/content\n\nАктивный участник группы. 200 — байты текущего аватара с его Content-Type, Content-Length, private,no-store и nosniff. Новые загрузки нормализуются в image/jpeg, квадрат не больше 512×512 px и 256 KiB; ранее сохранённый объект может иметь image/png. Без JSON-обёртки/query/тела, сохранение через Postman Save Response. Отсутствует активный аватар → 404. Новая проверка членства и share-lock держатся до конца передачи, удалённый из группы участник не получает новый доступ. До 8 одновременных asset-streams; заняты слоты → 429; сбой объекта → 503.\n\nТребуется Bearer зарегистрированного аккаунта, гостевые токены запрещены. Все :id/:userId/:messageId/:attachmentId — ненулевые UUID. Ответы private,no-store; nosniff. Эти asset-маршруты обслуживают только group (для direct → 404). Лимит 120/мин на аккаунт при включённом ограничителе. Передача до 30 сек.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/personal_asset_routes.go; internal/app/personal/assets_handler.go; internal/usecase/personal/assets.go; internal/infrastructure/postgres/personal_assets_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{baseUrl}}/api/v1/conversations/:id/avatar/content",
                   "host": [
@@ -10900,7 +11142,7 @@
                         }
                       ]
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Аккаунт; действующий член группы. Параметры: id. Ответ: 200: байты image/jpeg или image/png, Content-Length, private/no-store. Ошибки: 403; 404 отсутствует; поток может оборваться при отзыве доступа. Источник: internal/transport/http/personal_asset_routes.go:43.\n\nGET /api/v1/conversations/:id/avatar/content\n\nАктивный участник группы. 200 — байты текущего PNG/JPEG, Content-Type фактического изображения, Content-Length, private,no-store и nosniff. Без JSON-обёртки/query/тела, сохранение через Postman Save Response. Отсутствует активный аватар → 404. Новая проверка членства и share-lock держатся до конца передачи, удалённый из группы участник не получает новый доступ. До 8 одновременных asset-streams; заняты слоты → 429; сбой объекта → 503.\n\nТребуется Bearer зарегистрированного аккаунта, гостевые токены запрещены. Все :id/:userId/:messageId/:attachmentId — ненулевые UUID. Ответы private,no-store; nosniff. Эти asset-маршруты обслуживают только group (для direct → 404). Лимит 120/мин на аккаунт при включённом ограничителе. Передача до 30 сек.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/personal_asset_routes.go; internal/app/personal/assets_handler.go; internal/usecase/personal/assets.go; internal/infrastructure/postgres/personal_assets_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Аккаунт; действующий член группы. Параметры: id. Ответ: 200: байты image/jpeg или image/png, Content-Length, private/no-store. Ошибки: 403; 404 отсутствует; поток может оборваться при отзыве доступа. Источник: internal/transport/http/personal_asset_routes.go:43.\n\nGET /api/v1/conversations/:id/avatar/content\n\nАктивный участник группы. 200 — байты текущего аватара с его Content-Type, Content-Length, private,no-store и nosniff. Новые загрузки нормализуются в image/jpeg, квадрат не больше 512×512 px и 256 KiB; ранее сохранённый объект может иметь image/png. Без JSON-обёртки/query/тела, сохранение через Postman Save Response. Отсутствует активный аватар → 404. Новая проверка членства и share-lock держатся до конца передачи, удалённый из группы участник не получает новый доступ. До 8 одновременных asset-streams; заняты слоты → 429; сбой объекта → 503.\n\nТребуется Bearer зарегистрированного аккаунта, гостевые токены запрещены. Все :id/:userId/:messageId/:attachmentId — ненулевые UUID. Ответы private,no-store; nosniff. Эти asset-маршруты обслуживают только group (для direct → 404). Лимит 120/мин на аккаунт при включённом ограничителе. Передача до 30 сек.\nОсновные ошибки: 401 — отсутствует/невалиден Bearer; 403 — нет разрешённого членства/прав; 404 — ресурс недоступен; 422 — неверные значения; 429 — превышен лимит; 500/503/504 — внутренняя ошибка/недоступность/таймаут. Ошибки приложения: {status:\"failed\",message:\"...\"}.\nИсточники: internal/transport/http/personal_asset_routes.go; internal/app/personal/assets_handler.go; internal/usecase/personal/assets.go; internal/infrastructure/postgres/personal_assets_repository.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{baseUrl}}/api/v1/conversations/:id/avatar/content",
                       "host": [
@@ -10929,10 +11171,10 @@
                   "header": [
                     {
                       "key": "Content-Type",
-                      "value": "application/json"
+                      "value": "image/jpeg"
                     }
                   ],
-                  "body": "<binary PNG or JPEG bytes>"
+                  "body": "<binary JPEG bytes>"
                 }
               ]
             },
@@ -15192,7 +15434,7 @@
                 "auth": {
                   "type": "noauth"
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {version,commit,buildTime}; dev/unknown при отсутствии build metadata; Cache-Control:no-store; X-Content-Type-Options:nosniff.. Ошибки: Специальных ошибок handler нет.. Источник: internal/operations/runtime.go:258.\n\nGET /version\n\nВозвращает {version,commit,buildTime}; Cache-Control: no-store. Публичный /version на API доступен через origin приложения. Такие же метки зарегистрированы у recorder/media/product/live worker на их внутренних адресах. Для выбранного worker замените baseUrl его защищённым адресом. Никаких секретов или изменения состояния.\nИсточник: internal/buildinfo/buildinfo.go; internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {version,commit,buildTime}; dev/unknown при отсутствии build metadata; Cache-Control:no-store; X-Content-Type-Options:nosniff.. Ошибки: Специальных ошибок handler нет.. Источник: internal/operations/runtime.go:258.\n\nGET /version\n\nВозвращает {version,commit,buildTime}; Cache-Control: no-store. Публичный /version на API доступен через origin приложения. Такие же метки зарегистрированы у record-worker, media-worker и product-worker на их внутренних адресах. Для выбранного worker замените baseUrl его защищённым адресом. Никаких секретов или изменения состояния.\nИсточник: internal/buildinfo/buildinfo.go; internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{baseUrl}}/version",
                   "host": [
@@ -15212,7 +15454,7 @@
                     "auth": {
                       "type": "noauth"
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {version,commit,buildTime}; dev/unknown при отсутствии build metadata; Cache-Control:no-store; X-Content-Type-Options:nosniff.. Ошибки: Специальных ошибок handler нет.. Источник: internal/operations/runtime.go:258.\n\nGET /version\n\nВозвращает {version,commit,buildTime}; Cache-Control: no-store. Публичный /version на API доступен через origin приложения. Такие же метки зарегистрированы у recorder/media/product/live worker на их внутренних адресах. Для выбранного worker замените baseUrl его защищённым адресом. Никаких секретов или изменения состояния.\nИсточник: internal/buildinfo/buildinfo.go; internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {version,commit,buildTime}; dev/unknown при отсутствии build metadata; Cache-Control:no-store; X-Content-Type-Options:nosniff.. Ошибки: Специальных ошибок handler нет.. Источник: internal/operations/runtime.go:258.\n\nGET /version\n\nВозвращает {version,commit,buildTime}; Cache-Control: no-store. Публичный /version на API доступен через origin приложения. Такие же метки зарегистрированы у record-worker, media-worker и product-worker на их внутренних адресах. Для выбранного worker замените baseUrl его защищённым адресом. Никаких секретов или изменения состояния.\nИсточник: internal/buildinfo/buildinfo.go; internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{baseUrl}}/version",
                       "host": [
@@ -15296,7 +15538,7 @@
                 "auth": {
                   "type": "noauth"
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный. Параметры: Без тела/query. Ответ: 200: {status:\"ok\"}. Ошибки: При общем drain middleware — 503. Источник: internal/transport/http/router.go:47.\n\nGET /health\n\nGET /health API возвращает {status:\"ok\"}; не проверяет зависимости. Recorder-worker имеет одноимённый handler для всех HTTP-методов, но используйте GET. На media/product/live worker именно /health не зарегистрирован. На публичном production proxy маршрут закрыт, используйте внутренний защищённый адрес.\nИсточник: internal/transport/http/router.go; internal/app/record_worker.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный. Параметры: Без тела/query. Ответ: 200: {status:\"ok\"}. Ошибки: При общем drain middleware — 503. Источник: internal/transport/http/router.go:47.\n\nGET /health\n\nGET /health API возвращает {status:\"ok\"}; не проверяет зависимости. Record-worker имеет одноимённый handler для всех HTTP-методов, но используйте GET. На media-worker и product-worker именно /health не зарегистрирован. На публичном production proxy маршрут закрыт, используйте внутренний защищённый адрес.\nИсточник: internal/transport/http/router.go; internal/app/record_worker.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{serviceBaseUrl}}/health",
                   "host": [
@@ -15316,7 +15558,7 @@
                     "auth": {
                       "type": "noauth"
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный. Параметры: Без тела/query. Ответ: 200: {status:\"ok\"}. Ошибки: При общем drain middleware — 503. Источник: internal/transport/http/router.go:47.\n\nGET /health\n\nGET /health API возвращает {status:\"ok\"}; не проверяет зависимости. Recorder-worker имеет одноимённый handler для всех HTTP-методов, но используйте GET. На media/product/live worker именно /health не зарегистрирован. На публичном production proxy маршрут закрыт, используйте внутренний защищённый адрес.\nИсточник: internal/transport/http/router.go; internal/app/record_worker.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный. Параметры: Без тела/query. Ответ: 200: {status:\"ok\"}. Ошибки: При общем drain middleware — 503. Источник: internal/transport/http/router.go:47.\n\nGET /health\n\nGET /health API возвращает {status:\"ok\"}; не проверяет зависимости. Record-worker имеет одноимённый handler для всех HTTP-методов, но используйте GET. На media-worker и product-worker именно /health не зарегистрирован. На публичном production proxy маршрут закрыт, используйте внутренний защищённый адрес.\nИсточник: internal/transport/http/router.go; internal/app/record_worker.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{serviceBaseUrl}}/health",
                       "host": [
@@ -15348,7 +15590,7 @@
                 "auth": {
                   "type": "noauth"
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"alive\"}; Cache-Control:no-store.. Ошибки: Специальных ошибок handler нет.. Источник: internal/operations/runtime.go:195.\n\nGET /health/live\n\nОдинаковый маршрут у API, recorder/media/product/live worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"alive\"} независимо от зависимостей. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"alive\"}; Cache-Control:no-store.. Ошибки: Специальных ошибок handler нет.. Источник: internal/operations/runtime.go:195.\n\nGET /health/live\n\nОдинаковый маршрут у API, record-worker, media-worker и product-worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"alive\"} независимо от зависимостей. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{serviceBaseUrl}}/health/live",
                   "host": [
@@ -15369,7 +15611,7 @@
                     "auth": {
                       "type": "noauth"
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"alive\"}; Cache-Control:no-store.. Ошибки: Специальных ошибок handler нет.. Источник: internal/operations/runtime.go:195.\n\nGET /health/live\n\nОдинаковый маршрут у API, recorder/media/product/live worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"alive\"} независимо от зависимостей. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"alive\"}; Cache-Control:no-store.. Ошибки: Специальных ошибок handler нет.. Источник: internal/operations/runtime.go:195.\n\nGET /health/live\n\nОдинаковый маршрут у API, record-worker, media-worker и product-worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"alive\"} независимо от зависимостей. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{serviceBaseUrl}}/health/live",
                       "host": [
@@ -15402,7 +15644,7 @@
                 "auth": {
                   "type": "noauth"
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"ready\"}; Cache-Control:no-store.. Ошибки: 503 {status:\"not_ready\"}, включая drain.. Источник: internal/operations/runtime.go:203.\n\nGET /health/ready\n\nОдинаковый маршрут у API, recorder/media/product/live worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"ready\"} либо 503 {status:\"not_ready\"}; состояние кешируется периодическими пробами, запрос не запускает новую пробу. Drain немедленно снимает readiness. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"ready\"}; Cache-Control:no-store.. Ошибки: 503 {status:\"not_ready\"}, включая drain.. Источник: internal/operations/runtime.go:203.\n\nGET /health/ready\n\nОдинаковый маршрут у API, record-worker, media-worker и product-worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"ready\"} либо 503 {status:\"not_ready\"}; состояние кешируется периодическими пробами, запрос не запускает новую пробу. Drain немедленно снимает readiness. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{serviceBaseUrl}}/health/ready",
                   "host": [
@@ -15423,7 +15665,7 @@
                     "auth": {
                       "type": "noauth"
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"ready\"}; Cache-Control:no-store.. Ошибки: 503 {status:\"not_ready\"}, включая drain.. Источник: internal/operations/runtime.go:203.\n\nGET /health/ready\n\nОдинаковый маршрут у API, recorder/media/product/live worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"ready\"} либо 503 {status:\"not_ready\"}; состояние кешируется периодическими пробами, запрос не запускает новую пробу. Drain немедленно снимает readiness. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"ready\"}; Cache-Control:no-store.. Ошибки: 503 {status:\"not_ready\"}, включая drain.. Источник: internal/operations/runtime.go:203.\n\nGET /health/ready\n\nОдинаковый маршрут у API, record-worker, media-worker и product-worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"ready\"} либо 503 {status:\"not_ready\"}; состояние кешируется периодическими пробами, запрос не запускает новую пробу. Drain немедленно снимает readiness. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{serviceBaseUrl}}/health/ready",
                       "host": [
@@ -15454,7 +15696,7 @@
                     "auth": {
                       "type": "noauth"
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"ready\"}; Cache-Control:no-store.. Ошибки: 503 {status:\"not_ready\"}, включая drain.. Источник: internal/operations/runtime.go:203.\n\nGET /health/ready\n\nОдинаковый маршрут у API, recorder/media/product/live worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"ready\"} либо 503 {status:\"not_ready\"}; состояние кешируется периодическими пробами, запрос не запускает новую пробу. Drain немедленно снимает readiness. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Не требуется. Параметры: Без тела.. Ответ: 200 {status:\"ready\"}; Cache-Control:no-store.. Ошибки: 503 {status:\"not_ready\"}, включая drain.. Источник: internal/operations/runtime.go:203.\n\nGET /health/ready\n\nОдинаковый маршрут у API, record-worker, media-worker и product-worker; адрес выбран переменной serviceBaseUrl. 200 {status:\"ready\"} либо 503 {status:\"not_ready\"}; состояние кешируется периодическими пробами, запрос не запускает новую пробу. Drain немедленно снимает readiness. Cache-Control: no-store. Production proxy не публикует health. Зарегистрированный Go GET также обслуживает HEAD во внутренних worker.\nИсточник: internal/operations/runtime.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{serviceBaseUrl}}/health/ready",
                       "host": [
@@ -16227,8 +16469,8 @@
           ]
         },
         {
-          "name": "Внутренний recorder — legacy service",
-          "description": "Контракты проверены по регистрации маршрутов и обработчикам проекта. Ответы — синтетические примеры; детали прав, входных данных и ограничений приведены в каждом запросе.",
+          "name": "Внутренний record-worker — состояние сервиса",
+          "description": "Проверка доступности закрытого record-worker. Прямые HTTP-команды запуска/остановки записи и legacy WebRTC offer удалены. Запись конференций управляется через API приложения и очередь; медиаданные поступают от SFU через Egress. Общие health/ready, health/live, version, metrics и operations/drain представлены в разделе «Диагностика и эксплуатация» с переменной serviceBaseUrl.",
           "item": [
             {
               "name": "GET · Доступность record-worker",
@@ -16238,7 +16480,7 @@
                 "auth": {
                   "type": "noauth"
                 },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный. Параметры: Без тела/query. Ответ: 200: {status:\"ok\"}. Ошибки: При общем drain middleware — 503. Источник: internal/transport/http/router.go:47.\n\nGET /health\n\nВнутренний recorder /health:200 {status:\"ok\"}; handler принимает любой метод, здесь GET. Не проверяет readiness зависимостей; для этого /health/ready. Public proxy не публикует worker.\nИсточник: internal/app/record_worker.go serveWorkerHTTP.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный. Параметры: Без тела/query. Ответ: 200: {status:\"ok\"}. Ошибки: При общем drain middleware — 503. Источник: internal/transport/http/router.go:47.\n\nGET /health\n\nВнутренний record-worker /health:200 {status:\"ok\"}; handler принимает любой метод, здесь GET. Не проверяет readiness зависимостей; для этого /health/ready. Public proxy не публикует worker.\nИсточник: internal/app/record_worker.go serveWorkerHTTP.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                 "url": {
                   "raw": "{{workerBaseUrl}}/health",
                   "host": [
@@ -16258,7 +16500,7 @@
                     "auth": {
                       "type": "noauth"
                     },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный. Параметры: Без тела/query. Ответ: 200: {status:\"ok\"}. Ошибки: При общем drain middleware — 503. Источник: internal/transport/http/router.go:47.\n\nGET /health\n\nВнутренний recorder /health:200 {status:\"ok\"}; handler принимает любой метод, здесь GET. Не проверяет readiness зависимостей; для этого /health/ready. Public proxy не публикует worker.\nИсточник: internal/app/record_worker.go serveWorkerHTTP.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
+                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Публичный. Параметры: Без тела/query. Ответ: 200: {status:\"ok\"}. Ошибки: При общем drain middleware — 503. Источник: internal/transport/http/router.go:47.\n\nGET /health\n\nВнутренний record-worker /health:200 {status:\"ok\"}; handler принимает любой метод, здесь GET. Не проверяет readiness зависимостей; для этого /health/ready. Public proxy не публикует worker.\nИсточник: internal/app/record_worker.go serveWorkerHTTP.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
                     "url": {
                       "raw": "{{workerBaseUrl}}/health",
                       "host": [
@@ -16279,368 +16521,6 @@
                     }
                   ],
                   "body": "{\n  \"status\": \"ok\"\n}"
-                }
-              ]
-            },
-            {
-              "name": "POST · Внутренний legacy start",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{workerInternalSecret}}",
-                    "description": "Отдельный WORKER_INTERNAL_SECRET, не пользовательский JWT."
-                  },
-                  {
-                    "key": "X-Request-ID",
-                    "value": "{{requestId}}",
-                    "description": "Опциональный UUID корреляции"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json",
-                    "description": "Content type тела, указанный контрактом."
-                  }
-                ],
-                "auth": {
-                  "type": "noauth"
-                },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready. Параметры: id: существующая legacy recording, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.. Ответ: 200 {status:\"success\"}.. Ошибки: 404 text/plain: auth, неправильный метод/путь, отсутствующая/composite запись; 503 \"worker unavailable\"; 400 text/plain при Decode или ошибке HandleCommand.. Источник: internal/app/record_worker.go:269.\n\nPOST /records/:recordId/start\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько record-worker через закрытый адрес, Bearer WORKER_INTERNAL_SECRET>=32байт (неверный секрет404), готовый worker (иначе503). Не является удалённым публичным /api/v1/records и не возвращает его в эксплуатацию. recordId обязан существовать и иметь ровно соответствующий legacy registry namespace; ValidateLegacyRecord отказывает404 для отсутствующих/не-legacy записей. Запрос ограничен HTTP_MAX_BODY_BYTES. JSON records.Command; из тела реально используются только reason и segmentDurationSec, type/recordId берутся из URL/серверной ветки. Публикует/исполняет record.start;200 {status:\"success\"},ошибка JSON/исполнения400 текстом. Не запускать без операторского решения.\nИсточник: internal/app/record_worker.go handleWorkerRecords/handleWorkerCommand/handleWorkerWebRTCOffer; internal/usecase/recorder/conference_reader.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
-                "url": {
-                  "raw": "{{workerBaseUrl}}/records/:recordId/start",
-                  "host": [
-                    "{{workerBaseUrl}}"
-                  ],
-                  "path": [
-                    "records",
-                    ":recordId",
-                    "start"
-                  ],
-                  "variable": [
-                    {
-                      "key": "recordId",
-                      "value": "{{recordId}}",
-                      "description": "Параметр пути recordId. Заполните идентификатор/значение из разрешённого ответа; ограничения описаны в документации запроса."
-                    }
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"reason\": \"\",\n  \"segmentDurationSec\": 5\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "response": [
-                {
-                  "name": "200 OK",
-                  "originalRequest": {
-                    "method": "POST",
-                    "header": [
-                      {
-                        "key": "Authorization",
-                        "value": "Bearer {{workerInternalSecret}}",
-                        "description": "Отдельный WORKER_INTERNAL_SECRET, не пользовательский JWT."
-                      },
-                      {
-                        "key": "X-Request-ID",
-                        "value": "{{requestId}}",
-                        "description": "Опциональный UUID корреляции"
-                      },
-                      {
-                        "key": "Content-Type",
-                        "value": "application/json",
-                        "description": "Content type тела, указанный контрактом."
-                      }
-                    ],
-                    "auth": {
-                      "type": "noauth"
-                    },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready. Параметры: id: существующая legacy recording, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.. Ответ: 200 {status:\"success\"}.. Ошибки: 404 text/plain: auth, неправильный метод/путь, отсутствующая/composite запись; 503 \"worker unavailable\"; 400 text/plain при Decode или ошибке HandleCommand.. Источник: internal/app/record_worker.go:269.\n\nPOST /records/:recordId/start\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько record-worker через закрытый адрес, Bearer WORKER_INTERNAL_SECRET>=32байт (неверный секрет404), готовый worker (иначе503). Не является удалённым публичным /api/v1/records и не возвращает его в эксплуатацию. recordId обязан существовать и иметь ровно соответствующий legacy registry namespace; ValidateLegacyRecord отказывает404 для отсутствующих/не-legacy записей. Запрос ограничен HTTP_MAX_BODY_BYTES. JSON records.Command; из тела реально используются только reason и segmentDurationSec, type/recordId берутся из URL/серверной ветки. Публикует/исполняет record.start;200 {status:\"success\"},ошибка JSON/исполнения400 текстом. Не запускать без операторского решения.\nИсточник: internal/app/record_worker.go handleWorkerRecords/handleWorkerCommand/handleWorkerWebRTCOffer; internal/usecase/recorder/conference_reader.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
-                    "url": {
-                      "raw": "{{workerBaseUrl}}/records/:recordId/start",
-                      "host": [
-                        "{{workerBaseUrl}}"
-                      ],
-                      "path": [
-                        "records",
-                        ":recordId",
-                        "start"
-                      ],
-                      "variable": [
-                        {
-                          "key": "recordId",
-                          "value": "{{recordId}}",
-                          "description": "Параметр пути recordId. Заполните идентификатор/значение из разрешённого ответа; ограничения описаны в документации запроса."
-                        }
-                      ]
-                    },
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"reason\": \"\",\n  \"segmentDurationSec\": 5\n}",
-                      "options": {
-                        "raw": {
-                          "language": "json"
-                        }
-                      }
-                    }
-                  },
-                  "status": "OK",
-                  "code": 200,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "body": "{\n  \"status\": \"success\"\n}"
-                }
-              ]
-            },
-            {
-              "name": "POST · Внутренний legacy stop",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{workerInternalSecret}}",
-                    "description": "Отдельный WORKER_INTERNAL_SECRET, не пользовательский JWT."
-                  },
-                  {
-                    "key": "X-Request-ID",
-                    "value": "{{requestId}}",
-                    "description": "Опциональный UUID корреляции"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json",
-                    "description": "Content type тела, указанный контрактом."
-                  }
-                ],
-                "auth": {
-                  "type": "noauth"
-                },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready. Параметры: id: существующая legacy recording, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.. Ответ: 200 {status:\"success\"}.. Ошибки: 404 text/plain: auth, неправильный метод/путь, отсутствующая/composite запись; 503 \"worker unavailable\"; 400 text/plain при Decode или ошибке HandleCommand.. Источник: internal/app/record_worker.go:269.\n\nPOST /records/:recordId/stop\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько record-worker через закрытый адрес, Bearer WORKER_INTERNAL_SECRET>=32байт (неверный секрет404), готовый worker (иначе503). Не является удалённым публичным /api/v1/records и не возвращает его в эксплуатацию. recordId обязан существовать и иметь ровно соответствующий legacy registry namespace; ValidateLegacyRecord отказывает404 для отсутствующих/не-legacy записей. Запрос ограничен HTTP_MAX_BODY_BYTES. JSON records.Command; из тела реально используются только reason и segmentDurationSec, type/recordId берутся из URL/серверной ветки. Публикует/исполняет record.stop;200 {status:\"success\"},ошибка JSON/исполнения400 текстом. Не запускать без операторского решения.\nИсточник: internal/app/record_worker.go handleWorkerRecords/handleWorkerCommand/handleWorkerWebRTCOffer; internal/usecase/recorder/conference_reader.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
-                "url": {
-                  "raw": "{{workerBaseUrl}}/records/:recordId/stop",
-                  "host": [
-                    "{{workerBaseUrl}}"
-                  ],
-                  "path": [
-                    "records",
-                    ":recordId",
-                    "stop"
-                  ],
-                  "variable": [
-                    {
-                      "key": "recordId",
-                      "value": "{{recordId}}",
-                      "description": "Параметр пути recordId. Заполните идентификатор/значение из разрешённого ответа; ограничения описаны в документации запроса."
-                    }
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"reason\": \"manual\",\n  \"segmentDurationSec\": 5\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "response": [
-                {
-                  "name": "200 OK",
-                  "originalRequest": {
-                    "method": "POST",
-                    "header": [
-                      {
-                        "key": "Authorization",
-                        "value": "Bearer {{workerInternalSecret}}",
-                        "description": "Отдельный WORKER_INTERNAL_SECRET, не пользовательский JWT."
-                      },
-                      {
-                        "key": "X-Request-ID",
-                        "value": "{{requestId}}",
-                        "description": "Опциональный UUID корреляции"
-                      },
-                      {
-                        "key": "Content-Type",
-                        "value": "application/json",
-                        "description": "Content type тела, указанный контрактом."
-                      }
-                    ],
-                    "auth": {
-                      "type": "noauth"
-                    },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready. Параметры: id: существующая legacy recording, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.. Ответ: 200 {status:\"success\"}.. Ошибки: 404 text/plain: auth, неправильный метод/путь, отсутствующая/composite запись; 503 \"worker unavailable\"; 400 text/plain при Decode или ошибке HandleCommand.. Источник: internal/app/record_worker.go:269.\n\nPOST /records/:recordId/stop\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько record-worker через закрытый адрес, Bearer WORKER_INTERNAL_SECRET>=32байт (неверный секрет404), готовый worker (иначе503). Не является удалённым публичным /api/v1/records и не возвращает его в эксплуатацию. recordId обязан существовать и иметь ровно соответствующий legacy registry namespace; ValidateLegacyRecord отказывает404 для отсутствующих/не-legacy записей. Запрос ограничен HTTP_MAX_BODY_BYTES. JSON records.Command; из тела реально используются только reason и segmentDurationSec, type/recordId берутся из URL/серверной ветки. Публикует/исполняет record.stop;200 {status:\"success\"},ошибка JSON/исполнения400 текстом. Не запускать без операторского решения.\nИсточник: internal/app/record_worker.go handleWorkerRecords/handleWorkerCommand/handleWorkerWebRTCOffer; internal/usecase/recorder/conference_reader.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
-                    "url": {
-                      "raw": "{{workerBaseUrl}}/records/:recordId/stop",
-                      "host": [
-                        "{{workerBaseUrl}}"
-                      ],
-                      "path": [
-                        "records",
-                        ":recordId",
-                        "stop"
-                      ],
-                      "variable": [
-                        {
-                          "key": "recordId",
-                          "value": "{{recordId}}",
-                          "description": "Параметр пути recordId. Заполните идентификатор/значение из разрешённого ответа; ограничения описаны в документации запроса."
-                        }
-                      ]
-                    },
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"reason\": \"manual\",\n  \"segmentDurationSec\": 5\n}",
-                      "options": {
-                        "raw": {
-                          "language": "json"
-                        }
-                      }
-                    }
-                  },
-                  "status": "OK",
-                  "code": 200,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "body": "{\n  \"status\": \"success\"\n}"
-                }
-              ]
-            },
-            {
-              "name": "POST · Внутренний legacy SDP offer",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{workerInternalSecret}}",
-                    "description": "Отдельный WORKER_INTERNAL_SECRET, не пользовательский JWT."
-                  },
-                  {
-                    "key": "X-Request-ID",
-                    "value": "{{requestId}}",
-                    "description": "Опциональный UUID корреляции"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json",
-                    "description": "Content type тела, указанный контрактом."
-                  }
-                ],
-                "auth": {
-                  "type": "noauth"
-                },
-                "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready. Параметры: id: существующая legacy запись; JSON {type:\"offer\",sdp:string}; ограничение HTTP_MAX_BODY_BYTES.. Ответ: 200 {type:\"answer\",sdp:string}.. Ошибки: 404 text/plain: auth/запись/composite/метод; 503 \"worker unavailable\"; 400 text/plain при JSON/ingest ошибке.. Источник: internal/app/record_worker.go:347.\n\nPOST /records/:recordId/webrtc/offer\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько record-worker через закрытый адрес, Bearer WORKER_INTERNAL_SECRET>=32байт (неверный секрет404), готовый worker (иначе503). Не является удалённым публичным /api/v1/records и не возвращает его в эксплуатацию. recordId обязан существовать и иметь ровно соответствующий legacy registry namespace; ValidateLegacyRecord отказывает404 для отсутствующих/не-legacy записей. Запрос ограничен HTTP_MAX_BODY_BYTES. JSON {type:\"offer\",sdp}; реальный SDP обязателен. Возвращает200 {type:\"answer\",sdp}; ошибки400 текстом. Не запускать без операторского решения.\nИсточник: internal/app/record_worker.go handleWorkerRecords/handleWorkerCommand/handleWorkerWebRTCOffer; internal/usecase/recorder/conference_reader.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
-                "url": {
-                  "raw": "{{workerBaseUrl}}/records/:recordId/webrtc/offer",
-                  "host": [
-                    "{{workerBaseUrl}}"
-                  ],
-                  "path": [
-                    "records",
-                    ":recordId",
-                    "webrtc",
-                    "offer"
-                  ],
-                  "variable": [
-                    {
-                      "key": "recordId",
-                      "value": "{{recordId}}",
-                      "description": "Параметр пути recordId. Заполните идентификатор/значение из разрешённого ответа; ограничения описаны в документации запроса."
-                    }
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"type\": \"offer\",\n  \"sdp\": \"{{sdpOffer}}\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "response": [
-                {
-                  "name": "200 OK",
-                  "originalRequest": {
-                    "method": "POST",
-                    "header": [
-                      {
-                        "key": "Authorization",
-                        "value": "Bearer {{workerInternalSecret}}",
-                        "description": "Отдельный WORKER_INTERNAL_SECRET, не пользовательский JWT."
-                      },
-                      {
-                        "key": "X-Request-ID",
-                        "value": "{{requestId}}",
-                        "description": "Опциональный UUID корреляции"
-                      },
-                      {
-                        "key": "Content-Type",
-                        "value": "application/json",
-                        "description": "Content type тела, указанный контрактом."
-                      }
-                    ],
-                    "auth": {
-                      "type": "noauth"
-                    },
-                    "description": "Контракт сверён по исходникам 21 октября 2026. Доступ: Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready. Параметры: id: существующая legacy запись; JSON {type:\"offer\",sdp:string}; ограничение HTTP_MAX_BODY_BYTES.. Ответ: 200 {type:\"answer\",sdp:string}.. Ошибки: 404 text/plain: auth/запись/composite/метод; 503 \"worker unavailable\"; 400 text/plain при JSON/ingest ошибке.. Источник: internal/app/record_worker.go:347.\n\nPOST /records/:recordId/webrtc/offer\n\nВНИМАНИЕ: запрос может изменять данные или состояние. Выполняйте вручную только в выбранном окружении; не запускайте всю коллекцию Runner.\n\nТолько record-worker через закрытый адрес, Bearer WORKER_INTERNAL_SECRET>=32байт (неверный секрет404), готовый worker (иначе503). Не является удалённым публичным /api/v1/records и не возвращает его в эксплуатацию. recordId обязан существовать и иметь ровно соответствующий legacy registry namespace; ValidateLegacyRecord отказывает404 для отсутствующих/не-legacy записей. Запрос ограничен HTTP_MAX_BODY_BYTES. JSON {type:\"offer\",sdp}; реальный SDP обязателен. Возвращает200 {type:\"answer\",sdp}; ошибки400 текстом. Не запускать без операторского решения.\nИсточник: internal/app/record_worker.go handleWorkerRecords/handleWorkerCommand/handleWorkerWebRTCOffer; internal/usecase/recorder/conference_reader.go.\n\nПримеры ответа ниже иллюстративные и не получены с рабочего сервера. Коллекция не содержит реальных секретов и автоматических скриптов.",
-                    "url": {
-                      "raw": "{{workerBaseUrl}}/records/:recordId/webrtc/offer",
-                      "host": [
-                        "{{workerBaseUrl}}"
-                      ],
-                      "path": [
-                        "records",
-                        ":recordId",
-                        "webrtc",
-                        "offer"
-                      ],
-                      "variable": [
-                        {
-                          "key": "recordId",
-                          "value": "{{recordId}}",
-                          "description": "Параметр пути recordId. Заполните идентификатор/значение из разрешённого ответа; ограничения описаны в документации запроса."
-                        }
-                      ]
-                    },
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"type\": \"offer\",\n  \"sdp\": \"{{sdpOffer}}\"\n}",
-                      "options": {
-                        "raw": {
-                          "language": "json"
-                        }
-                      }
-                    }
-                  },
-                  "status": "OK",
-                  "code": 200,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "body": "{\n  \"type\": \"answer\",\n  \"sdp\": \"<SDP answer>\"\n}"
                 }
               ]
             }
@@ -17160,12 +17040,6 @@
       "description": "Заполните локальное значение из разрешённого ответа/ресурса. Чувствительные значения не экспортировать."
     },
     {
-      "key": "recordId",
-      "value": "",
-      "type": "string",
-      "description": "Заполните локальное значение из разрешённого ответа/ресурса. Чувствительные значения не экспортировать."
-    },
-    {
       "key": "recordingId",
       "value": "",
       "type": "string",
@@ -17199,7 +17073,7 @@
       "key": "serviceBaseUrl",
       "value": "http://localhost:8085",
       "type": "string",
-      "description": "Защищённый адрес выбранного API/worker для health/metrics/drain. Общие ops-маршруты есть у API и recorder/media/product/live worker. Только закрытая сеть/туннель."
+      "description": "Защищённый адрес выбранного API/worker для health/metrics/drain. Общие ops-маршруты есть у API и record-worker, media-worker и product-worker. Только закрытая сеть/туннель."
     },
     {
       "key": "sessionCookie",
@@ -17248,12 +17122,6 @@
       "value": "",
       "type": "string",
       "description": "Worker ID текущего room route."
-    },
-    {
-      "key": "workerInternalSecret",
-      "value": "",
-      "type": "string",
-      "description": "WORKER_INTERNAL_SECRET только в локальном/Vault значении, не JWT."
     },
     {
       "key": "callId",

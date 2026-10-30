@@ -30,7 +30,9 @@ import (
 //     передачи данных или сохранения.
 func (r *RecordRepository) ListActiveComposite(ctx context.Context) ([]records.Record, error) {
 	var result []records.Record
-	err := r.db.WithContext(ctx).Where("mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status IN ?", []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).Order("created_at ASC").Limit(100).Find(&result).Error
+	err := r.db.WithContext(ctx).
+		Where("source_type = ? AND transport_type = ? AND platform_conference_id = conference_id", "conference", "sfu").
+		Where("mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status IN ?", []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).Order("created_at ASC").Limit(100).Find(&result).Error
 	return result, err
 }
 
@@ -51,6 +53,7 @@ func (r *RecordRepository) ListActiveComposite(ctx context.Context) ([]records.R
 //     передачи данных или сохранения.
 func (r *RecordRepository) ClaimComposite(ctx context.Context, id, token, workerID string, ttl time.Duration) (bool, error) {
 	result := r.db.WithContext(ctx).Model(&records.Record{}).
+		Where("source_type = ? AND transport_type = ? AND platform_conference_id = conference_id", "conference", "sfu").
 		Where("uuid = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus') AND status IN ?", id, []string{records.StatusStarting, records.StatusRecording, records.StatusStopping, records.StatusFinalizing, records.StatusUploading}).
 		Where("recorder_token IS NULL OR recorder_lease_until < clock_timestamp()").
 		Updates(map[string]any{"recorder_token": token, "recorder_lease_until": gorm.Expr("clock_timestamp() + (? * interval '1 millisecond')", ttl.Milliseconds()), "worker_id": workerID})

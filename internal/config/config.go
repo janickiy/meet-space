@@ -26,13 +26,9 @@ type Config struct {
 	AppEnv             string
 	APIPort            int
 	WorkerPort         int
-	WorkerInternalURL  string
 	WorkerID           string
 	StoragePath        string
 	FFmpegPath         string
-	WebRTCUDPPort      int
-	WebRTCTCPPort      int
-	WebRTCNATIPs       []string
 	PostgresDSN        string
 	RedisAddr          string
 	RedisPassword      string
@@ -68,21 +64,15 @@ func Load() (Config, error) {
 	if err := validateTypedEnvironment(); err != nil {
 		return Config{}, err
 	}
-	webRTCUDPPort := envInt("WEBRTC_UDP_PORT", 50000)
-
 	cfg := Config{
 		AppEnv:             env("APP_ENV", "local"),
 		JWTSecret:          os.Getenv("JWT_SECRET"),
 		TrustedProxies:     envList("HTTP_TRUSTED_PROXIES"),
 		APIPort:            envInt("APP_PORT", 8085),
 		WorkerPort:         envInt("WORKER_PORT", 8090),
-		WorkerInternalURL:  env("WORKER_INTERNAL_URL", "http://record-worker:8090"),
 		WorkerID:           env("WORKER_ID", "record-worker-local"),
 		StoragePath:        env("STORAGE_PATH", "/storage"),
 		FFmpegPath:         env("FFMPEG_PATH", "ffmpeg"),
-		WebRTCUDPPort:      webRTCUDPPort,
-		WebRTCTCPPort:      envInt("WEBRTC_TCP_PORT", webRTCUDPPort),
-		WebRTCNATIPs:       envList("WEBRTC_NAT_IPS"),
 		RedisAddr:          redisAddr(),
 		RedisPassword:      env("REDIS_PASSWORD", ""),
 		RedisDB:            envInt("REDIS_DB", 0),

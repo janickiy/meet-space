@@ -201,7 +201,6 @@ Meetrix/Meet также отображаются как MeetSpace. `public/brand
 APP_ENV=local
 PUBLIC_FRONTEND_URL=http://localhost:5173
 MINIO_PUBLIC_ENDPOINT=http://localhost:9000
-WORKER_INTERNAL_URL=http://record-worker:8090
 ```
 
 В `MEDIA_NAT_IPS` нужен IP хоста Docker, доступный браузеру; для Docker Desktop

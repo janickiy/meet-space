@@ -455,7 +455,6 @@ export function SelfHostedPage() {
                     <td>
                       <code>JWT_SECRET</code>, <code>MEDIA_TICKET_SECRET</code>,{" "}
                       <code>MEDIA_INTERNAL_SECRET</code>,{" "}
-                      <code>WORKER_INTERNAL_SECRET</code>,{" "}
                       <code>METRICS_SECRET</code>,{" "}
                       <code>TURN_SHARED_SECRET</code>
                     </td>

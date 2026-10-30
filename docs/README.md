@@ -40,8 +40,8 @@
 | [ARCHITECTURE](ARCHITECTURE.md) | Процессы, слои кода, зависимости и хранение данных |
 | [DATA_FLOWS](DATA_FLOWS.md) | Авторизация, встречи, сообщения, медиа и фоновые задания |
 | [API](API.md) | Обзор HTTP API, доступ, форматы и ссылки на функции |
-| [Полный справочник API](API_REFERENCE.md) | 170 серверных регистраций и общих контрактов: запросы, ответы, права, ошибки и источники |
-| [Postman](postman/meetspace/MeetSpace.postman_collection.json) | 171 запрос, включая статический frontend `/version.json` |
+| [Полный справочник API](API_REFERENCE.md) | 167 серверных регистраций и общих контрактов: запросы, ответы, права, ошибки и источники |
+| [Postman](postman/meetspace/MeetSpace.postman_collection.json) | 168 запросов, включая статический frontend `/version.json` |
 | [Аккаунты и встречи: API](auth-conferences-api.md) | Контракты авторизации, конференций, допуска и истории |
 | [SFU](media-sfu.md) | WebRTC, ICE/TURN, медиадорожки и внутренний протокол |
 | [Запись конференций](conference-recording.md) | SFU → recorder → FFmpeg → S3, режимы и жизненный цикл записи |

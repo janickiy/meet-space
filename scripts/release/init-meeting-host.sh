@@ -18,7 +18,7 @@ for target in staging production; do
     if [[ "$line" != *=* || "$line" == \#* ]]; then printf '%s\n' "$line"; continue; fi
     key="${line%%=*}"; value="${line#*=}"
     case "$key" in
-      JWT_SECRET|MEDIA_TICKET_SECRET|MEDIA_INTERNAL_SECRET|WORKER_INTERNAL_SECRET|TURN_SHARED_SECRET|POSTGRES_PASSWORD|REDIS_PASSWORD|RABBIT_MQ_PASSWORD|MINIO_ROOT_PASSWORD) value="$(openssl rand -hex 32)";;
+      JWT_SECRET|MEDIA_TICKET_SECRET|MEDIA_INTERNAL_SECRET|TURN_SHARED_SECRET|POSTGRES_PASSWORD|REDIS_PASSWORD|RABBIT_MQ_PASSWORD|MINIO_ROOT_PASSWORD) value="$(openssl rand -hex 32)";;
       METRICS_SECRET) value="$metrics_secret";;
       PROVIDER_TOKEN_ENCRYPTION_KEY) value="$(openssl rand -base64 32)";;
       POSTGRES_USER|POSTGRES_DB|RABBIT_MQ_USER|MINIO_ROOT_USER) value="meetrix_$target";;

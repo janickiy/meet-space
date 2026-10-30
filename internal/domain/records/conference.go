@@ -60,6 +60,15 @@ func IsComposite(record Record) bool {
 	return ValidConferenceMode(record.Mode) || record.SourceType == "conference" || record.PlatformConferenceID != nil
 }
 
+// IsSFURecording reports whether record belongs to the supported SFU pipeline.
+// It validates the persisted source and conference identity before a worker
+// claims or mutates the record; historical artifact reading uses IsComposite.
+func IsSFURecording(record Record) bool {
+	return ValidConferenceMode(record.Mode) && record.SourceType == "conference" &&
+		record.TransportType == "sfu" && record.PlatformConferenceID != nil &&
+		*record.PlatformConferenceID != "" && *record.PlatformConferenceID == record.ConferenceID
+}
+
 // PublicStatus преобразует сохраненный статус записи в состояние жизненного цикла, видимое для
 // клиента.
 //

@@ -392,7 +392,9 @@ class Renderer:
         # Give endpoint/name cells predictable room while keeping descriptions readable.
         if n == 2:
             ratios = [0.38, 0.62]
-            if re.search(r"Статус|CHECK|Тип", headers[0]):
+            if headers == ["Раздел", "Основные источники"]:
+                ratios = [0.22, 0.78]
+            elif re.search(r"Статус|CHECK|Тип", headers[0]):
                 ratios = [0.22, 0.78]
             elif "Индекс" in headers[0]:
                 ratios = [0.56, 0.44]

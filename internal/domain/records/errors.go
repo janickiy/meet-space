@@ -18,6 +18,5 @@ var ErrConferenceAlreadyRecording = errors.New("recording already started for co
 // перехода между этапами жизненного цикла.
 var ErrRecordStateChanged = errors.New("record status no longer allows this transition")
 
-// ErrNoMedia означает, что попытка загрузки была прервана до создания медиафайла.  Оркестрация
-// записи распознаёт этот результат независимо от адаптера загрузки.
-var ErrNoMedia = errors.New("record media was not produced")
+// ErrUnsupportedRecording rejects processing of records outside the SFU pipeline.
+var ErrUnsupportedRecording = errors.New("only SFU conference recordings can be processed")

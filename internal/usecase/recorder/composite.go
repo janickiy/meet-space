@@ -320,6 +320,9 @@ func (s *CompositeService) WaitContext(ctx context.Context) error {
 //   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *CompositeService) HandleCommand(ctx context.Context, command records.Command, record records.Record) error {
+	if !records.IsSFURecording(record) {
+		return records.ErrUnsupportedRecording
+	}
 	switch command.Type {
 	case "record.start":
 		if records.IsTerminalStatus(record.Status) {
@@ -375,6 +378,9 @@ func (s *CompositeService) reconcile(ctx context.Context) {
 //   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *CompositeService) launch(ctx context.Context, record records.Record) error {
+	if !records.IsSFURecording(record) {
+		return records.ErrUnsupportedRecording
+	}
 	s.mu.Lock()
 	if _, ok := s.running[record.UUID]; ok || s.draining || len(s.running) >= s.o.Config.MaxActive || s.ctx.Err() != nil {
 		s.mu.Unlock()

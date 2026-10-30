@@ -1,6 +1,6 @@
 # Полный справочник API MeetSpace
 
-Актуализировано **29 октября 2026 года** после удаления функций распознавания речи.
+Актуализировано **30 октября 2026 года** после удаления прежнего механизма прямого приёма WebRTC в Record Worker.
 Общие служебные маршруты Runtime перечислены один раз, хотя доступны в разных процессах.
 Контракты сверены с регистрацией маршрутов и их обработчиками. Запросы к рабочему серверу
 при актуализации не выполнялись. Права проверяются на сервере для конкретного
@@ -46,7 +46,7 @@
 - [HTTP-маршруты WebSocket](#api-group-20) — 5
 - [Медиасервер Media Worker](#api-group-21) — 11
 - [Эксплуатация и диагностика](#api-group-22) — 6
-- [Record Worker](#api-group-23) — 4
+- [Record Worker](#api-group-23) — 1
 - [Профилирование на отдельном порту](#api-group-24) — 7
 
 <a id="api-group-1"></a>
@@ -2377,7 +2377,7 @@
 
 ### `* /health`
 
-Прежний маршрут проверки работоспособности record-worker.
+Проверить, отвечает ли HTTP-сервер Record Worker. Команды записи поступают через RabbitMQ, а не через HTTP. Общие проверки готовности, метрики и управляемая остановка описаны в разделе «Эксплуатация и диагностика».
 
 - **Доступ:** Не требуется
 
@@ -2387,49 +2387,7 @@
 
 - **Ошибки:** Специальных ошибок нет; готовность сервиса (readiness) не проверяется.
 
-Источники: [internal/app/record_worker.go:201](../internal/app/record_worker.go#L201).
-
-### `POST /records/:id/start`
-
-Передать команду record.start прежнему механизму записи. Переходы состояний в этом механизме идемпотентны.
-
-- **Доступ:** Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready
-
-- **Запрос:** id: существующая запись прежнего механизма, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.
-
-- **Ответ:** 200 {status:"success"}.
-
-- **Ошибки:** 404 text/plain: auth, неправильный метод/путь, отсутствующая/composite запись; 503 "worker unavailable"; 400 text/plain при Decode или ошибке HandleCommand.
-
-Источники: [internal/app/record_worker.go:269](../internal/app/record_worker.go#L269).
-
-### `POST /records/:id/stop`
-
-Передать команду record.stop прежнему механизму записи. Переходы состояний в этом механизме идемпотентны.
-
-- **Доступ:** Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready
-
-- **Запрос:** id: существующая запись прежнего механизма, не composite. JSON Command: reason?:string,segmentDurationSec?:int; type и recordId из тела игнорируются и заменяются маршрутом. Пустое тело не допускается. Ограничение HTTP_MAX_BODY_BYTES.
-
-- **Ответ:** 200 {status:"success"}.
-
-- **Ошибки:** 404 text/plain: auth, неправильный метод/путь, отсутствующая/composite запись; 503 "worker unavailable"; 400 text/plain при Decode или ошибке HandleCommand.
-
-Источники: [internal/app/record_worker.go:269](../internal/app/record_worker.go#L269).
-
-### `POST /records/:id/webrtc/offer`
-
-Передать SDP прежнему механизму прямого приёма WebRTC. В обработчике /records/ не реализованы GET и скачивание (download).
-
-- **Доступ:** Authorization: Bearer <WORKER_INTERNAL_SECRET>, секрет минимум 32 байта; worker Ready
-
-- **Запрос:** id: существующая запись прежнего механизма; JSON {type:"offer",sdp:string}; ограничение HTTP_MAX_BODY_BYTES.
-
-- **Ответ:** 200 {type:"answer",sdp:string}.
-
-- **Ошибки:** 404 text/plain: auth/запись/composite/метод; 503 "worker unavailable"; 400 text/plain при JSON/ingest ошибке.
-
-Источники: [internal/app/record_worker.go:347](../internal/app/record_worker.go#L347).
+Источники: [internal/app/record_worker.go](../internal/app/record_worker.go).
 
 
 <a id="api-group-24"></a>

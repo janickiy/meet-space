@@ -459,13 +459,12 @@ openssl rand -hex 32
 APP_ENV=local
 PUBLIC_FRONTEND_URL=http://localhost:5173
 MINIO_PUBLIC_ENDPOINT=http://localhost:9000
-WORKER_INTERNAL_URL=http://record-worker:8090
 ```
 
 В `MEDIA_NAT_IPS` укажите доступный браузеру IP компьютера с Docker. Для Docker
 Desktop и Firefox используйте LAN IP, а не адрес контейнера. Для текущих
-конференций используются `MEDIA_*` и порт `50010/udp,tcp`; параметры `WEBRTC_*`
-и порт `50000` относятся к прежнему прямому приёму записи воркером.
+конференций используются `MEDIA_*` и порт `50010/udp,tcp`. Record Worker получает
+медиапотоки от SFU; отдельные WebRTC-порты для него не нужны.
 
 В local/dev пустые `MEDIA_TICKET_SECRET` и `MEDIA_INTERNAL_SECRET` заменяются
 разными производными `JWT_SECRET`. В production нужны отдельные независимые

@@ -79,7 +79,10 @@ class ServiceInventoryTest(unittest.TestCase):
                 self.assertFalse(key.startswith(('LIVE_', 'TRANSCRIPTION_', 'STT_', 'AI_', 'EMBEDDING')),
                                  (filename, key))
                 self.assertNotIn(key, ('MEETING_ANALYTICS_ENABLED', 'PRODUCT_TEMP_PATH',
-                                      'PRODUCT_MAX_REPROCESS', 'PRODUCT_REPROCESS_COOLDOWN'))
+                                      'PRODUCT_MAX_REPROCESS', 'PRODUCT_REPROCESS_COOLDOWN',
+                                      'WORKER_INTERNAL_URL', 'WORKER_INTERNAL_SECRET',
+                                      'WEBRTC_UDP_PORT', 'WEBRTC_TCP_PORT', 'WEBRTC_NAT_IPS'))
+            self.assertIn('WEBRTC_ICE_SERVERS_JSON', keys)
         self.assertNotIn('ffmpeg', (ROOT / 'dockers/product-worker/Dockerfile').read_text().lower())
         self.assertIn('./cmd/record-worker', (ROOT / 'dockers/record-worker/Dockerfile').read_text())
         self.assertFalse((ROOT / 'dockers/live-worker/Dockerfile').exists())
@@ -158,6 +161,10 @@ class ServiceInventoryTest(unittest.TestCase):
         env = (self.root / 'config/meetspace.env').read_text()
         self.assertIn('RECORD_WORKER_IMAGE=', env)
         self.assertNotIn('LIVE_', env)
+        keys = {line.split('=', 1)[0] for line in env.splitlines() if '=' in line}
+        self.assertTrue({'MEDIA_INTERNAL_SECRET', 'METRICS_SECRET', 'WEBRTC_ICE_SERVERS_JSON'} <= keys)
+        self.assertTrue(keys.isdisjoint({'WORKER_INTERNAL_URL', 'WORKER_INTERNAL_SECRET',
+                                        'WEBRTC_UDP_PORT', 'WEBRTC_TCP_PORT', 'WEBRTC_NAT_IPS'}))
 
     @unittest.skipUnless(shutil.which('docker'), 'Docker Compose CLI is unavailable')
     def test_local_and_production_compose_inventories(self):
@@ -202,6 +209,10 @@ class ServiceInventoryTest(unittest.TestCase):
             self.assertIn('record-worker', config['services'])
             self.assertNotIn('worker', config['services'])
             self.assertNotIn('live-worker', config['services'])
+            for service in ('record-worker', 'record-worker-debug'):
+                for port in config['services'].get(service, {}).get('ports', []):
+                    self.assertIn(port['target'], (8090, 2346))
+                    self.assertEqual(port.get('host_ip'), '127.0.0.1')
             if variant[0] == 'docker-compose.production.yml':
                 self.assertEqual(config['services']['record-worker']['entrypoint'], ['/app/record-worker'])
 

@@ -16,19 +16,6 @@ type Command struct {
 	SegmentDurationSec int    `json:"segmentDurationSec,omitempty"`
 }
 
-// WebRTCOfferRequest содержит предложение клиента SDP, используемое для организации приема
-// записи.
-type WebRTCOfferRequest struct {
-	Type string `json:"type"`
-	SDP  string `json:"sdp"`
-}
-
-// WebRTCAnswerResponse содержит согласованный ответ получателя записи SDP.
-type WebRTCAnswerResponse struct {
-	Type string `json:"type"`
-	SDP  string `json:"sdp"`
-}
-
 // RecordDetails объединяет запись с сопутствующими файлами, сегментами и событиями для чтения
 // приложениями.
 type RecordDetails struct {

@@ -51,3 +51,41 @@ func TestDevelopmentPortsStayOnLoopback(t *testing.T) {
 		}
 	}
 }
+
+// TestRecorderDoesNotExposeWebRTCPorts ensures only the SFU accepts media
+// connections; the recorder keeps its loopback administration and debug ports.
+func TestRecorderDoesNotExposeWebRTCPorts(t *testing.T) {
+	_, source, _, _ := runtime.Caller(0)
+	root := filepath.Join(filepath.Dir(source), "../..")
+	for _, filename := range []string{"docker-compose.yml", "docker-compose.production.yml"} {
+		data, err := os.ReadFile(filepath.Join(root, filename))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var config struct {
+			Services map[string]struct {
+				Ports       []string          `yaml:"ports"`
+				Environment map[string]string `yaml:"environment"`
+			} `yaml:"services"`
+		}
+		if err := yaml.Unmarshal(data, &config); err != nil {
+			t.Fatal(err)
+		}
+		for _, service := range []string{"record-worker", "record-worker-debug"} {
+			for _, port := range config.Services[service].Ports {
+				if strings.Contains(port, "WEBRTC_") || strings.Contains(port, "50000") || !strings.HasPrefix(port, "127.0.0.1:") {
+					t.Errorf("%s %s publishes an unexpected port: %s", filename, service, port)
+				}
+			}
+			for key := range config.Services[service].Environment {
+				if key == "WEBRTC_UDP_PORT" || key == "WEBRTC_TCP_PORT" || key == "WEBRTC_NAT_IPS" {
+					t.Errorf("%s %s configures retired media listener %s", filename, service, key)
+				}
+			}
+		}
+		ports := strings.Join(config.Services["media-worker"].Ports, " ")
+		if !strings.Contains(ports, "MEDIA_UDP_PORT") || !strings.Contains(ports, "MEDIA_TCP_PORT") {
+			t.Errorf("%s must retain SFU WebRTC ports", filename)
+		}
+	}
+}

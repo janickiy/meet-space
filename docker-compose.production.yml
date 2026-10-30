@@ -49,7 +49,7 @@ services:
     # Каталог тома должен заранее принадлежать UID app; запуск от root в точке входа не нужен.
     user: "1000:1000"
     entrypoint: /app/record-worker
-    environment: {APP_ENV: "${RELEASE_APP_ENV:-production}", AUTO_MIGRATE: "false", GIN_MODE: release, WORKER_PORT: "8090", STORAGE_PATH: /storage, WEBRTC_UDP_PORT: "0", WEBRTC_TCP_PORT: "0"}
+    environment: {APP_ENV: "${RELEASE_APP_ENV:-production}", AUTO_MIGRATE: "false", GIN_MODE: release, WORKER_PORT: "8090", STORAGE_PATH: /storage}
     mem_limit: 4g
     cpus: 4
     pids_limit: 128

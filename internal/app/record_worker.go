@@ -18,19 +18,16 @@ import (
 	"net/http"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/janickiy/meet-space/internal/config"
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 	"github.com/janickiy/meet-space/internal/domain/records"
-	ffmpeginfra "github.com/janickiy/meet-space/internal/infrastructure/ffmpeg"
 	postgresinfra "github.com/janickiy/meet-space/internal/infrastructure/postgres"
 	rabbitmqinfra "github.com/janickiy/meet-space/internal/infrastructure/rabbitmq"
 	redisinfra "github.com/janickiy/meet-space/internal/infrastructure/redis"
 	s3storage "github.com/janickiy/meet-space/internal/infrastructure/storage/s3"
-	webrtcingest "github.com/janickiy/meet-space/internal/infrastructure/webrtc"
 	"github.com/janickiy/meet-space/internal/operations"
 	"github.com/janickiy/meet-space/internal/usecase/recorder"
 )
@@ -93,35 +90,6 @@ func RunRecordWorker() error {
 	sqlDB.SetMaxIdleConns(cfg.Operations.DBMaxIdle)
 	sqlDB.SetConnMaxLifetime(cfg.Operations.DBLifetime)
 	conferenceLock := redisinfra.NewConferenceLock(redisClient, cfg.RecordLockTTL)
-	ingest, err := webrtcingest.NewManager(webrtcingest.Options{
-		StoragePath: cfg.StoragePath,
-		MaxSessions: compositeConfig.MaxActive,
-		FFmpegPath:  cfg.FFmpegPath,
-		UDPPort:     cfg.WebRTCUDPPort,
-		TCPPort:     cfg.WebRTCTCPPort,
-		NATIPs:      cfg.WebRTCNATIPs,
-		Logger:      logger,
-		OnStarted: func(ctx context.Context, recordID string) {
-			if err := repository.MarkRecording(ctx, recordID, cfg.WorkerID); err != nil && !errors.Is(err, records.ErrRecordStateChanged) {
-				logger.Printf("mark record %s recording failed: %v", recordID, err)
-			}
-		},
-		OnFailed: func(ctx context.Context, recordID string, cause error) {
-			if err := recorder.FailIngest(ctx, repository, conferenceLock, recordID, cfg.WorkerID, cause); err != nil {
-				logger.Printf("handle ingest failure for record %s: %v", recordID, err)
-			}
-		},
-	})
-	if err != nil {
-		return err
-	}
-	postProcessor := ffmpeginfra.NewPostProcessor(cfg.FFmpegPath)
-	defer func() {
-		shutdown, cancel := context.WithTimeout(context.Background(), cfg.Operations.ShutdownTimeout)
-		defer cancel()
-		_ = ingest.Shutdown(shutdown)
-	}()
-	service := recorder.NewWorkerService(repository, postProcessor, ingest, s3Client, cfg.StoragePath, cfg.WorkerID, conferenceLock)
 	store := redisinfra.NewRealtimeStore(redisClient, realtimeConfig.Namespace)
 	composites := recorder.NewCompositeService(recorder.CompositeOptions{
 		Repository: repository, Registry: redisinfra.NewMediaRegistry(redisClient, mediaConfig.Namespace), S3: s3Client,
@@ -132,7 +100,7 @@ func RunRecordWorker() error {
 			return store.Publish(ctx, realtime.Bus{Kind: "event", ConferenceID: record.ConferenceID, Event: &event})
 		},
 	})
-	service.SetComposite(composites)
+	service := recorder.NewWorkerService(repository, composites)
 	composites.Start(ctx)
 	defer func() {
 		stop()
@@ -155,7 +123,7 @@ func RunRecordWorker() error {
 	}
 	defer consumer.Close()
 	ops := operations.New("record-worker", cfg.WorkerID, cfg.Operations, map[string]operations.Check{"postgres": sqlDB.PingContext, "redis": func(ctx context.Context) error { return redisClient.Ping(ctx).Err() }, "minio": s3Client.Check, "rabbitmq": consumer.Check, "disk": operations.DiskCheck(cfg.StoragePath, cfg.Operations.DiskMinBytes)})
-	ops.ConfigureDrain(func() { consumer.BeginDrain(); composites.BeginDrain() }, func() int { return composites.Active() + ingest.Active() + consumer.Active() })
+	ops.ConfigureDrain(func() { consumer.BeginDrain(); composites.BeginDrain() }, func() int { return composites.Active() + consumer.Active() })
 	ops.Run(ctx)
 	go runProfiling(ctx, ops)
 	go sampleDatabase(ctx, sqlDB)
@@ -166,7 +134,7 @@ func RunRecordWorker() error {
 		errCh <- consumer.Consume(ctx, service.HandleCommand)
 	}()
 	httpDone := make(chan struct{})
-	go func() { defer close(httpDone); errCh <- serveWorkerHTTP(ctx, cfg.WorkerPort, service, logger, ops) }()
+	go func() { defer close(httpDone); errCh <- serveWorkerHTTP(ctx, cfg.WorkerPort, ops) }()
 	defer func() {
 		ops.Drain()
 		stop()
@@ -191,43 +159,14 @@ func RunRecordWorker() error {
 	}
 }
 
-// serveWorkerHTTP запускает обработчик HTTP с функцией корректного завершения работы.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - port: Настроенный порт прослушивателя TCP или UDP.
-//   - service: Служба приложения, вызываемая этим адаптером.
-//   - logger: Ограниченный диагностический логгер.
-//   - ops: Операции по обработке и обеспечению готовности к работе.
-//
-// @returns:
-//   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func serveWorkerHTTP(ctx context.Context, port int, service *recorder.WorkerService, logger *log.Logger, ops *operations.Runtime) error {
-	mux := http.NewServeMux()
-	ops.Register(mux)
-	mux.HandleFunc("/health",
-
-		func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
-		})
-	mux.HandleFunc("/records/",
-
-		func(w http.ResponseWriter, r *http.Request) {
-			if !operations.Authorized(r, ops.Config.InternalSecret) {
-				http.NotFound(w, r)
-				return
-			}
-			if !ops.Ready() {
-				http.Error(w, "record-worker unavailable", http.StatusServiceUnavailable)
-				return
-			}
-			r.Body = http.MaxBytesReader(w, r.Body, ops.Config.HTTPBodyBytes)
-			r = r.WithContext(operations.WithID(r.Context(), r.Header.Get("X-Request-ID")))
-			handleWorkerRecords(w, r, service, logger)
-		})
-	server := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 45 * time.Minute, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
+// serveWorkerHTTP serves operational endpoints without recording-control routes.
+// ctx controls shutdown, port selects the internal listener, and ops provides
+// readiness, metrics, version, and graceful-drain endpoints.
+func serveWorkerHTTP(ctx context.Context, port int, ops *operations.Runtime) error {
+	server := &http.Server{
+		Addr: fmt.Sprintf(":%d", port), Handler: newRecordWorkerHandler(ops), ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout: 15 * time.Second, WriteTimeout: 45 * time.Minute, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192,
+	}
 	shutdownDone := make(chan struct{})
 	go func() {
 		<-ctx.Done()
@@ -267,64 +206,16 @@ func sampleRecorder(ctx context.Context, service *recorder.CompositeService) {
 	}
 }
 
-// handleWorkerRecords обрабатывает запрос на запись внутренней рабочей карты.
-//
-// @Parameters:
-//   - w: Ответ HTTP для назначения.
-//   - r: Входящий запрос HTTP.
-//   - service: Служба приложения, вызываемая этим адаптером.
-//   - logger: Ограниченный диагностический логгер.
-func handleWorkerRecords(w http.ResponseWriter, r *http.Request, service *recorder.WorkerService, logger *log.Logger) {
-	if r.Method != http.MethodPost {
-		http.NotFound(w, r)
-		return
-	}
-	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) < 3 || parts[0] != "records" {
-		http.NotFound(w, r)
-		return
-	}
-	recordID := parts[1]
-	if err := service.ValidateLegacyRecord(r.Context(), recordID); err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	switch {
-	case len(parts) == 3 && parts[2] == "start":
-		handleWorkerCommand(w, r, service, logger, records.Command{Type: "record.start", RecordID: recordID})
-	case len(parts) == 3 && parts[2] == "stop":
-		handleWorkerCommand(w, r, service, logger, records.Command{Type: "record.stop", RecordID: recordID})
-	case len(parts) == 4 && parts[2] == "webrtc" && parts[3] == "offer":
-		handleWorkerWebRTCOffer(w, r, service, recordID)
-	default:
-		http.NotFound(w, r)
-	}
-}
-
-// handleWorkerCommand обрабатывает одну аутентифицированную команду внутренней записи.
-//
-// @Parameters:
-//   - w: Ответ HTTP для назначения.
-//   - r: Входящий запрос HTTP.
-//   - service: Служба приложения, вызываемая этим адаптером.
-//   - logger: Ограниченный диагностический логгер.
-//   - command: Подтвержденная команда внутренней записи или передачи медиаданных.
-func handleWorkerCommand(w http.ResponseWriter, r *http.Request, service *recorder.WorkerService, logger *log.Logger, command records.Command) {
-	var request records.Command
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	command.Reason = request.Reason
-	command.SegmentDurationSec = request.SegmentDurationSec
-	logger.Printf("received command %s for record %s", command.Type, command.RecordID)
-	if err := service.HandleCommand(r.Context(), command); err != nil {
-		logger.Printf("command %s for record %s failed: %v", command.Type, command.RecordID, err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+// newRecordWorkerHandler creates the operational HTTP surface for ops.
+// Recording commands are consumed from RabbitMQ; removed /records routes return 404.
+func newRecordWorkerHandler(ops *operations.Runtime) http.Handler {
+	mux := http.NewServeMux()
+	ops.Register(mux)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+	return mux
 }
 
 // recordingWorkerEvent формирует событие записи, отправляемое после зафиксированного изменения
@@ -342,27 +233,4 @@ func recordingWorkerEvent(kind string, record records.Record) realtime.Envelope 
 		"status": records.PublicStatus(record.Status), "mode": record.Mode,
 		"error": record.ErrorMessage, "requestedBy": record.RequestedBy,
 	})
-}
-
-// handleWorkerWebRTCOffer обрабатывает предложение SDP по приему записей через внутреннюю
-// рабочую службу.
-//
-// @Parameters:
-//   - w: Ответ HTTP для назначения.
-//   - r: Входящий запрос HTTP.
-//   - service: Служба приложения, вызываемая этим адаптером.
-//   - recordID: Внешняя запись UUID.
-func handleWorkerWebRTCOffer(w http.ResponseWriter, r *http.Request, service *recorder.WorkerService, recordID string) {
-	var request records.WebRTCOfferRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	response, err := service.HandleOffer(r.Context(), recordID, request)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
 }
