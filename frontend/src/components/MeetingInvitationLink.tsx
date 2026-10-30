@@ -4,8 +4,8 @@ import { CopyLink } from "./ui";
 import "./meeting-invitation-link.css";
 
 /**
- * Display a copyable meeting invitation and encode the same URL locally as a QR code.
- * @param inviteCode The meeting's invitation code, resolved against the current origin.
+ * Показывает ссылку приглашения и QR-код с тем же адресом.
+ * @param inviteCode Код приглашения, ссылка на которое строится для текущего домена.
  */
 export function MeetingInvitationLink({ inviteCode }: { inviteCode: string }) {
   const link = inviteLink(inviteCode);
@@ -25,25 +25,32 @@ export function MeetingInvitationLink({ inviteCode }: { inviteCode: string }) {
           По ссылке можно присоединиться без аккаунта.
         </p>
       </section>
-      <figure className="meeting-share-qr">
-        <div className="meeting-share-qr-code">
-          <QRCodeSVG
-            value={link}
-            size={160}
-            level="M"
-            marginSize={4}
-            fgColor="#1f1924"
-            bgColor="#ffffff"
-            title="QR-код приглашения на встречу"
-            role="img"
-            aria-label="QR-код приглашения на встречу"
-          />
-        </div>
-        <figcaption>
-          Подключиться с телефона
-          <span>Наведите камеру на QR-код</span>
-        </figcaption>
-      </figure>
+      <MeetingInvitationQRCode link={link} />
     </div>
+  );
+}
+
+/** Показывает QR-код ссылки приглашения в карточке встречи или окне отправки ссылки. */
+export function MeetingInvitationQRCode({ link }: { link: string }) {
+  return (
+    <figure className="meeting-share-qr">
+      <div className="meeting-share-qr-code">
+        <QRCodeSVG
+          value={link}
+          size={160}
+          level="M"
+          marginSize={4}
+          fgColor="#1f1924"
+          bgColor="#ffffff"
+          title="QR-код приглашения на встречу"
+          role="img"
+          aria-label="QR-код приглашения на встречу"
+        />
+      </div>
+      <figcaption>
+        Подключиться с телефона
+        <span>Наведите камеру на QR-код</span>
+      </figcaption>
+    </figure>
   );
 }

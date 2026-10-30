@@ -101,6 +101,9 @@
   font-size: calc(11px * var(--text-scale));
   font-weight: 400;
 }
+.invitation-card > .meeting-share-qr {
+  margin-block: 20px;
+}
 @media (max-width: 600px) {
   .meeting-share-invitation {
     grid-template-columns: minmax(0, 1fr);
@@ -110,7 +113,7 @@
   .meeting-share-invitation .meeting-share-link-section .copy-link > input {
     font-size: calc(16px * var(--text-scale));
   }
-  .meeting-share-qr {
+  .meeting-share-invitation > .meeting-share-qr {
     padding-top: 20px;
     border-top: 1px solid var(--border);
   }

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button, CopyLink, ErrorNotice, StatusBadge } from "../ui";
 import { formatDate, inviteLink } from "../../utils";
+import { MeetingInvitationQRCode } from "../MeetingInvitationLink";
 import type { ConferenceViewProps } from "./types";
 
 /**
@@ -36,6 +37,7 @@ export function ConferenceDetails(props: ConferenceViewProps) {
   const { mutation, moderation } = props.commands;
   const { setUtility, setConfirm, setEditingSchedule } = props.controls;
   const navigate = useNavigate();
+  const invitationLink = inviteLink(conference.inviteCode);
   return (
     <>
       <Link
@@ -206,7 +208,8 @@ export function ConferenceDetails(props: ConferenceViewProps) {
             <p className="muted">
               Отправьте ссылку тем, с кем хотите встретиться.
             </p>
-            <CopyLink value={inviteLink(conference.inviteCode)} />
+            <CopyLink value={invitationLink} />
+            <MeetingInvitationQRCode link={invitationLink} />
             {canInvite && (
               <Button variant="secondary" onClick={() => setUtility("invite")}>
                 <Users size={17} />
