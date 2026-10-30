@@ -1,5 +1,5 @@
 /** Применяется после обработки захвата данных браузером и перед кодированием WebRTC. */
-export const MICROPHONE_GAIN = 0.8;
+export const MICROPHONE_GAIN = 0.84;
 
 export class MicrophoneGain {
   private readonly context: AudioContext;
