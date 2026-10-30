@@ -1,8 +1,8 @@
 {
   "source": "/Users/aleksandranickij/htdocs/meet-space/docs/MEETSPACE_TECHNICAL_GUIDE_RU.md",
-  "source_sha256": "5eeb1ece58897af7fdb96b97e2038048ad87714a362134c190e8586a735566ef",
+  "source_sha256": "0aebe144df98632427921fbedf9a431dd659f2c6af5c51c3c9896fdefc46393a",
   "pdf": "/Users/aleksandranickij/htdocs/meet-space/docs/MEETSPACE_TECHNICAL_GUIDE_RU.pdf",
-  "pdf_sha256": "fc267cb0dabe6607dc823da1535f130f872e8317fca48fc46672b1f80438da22",
+  "pdf_sha256": "61919c461ed985c24a7b167a08ef108e5574e9f9d1113d1779f2f7e57a808d69",
   "commit": "a5ea4e525bd653fcd0a19a3e5f4f2896e9d793e5+local",
   "date": "30 октября 2026 г.",
   "fonts": {
@@ -47,7 +47,7 @@
   "stats": {
     "headings": 131,
     "list_items": 171,
-    "paragraphs": 540,
+    "paragraphs": 542,
     "tables": 175,
     "table_rows": 1414,
     "code_blocks": 65,
@@ -423,15 +423,15 @@
     "ops-restore": 194,
     "ops-storage": 195,
     "ops-certificates": 196,
-    "ops-diagnosis": 197,
+    "ops-diagnosis": 198,
     "ops-upgrades": 199,
-    "verification-scope": 201,
-    "verification-sources": 201,
-    "verification-limits": 201,
-    "support": 202,
-    "support-contacts": 202,
-    "support-request": 202,
-    "support-custom": 202
+    "verification-scope": 202,
+    "verification-sources": 202,
+    "verification-limits": 202,
+    "support": 203,
+    "support-contacts": 203,
+    "support-request": 203,
+    "support-custom": 203
   },
   "contents_entries": 130
 }
