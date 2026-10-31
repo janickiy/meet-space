@@ -10,6 +10,7 @@ import {
 } from "../prejoinDevices";
 import type { DevicePreferences } from "../prejoinDevices";
 import { playDeviceTone } from "../deviceSound";
+import { VolumeControl } from "./VolumeControl";
 import "./device-settings.css";
 
 function useSettings() {
@@ -129,13 +130,17 @@ function usePreview(
 function LevelMeter({
   stream,
   playing = false,
+  volume = 1,
   label,
 }: {
   stream?: MediaStream | null;
   playing?: boolean;
+  volume?: number;
   label: string;
 }) {
   const [level, setLevel] = useState(0);
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
   useEffect(() => {
     setLevel(0);
     if (!stream || typeof AudioContext === "undefined") return;
@@ -152,7 +157,7 @@ function LevelMeter({
         data.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) /
           data.length,
       );
-      setLevel(Math.min(8, Math.ceil(rms * 40)));
+      setLevel(Math.min(8, Math.ceil(rms * volumeRef.current * 40)));
     }, 80);
     return () => {
       clearInterval(timer);
@@ -168,10 +173,15 @@ function LevelMeter({
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={8}
-      aria-valuenow={playing ? 8 : level}
+      aria-valuenow={playing ? Math.ceil(volume * 8) : level}
     >
       {Array.from({ length: 8 }, (_, index) => (
-        <i key={index} className={index < level ? "lit" : ""} />
+        <i
+          key={index}
+          className={
+            index < (playing ? Math.ceil(volume * 8) : level) ? "lit" : ""
+          }
+        />
       ))}
     </span>
   );
@@ -259,15 +269,20 @@ function DeviceSelect({
 function SpeakerTest({
   sinkId,
   label,
+  volume,
   onPlaying,
 }: {
   sinkId: string;
   label: string;
+  volume: number;
   onPlaying?: (value: boolean) => void;
 }) {
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
-  const cancel = useRef<(() => void) | null>(null);
+  const cancel = useRef<ReturnType<typeof playDeviceTone> | null>(null);
+  useEffect(() => {
+    cancel.current?.setVolume(volume);
+  }, [volume]);
   useEffect(
     () => () => {
       cancel.current?.();
@@ -284,15 +299,19 @@ function SpeakerTest({
     setError("");
     setPlaying(true);
     onPlaying?.(true);
-    cancel.current = playDeviceTone(sinkId, (reason) => {
-      cancel.current = null;
-      setPlaying(false);
-      onPlaying?.(false);
-      if (reason)
-        setError(
-          "Не удалось воспроизвести звук. Проверьте выбранный динамик и разрешения браузера.",
-        );
-    });
+    cancel.current = playDeviceTone(
+      sinkId,
+      (reason) => {
+        cancel.current = null;
+        setPlaying(false);
+        onPlaying?.(false);
+        if (reason)
+          setError(
+            "Не удалось воспроизвести звук. Проверьте выбранный динамик и разрешения браузера.",
+          );
+      },
+      volume,
+    );
   }
   return (
     <>
@@ -364,7 +383,11 @@ export function AudioSettings() {
       <section className="device-card" aria-labelledby="microphone-title">
         <header>
           <h2 id="microphone-title">Микрофон</h2>
-          <LevelMeter stream={preview.stream} label="Уровень микрофона" />
+          <LevelMeter
+            stream={preview.stream}
+            volume={preferences.microphoneVolume}
+            label="Уровень микрофона"
+          />
         </header>
         <div className="device-select-row">
           <DeviceSelect
@@ -409,6 +432,11 @@ export function AudioSettings() {
             {preview.error}
           </p>
         )}
+        <VolumeControl
+          label="Громкость микрофона"
+          value={preferences.microphoneVolume}
+          onChange={(microphoneVolume) => update({ microphoneVolume })}
+        />
         <Toggle
           label="Подключаться с выключенным микрофоном"
           checked={!preferences.microphoneEnabled}
@@ -425,7 +453,11 @@ export function AudioSettings() {
       <section className="device-card" aria-labelledby="speaker-title">
         <header>
           <h2 id="speaker-title">Динамик</h2>
-          <LevelMeter label="Тестовый звук" playing={speakerPlaying} />
+          <LevelMeter
+            label="Тестовый звук"
+            playing={speakerPlaying}
+            volume={preferences.speakerVolume}
+          />
         </header>
         <div className="device-select-row">
           <DeviceSelect
@@ -439,9 +471,15 @@ export function AudioSettings() {
           <SpeakerTest
             sinkId={preferences.audioOutputId}
             label="динамик"
+            volume={preferences.speakerVolume}
             onPlaying={setSpeakerPlaying}
           />
         </div>
+        <VolumeControl
+          label="Громкость динамика"
+          value={preferences.speakerVolume}
+          onChange={(speakerVolume) => update({ speakerVolume })}
+        />
         {canChooseOutput && (
           <button
             type="button"
@@ -459,24 +497,21 @@ export function AudioSettings() {
       </section>
       <section className="device-card" aria-labelledby="ringtone-title">
         <header>
-          <h2 id="ringtone-title">Звук приглашения</h2>
+          <h2 id="ringtone-title">Звонки и уведомления</h2>
         </header>
         <p className="device-hint">
-          Уведомления о приглашениях и скором начале встречи.
+          Громкость сигнала вызова и уведомлений о сообщениях, приглашениях и
+          скором начале встречи.
         </p>
         <label className="device-output-label">Источник звука</label>
         <div className="device-select-row">
           <DeviceSelect
             devices={devices}
             kind="audiooutput"
-            label="Источник звука уведомлений"
+            label="Динамик для сигналов"
             value={preferences.notificationOutputId}
             onChange={(id) => update({ notificationOutputId: id })}
             disabled={!outputSupported}
-          />
-          <SpeakerTest
-            sinkId={preferences.notificationOutputId}
-            label="звук приглашения"
           />
         </div>
         {canChooseOutput && (
@@ -488,6 +523,16 @@ export function AudioSettings() {
             Выбрать другое устройство
           </button>
         )}
+        <VolumeControl
+          label="Громкость сигналов"
+          value={preferences.signalVolume}
+          onChange={(signalVolume) => update({ signalVolume })}
+        />
+        <SpeakerTest
+          sinkId={preferences.notificationOutputId}
+          label="сигналы"
+          volume={preferences.signalVolume}
+        />
       </section>
       <p className="device-saved-hint">
         Настройки сохраняются автоматически в этом браузере.

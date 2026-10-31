@@ -1,0 +1,95 @@
+/* Notification centre for the mobile and tablet design prototype. */
+.icon-button.nt-bell { position: relative; isolation: isolate; flex-shrink: 0; overflow: visible; }
+.nt-bell > svg { pointer-events: none; }
+.nt-bell[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+.nt-badge { position: absolute; top: 2px; right: 1px; display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 19px; padding: 0 4px; border: 2px solid var(--bg); border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; pointer-events: none; }
+.nt-badge[hidden] { display: none; }
+
+/* The panel is anchored below the header; only the event list scrolls. */
+.modal-backdrop.nt-backdrop { display: block; position: fixed; inset: 0; z-index: 1200; padding: 0; background: #1521391a; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.modal.nt-panel { position: fixed; top: var(--nt-panel-top, 120px); right: 16px; display: flex; flex-direction: column; gap: 0; width: min(400px, calc(100vw - 32px)); max-width: 400px; min-height: 0; max-height: min(640px, calc(100dvh - var(--nt-panel-top, 120px) - 16px)); margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--ink); box-shadow: 0 18px 50px #15213924, 0 4px 12px #1521390d; }
+.modal.nt-panel .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-width: 44px; height: 44px; margin: 0; padding: 0; border-radius: 12px; color: var(--muted); background: transparent; }
+.modal.nt-panel .icon-button:hover { background: var(--surface2); color: var(--ink); }
+.modal.nt-panel button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.nt-heading { margin: 0; display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 70px; padding: 12px 12px 8px 20px; }
+.nt-heading > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.nt-heading h2 { margin: 0; color: var(--ink); font-size: 19px; font-weight: 600; line-height: 1.3; letter-spacing: -.35px; }
+.nt-total { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 23px; min-height: 23px; padding: 3px 7px; border-radius: 999px; color: var(--accent); background: var(--accent-soft); font-size: 11px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.nt-heading > .icon-button { margin-left: auto !important; }
+.nt-heading > .icon-button > svg { width: 19px; height: 19px; }
+.nt-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; flex-shrink: 0; padding: 0 16px 13px; border-bottom: 1px solid var(--line); }
+.nt-filters { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border-radius: 12px; background: var(--surface2); }
+.nt-filters button { min-width: 53px; min-height: 44px; padding: 8px 11px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.3; white-space: nowrap; }
+.nt-filters button[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: 0 1px 5px #1420380c; }
+.nt-filters button:hover { color: var(--accent); }
+.nt-toolbar .nt-read-all { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 7px 2px; background: transparent; color: var(--accent); font-size: 11px; font-weight: 600; line-height: 1.4; text-align: left; }
+.nt-read-all > svg { width: 15px; height: 15px; flex-shrink: 0; }
+.nt-read-all:hover { text-decoration: underline; text-underline-offset: 3px; }
+.nt-read-all:disabled { color: var(--muted); opacity: .6; text-decoration: none; cursor: default; }
+.nt-list { flex: 1 1 auto; min-height: 0; padding: 6px 8px 10px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.nt-date { margin: 0; padding: 12px 12px 7px; font-size: 10px; font-weight: 600; line-height: 1.4; letter-spacing: .04em; color: var(--muted); }
+.nt-event { display: flex; align-items: flex-start; gap: 11px; width: 100%; min-height: 88px; margin: 3px 0; padding: 13px 12px; border: 1px solid transparent; border-radius: 14px; background: transparent; color: var(--ink); text-align: left; transition: background .15s ease; }
+.nt-event.is-unread { background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.nt-event:hover,
+.nt-event:focus-visible { background: var(--surface2); }
+.nt-event.is-unread:hover,
+.nt-event.is-unread:focus-visible { background: var(--accent-soft); }
+.nt-event-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-width: 36px; height: 36px; margin-top: 1px; border-radius: 12px; background: var(--surface2); color: var(--muted); }
+.nt-event.is-unread .nt-event-icon { background: var(--surface); color: var(--accent); }
+.nt-event-icon > svg { width: 20px; height: 20px; }
+.nt-event-copy { flex: 1; min-width: 0; }
+.nt-event-copy > strong { display: block; margin: 0; font-size: 12px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; color: var(--ink); }
+.modal.nt-panel .nt-event-copy > p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 4px 0 0; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.55; overflow-wrap: anywhere; }
+.nt-event-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 7px; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.4; }
+.nt-event-meta > svg { width: 12px; height: 12px; flex-shrink: 0; }
+.nt-unread-dot { display: block; width: 6px; min-width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--accent); }
+.nt-event > svg { width: 14px; height: 14px; flex-shrink: 0; align-self: center; color: var(--muted); opacity: .65; }
+.nt-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 235px; padding: 35px 22px; text-align: center; }
+.nt-empty > svg { width: 45px; height: 45px; margin-bottom: 3px; padding: 10px; box-sizing: content-box; border-radius: 21px; background: var(--accent-soft); color: var(--accent); }
+.nt-empty h3 { margin: 0; color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.4; }
+.modal.nt-panel .nt-empty p { max-width: 265px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.nt-footer { flex-shrink: 0; padding: 7px 12px; border-top: 1px solid var(--line); background: var(--surface); }
+.nt-footer button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px; border-radius: 12px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 600; line-height: 1.4; }
+.nt-footer button > svg { width: 17px; height: 17px; }
+.nt-footer button:hover { color: var(--accent); background: var(--accent-soft); }
+[data-theme="dark"] .modal-backdrop.nt-backdrop { background: #00000035; }
+[data-theme="dark"] .modal.nt-panel { box-shadow: 0 20px 55px #0000004d, 0 4px 15px #00000024; }
+[data-theme="dark"] .nt-badge { color: #182342; }
+
+@media (max-width: 779px) {
+  .tm-shell.screen-meetings .header-actions,
+  .tm-shell.screen-messages .header-actions { gap: 1px; flex-shrink: 0; }
+  .tm-shell.screen-meetings .header-actions .icon-button,
+  .tm-shell.screen-messages .header-actions .icon-button { width: 44px; min-width: 44px; height: 44px; }
+  .tm-shell.screen-meetings .header-actions svg,
+  .tm-shell.screen-messages .header-actions svg { width: 24px; height: 24px; }
+  .tm-shell.screen-meetings .tm-heading,
+  .tm-shell.screen-messages .tm-heading { min-width: 0; }
+  .tm-shell.screen-meetings .tm-heading h1,
+  .tm-shell.screen-messages .tm-heading h1 { white-space: nowrap; }
+}
+@media (max-width: 599px) {
+  .modal-backdrop.nt-backdrop { background: #15213929; }
+  .modal.nt-panel { --nt-panel-top: 76px; top: var(--nt-panel-top); right: 12px; left: 12px; width: auto; max-width: none; max-height: calc(100dvh - var(--nt-panel-top) - 12px); border-radius: 18px; }
+  .nt-heading { min-height: 65px; padding: 10px 10px 6px 16px; }
+  .nt-heading h2 { font-size: 18px; }
+  .nt-toolbar { padding: 0 12px 11px; gap: 4px; }
+  .nt-filters button { min-height: 44px; padding: 8px 9px; }
+  .nt-list { padding: 5px 6px 8px; }
+  .nt-event { gap: 9px; padding: 12px 10px; }
+  .nt-event-icon { width: 34px; min-width: 34px; height: 34px; border-radius: 11px; }
+  .nt-event-copy > strong { font-size: 12px; }
+  .modal.nt-panel .nt-event-copy > p { font-size: 11px; }
+  .nt-footer { padding: 6px 10px; }
+}
+@media (max-width: 359px) {
+  .tm-shell.screen-meetings .app-header,
+  .tm-shell.screen-messages .app-header { padding-right: 12px; padding-left: 16px; gap: 8px; }
+  .tm-shell.screen-meetings .tm-heading h1,
+  .tm-shell.screen-messages .tm-heading h1 { font-size: 21px; }
+  .nt-heading { gap: 6px; }
+  .nt-heading h2 { font-size: 17px; }
+  .nt-toolbar .nt-read-all { font-size: 10px; }
+  .nt-filters button { padding: 8px; font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) { .nt-event { transition: none; } }

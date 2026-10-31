@@ -1,5 +1,4 @@
-/** Применяется после обработки захвата данных браузером и перед кодированием WebRTC. */
-export const MICROPHONE_GAIN = 0.84;
+import { DEFAULT_AUDIO_VOLUMES, normalizeAudioVolume } from "./audioVolume";
 
 export class MicrophoneGain {
   private readonly context: AudioContext;
@@ -10,9 +9,14 @@ export class MicrophoneGain {
   private output: MediaStreamTrack | null = null;
   private disposed = false;
   private attached = false;
+  private volume: number;
   onEnded: (() => void) | null = null;
 
-  constructor() {
+  constructor(volume: number = DEFAULT_AUDIO_VOLUMES.microphoneVolume) {
+    this.volume = normalizeAudioVolume(
+      volume,
+      DEFAULT_AUDIO_VOLUMES.microphoneVolume,
+    );
     if (typeof AudioContext === "undefined")
       throw new Error("microphone_processing");
     this.context = new AudioContext();
@@ -32,6 +36,15 @@ export class MicrophoneGain {
 
   get contextState() {
     return this.context.state;
+  }
+
+  /** Меняет уровень исходящего звука, сохраняя захват и опубликованную дорожку. */
+  setVolume(volume: number) {
+    this.volume = normalizeAudioVolume(
+      volume,
+      DEFAULT_AUDIO_VOLUMES.microphoneVolume,
+    );
+    if (this.gain) this.gain.gain.value = this.volume;
   }
 
   private resume(): Promise<boolean> {
@@ -58,7 +71,7 @@ export class MicrophoneGain {
         new MediaStream([input]),
       );
       this.gain = this.context.createGain();
-      this.gain.gain.value = MICROPHONE_GAIN;
+      this.gain.gain.value = this.volume;
       const channels = input.getSettings().channelCount;
       this.destination = new MediaStreamAudioDestinationNode(this.context, {
         channelCount: channels === 1 ? 1 : 2,

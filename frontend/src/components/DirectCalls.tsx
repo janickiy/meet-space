@@ -16,6 +16,7 @@ import { useAuth } from "../auth";
 import type { DirectCall } from "../types";
 import {
   readDevicePreferences,
+  subscribeDevicePreferences,
   type DevicePreferences,
 } from "../prejoinDevices";
 import { useCallPreview } from "../useCallPreview";
@@ -506,21 +507,48 @@ function CallRinging({
     if (call.status !== "ringing" || (!incoming && !owned)) return;
     const audio = new Audio(toneURL);
     audio.loop = true;
-    audio.volume = 0.75;
     let disposed = false;
+    let ownsRingtone = false;
+    let playbackVersion = 0;
     let release: (() => void) | undefined;
-    const preferences = readDevicePreferences(userId);
+    let preferences = readDevicePreferences(userId);
+    audio.volume = preferences.signalVolume;
     const play = async () => {
+      const version = ++playbackVersion;
+      ownsRingtone = true;
       if (!preferences.notificationSounds || disposed) return;
-      if (preferences.notificationOutputId && "setSinkId" in audio)
+      if ("setSinkId" in audio)
         await audio.setSinkId(preferences.notificationOutputId).catch(() => {});
-      if (!disposed) {
+      if (
+        !disposed &&
+        preferences.notificationSounds &&
+        version === playbackVersion
+      ) {
+        audio.volume = preferences.signalVolume;
         player.current = audio;
-        await audio.play().catch(() => {
-          if (!disposed) setSoundBlocked(true);
-        });
+        await audio.play().then(
+          () => {
+            if (!disposed && version === playbackVersion)
+              setSoundBlocked(false);
+          },
+          () => {
+            if (!disposed && version === playbackVersion) setSoundBlocked(true);
+          },
+        );
       }
     };
+    const unsubscribe = subscribeDevicePreferences(userId, (next) => {
+      const outputChanged =
+        next.notificationOutputId !== preferences.notificationOutputId;
+      const enabled =
+        next.notificationSounds && !preferences.notificationSounds;
+      preferences = next;
+      audio.volume = next.signalVolume;
+      if (!next.notificationSounds) {
+        playbackVersion++;
+        audio.pause();
+      } else if (ownsRingtone && (enabled || outputChanged)) void play();
+    });
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
@@ -539,6 +567,7 @@ function CallRinging({
     } else void play();
     return () => {
       disposed = true;
+      unsubscribe();
       release?.();
       audio.pause();
       audio.removeAttribute("src");

@@ -1,7 +1,13 @@
 .calendar-page {
+  --calendar-upcoming: #287bbd;
+  --calendar-upcoming-soft: #e3f2ff;
   min-width: 0;
   max-width: none;
   margin: 0;
+}
+:root[data-theme="dark"] .calendar-page {
+  --calendar-upcoming: #8acbff;
+  --calendar-upcoming-soft: #20374a;
 }
 .calendar-page .page-heading {
   align-items: center;
@@ -176,21 +182,23 @@
   color: var(--primary);
 }
 .calendar-event {
+  --calendar-event-accent: var(--calendar-upcoming);
+  --calendar-event-background: var(--calendar-upcoming-soft);
   width: 100%;
   display: block;
   margin: 0 0 4px;
   padding: 9px 8px;
   border: 0;
-  border-inline-start: 3px solid var(--primary);
+  border-inline-start: 3px solid var(--calendar-event-accent);
   border-radius: var(--radius-sm);
-  background: var(--primary-soft);
+  background: var(--calendar-event-background);
   color: var(--text);
   text-align: start;
   font: inherit;
   cursor: pointer;
 }
 .calendar-event:hover {
-  outline: 1px solid var(--primary);
+  outline: 1px solid var(--calendar-event-accent);
 }
 .calendar-event strong {
   display: block;
@@ -207,23 +215,16 @@
   color: var(--muted);
 }
 .calendar-event-active {
-  border-inline-start-color: var(--success);
+  --calendar-event-accent: var(--success);
+  --calendar-event-background: var(--success-soft);
 }
+.calendar-event-finished,
 .calendar-event-cancelled {
-  border-inline-start-color: var(--danger);
+  --calendar-event-accent: var(--danger);
+  --calendar-event-background: var(--danger-soft);
 }
 .calendar-event-cancelled strong {
   text-decoration: line-through;
-}
-.calendar-event-finished {
-  border-inline-start-color: var(--muted);
-  background: var(--surface-soft);
-}
-.calendar-event-active {
-  background: color-mix(in srgb, var(--success) 10%, var(--surface));
-}
-.calendar-event-cancelled {
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
 }
 .calendar-month-grid {
   display: grid;
@@ -484,9 +485,8 @@
     margin-bottom: 12px;
     min-height: 72px;
     border: 1px solid var(--border);
-    border-left: 3px solid var(--primary);
+    border-inline-start: 3px solid var(--calendar-event-accent);
     border-radius: 10px;
-    background: var(--surface);
   }
   .calendar-mobile-agenda .calendar-event strong {
     font-size: calc(14px * var(--text-scale));

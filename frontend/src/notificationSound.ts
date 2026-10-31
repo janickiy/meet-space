@@ -8,7 +8,7 @@ import {
 export function createNotificationSound(userId: string) {
   const audio = new Audio(toneURL);
   audio.preload = "auto";
-  audio.volume = 0.35;
+  audio.volume = readDevicePreferences(userId).signalVolume;
   let disposed = false;
   let unlocked = false;
   let priming: Promise<void> | undefined;
@@ -45,6 +45,7 @@ export function createNotificationSound(userId: string) {
   window.addEventListener("pointerdown", prime);
   window.addEventListener("keydown", prime);
   const unsubscribe = subscribeDevicePreferences(userId, (preferences) => {
+    audio.volume = preferences.signalVolume;
     if (!preferences.notificationSounds) audio.pause();
   });
 
@@ -73,14 +74,15 @@ export function createNotificationSound(userId: string) {
     return true;
   };
   const play = async (id: string) => {
-    const preferences = readDevicePreferences(userId);
+    let preferences = readDevicePreferences(userId);
     if (disposed || !preferences.notificationSounds || !claim(id)) return;
     // Объединять пакеты в один мягкий сигнал; все уведомления остаются в ленте.
     if (Date.now() - lastPlayedAt < 1000) return;
     lastPlayedAt = Date.now();
     if (priming) await priming;
-    if (disposed || !readDevicePreferences(userId).notificationSounds) return;
-    if (preferences.notificationOutputId && "setSinkId" in audio) {
+    preferences = readDevicePreferences(userId);
+    if (disposed || !preferences.notificationSounds) return;
+    if ("setSinkId" in audio) {
       try {
         await audio.setSinkId(preferences.notificationOutputId);
       } catch {
@@ -90,7 +92,9 @@ export function createNotificationSound(userId: string) {
         } catch {}
       }
     }
-    if (disposed || !readDevicePreferences(userId).notificationSounds) return;
+    preferences = readDevicePreferences(userId);
+    if (disposed || !preferences.notificationSounds) return;
+    audio.volume = preferences.signalVolume;
     audio.currentTime = 0;
     await audio.play().catch(() => {});
   };

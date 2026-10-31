@@ -160,7 +160,7 @@
   border-radius: 2px;
 }
 .device-level i.lit,
-.device-level-playing i {
+.device-level-playing i.lit {
   background: var(--success);
   border-color: var(--success);
 }

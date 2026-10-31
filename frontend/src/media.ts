@@ -2,6 +2,7 @@ import type { ClientRealtimeType } from "./realtime";
 import type { RealtimeEvent } from "./types";
 import { summarizeRtcStats, type RtcCounters } from "./mediaDiagnostics";
 import { MicrophoneGain } from "./microphoneGain";
+import { DEFAULT_AUDIO_VOLUMES, normalizeAudioVolume } from "./audioVolume";
 
 /**
  * MediaSource различает микрофон, камеру, экран и звук экрана при публикации медиа.
@@ -31,6 +32,7 @@ export interface MediaStartOptions {
   microphoneEnabled?: boolean;
   cameraEnabled?: boolean;
   noiseSuppression?: boolean;
+  microphoneVolume?: number;
   hideParticipantVideo?: boolean;
 }
 /**
@@ -310,6 +312,7 @@ export class ConferenceMediaClient {
   private localRevision = 0;
   private preferredInputs = new Map<MediaSource, string>();
   private noiseSuppression = true;
+  private microphoneVolume: number = DEFAULT_AUDIO_VOLUMES.microphoneVolume;
   private microphones = new Set<MicrophoneGain>();
   private receiveVideo = true;
   private configuredInputs = new Map<MediaSource, string>();
@@ -494,6 +497,10 @@ export class ConferenceMediaClient {
     if (this.started || this.disposed) return;
     this.started = true;
     this.noiseSuppression = options?.noiseSuppression !== false;
+    this.microphoneVolume = normalizeAudioVolume(
+      options?.microphoneVolume,
+      DEFAULT_AUDIO_VOLUMES.microphoneVolume,
+    );
     this.receiveVideo = options?.hideParticipantVideo !== true;
     this.configuredInputs.set("microphone", options?.audioInputId || "");
     this.configuredInputs.set("camera", options?.videoInputId || "");
@@ -717,7 +724,7 @@ export class ConferenceMediaClient {
   }
 
   private prepareMicrophone() {
-    const input = new MicrophoneGain();
+    const input = new MicrophoneGain(this.microphoneVolume);
     this.microphones.add(input);
     return input;
   }
@@ -825,6 +832,14 @@ export class ConferenceMediaClient {
   /** Применяет настройки учетной записи, не отключая микрофон и камеру. */
   configure(options: MediaStartOptions) {
     if (this.disposed || !this.pc || this.view.controlBusy) return;
+    const volume = normalizeAudioVolume(
+      options.microphoneVolume,
+      DEFAULT_AUDIO_VOLUMES.microphoneVolume,
+    );
+    if (this.microphoneVolume !== volume) {
+      this.microphoneVolume = volume;
+      for (const input of this.microphones) input.setVolume(volume);
+    }
     if (this.noiseSuppression !== (options.noiseSuppression !== false)) {
       this.noiseSuppression = options.noiseSuppression !== false;
       const published = this.sources.get("microphone")?.track;

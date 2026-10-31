@@ -1,3 +1,5 @@
+import { DEFAULT_AUDIO_VOLUMES, normalizeAudioVolume } from "./audioVolume";
+
 export interface DevicePreferences {
   audioInputId: string;
   videoInputId: string;
@@ -6,6 +8,9 @@ export interface DevicePreferences {
   cameraEnabled: boolean;
   notificationOutputId: string;
   notificationSounds: boolean;
+  microphoneVolume: number;
+  speakerVolume: number;
+  signalVolume: number;
   noiseSuppression: boolean;
   showSelf: boolean;
   hideParticipantVideo: boolean;
@@ -25,6 +30,7 @@ export function consumeMediaEntry(conferenceId: string): boolean {
 }
 
 const emptyPreferences: DevicePreferences = {
+  ...DEFAULT_AUDIO_VOLUMES,
   audioInputId: "",
   videoInputId: "",
   audioOutputId: "",
@@ -58,6 +64,7 @@ export function readDevicePreferences(userId: string): DevicePreferences {
       cameraEnabled: value.cameraEnabled === true,
       notificationOutputId: safeId(value.notificationOutputId),
       notificationSounds: value.notificationSounds !== false,
+      ...readAudioVolumes(value),
       noiseSuppression: value.noiseSuppression !== false,
       showSelf: value.showSelf !== false,
       hideParticipantVideo: value.hideParticipantVideo === true,
@@ -65,6 +72,53 @@ export function readDevicePreferences(userId: string): DevicePreferences {
   } catch {
     return { ...emptyPreferences };
   }
+}
+
+type StoredAudioVolumes = Partial<
+  Record<
+    | "microphoneVolume"
+    | "speakerVolume"
+    | "signalVolume"
+    | "notificationVolume"
+    | "ringtoneVolume",
+    unknown
+  >
+>;
+
+/** Переносит прежние раздельные уровни, сохраняя пользовательское уменьшение громкости. */
+function readSignalVolume(value: StoredAudioVolumes) {
+  if (Object.hasOwn(value, "signalVolume"))
+    return normalizeAudioVolume(
+      value.signalVolume,
+      DEFAULT_AUDIO_VOLUMES.signalVolume,
+    );
+  const customized = [
+    [value.notificationVolume, 0.35],
+    [value.ringtoneVolume, 0.75],
+  ].flatMap(([volume, previousDefault]) =>
+    typeof volume === "number" &&
+    Number.isFinite(volume) &&
+    volume !== previousDefault
+      ? [normalizeAudioVolume(volume, DEFAULT_AUDIO_VOLUMES.signalVolume)]
+      : [],
+  );
+  return customized.length
+    ? Math.min(...customized)
+    : DEFAULT_AUDIO_VOLUMES.signalVolume;
+}
+
+function readAudioVolumes(value: StoredAudioVolumes) {
+  return {
+    microphoneVolume: normalizeAudioVolume(
+      value.microphoneVolume,
+      DEFAULT_AUDIO_VOLUMES.microphoneVolume,
+    ),
+    speakerVolume: normalizeAudioVolume(
+      value.speakerVolume,
+      DEFAULT_AUDIO_VOLUMES.speakerVolume,
+    ),
+    signalVolume: readSignalVolume(value),
+  };
 }
 
 export function hasDevicePreferences(userId: string) {
@@ -81,13 +135,16 @@ export function saveDevicePreferences(
   preferences: DevicePreferences,
 ) {
   if (!userId) return;
+  const normalized = { ...preferences, ...readAudioVolumes(preferences) };
   try {
-    localStorage.setItem(key(userId), JSON.stringify(preferences));
+    localStorage.setItem(key(userId), JSON.stringify(normalized));
   } catch {
     // Хранилище может быть отключено; встреча продолжает работать с устройствами по умолчанию.
   }
   window.dispatchEvent(
-    new CustomEvent("meet:devices", { detail: { userId, preferences } }),
+    new CustomEvent("meet:devices", {
+      detail: { userId, preferences: normalized },
+    }),
   );
 }
 

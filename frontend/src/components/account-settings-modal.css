@@ -225,7 +225,8 @@
   padding-top: 28px;
 }
 .appearance-text-size {
-  max-width: 260px;
+  width: 50%;
+  max-width: none;
 }
 .account-dialog-panel > :last-child {
   margin-bottom: 0;
@@ -284,9 +285,6 @@
 }
 .appearance-text-block h2 {
   font-size: calc(16px * var(--text-scale));
-}
-.appearance-text-size {
-  max-width: none;
 }
 .account-dialog-panel .preferences-fieldset {
   padding: 0 0 24px;
@@ -483,6 +481,9 @@
   }
 }
 @media (max-width: 680px) {
+  .appearance-text-size {
+    width: 100%;
+  }
   .account-settings-modal .modal-close {
     top: 16px;
     right: 12px;

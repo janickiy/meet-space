@@ -9,6 +9,7 @@ import {
   type DevicePreferences,
 } from "../../prejoinDevices";
 import { Button, ErrorNotice, Modal } from "../ui";
+import { VolumeControl } from "../VolumeControl";
 
 /** Настройки уже подключённых устройств: не открывают камеру и микрофон повторно.
  * @args onClose — закрывает окно; audioLevel — текущая громкость уже подключённого микрофона, от 0 до 1.
@@ -29,7 +30,10 @@ export function ConferenceDevicesModal({
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState(false);
-  const stopTone = useRef<(() => void) | null>(null);
+  const stopTone = useRef<ReturnType<typeof playDeviceTone> | null>(null);
+  useEffect(() => {
+    stopTone.current?.setVolume(preferences.speakerVolume);
+  }, [preferences.speakerVolume]);
   const level = Number.isFinite(audioLevel)
     ? Math.max(0, Math.min(1, audioLevel))
     : 0;
@@ -141,6 +145,16 @@ export function ConferenceDevicesModal({
             </label>
           );
         })}
+        <VolumeControl
+          label="Громкость микрофона"
+          value={preferences.microphoneVolume}
+          onChange={(microphoneVolume) => update({ microphoneVolume })}
+        />
+        <VolumeControl
+          label="Громкость динамика"
+          value={preferences.speakerVolume}
+          onChange={(speakerVolume) => update({ speakerVolume })}
+        />
         <Button
           variant="outline"
           disabled={playing}
@@ -153,6 +167,7 @@ export function ConferenceDevicesModal({
                 setPlaying(false);
                 if (reason) setError("Не удалось воспроизвести тестовый звук.");
               },
+              preferences.speakerVolume,
             );
           }}
         >

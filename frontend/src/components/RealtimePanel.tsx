@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { useRealtime } from "../realtime";
 import { useMedia } from "../useMedia";
+import { DEFAULT_AUDIO_VOLUMES, normalizeAudioVolume } from "../audioVolume";
 import { Button, ErrorNotice } from "./ui";
 import type { Participant } from "../types";
 import { useAuth } from "../auth";
@@ -56,6 +57,7 @@ export const MediaTile = memo(function MediaTile({
   video = true,
   screen = false,
   sinkId = "",
+  volume = DEFAULT_AUDIO_VOLUMES.speakerVolume,
   microphoneEnabled = false,
   audioLevel = 0,
   role,
@@ -68,6 +70,7 @@ export const MediaTile = memo(function MediaTile({
   video?: boolean;
   screen?: boolean;
   sinkId?: string;
+  volume?: number;
   microphoneEnabled?: boolean;
   audioLevel?: number;
   role?: Participant["role"];
@@ -82,6 +85,12 @@ export const MediaTile = memo(function MediaTile({
       ? Math.max(0, Math.min(1, audioLevel))
       : 0;
   const speakingNow = level > 0;
+  useEffect(() => {
+    if (element.current)
+      element.current.volume = local
+        ? 0
+        : normalizeAudioVolume(volume, DEFAULT_AUDIO_VOLUMES.speakerVolume);
+  }, [local, volume, stream, video]);
   /**
    * play запускает воспроизведение потока, учитывая ограничения браузера.
    *
@@ -819,6 +828,7 @@ export function RealtimePanel({
                     remote.kinds.includes("video")
                   }
                   sinkId={preferences.audioOutputId}
+                  volume={preferences.speakerVolume}
                   microphoneEnabled={
                     roster.find((person) => person.id === remote.participantId)
                       ?.microphoneEnabled ?? remote.kinds.includes("audio")

@@ -1,0 +1,41 @@
+.volume-control {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 20px 0 16px;
+}
+.volume-control-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--text);
+  font-size: calc(13px * var(--text-scale, 1));
+  line-height: 1.5;
+}
+.volume-control-heading label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.volume-control-heading output {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+input.volume-control-slider {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+input.volume-control-slider:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}

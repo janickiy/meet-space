@@ -68,6 +68,11 @@
   flex: 1;
   margin: 0 -10px;
 }
+.personal-conversations .personal-unread-empty-title {
+  font-size: calc(14px * var(--text-scale));
+  font-weight: 400;
+  line-height: 1.5;
+}
 .personal-conversation {
   display: flex;
   align-items: center;

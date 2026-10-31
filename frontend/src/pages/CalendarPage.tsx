@@ -10,7 +10,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { api } from "../api";
+import { api, statusLabels } from "../api";
 import { useAuth } from "../auth";
 import { useConferences } from "../queries";
 import { conferenceLink } from "../conferenceNavigation";
@@ -73,6 +73,17 @@ export function scheduledMeetingDate(conference: Conference) {
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
+/** Дата календаря совпадает с фильтром списка: закрытые встречи — по завершению, остальные — по расписанию. */
+function calendarMeetingDate(conference: Conference) {
+  const scheduled = scheduledMeetingDate(conference);
+  if (!scheduled) return null;
+  if (conference.finishedAt) {
+    const finished = new Date(conference.finishedAt);
+    if (Number.isFinite(finished.getTime())) return finished;
+  }
+  return scheduled;
+}
+
 /**
  * CalendarMeeting показывает в сетке время и статус реальной встречи.
  * @args meeting — встреча сервера; onSelect — открытие её карточки.
@@ -85,7 +96,7 @@ function CalendarMeeting({
   meeting: Conference;
   onSelect: (meeting: Conference) => void;
 }) {
-  const date = scheduledMeetingDate(meeting)!;
+  const date = calendarMeetingDate(meeting)!;
   const time = date.toLocaleTimeString("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
@@ -95,11 +106,11 @@ function CalendarMeeting({
       type="button"
       className={`calendar-event calendar-event-${meeting.status}`}
       onClick={() => onSelect(meeting)}
-      aria-label={`${meeting.title}, ${formatDate(date.toISOString())}`}
+      aria-label={`${meeting.title}, ${statusLabels[meeting.status]}, ${formatDate(date.toISOString())}`}
     >
       <strong>{meeting.title}</strong>
       <span>
-        {time}
+        {meeting.finishedAt ? `Завершение в ${time}` : time}
         {meeting.plannedDurationMin
           ? ` · ${meeting.plannedDurationMin} мин`
           : ""}
@@ -107,7 +118,9 @@ function CalendarMeeting({
           ? " · Отменена"
           : meeting.status === "active"
             ? " · Идёт сейчас"
-            : ""}
+            : meeting.status === "finished"
+              ? " · Завершена"
+              : ""}
       </span>
     </button>
   );
@@ -255,17 +268,36 @@ export function CalendarPage() {
   const [agendaDay, setAgendaDay] = useState(() => calendarDayKey(new Date()));
   const scroll = useRef<HTMLDivElement>(null);
   const range = useMemo(() => calendarRange(anchor, view), [anchor, view]);
-  const query = useConferences({
+  const upcoming = useConferences({
     view: "upcoming",
     scope: "all",
     from: range.from,
     to: range.to,
   });
+  const active = useConferences({
+    view: "active",
+    scope: "all",
+    from: range.from,
+    to: range.to,
+  });
+  const past = useConferences({
+    view: "past",
+    scope: "all",
+    from: range.from,
+    to: range.to,
+  });
+  const queries = [upcoming, active, past];
+  const isPending = queries.some((query) => query.isPending);
+  const isError = queries.some((query) => query.isError);
+  const error = queries.find((query) => query.error)?.error;
+  const hasNextPage = queries.some((query) => query.hasNextPage);
+  const isFetchingNextPage = queries.some((query) => query.isFetchingNextPage);
   const meetings = useMemo(() => {
     const unique = new Map<string, Conference>();
-    for (const meeting of query.data?.pages.flatMap((page) => page.items) ||
-      []) {
-      const date = scheduledMeetingDate(meeting);
+    for (const meeting of [upcoming.data, active.data, past.data].flatMap(
+      (data) => data?.pages.flatMap((page) => page.items) || [],
+    )) {
+      const date = calendarMeetingDate(meeting);
       if (
         date &&
         date.getTime() >= new Date(range.from).getTime() &&
@@ -275,21 +307,21 @@ export function CalendarPage() {
     }
     return [...unique.values()].sort(
       (left, right) =>
-        scheduledMeetingDate(left)!.getTime() -
-        scheduledMeetingDate(right)!.getTime(),
+        calendarMeetingDate(left)!.getTime() -
+        calendarMeetingDate(right)!.getTime(),
     );
-  }, [query.data, range.from, range.to]);
+  }, [upcoming.data, active.data, past.data, range.from, range.to]);
   const byDay = useMemo(() => {
     const grouped = new Map<string, Conference[]>();
     for (const meeting of meetings) {
-      const key = calendarDayKey(scheduledMeetingDate(meeting)!);
+      const key = calendarDayKey(calendarMeetingDate(meeting)!);
       grouped.set(key, [...(grouped.get(key) || []), meeting]);
     }
     return grouped;
   }, [meetings]);
   useEffect(() => {
     if (view === "week" && scroll.current) scroll.current.scrollTop = 52 * 8;
-  }, [range.from, view, query.isPending]);
+  }, [range.from, view, isPending]);
 
   /** @args direction — предыдущий или следующий период. Сохраняет локальные границы при смене месяца и DST. */
   function move(direction: number) {
@@ -337,7 +369,7 @@ export function CalendarPage() {
               {label}
             </h2>
             <span>
-              Предстоящие встречи ·{" "}
+              Расписание встреч ·{" "}
               {Intl.DateTimeFormat().resolvedOptions().timeZone}
             </span>
           </div>
@@ -383,13 +415,18 @@ export function CalendarPage() {
             </button>
           </div>
         </div>
-        <ErrorNotice error={query.error} />
-        {query.isError && (
-          <Button variant="outline" onClick={() => void query.refetch()}>
+        <ErrorNotice error={error} />
+        {isError && (
+          <Button
+            variant="outline"
+            onClick={() =>
+              void Promise.all(queries.map((query) => query.refetch()))
+            }
+          >
             Повторить загрузку календаря
           </Button>
         )}
-        {query.isPending ? (
+        {isPending ? (
           <MeetingSkeleton rows={4} label="Загрузка календаря" />
         ) : (
           <>
@@ -442,9 +479,8 @@ export function CalendarPage() {
                               {(byDay.get(calendarDayKey(date)) || [])
                                 .filter(
                                   (meeting) =>
-                                    scheduledMeetingDate(
-                                      meeting,
-                                    )!.getHours() === hour,
+                                    calendarMeetingDate(meeting)!.getHours() ===
+                                    hour,
                                 )
                                 .map((meeting) => (
                                   <CalendarMeeting
@@ -554,7 +590,7 @@ export function CalendarPage() {
                 )}
               </div>
             )}
-            {!meetings.length && !query.isError && (
+            {!meetings.length && !isError && (
               <div className="calendar-empty">
                 <span>
                   <CalendarDays size={28} aria-hidden="true" />
@@ -570,7 +606,7 @@ export function CalendarPage() {
                 </Link>
               </div>
             )}
-            {query.hasNextPage && (
+            {hasNextPage && (
               <div className="calendar-pagination">
                 <p>
                   Показана часть встреч периода. Загрузите продолжение, чтобы
@@ -578,8 +614,14 @@ export function CalendarPage() {
                 </p>
                 <Button
                   variant="outline"
-                  busy={query.isFetchingNextPage}
-                  onClick={() => void query.fetchNextPage()}
+                  busy={isFetchingNextPage}
+                  onClick={() =>
+                    void Promise.all(
+                      queries
+                        .filter((query) => query.hasNextPage)
+                        .map((query) => query.fetchNextPage()),
+                    )
+                  }
                 >
                   Загрузить ещё встречи
                 </Button>
@@ -600,7 +642,8 @@ export function CalendarPage() {
         )}
       </section>
       <p className="calendar-footer-note">
-        Здесь только встречи с датой, которые ещё не начались. Остальные — в{" "}
+        Здесь встречи с расписанием: предстоящие, активные и завершённые.
+        Завершённые показаны по времени завершения. Встречи без расписания — в{" "}
         <Link className="text-link" to="/meetings">
           списке встреч <ArrowRight size={13} aria-hidden="true" />
         </Link>

@@ -1,4 +1,5 @@
 import toneURL from "./assets/device-tone.wav";
+import { normalizeAudioVolume } from "./audioVolume";
 
 /** Только локальное воспроизведение.  Данные о записи и устройстве не отправляются на сервер. */
 export function playDeviceTone(
@@ -7,7 +8,7 @@ export function playDeviceTone(
   volume = 1,
 ) {
   const audio = new Audio(toneURL);
-  audio.volume = Math.min(1, Math.max(0, volume));
+  audio.volume = normalizeAudioVolume(volume, 1);
   let stopped = false;
   const finish = (error?: unknown) => {
     if (stopped) return;
@@ -27,5 +28,9 @@ export function playDeviceTone(
       finish(error);
     }
   })();
-  return () => finish();
+  return Object.assign(() => finish(), {
+    setVolume(value: number) {
+      if (!stopped) audio.volume = normalizeAudioVolume(value, 1);
+    },
+  });
 }

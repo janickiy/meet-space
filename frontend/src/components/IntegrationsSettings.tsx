@@ -22,12 +22,14 @@ const modes = {
   http: "Подключён провайдер",
   smtp: "Настроена отправка почты",
 };
-const preferenceLabels: Record<keyof NotificationPreferences, string> = {
+const preferenceLabels: Record<
+  Exclude<keyof NotificationPreferences, "push">,
+  string
+> = {
   invitation: "Приглашения и изменения встреч",
   reminder: "Напоминания о встречах",
   recording: "Готовность записи",
   email: "Email",
-  push: "Push-уведомления",
 };
 
 /**
@@ -302,7 +304,7 @@ function PreferencesForm({
                       ),
                     );
                 },
-                0.35,
+                readDevicePreferences(user?.id || "").signalVolume,
               );
             }}
           >
@@ -319,32 +321,24 @@ function PreferencesForm({
       <fieldset className="preferences-fieldset">
         <legend>Каналы доставки</legend>
         <div className="preferences-options">
-          {(["email", "push"] as const).map((name) => (
-            <label className="preference-option" key={name}>
-              <input
-                type="checkbox"
-                disabled={capabilities[name] === "noop"}
-                checked={draft[name]}
-                onChange={(event) =>
-                  setDraft({ ...draft, [name]: event.target.checked })
-                }
-              />
-              <span className="preference-copy">
-                <span className="preference-title">
-                  {preferenceLabels[name]}
-                </span>
-                <span className="field-hint">{modes[capabilities[name]]}</span>
-              </span>
-            </label>
-          ))}
+          <label className="preference-option">
+            <input
+              type="checkbox"
+              disabled={capabilities.email === "noop"}
+              checked={draft.email}
+              onChange={(event) =>
+                setDraft({ ...draft, email: event.target.checked })
+              }
+            />
+            <span className="preference-copy">
+              <span className="preference-title">{preferenceLabels.email}</span>
+              <span className="field-hint">{modes[capabilities.email]}</span>
+            </span>
+          </label>
         </div>
       </fieldset>
       <div className="preferences-actions">
-        <p className="field-hint">
-          Push требует зарегистрированного поддерживаемого устройства. Этот
-          браузер не запрашивает разрешение, если доставка не настроена.
-        </p>
-        {(capabilities.email === "mock" || capabilities.push === "mock") && (
+        {capabilities.email === "mock" && (
           <p className="demo-notice">
             Тестовый канал не отправляет реальные сообщения.
           </p>

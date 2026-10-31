@@ -316,7 +316,13 @@ export function PersonalPage() {
             {!list.isPending && !list.isError && !conversations.length && (
               <div className="messaging-empty">
                 <MessageCircle aria-hidden="true" />
-                <h3>
+                <h3
+                  className={
+                    !search && filter === "unread"
+                      ? "personal-unread-empty-title"
+                      : undefined
+                  }
+                >
                   {search
                     ? "Переписки не найдены"
                     : filter === "group"
