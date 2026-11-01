@@ -65,6 +65,9 @@ func TestRecordingLibraryRouteIsAuthenticatedAndHasExplicitEndCursor(t *testing.
 		t.Fatalf("unauthorized: %d %s", got.Code, got.Body.String())
 	}
 	got := request("/api/v1/recordings", true)
+	if got.Header().Get("Cache-Control") != "private, no-store" || got.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatal("recording catalogue must not be publicly cached")
+	}
 	if got.Code != http.StatusOK || s.actor != "account" || s.query.Limit != 30 {
 		t.Fatalf("default page: %d %s %+v", got.Code, got.Body.String(), s)
 	}

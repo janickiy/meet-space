@@ -14,6 +14,8 @@ import (
 
 // Library returns all readable recordings independently of the meeting timeline.
 func (h *Handler) Library(c *gin.Context) {
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("X-Content-Type-Options", "nosniff")
 	query := records.LibraryQuery{Cursor: c.Query("cursor"), Limit: 30}
 	parameters := c.Request.URL.Query()
 	if values, exists := parameters["cursor"]; exists && len(values) != 1 {

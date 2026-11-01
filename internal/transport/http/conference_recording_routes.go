@@ -23,6 +23,7 @@ import (
 //   - authentication: Промежуточный модуль, который определяет подлинность аккаунта, прошедшего
 //     аутентификацию.
 func RegisterConferenceRecordingRoutes(router gin.IRouter, handler *recordingsapp.Handler, authentication gin.HandlerFunc) {
+	router.GET(APIV1Prefix+"/recordings", authentication, handler.Library)
 	routes := router.Group(APIV1Prefix+"/conferences", authentication)
 	routes.POST("/:id/recordings", handler.Start)
 	routes.GET("/:id/recordings", handler.List)
