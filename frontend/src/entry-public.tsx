@@ -34,6 +34,11 @@ export function renderPublicPage(pathname: string) {
   const head = [
     `<title>${escapeHtml(metadata.title)}</title>`,
     `<meta name="description" content="${escapeHtml(metadata.description)}" />`,
+    ...(metadata.keywords.length
+      ? [
+          `<meta name="keywords" content="${escapeHtml(metadata.keywords.join(", "))}" />`,
+        ]
+      : []),
     `<meta name="robots" content="${metadata.robots}" />`,
     `<link rel="canonical" href="${escapeHtml(metadata.canonical!)}" />`,
     ...socialMetadata(metadata).map(

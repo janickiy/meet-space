@@ -99,7 +99,7 @@ export function SelfHostedPage() {
         <Link
           className="brand brand-meetspace"
           to="/"
-          aria-label="MeetSpace — главная страница"
+          aria-label="MeetSpace - главная страница"
         >
           <span className="brand-lockup">
             <img
@@ -546,7 +546,7 @@ export function SelfHostedPage() {
             <h2 id="deployment-title">Начните с тестовой среды</h2>
             <p>
               После подготовки и передачи проверенного пакета укажите его
-              абсолютные пути. <code>REVIEWED_VERSION</code> ниже — заглушка, а
+              абсолютные пути. <code>REVIEWED_VERSION</code> ниже - заглушка, а
               не существующий релиз. Замените её именем каталога своего пакета;
               коммит в манифесте должен совпадать с выбранным исходным кодом.
             </p>
@@ -588,7 +588,7 @@ export function SelfHostedPage() {
             <h2 id="verification-title">
               Протестируйте весь путь пользователя
             </h2>
-            <Command title="Публичные проверки — используйте собственный домен">{`curl --fail --silent --show-error https://meet.example.com/version\ncurl --fail --silent --show-error https://meet.example.com/version.json\ncurl --fail --silent --show-error --output /dev/null https://meet.example.com/`}</Command>
+            <Command title="Публичные проверки - используйте собственный домен">{`curl --fail --silent --show-error https://meet.example.com/version\ncurl --fail --silent --show-error https://meet.example.com/version.json\ncurl --fail --silent --show-error --output /dev/null https://meet.example.com/`}</Command>
             <ol className="self-check-list">
               <li>
                 Сравните версию/коммит API и фронтенда с манифестом. Проверьте
@@ -782,7 +782,7 @@ export function SelfHostedPage() {
       </div>
       <footer className="self-footer self-container">
         <span>
-          MeetSpace — единое пространство для встреч, общения и совместной
+          MeetSpace - единое пространство для встреч, общения и совместной
           работы
         </span>
         <a

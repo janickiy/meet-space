@@ -18,12 +18,15 @@ export function PublicMetadata({
     document.documentElement.lang = metadata.language;
     document
       .querySelectorAll(
-        'meta[name="description"], meta[name="robots"], meta[property^="og:"], link[rel="canonical"], script[data-public-metadata]',
+        'meta[name="description"], meta[name="keywords"], meta[name="robots"], meta[property^="og:"], link[rel="canonical"], script[data-public-metadata]',
       )
       .forEach((element) => element.remove());
     for (const [name, content] of [
       ["description", metadata.description],
       ["robots", metadata.robots],
+      ...(metadata.keywords.length
+        ? [["keywords", metadata.keywords.join(", ")]]
+        : []),
     ]) {
       const element = document.createElement("meta");
       element.name = name;

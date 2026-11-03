@@ -359,7 +359,6 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
       ))}
     </>
   );
-  const wordCount = JSON.stringify(article).split(/\s+/).length;
   const isLinkOnlyArticle = article.sections.every(
     ({
       paragraphs,
@@ -497,11 +496,6 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
                 {article.slug === "overview"
                   ? "РУКОВОДСТВО ПО MEETSPACE"
                   : group.title}
-                {!isLinkOnlyArticle && (
-                  <span>
-                    {Math.max(2, Math.ceil(wordCount / 220))} мин на чтение{" "}
-                  </span>
-                )}
               </div>
               <h1>{article.title}</h1>
               {!isLinkOnlyArticle &&
@@ -722,10 +716,6 @@ export function DocumentationPage({ slug = "overview" }: { slug?: string }) {
           </article>
           <footer className="docs-footer">
             <span> © 2026 MeetSpace · Яницкий Александр </span>
-            <Link to="/docs/support">
-              {" "}
-              Сообщить о проблеме с документацией <ArrowUpRight size={13} />
-            </Link>
           </footer>
         </main>
         {!isLinkOnlyArticle && (

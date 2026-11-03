@@ -342,14 +342,6 @@
   letter-spacing: 0.08em;
   margin-bottom: 12px;
 }
-.docs-eyebrow > span {
-  color: #919aab;
-  text-transform: none;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: normal;
-  white-space: nowrap;
-}
 .docs-site h1 {
   font-size: clamp(30px, 3vw, 40px);
   line-height: 1.17;
@@ -787,6 +779,9 @@
   border-top: 1px solid #f0f2f6;
   font-size: 9px;
   color: #98a1b0;
+}
+.docs-footer > span {
+  font-size: 14px;
 }
 .docs-footer a {
   color: #8291a9;
@@ -1230,10 +1225,6 @@
 .docs-section h2,
 .docs-subsection h3 {
   text-wrap: pretty;
-}
-.docs-table-wrap td:first-child {
-  color: #34465f;
-  font-weight: 600;
 }
 .docs-code-bar,
 .docs-code-bar button {

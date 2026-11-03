@@ -387,7 +387,9 @@ function FeatureSection() {
       aria-labelledby="features-title"
     >
       <div className="lp-section-heading lp-centered">
-        <p className="lp-kicker">Одно пространство. Больше способов общения.</p>
+        <p className="lp-kicker">
+          <strong>Одна платформа. Все возможности для общения.</strong>
+        </p>
         <h2 id="features-title">{HOME.featuresTitle}</h2>
         <p>{HOME.featuresDescription}</p>
       </div>
@@ -1129,6 +1131,9 @@ export function Landing() {
                 </span>
                 <span>
                   <PlatformLogo platform="linux" size={15} /> Linux
+                </span>
+                <span>
+                  <Monitor size={15} /> macOS
                 </span>
               </div>
             </div>
