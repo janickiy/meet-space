@@ -1,5 +1,5 @@
--- Настройки чата индивидуальны для каждого участника конференции.  Выход из чата не приводит к
--- удалению конференции, её владельца, истории участников или записанных материалов.
+-- Chat preferences are personal to a conference member. Leaving the chat does not
+-- remove the conference, its owner, participant history, or recorded artifacts.
 ALTER TABLE conferences ADD COLUMN IF NOT EXISTS chat_description VARCHAR(1000) NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS conference_chat_preferences (
@@ -26,8 +26,7 @@ CREATE TABLE IF NOT EXISTS conference_chat_pins (
 CREATE INDEX IF NOT EXISTS conference_chat_pins_recent
     ON conference_chat_pins(conference_id, user_id, created_at DESC, message_id DESC);
 
--- Поиск без учёта регистра выполняется только в рамках одной конференции перед текстовым
--- поиском.
+-- Literal case-insensitive search is scoped to one conference before text lookup.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX IF NOT EXISTS chat_messages_text_search
     ON chat_messages USING gin (text gin_trgm_ops) WHERE deleted_at IS NULL;
@@ -38,9 +37,8 @@ ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK(type IN 
     'conference.cancelled','transcript.ready','summary.ready','processing.failed','chat.message'
 ));
 
--- Уведомления в чате отображаются только в приложении: их публикует существующий поток
--- уведомлений, а push-уведомления и рассылки по электронной почте предназначены только для
--- событий на уровне собраний.
+-- Chat notices are in-app only: the existing notification stream publishes them,
+-- while email/push jobs remain reserved for meeting-level events.
 CREATE OR REPLACE FUNCTION enqueue_external_notification() RETURNS TRIGGER AS $$
 BEGIN
  IF NEW.type='chat.message' THEN RETURN NEW; END IF;

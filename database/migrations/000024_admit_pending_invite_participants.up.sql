@@ -1,6 +1,5 @@
--- Существующие ожидающие приглашения участники не должны оставаться в подвешенном состоянии
--- после перехода по прямой ссылке. Явно отклоненные или заблокированные членства, а также
--- закрытые или запланированные встречи не затрагиваются.
+-- Existing pending invite holders should not remain stranded after direct link admission.
+-- Explicitly rejected/kicked memberships and closed/scheduled meetings are unchanged.
 UPDATE conference_participants p
 SET status = 'joined', admission_state = 'admitted',
     admission_decided_at = now(), admission_version = admission_version + 1,
