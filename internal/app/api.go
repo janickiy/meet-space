@@ -70,6 +70,13 @@ func RunAPI() error {
 	if err != nil {
 		return err
 	}
+	adminConfig, err := config.LoadAdmin(cfg.StageSeven.PublicURL, cfg.TrustedProxies)
+	if err != nil {
+		return err
+	}
+	if adminConfig.Enabled && adminConfig.HTTPPort == cfg.APIPort {
+		return fmt.Errorf("ADMIN_HTTP_PORT must differ from APP_PORT")
+	}
 	// Проверьте это только при запуске API: рабочие записи и команда миграции не выдают JWTs.
 	tokens, err := security.NewTokenService(cfg.JWTSecret)
 	if err != nil {
@@ -225,6 +232,19 @@ func RunAPI() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	var adminServer *http.Server
+	if adminConfig.Enabled {
+		resources := newAdminResources(db, cfg, realtimeConfig, mediaConfig, ops, s3Client, hub)
+		defer resources.Close()
+		adminServer, err = NewAdminServer(adminConfig, db, resources, func(_ context.Context, userID string) error {
+			hub.DisconnectUser(userID)
+			globalWS.DisconnectUser(userID)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
 	ops.Run(ctx)
 	go runProfiling(ctx, ops)
 	go sampleDatabase(ctx, sqlDB)
@@ -241,7 +261,18 @@ func RunAPI() error {
 		return err
 	}
 	server := &http.Server{Handler: router, BaseContext: func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
-	failed := make(chan error, 1)
+	defer server.Close()
+	failed := make(chan error, 2)
+	if adminServer != nil {
+		adminServer.BaseContext = func(net.Listener) context.Context { return ctx }
+		adminListener, err := net.Listen("tcp", adminServer.Addr)
+		if err != nil {
+			_ = listener.Close()
+			return fmt.Errorf("admin listener: %w", err)
+		}
+		defer adminServer.Close()
+		go func() { failed <- adminServer.Serve(adminListener) }()
+	}
 	server.ReadTimeout = cfg.Operations.HTTPReadTimeout
 	go func() { failed <- server.Serve(listener) }()
 	select {
@@ -259,6 +290,9 @@ func RunAPI() error {
 	defer cancel()
 	hubErr := hub.ShutdownContext(shutdown)
 	err = errors.Join(hubErr, server.Shutdown(shutdown))
+	if adminServer != nil {
+		err = errors.Join(err, adminServer.Shutdown(shutdown))
+	}
 	if errors.Is(err, net.ErrClosed) || errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

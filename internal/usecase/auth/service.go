@@ -211,14 +211,14 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 		return users.LoginResponse{}, err
 	}
 	hash := user.PasswordHash
-	if missing || user.GuestConferenceID != nil {
+	if missing || user.GuestConferenceID != nil || user.IsBlocked {
 		hash = s.dummyHash
 	}
 	valid, err := s.verifyPassword(ctx, request.Password, hash)
 	if err != nil {
 		return users.LoginResponse{}, err
 	}
-	if missing || user.GuestConferenceID != nil || !valid {
+	if missing || user.GuestConferenceID != nil || user.IsBlocked || !valid {
 		return users.LoginResponse{}, invalidCredentials()
 	}
 	if err := ctx.Err(); err != nil {
@@ -239,7 +239,7 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 //     передачи данных или сохранения.
 func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 	user, err := s.repository.GetByID(ctx, userID)
-	if errors.Is(err, apperrors.ErrNotFound) {
+	if errors.Is(err, apperrors.ErrNotFound) || err == nil && user.IsBlocked {
 		return users.View{}, apperrors.ErrUnauthorized
 	}
 	if err != nil {

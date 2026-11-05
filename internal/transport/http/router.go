@@ -11,6 +11,7 @@ package httptransport
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,15 @@ const APIV1Prefix = "/api/v1"
 //   - result1: Созданный или загруженный движок.
 func NewRouter(middleware ...gin.HandlerFunc) *gin.Engine {
 	router := gin.New()
+	// Administrative routes are never registered on the public API listener.
+	// Reject the namespace here too, regardless of cookies or forwarding headers.
+	router.Use(func(c *gin.Context) {
+		if strings.HasPrefix(strings.ToLower(c.Request.URL.Path), APIV1Prefix+"/admin") {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		c.Next()
+	})
 	router.Use(
 
 		func(c *gin.Context) {

@@ -192,6 +192,9 @@ func (s *Service) WithSessions(repository SessionRepository) *Service {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *Service) signIn(ctx context.Context, user users.User) (users.LoginResponse, error) {
+	if user.IsBlocked {
+		return users.LoginResponse{}, invalidCredentials()
+	}
 	if s.sessions == nil {
 		token, err := s.tokens.Issue(user.ID)
 		return loginResponse(user, token, ""), err
@@ -322,7 +325,7 @@ func (s *Service) sessionForCookie(ctx context.Context, raw string) (users.AuthS
 //     передачи данных или сохранения.
 func (s *Service) account(ctx context.Context, id string) (users.User, error) {
 	user, err := s.repository.GetByID(ctx, id)
-	if errors.Is(err, apperrors.ErrNotFound) {
+	if errors.Is(err, apperrors.ErrNotFound) || err == nil && user.IsBlocked {
 		return users.User{}, apperrors.ErrUnauthorized
 	}
 	if err != nil {
@@ -389,6 +392,9 @@ func (s *Service) Bootstrap(ctx context.Context, userID, raw, access string) (us
 	}
 	if identity != userID || scope != "" {
 		return users.LoginResponse{}, apperrors.ErrForbidden
+	}
+	if sessionID == "" && user.AuthInvalidBefore != nil {
+		return users.LoginResponse{}, apperrors.ErrUnauthorized
 	}
 	legacyHash := ""
 	if sessionID == "" {
@@ -519,6 +525,9 @@ func (s *Service) VerifyAuthorization(ctx context.Context, raw string) (string, 
 		return "", "", "", time.Time{}, apperrors.ErrUnauthorized
 	}
 	userID, scope, sessionID, expiry, err := tokens.VerifyAuthorization(raw)
+	if err == nil && sessionID == "" {
+		err = s.AuthorizeLegacyAccount(ctx, userID)
+	}
 	if err == nil && sessionID != "" {
 		err = s.AuthorizeSession(ctx, userID, sessionID)
 	}

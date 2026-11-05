@@ -187,7 +187,7 @@ export function Layout() {
   const serviceItems = [
     { to: "/app/settings", label: "Настройки", Icon: Settings },
     ...(user?.isAdmin
-      ? [{ to: "/admin", label: "Администрирование", Icon: ShieldCheck }]
+      ? [{ to: "/admin", label: "Состояние сервиса", Icon: ShieldCheck }]
       : []),
   ];
   const sectionTitle =

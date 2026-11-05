@@ -34,3 +34,8 @@ frontend/dist
 frontend/test-results
 frontend/playwright-report
 frontend/coverage
+admin/node_modules
+admin/dist
+admin/test-results
+admin/playwright-report
+admin/coverage

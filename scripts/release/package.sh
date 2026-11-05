@@ -22,14 +22,14 @@ select_release_services "$layout"
 # Reject historical build manifests before scanning, exporting or publishing any image.
 jq -e --arg services "${RELEASE_SERVICES[*]}" '
   (.images | type == "object")
-  and ((["api", "media-worker", "record-worker", "product-worker", "frontend", "minio"] - (.images | keys)) | length == 0)
+  and ((["api", "media-worker", "record-worker", "product-worker", "frontend", "minio", "proxy"] - (.images | keys)) | length == 0)
   and (((.images | keys) - ($services | split(" "))) | length == 0)' "$build" >/dev/null \
-  || fail "Incompatible build inventory: rebuild this source with record-worker; old images cannot be relabelled"
+  || fail "Incompatible build inventory: rebuild this source with record-worker and the admin proxy; old images cannot be relabelled"
 export IMAGE_PLATFORM="$(jq -r '.platform // ""' "$build")"
 if [[ -n "$infrastructure_manifest" ]]; then
   [[ "$infrastructure_manifest" == /* && -f "$infrastructure_manifest" ]] || fail "--infrastructure-manifest must name an existing absolute path"
   jq -e --arg mode "$mode" '.schemaVersion == 1 and .artifactMode == $mode and (.images | type == "object")' "$infrastructure_manifest" >/dev/null || fail "Infrastructure manifest mode must match the package mode"
-  dependencies=(minio postgres redis rabbitmq coturn proxy prometheus)
+  dependencies=(minio postgres redis rabbitmq coturn prometheus)
   if [[ "$layout" == classic ]]; then dependencies+=(grafana); fi
   for dependency in "${dependencies[@]}"; do
     dependency_ref="$(jq -er --arg service "$dependency" '.images[$service]' "$infrastructure_manifest")" || fail "Infrastructure manifest misses $dependency"
@@ -51,7 +51,7 @@ for service in "${RELEASE_SERVICES[@]}"; do
   reuse_infrastructure=false
   built_ref=
   case "$service" in
-    minio|postgres|redis|rabbitmq|coturn|proxy|prometheus|grafana)
+    minio|postgres|redis|rabbitmq|coturn|prometheus|grafana)
       if [[ -n "$infrastructure_manifest" ]]; then reuse_infrastructure=true; fi;;
   esac
   if [[ "$reuse_infrastructure" == true ]]; then

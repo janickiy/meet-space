@@ -108,15 +108,16 @@ type AccountChecker interface {
 // UserHandler не зависит от конференц-сессий и Pion. Он разделяет правила для тикетов и
 // источников.
 type UserHandler struct {
-	auth     *Handler
-	bus      UserBus
-	presence UserPresence
-	accounts AccountChecker
-	mu       sync.Mutex
-	draining bool
-	clients  map[*ws.Conn]context.CancelFunc
-	reserved int
-	wg       sync.WaitGroup
+	auth        *Handler
+	bus         UserBus
+	presence    UserPresence
+	accounts    AccountChecker
+	mu          sync.Mutex
+	draining    bool
+	clients     map[*ws.Conn]context.CancelFunc
+	clientUsers map[*ws.Conn]string
+	reserved    int
+	wg          sync.WaitGroup
 }
 
 // NewUserHandler создает пользовательский обработчик с зависимостями и ограничениями,
@@ -196,6 +197,12 @@ func (h *UserHandler) valid(ctx context.Context, id domain.Identity) error {
 		}
 	} else if !id.ExpiresAt.After(time.Now()) {
 		return apperrors.ErrUnauthorized
+	} else if verifier, ok := h.auth.verifier.(interface {
+		AuthorizeLegacyAccount(context.Context, string) error
+	}); ok {
+		if err := verifier.AuthorizeLegacyAccount(ctx, id.UserID); err != nil {
+			return err
+		}
 	}
 	return h.accounts.Account(ctx, id.UserID)
 }
@@ -301,6 +308,10 @@ func (h *UserHandler) Connect(c *gin.Context) {
 		return
 	}
 	h.clients[conn] = stop
+	if h.clientUsers == nil {
+		h.clientUsers = map[*ws.Conn]string{}
+	}
+	h.clientUsers[conn] = id.UserID
 	h.mu.Unlock()
 	handed = true
 	go h.run(lifetime, stop, conn, sub, id)
@@ -314,6 +325,7 @@ func (h *UserHandler) Connect(c *gin.Context) {
 func (h *UserHandler) release(conn *ws.Conn) {
 	h.mu.Lock()
 	delete(h.clients, conn)
+	delete(h.clientUsers, conn)
 	h.reserved--
 	h.mu.Unlock()
 	h.wg.Done()

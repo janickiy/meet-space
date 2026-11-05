@@ -1,8 +1,8 @@
 # Новый небольший стенд за существующим Apache; порты 80/443 не захватываются.
 services:
   proxy:
-    ports: !override ["127.0.0.1:${REVERSE_PROXY_PORT:-19080}:8080"]
-    volumes: !override ["./dockers/production/nginx-external-tls.conf:/etc/nginx/conf.d/default.conf:ro", "./dockers/production/routes.conf:/etc/nginx/snippets/recorder-routes.conf:ro"]
+    ports: !override ["127.0.0.1:${REVERSE_PROXY_PORT:-19080}:8080", "${ADMIN_BIND_ADDRESS:-127.0.0.1}:${ADMIN_HTTPS_PORT:-8081}:8081"]
+    volumes: !override ["./dockers/production/nginx-external-tls.conf:/etc/nginx/conf.d/default.conf:ro", "./dockers/production/routes.conf:/etc/nginx/snippets/recorder-routes.conf:ro", "${TLS_CERT_DIR:?set TLS certificate directory}:/run/certs:ro"]
     mem_limit: 64m
   api:
     mem_limit: 256m

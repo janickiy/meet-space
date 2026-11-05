@@ -47,8 +47,8 @@ fi
 if [[ "$layout" == hardened-shared-host ]]; then
   metadata="$(jq '.objectStorageProvider="seaweedfs" | .omittedComponents=[{name:"grafana",reason:"upstream bundled plugins have unresolved HIGH findings; Prometheus remains enabled"}]' <<<"$metadata")"
 fi
-build_services=(api media-worker record-worker product-worker frontend minio)
-if [[ "$layout" == hardened-shared-host ]]; then build_services+=(coturn proxy postgres redis prometheus); fi
+build_services=(api media-worker record-worker product-worker frontend minio proxy)
+if [[ "$layout" == hardened-shared-host ]]; then build_services+=(coturn postgres redis prometheus); fi
 build_command=(docker build)
 if [[ -n "$builder" ]]; then build_command=(docker buildx build --builder "$builder" --load); fi
 if [[ -n "$platform" ]]; then build_command+=(--platform "$platform"); fi
@@ -139,6 +139,7 @@ for service in "${build_services[@]}"; do
   started=$SECONDS
   context="$RELEASE_ROOT"; dockerfile="$RELEASE_ROOT/dockers/$service/Dockerfile"
   if [[ "$service" == frontend ]]; then context="$RELEASE_ROOT/frontend"; dockerfile="$context/Dockerfile"; fi
+  if [[ "$service" == proxy ]]; then dockerfile="$RELEASE_ROOT/dockers/production/Dockerfile"; fi
   if [[ "$layout" == hardened-shared-host ]]; then
     case "$service" in
       minio) dockerfile="$RELEASE_ROOT/dockers/object-storage/Dockerfile";;

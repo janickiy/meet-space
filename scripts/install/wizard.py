@@ -144,6 +144,64 @@ def smtp_password():
         print('Введите непустой пароль длиной до 4096 символов без переводов строки.')
 
 
+def administrator_password():
+    """Read/confirm an admin password only through an un-echoed terminal."""
+    while True:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', getpass.GetPassWarning)
+            try:
+                password = getpass.getpass('Пароль администратора (ввод скрыт): ')
+                repeated = getpass.getpass('Повторите пароль: ')
+            except getpass.GetPassWarning:
+                raise RuntimeError('Для безопасного ввода пароля нужен интерактивный терминал.') from None
+        valid = (12 <= len(password) <= 128 and len(password.encode('utf-8')) <= 512
+                 and any(c.isalpha() for c in password) and any(c.isdecimal() for c in password)
+                 and not any(c in password for c in '\r\n\x00'))
+        if valid and secrets.compare_digest(password.encode(), repeated.encode()):
+            repeated = None
+            return password
+        password = repeated = None
+        print('Пароли должны совпадать: 12–128 символов, хотя бы одна буква и цифра.')
+
+
+def administrator_command(args, command, data=None):
+    """Run the local-only CLI; secret JSON travels solely through a stdin pipe."""
+    output = run(*args, 'run', '--rm', '--no-deps', '-T', '--entrypoint',
+                 '/app/meetspace-admin', 'api', command, capture=True, data=data)
+    try:
+        result = json.loads(output)
+    except (TypeError, ValueError):
+        raise RuntimeError('CLI администратора вернул некорректный ответ.') from None
+    if not isinstance(result, dict):
+        raise RuntimeError('CLI администратора вернул некорректный ответ.')
+    return result
+
+
+def bootstrap_administrator(args):
+    """Keep existing administrators intact, including when resuming an installation."""
+    current = administrator_command(args, 'status')
+    if current.get('exists') is True:
+        if not isinstance(current.get('username'), str) or not current['username']:
+            raise RuntimeError('CLI не сообщил логин существующего администратора.')
+        print('Учётные записи администраторов уже существуют; пароли сохранены.')
+        return current['username']
+    if current.get('exists') is not False:
+        raise RuntimeError('Не удалось определить состояние учётных записей администраторов.')
+    username = ask('Логин администратора', 'admin',
+                   lambda s: bool(re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9._-]{2,39}', s))).lower()
+    password, payload = None, None
+    try:
+        password = administrator_password()
+        payload = json.dumps({'username': username, 'password': password}, ensure_ascii=False)
+        result = administrator_command(args, 'bootstrap', data=payload)
+        if not isinstance(result.get('username'), str) or not result['username']:
+            raise RuntimeError('Создание администратора не подтверждено.')
+        return result['username']
+    finally:
+        # Python strings cannot be securely erased; release references promptly.
+        password = payload = None
+
+
 def check_smtp(settings, recipient=''):
     """Verify TLS and AUTH PLAIN; send a test only when recipient was explicitly supplied.
 
@@ -592,10 +650,14 @@ def offer_existing_install(root, requested_manifest=None, expected_domain=None):
     return None
 
 
-def check_ports(include_http=False, include_grafana=False):
+def check_ports(include_http=False, include_grafana=False, admin_port=None):
     """Bind every required TCP/UDP port briefly, without changing firewall rules."""
     sockets = []
     tcp = [443, 3478, 5349, 50010, 19090] + ([80] if include_http else []) + ([13001] if include_grafana else [])
+    if admin_port is not None:
+        if admin_port in tcp:
+            raise RuntimeError('HTTPS-порт админки совпадает с портом другой службы.')
+        tcp.append(admin_port)
     udp = [3478, 50010] + list(range(49160, 49260))
     required = {f'{port}/tcp' for port in tcp} | {f'{port}/udp' for port in udp}
     containers = run('docker', 'container', 'ls', '-q', capture=True).splitlines()
@@ -712,7 +774,9 @@ def configure(bundle, manifest):
         cert_dir = Path(ask('Абсолютный каталог fullchain.pem и privkey.pem', validate=lambda s: s.startswith('/')))
         validate_certificate(cert_dir, domain)
     smtp = configure_smtp(domain)
-    check_ports(tls == '1', manifest.get('deploymentLayout') == 'classic')
+    admin_port = int(ask('HTTPS-порт административной панели', '8081',
+                         lambda s: s.isascii() and s.isdigit() and 1024 <= int(s) <= 65535))
+    check_ports(tls == '1', manifest.get('deploymentLayout') == 'classic', admin_port)
     info = json.loads(run('docker', 'info', '--format', '{{json .}}', capture=True))
     if info.get('NCPU', 0) < 4 or info.get('MemTotal', 0) < 8 * 1024**3:
         print('Рекомендуется не менее 4 CPU и 8 ГБ RAM; при записи ресурсы особенно важны.')
@@ -725,8 +789,9 @@ def configure(bundle, manifest):
     warn_disk_space(ancestor, required)
     warn_disk_space(Path(info['DockerRootDir']), 15 * 1024**3)
     print(f'\nВерсия: {manifest["version"]}\nСайт: https://{domain}\nIP: {address}\nКаталог: {root}\nПроект: {project}')
+    print(f'Административная панель: https://{domain}:{admin_port}')
     print('Email-уведомления: ' + ('SMTP настроен; напоминание за 3 часа.' if smtp else 'отключены.'))
-    print('Откройте во внешнем firewall: TCP 80,443,3478,5349,50010; UDP 3478,50010,49160–49259.\n'
+    print(f'Откройте во внешнем firewall: TCP 80,443,{admin_port},3478,5349,50010; UDP 3478,50010,49160–49259.\n'
           'Мастер не меняет firewall и не открывает наружу базы данных.')
     ask('Нажмите Enter, чтобы начать установку (Ctrl+C — отмена)', validate=lambda s: s == '')
     root.mkdir(mode=0o700, parents=True)
@@ -745,12 +810,13 @@ def configure(bundle, manifest):
     os.chown(root / 'certs', 0, 1000)
     state = dict(schemaVersion=1, root=str(root), domain=domain, ip=address, project=project,
                  subnet=subnet, token=secrets.token_hex(16), tls=tls, email=email,
-                 certificateDirectory=str(cert_dir) if cert_dir else '', complete=False)
+                 certificateDirectory=str(cert_dir) if cert_dir else '', complete=False,
+                 adminEnabled=True, adminHTTPSPort=admin_port)
     if (root / 'bundle/source').is_dir():
         state.update(sourceRepository='https://github.com/janickiy/meet-space.git', sourceCommit=manifest['commit'])
     make_configuration(root, manifest, state, smtp)
     write(root / 'installation.json', json.dumps(state, indent=2) + '\n')
-    print(f'Конфигурация сохранена в {root}. Пароли созданы автоматически.')
+    print(f'Конфигурация сохранена в {root}. Сервисные секреты созданы автоматически.')
     return root, state
 
 
@@ -789,6 +855,9 @@ def make_configuration(root, manifest, state, smtp=None):
                   RECORDER_STORAGE_DIR=str(root / 'storage'), TLS_CERT_DIR=str(root / 'certs'),
                   TURN_TLS_CERT_DIR=str(root / 'certs'), PROVIDER_TOKEN_ENCRYPTION_KEY='',
                   DB_MAX_OPEN='10', DB_MAX_IDLE='2', REMINDER_OFFSETS='3h')
+    values.update(ADMIN_ENABLED='true', ADMIN_HTTP_PORT='8082',
+                  ADMIN_HTTPS_PORT=str(state.get('adminHTTPSPort', 8081)),
+                  ADMIN_PUBLIC_URL=f'https://{domain}:{state.get("adminHTTPSPort", 8081)}')
     template = (root / 'bundle/deployment/.env.production.example').read_text()
     lines = []
     for line in template.splitlines():
@@ -937,6 +1006,29 @@ def verify_public(state, manifest):
             time.sleep(5)
 
 
+def verify_administrator_https(state):
+    """Check TLS locally with the real hostname/SNI, plus the public-port deny rule."""
+    domain, port = state['domain'], state['adminHTTPSPort']
+    targets = [(port, '/', '200'), (port, '/api/v1/admin/auth/me', '401'),
+               (443, '/api/v1/admin/auth/me', '404')]
+    for attempt in range(12):
+        try:
+            for target_port, path, expected in targets:
+                status = run('curl', '--silent', '--show-error', '--noproxy', '*',
+                             '--connect-timeout', '5', '--max-time', '15',
+                             '--resolve', f'{domain}:{target_port}:127.0.0.1',
+                             '--output', '/dev/null', '--write-out', '%{http_code}',
+                             f'https://{domain}:{target_port}{path}', capture=True)
+                if status != expected:
+                    raise ValueError('Unexpected status')
+            return
+        except (subprocess.CalledProcessError, ValueError):
+            if attempt == 11:
+                raise RuntimeError('Админка не прошла локальную HTTPS-проверку или admin API доступен на 443. '
+                                   'Установка не завершена; проверьте конфигурацию proxy и API.') from None
+            time.sleep(2)
+
+
 def install(root, state, manifest):
     """Resume only this installer-owned fresh installation; never upgrade an existing app."""
     if state['complete']:
@@ -955,10 +1047,14 @@ def install(root, state, manifest):
     run('python3', '-I', str(bundle / 'deployment/scripts/install/retire-legacy-services.py'),
         '--check-migration', '--project', state['project'])
     run(*args, '--profile', 'migration', 'run', '--rm', '--no-deps', 'migrate')
+    if state.get('adminEnabled'):
+        state['adminUsername'] = bootstrap_administrator(args)
     print('\n[6/7] Запуск MeetSpace')
     run(*args, '--profile', 'observability', 'up', '-d', '--no-build', '--wait', '--wait-timeout', '240')
     print('\n[7/7] Проверка сайта и версии')
     verify_public(state, manifest)
+    if state.get('adminEnabled'):
+        verify_administrator_https(state)
     state['complete'] = True
     pending = root / 'installation.json.next'
     write(pending, json.dumps(state, indent=2) + '\n')
@@ -968,6 +1064,11 @@ def install(root, state, manifest):
           f'Настройки и секреты: {root}/config/meetspace.env (доступ только root).\n'
           'Проверьте звонок с устройства из другой сети.\n'
           'Проверки HTTPS и готовности сервисов не заменяют проверку внешних UDP/TURN-соединений.')
+    if state.get('adminEnabled'):
+        print(f'Административная панель: https://{state["domain"]}:{state["adminHTTPSPort"]}\n'
+              f'Логин администратора: {state["adminUsername"]}\n'
+              'Локальная HTTPS-проверка пройдена. Доступ к порту из внешней сети зависит от firewall; '
+              'при необходимости ограничьте его IP-адресами или VPN.')
     if state.get('sourceCommit'):
         print(f'Исходники: {root}/bundle/source\nКоммит GitHub: {state["sourceCommit"]}')
     if yes('Создать первый пользовательский аккаунт прямо сейчас?'):
@@ -1026,11 +1127,24 @@ def manage(root, command, extra):
         run(*args, 'restart', 'coturn')
     elif command == 'create-account':
         create_account(state)
+    elif command == 'reset-admin-password':
+        if extra:
+            raise RuntimeError('Пароль и логин вводятся интерактивно, без аргументов командной строки.')
+        username = ask('Логин администратора', validate=lambda s: bool(
+            re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9._-]{2,39}', s))).lower()
+        password = payload = None
+        try:
+            password = administrator_password()
+            payload = json.dumps({'username': username, 'password': password}, ensure_ascii=False)
+            administrator_command(args, 'reset-password', data=payload)
+        finally:
+            password = payload = None
+        print('Пароль администратора изменён; прежние сессии отозваны.')
     elif command == 'certificates':
         certificates(root, state)
         manage(root, 'reload-tls', [])
     else:
-        raise RuntimeError('Команды: status, logs [служба], create-account, certificates, reload-tls.')
+        raise RuntimeError('Команды: status, logs [служба], create-account, reset-admin-password, certificates, reload-tls.')
 
 
 def main():

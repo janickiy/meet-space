@@ -21,15 +21,17 @@ import (
 // User сохраняет данные для входа в учетную запись и хэш пароля; публичные представления
 // формируются отдельно.
 type User struct {
-	ID                string    `gorm:"type:uuid;primaryKey" json:"-"`
-	Email             string    `json:"-"`
-	PasswordHash      string    `gorm:"column:password_hash" json:"-"`
-	DisplayName       *string   `gorm:"column:display_name" json:"-"`
-	IsAdmin           bool      `gorm:"column:is_admin" json:"-"`
-	GuestConferenceID *string   `gorm:"column:guest_conference_id" json:"-"`
-	AvatarVersion     *string   `gorm:"column:avatar_version" json:"-"`
-	CreatedAt         time.Time `json:"-"`
-	UpdatedAt         time.Time `json:"-"`
+	ID                string     `gorm:"type:uuid;primaryKey" json:"-"`
+	Email             string     `json:"-"`
+	PasswordHash      string     `gorm:"column:password_hash" json:"-"`
+	DisplayName       *string    `gorm:"column:display_name" json:"-"`
+	IsAdmin           bool       `gorm:"column:is_admin" json:"-"`
+	IsBlocked         bool       `gorm:"column:is_blocked;->" json:"-"`
+	AuthInvalidBefore *time.Time `gorm:"column:auth_invalid_before;->" json:"-"`
+	GuestConferenceID *string    `gorm:"column:guest_conference_id" json:"-"`
+	AvatarVersion     *string    `gorm:"column:avatar_version" json:"-"`
+	CreatedAt         time.Time  `json:"-"`
+	UpdatedAt         time.Time  `json:"-"`
 }
 
 const (

@@ -416,9 +416,9 @@ export const api = {
   /** Читает эффективные серверные функции без адресов и секретов провайдеров. */
   capabilities: (signal?: AbortSignal) =>
     request<CapabilitiesResponse>("/capabilities", { signal }),
-  /** Читает только безопасные агрегаты после отдельной серверной проверки admin. */
+  /** Читает безопасную диагностическую сводку по отдельному праву пользовательской учётной записи. */
   adminSummary: (signal?: AbortSignal) =>
-    request<Item<AdminSummary>>("/admin/summary", { signal }),
+    request<Item<AdminSummary>>("/platform/summary", { signal }),
   /**
    * myConferences читает страницу встреч пользователя с серверными фильтрами и курсором продолжения.
    *

@@ -26,7 +26,8 @@ RUN --mount=type=cache,id=meetspace-go126-modules-${TARGETARCH},target=/go/pkg/m
     && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
       -ldflags "-s -w -X github.com/janickiy/meet-space/internal/buildinfo.Version=$BUILD_VERSION -X github.com/janickiy/meet-space/internal/buildinfo.Commit=$BUILD_COMMIT -X github.com/janickiy/meet-space/internal/buildinfo.BuildTime=$BUILD_TIME" \
       -o /bin/recorder-migrate ./cmd/main \
-    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w" -o /bin/object-backup ./tools/object-backup
+    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w" -o /bin/object-backup ./tools/object-backup \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w" -o /bin/meetspace-admin ./cmd/admin
 
 FROM alpine:3.22 AS runtime
 
@@ -36,10 +37,11 @@ WORKDIR /app
 COPY --from=build /bin/go-recorder /app/go-recorder
 COPY --from=build /bin/recorder-migrate /app/recorder-migrate
 COPY --from=build /bin/object-backup /app/object-backup
+COPY --from=build /bin/meetspace-admin /app/meetspace-admin
 COPY database/migrations /app/database/migrations
 
 USER app
-EXPOSE 8085
+EXPOSE 8085 8082
 
 ENTRYPOINT ["/app/go-recorder"]
 

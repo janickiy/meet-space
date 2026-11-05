@@ -29,8 +29,8 @@ func recordingLibraryDatabase(t *testing.T) *gorm.DB {
 		t.Skip("set MEETSPACE_AUDIT_POSTGRES_DSN to a disposable loopback meetspace_audit database")
 	}
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "postgres" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost") || u.Path != "/meetspace_audit" {
-		t.Fatal("test database must be postgres://...@127.0.0.1:<port>/meetspace_audit")
+	if err != nil || u.Scheme != "postgres" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost") || !disposableAuditDatabaseName(u.Path) {
+		t.Fatal("test database must use loopback and an explicit disposable audit database name")
 	}
 	for key := range u.Query() {
 		if key != "sslmode" {
