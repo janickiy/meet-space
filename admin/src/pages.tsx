@@ -1729,6 +1729,7 @@ function SettingField({
     return (
       <select
         {...common}
+        className={item.key === "smtpTLSMode" ? "setting-select-compact" : undefined}
         value={String(value)}
         onChange={(event) => change(event.target.value)}
       >
@@ -1746,7 +1747,7 @@ function SettingField({
   const secret = isSecretSetting(item);
   return (
     <div
-      className={`setting-input-wrap${["attachmentMaxBytes", "recordingRetentionDays"].includes(item.key) ? " has-unit" : ""}`}
+      className={`setting-input-wrap${item.type === "number" ? " is-compact" : ""}${["attachmentMaxBytes", "recordingRetentionDays"].includes(item.key) ? " has-unit" : ""}`}
     >
       <input
         {...common}
