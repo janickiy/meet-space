@@ -1743,7 +1743,7 @@ function SettingField({
   const secret = isSecretSetting(item);
   return (
     <div
-      className={`setting-input-wrap${item.type === "number" ? " is-compact" : ""}${["attachmentMaxBytes", "recordingRetentionDays"].includes(item.key) ? " has-unit" : ""}`}
+      className={`setting-input-wrap${item.type === "number" ? " is-compact" : ""}${["smtpPort", "recordingRetentionDays", "mediaMaxPeers", "mediaMaxRooms"].includes(item.key) ? " is-narrow" : ""}${item.key === "attachmentMaxBytes" ? " has-unit" : ""}`}
     >
       <input
         {...common}
@@ -1771,9 +1771,6 @@ function SettingField({
       />
       {item.key === "attachmentMaxBytes" && (
         <span className="setting-unit">MiB</span>
-      )}
-      {item.key === "recordingRetentionDays" && (
-        <span className="setting-unit">дней</span>
       )}
     </div>
   );

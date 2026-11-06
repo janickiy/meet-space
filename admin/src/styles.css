@@ -1129,11 +1129,21 @@ select {
   max-width: 100%;
   margin-left: auto;
 }
+.setting-input-wrap.is-narrow {
+  width: 80px;
+}
 .setting-control select.setting-select-compact {
   display: block;
-  width: 200px;
+  width: 100px;
   max-width: 100%;
   margin-left: auto;
+  padding-left: 6px;
+  padding-right: 14px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='m1 3 3 3 3-3' fill='none' stroke='%2394a3b8' stroke-width='1.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 3px center;
+  background-size: 8px 8px;
 }
 .setting-input-wrap.has-unit input {
   padding-right: 64px;
