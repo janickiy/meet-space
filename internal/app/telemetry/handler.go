@@ -126,7 +126,7 @@ func (h *Handler) Receive(c *gin.Context) {
 	}
 	h.logger.WarnContext(c.Request.Context(), "client error", "service", service, "event_type", "client.error", "request_id", operations.ID(c.Request.Context()), "version", report.Version, "route", report.Route,
 		"code", report.Code, "browser", report.Browser, "stack", report.Stack)
-	c.Status(http.StatusAccepted)
+	c.JSON(http.StatusAccepted, gin.H{"status": "accepted"})
 }
 
 // validReport проверяет схему телеметрии клиента и его ограниченные разрешенные поля.

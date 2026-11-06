@@ -35,6 +35,12 @@ func TestAdminTelemetrySanitizedCaptureAndBoundedRate(t *testing.T) {
 		c.Set("administrator", actor)
 		h.Receive(c)
 		c.Writer.WriteHeaderNow()
+		if w.Code == 202 {
+			var body map[string]string
+			if json.Unmarshal(w.Body.Bytes(), &body) != nil || body["status"] != "accepted" {
+				t.Fatal("accepted telemetry must have the JSON response required by the administrative client")
+			}
+		}
 		return w.Code
 	}
 	raw, _ := json.Marshal(body)
