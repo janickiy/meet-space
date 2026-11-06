@@ -1127,10 +1127,13 @@ select {
 .setting-input-wrap.is-compact {
   width: 160px;
   max-width: 100%;
+  margin-left: auto;
 }
 .setting-control select.setting-select-compact {
+  display: block;
   width: 200px;
   max-width: 100%;
+  margin-left: auto;
 }
 .setting-input-wrap.has-unit input {
   padding-right: 64px;
