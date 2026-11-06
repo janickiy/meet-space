@@ -21,15 +21,19 @@ import (
 // User сохраняет данные для входа в учетную запись и хэш пароля; публичные представления
 // формируются отдельно.
 type User struct {
-	ID                string    `gorm:"type:uuid;primaryKey" json:"-"`
-	Email             string    `json:"-"`
-	PasswordHash      string    `gorm:"column:password_hash" json:"-"`
-	DisplayName       *string   `gorm:"column:display_name" json:"-"`
-	IsAdmin           bool      `gorm:"column:is_admin" json:"-"`
-	GuestConferenceID *string   `gorm:"column:guest_conference_id" json:"-"`
-	AvatarVersion     *string   `gorm:"column:avatar_version" json:"-"`
-	CreatedAt         time.Time `json:"-"`
-	UpdatedAt         time.Time `json:"-"`
+	ID                        string     `gorm:"type:uuid;primaryKey" json:"-"`
+	Email                     string     `json:"-"`
+	PasswordHash              string     `gorm:"column:password_hash" json:"-"`
+	DisplayName               *string    `gorm:"column:display_name" json:"-"`
+	IsAdmin                   bool       `gorm:"column:is_admin" json:"-"`
+	IsBlocked                 bool       `gorm:"column:is_blocked;->" json:"-"`
+	AuthInvalidBefore         *time.Time `gorm:"column:auth_invalid_before;->" json:"-"`
+	EmailVerificationRequired bool       `gorm:"column:email_verification_required" json:"-"`
+	EmailVerifiedAt           *time.Time `gorm:"column:email_verified_at" json:"-"`
+	GuestConferenceID         *string    `gorm:"column:guest_conference_id" json:"-"`
+	AvatarVersion             *string    `gorm:"column:avatar_version" json:"-"`
+	CreatedAt                 time.Time  `json:"-"`
+	UpdatedAt                 time.Time  `json:"-"`
 }
 
 const (
@@ -49,14 +53,15 @@ func (User) TableName() string { return "users" }
 
 // View представляет собой безопасную публичную проекцию API учетной записи.
 type View struct {
-	ID                string    `json:"id"`
-	Email             string    `json:"email"`
-	DisplayName       *string   `json:"displayName"`
-	IsAdmin           bool      `json:"isAdmin"`
-	GuestConferenceID *string   `json:"guestConferenceId,omitempty"`
-	AvatarVersion     *string   `json:"avatarVersion,omitempty"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                        string    `json:"id"`
+	Email                     string    `json:"email"`
+	DisplayName               *string   `json:"displayName"`
+	IsAdmin                   bool      `json:"isAdmin"`
+	GuestConferenceID         *string   `json:"guestConferenceId,omitempty"`
+	AvatarVersion             *string   `json:"avatarVersion,omitempty"`
+	CreatedAt                 time.Time `json:"createdAt"`
+	UpdatedAt                 time.Time `json:"updatedAt"`
+	EmailVerificationRequired bool      `json:"emailVerificationRequired,omitempty"`
 }
 
 // View создает публичное представление API, не раскрывая приватные поля персистентности.
@@ -68,7 +73,7 @@ func (u User) View() View {
 	if u.GuestConferenceID != nil {
 		email = ""
 	}
-	return View{ID: u.ID, Email: email, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, AvatarVersion: u.AvatarVersion, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt}
+	return View{ID: u.ID, Email: email, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, AvatarVersion: u.AvatarVersion, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt, EmailVerificationRequired: u.EmailVerificationRequired && u.EmailVerifiedAt == nil}
 }
 
 // ParticipantName выбирает публичное имя участника, которое используется в представлениях о

@@ -1442,7 +1442,7 @@ export class ConferenceMediaClient {
         data.workerId.length > 128 ||
         !Number.isInteger(data.maxPeers) ||
         Number(data.maxPeers) < 1 ||
-        Number(data.maxPeers) > 32 ||
+        Number(data.maxPeers) > 100 ||
         !Array.isArray(data.iceServers) ||
         data.iceServers.length > 16 ||
         !list

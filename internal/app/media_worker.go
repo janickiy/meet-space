@@ -23,6 +23,7 @@ import (
 	"github.com/janickiy/meet-space/internal/config"
 	"github.com/janickiy/meet-space/internal/domain/media"
 	"github.com/janickiy/meet-space/internal/domain/realtime"
+	postgresinfra "github.com/janickiy/meet-space/internal/infrastructure/postgres"
 	redisinfra "github.com/janickiy/meet-space/internal/infrastructure/redis"
 	"github.com/janickiy/meet-space/internal/infrastructure/security"
 	"github.com/janickiy/meet-space/internal/infrastructure/sfu"
@@ -50,7 +51,7 @@ func RunMediaWorker() error {
 	if err != nil {
 		return err
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "media-worker", "instance_id", cfg.WorkerID)
+	logger := slog.New(operations.NewErrorHandler(slog.NewJSONHandler(os.Stdout, nil))).With("service", "media-worker", "instance_id", cfg.WorkerID)
 	slog.SetDefault(logger)
 	signalCtx, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopSignals()
@@ -63,6 +64,27 @@ func RunMediaWorker() error {
 		return err
 	}
 	defer client.Close()
+	db, err := postgresinfra.Connect(base.PostgresDSN)
+	if err != nil {
+		return err
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	defer sqlDB.Close()
+	errorRecorder, stopErrorLogging := startErrorLogging(db)
+	defer stopErrorLogging()
+	sqlDB.SetMaxOpenConns(2)
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	if err := postgresinfra.RunStartupMigrations(db, "database/migrations"); err != nil {
+		return err
+	}
+	runtimeSettings, err := newRuntimeSettings(base, db)
+	if err != nil {
+		return err
+	}
 	store := redisinfra.NewRealtimeStore(client, rt.Namespace)
 	registry := redisinfra.NewMediaRegistry(client, cfg.Namespace)
 	tickets, err := security.NewMediaTickets(cfg.TicketSecret, cfg.TicketTTL)
@@ -99,6 +121,8 @@ func RunMediaWorker() error {
 	if err != nil {
 		return err
 	}
+	settingsDone := startMediaSettings(ctx, runtimeSettings, engine)
+	defer func() { cancel(); <-settingsDone }()
 	cleanupDone := make(chan struct{})
 	go func() {
 		defer close(cleanupDone)
@@ -132,12 +156,18 @@ func RunMediaWorker() error {
 		_ = listener.Close()
 		return err
 	}
-	ops := operations.New("media-worker", cfg.WorkerID, base.Operations, map[string]operations.Check{"redis": func(ctx context.Context) error { return client.Ping(ctx).Err() }, "ownership": func(ctx context.Context) error {
+	ops := operations.New("media-worker", cfg.WorkerID, base.Operations, map[string]operations.Check{"settings": func(context.Context) error {
+		if !engine.SettingsReady() {
+			return media.ErrUnavailable
+		}
+		return nil
+	}, "redis": func(ctx context.Context) error { return client.Ping(ctx).Err() }, "ownership": func(ctx context.Context) error {
 		if !handler.Ready() {
 			return media.ErrUnavailable
 		}
 		return nil
 	}})
+	registerErrorLoggingMetrics(ops, errorRecorder)
 	ops.ConfigureDrain(handler.BeginDrain, handler.ActiveRooms)
 	ops.Run(ctx)
 	go runProfiling(ctx, ops)

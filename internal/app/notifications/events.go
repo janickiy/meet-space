@@ -286,6 +286,13 @@ func (s *eventStreams) pump(ctx context.Context, writer gin.ResponseWriter, iden
 //     изменено успешно.
 func (s *eventStreams) active(ctx context.Context, identity streamIdentity) bool {
 	if identity.sessionID == "" {
+		if verifier, ok := s.tokens.(interface {
+			AuthorizeLegacyAccount(context.Context, string) error
+		}); ok {
+			checkContext, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			return verifier.AuthorizeLegacyAccount(checkContext, identity.userID) == nil
+		}
 		return true
 	}
 	persistent := s.tokens.(persistentVerifier)

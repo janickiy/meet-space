@@ -25,12 +25,13 @@ import (
 )
 
 const (
-	MaxTextRunes             = 4000
-	MaxAttachments           = 5
-	MaxAttachmentBytes int64 = 10 << 20
-	AttachmentTTL            = 30 * time.Minute
-	UploadLease              = 2 * time.Minute
-	DownloadTTL              = 5 * time.Minute
+	MaxTextRunes                     = 4000
+	MaxAttachments                   = 5
+	MaxAttachmentBytes         int64 = 10 << 20
+	AbsoluteMaxAttachmentBytes int64 = 100 << 20
+	AttachmentTTL                    = 30 * time.Minute
+	UploadLease                      = 2 * time.Minute
+	DownloadTTL                      = 5 * time.Minute
 )
 
 // Message сохраняет порядок сообщений в чате, их ревизию, автора и информацию о повторных
@@ -268,6 +269,10 @@ func NormalizeSend(request SendRequest) (SendRequest, string, error) {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func NormalizeInit(request InitRequest) (InitRequest, error) {
+	return NormalizeInitWithLimit(request, MaxAttachmentBytes)
+}
+
+func NormalizeInitWithLimit(request InitRequest, limit int64) (InitRequest, error) {
 	var err error
 	request.ClientRequestID, err = UUID(request.ClientRequestID)
 	if err != nil {
@@ -286,8 +291,8 @@ func NormalizeInit(request InitRequest) (InitRequest, error) {
 	if err != nil {
 		return request, err
 	}
-	if request.Size < 1 || request.Size > MaxAttachmentBytes {
-		return request, apperrors.New(apperrors.ErrInvalidInput, fmt.Sprintf("attachment size must be between 1 and %d bytes", MaxAttachmentBytes))
+	if request.Size < 1 || request.Size > limit || limit < 1 || limit > AbsoluteMaxAttachmentBytes {
+		return request, apperrors.New(apperrors.ErrInvalidInput, fmt.Sprintf("attachment size must be between 1 and %d bytes", limit))
 	}
 	return request, nil
 }

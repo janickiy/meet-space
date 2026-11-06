@@ -28,7 +28,11 @@ import (
 func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conference *conferencesapp.Handler, authentication gin.HandlerFunc) {
 	public := router.Group(APIV1Prefix + "/auth")
 	public.POST("/register", auth.Register)
+	public.POST("/verify-email", auth.VerifyEmail)
+	public.POST("/verify-email/resend", auth.ResendVerification)
 	public.POST("/login", auth.Login)
+	public.POST("/password-recovery", auth.PasswordRecovery)
+	public.POST("/reset-password", auth.ResetPassword)
 	public.POST("/refresh", auth.Refresh)
 	public.POST("/accounts/list", auth.Accounts)
 	public.POST("/accounts/switch", auth.SwitchAccount)

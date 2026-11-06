@@ -61,12 +61,12 @@ func (m *Manager) SubscribeRecording(ctx context.Context, conferenceID, recordin
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.closing || m.roomClosures[conferenceID] != nil {
+	if m.closing || !m.settingsReady || m.roomClosures[conferenceID] != nil {
 		return nil, media.ErrUnavailable
 	}
 	r := m.rooms[conferenceID]
 	if r == nil {
-		if len(m.rooms) >= m.opts.MaxRooms {
+		if len(m.rooms) >= m.maxRooms {
 			return nil, media.ErrLimit
 		}
 		r = newRoom(conferenceID)

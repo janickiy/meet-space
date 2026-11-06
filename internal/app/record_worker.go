@@ -75,7 +75,14 @@ func RunRecordWorker() error {
 		return err
 	}
 
-	repository := postgresinfra.NewRecordRepository(db)
+	runtimeSettings, err := newRuntimeSettings(cfg, db)
+	if err != nil {
+		return err
+	}
+	repository := postgresinfra.NewRecordRepository(db).WithSettings(runtimeSettings)
+	retentionDone := make(chan struct{})
+	go func() { defer close(retentionDone); recorder.RunRetention(ctx, repository, s3Client) }()
+	defer func() { stop(); <-retentionDone }()
 	redisClient, err := redisinfra.NewClient(ctx, cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 	if err != nil {
 		return err
@@ -86,6 +93,8 @@ func RunRecordWorker() error {
 		return err
 	}
 	defer sqlDB.Close()
+	errorRecorder, stopErrorLogging := startErrorLogging(db)
+	defer stopErrorLogging()
 	sqlDB.SetMaxOpenConns(cfg.Operations.DBMaxOpen)
 	sqlDB.SetMaxIdleConns(cfg.Operations.DBMaxIdle)
 	sqlDB.SetConnMaxLifetime(cfg.Operations.DBLifetime)
@@ -123,6 +132,7 @@ func RunRecordWorker() error {
 	}
 	defer consumer.Close()
 	ops := operations.New("record-worker", cfg.WorkerID, cfg.Operations, map[string]operations.Check{"postgres": sqlDB.PingContext, "redis": func(ctx context.Context) error { return redisClient.Ping(ctx).Err() }, "minio": s3Client.Check, "rabbitmq": consumer.Check, "disk": operations.DiskCheck(cfg.StoragePath, cfg.Operations.DiskMinBytes)})
+	registerErrorLoggingMetrics(ops, errorRecorder)
 	ops.ConfigureDrain(func() { consumer.BeginDrain(); composites.BeginDrain() }, func() int { return composites.Active() + consumer.Active() })
 	ops.Run(ctx)
 	go runProfiling(ctx, ops)

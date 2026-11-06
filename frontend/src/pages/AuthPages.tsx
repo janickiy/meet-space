@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SubmitEvent } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import {
@@ -9,7 +9,7 @@ import {
   Play,
   Video,
 } from "lucide-react";
-import { api, errorMessage } from "../api";
+import { api, ApiError, errorMessage } from "../api";
 import { useAuth } from "../auth";
 import {
   Brand,
@@ -43,8 +43,40 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [recovery, setRecovery] = useState(false);
+  const [recovery, setRecovery] = useState("");
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const recoveryController = useRef<AbortController | null>(null);
+  useEffect(() => () => recoveryController.current?.abort(), []);
+  const [verificationNeeded, setVerificationNeeded] = useState(false);
   const submitted = useRef(false);
+  async function recoverPassword() {
+    recoveryController.current?.abort();
+    setRecovery("");
+    if (
+      !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
+      utf8Bytes(email.trim()) > 254
+    ) {
+      setRecovery("Введите корректный email для восстановления пароля.");
+      return;
+    }
+    const controller = new AbortController();
+    recoveryController.current = controller;
+    setRecoveryBusy(true);
+    try {
+      await api.recoverPassword(email.trim(), controller.signal);
+      if (!controller.signal.aborted)
+        setRecovery(
+          "Если аккаунт существует, на указанный email придёт ссылка для восстановления пароля. Ссылка действует 1 час.",
+        );
+    } catch (error) {
+      if (!controller.signal.aborted) setRecovery(errorMessage(error));
+    } finally {
+      if (recoveryController.current === controller) {
+        recoveryController.current = null;
+        setRecoveryBusy(false);
+      }
+    }
+  }
   // Автоматический вход не должен прерывать переход на страницу успешной регистрации.
   if (auth.user && !auth.loading && !submitted.current)
     return <Navigate to={next} replace />;
@@ -59,6 +91,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setVerificationNeeded(false);
     if (
       !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
       utf8Bytes(email.trim()) > 254
@@ -83,7 +116,15 @@ export function AuthPage({ register = false }: { register?: boolean }) {
     setBusy(true);
     try {
       if (register) {
-        await api.register(email.trim(), password, name);
+        const registration = await api.register(email.trim(), password, name);
+        if (registration.user.emailVerificationRequired) {
+          setPassword("");
+          navigate("/verify-email", {
+            replace: true,
+            state: { email: email.trim() },
+          });
+          return;
+        }
         try {
           await auth.login(email.trim(), password);
         } catch {
@@ -98,6 +139,11 @@ export function AuthPage({ register = false }: { register?: boolean }) {
       }
     } catch (error) {
       submitted.current = false;
+      if (
+        error instanceof ApiError &&
+        error.reason === "email verification required"
+      )
+        setVerificationNeeded(true);
       setError(errorMessage(error));
     } finally {
       setBusy(false);
@@ -176,10 +222,19 @@ export function AuthPage({ register = false }: { register?: boolean }) {
           </div>
           <ErrorNotice>
             {error ||
-              (!register && auth.expired
-                ? "Сессия завершилась. Войдите снова, чтобы продолжить."
-                : null)}
+              (!register && auth.blocked
+                ? "Аккаунт заблокирован."
+                : !register && auth.expired
+                  ? "Сессия завершилась. Войдите снова, чтобы продолжить."
+                  : null)}
           </ErrorNotice>
+          {verificationNeeded && (
+            <p>
+              <Link to="/verify-email" state={{ email: email.trim() }}>
+                Отправить письмо подтверждения повторно
+              </Link>
+            </p>
+          )}
           <form onSubmit={submit} noValidate>
             <label className="field" htmlFor="email">
               Email
@@ -198,7 +253,12 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                    *   - event — проверенный конверт события комнаты.
                    *
                    * @returns вычисленное значение: setEmail(event.target.value).
-                   */ (event) => setEmail(event.target.value)
+                   */ (event) => {
+                    setEmail(event.target.value);
+                    recoveryController.current?.abort();
+                    setRecovery("");
+                    setRecoveryBusy(false);
+                  }
                 }
                 disabled={busy}
               />
@@ -256,21 +316,14 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                   <button
                     type="button"
                     className="text-button"
-                    onClick={
-                      /**
-                       * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-                       *
-                       *
-                       * @returns вычисленное значение: setRecovery(!recovery).
-                       */ () => setRecovery(!recovery)
-                    }
+                    disabled={busy || recoveryBusy}
+                    onClick={() => void recoverPassword()}
                   >
-                    Забыли пароль?
+                    {recoveryBusy ? "Отправляем…" : "Забыли пароль?"}
                   </button>
                   {recovery && (
                     <p className="field-hint" role="status">
-                      Восстановление пароля пока недоступно. Обратитесь к
-                      администратору сервиса.
+                      {recovery}
                     </p>
                   )}
                 </div>

@@ -192,6 +192,12 @@ func (s *Service) WithSessions(repository SessionRepository) *Service {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *Service) signIn(ctx context.Context, user users.User) (users.LoginResponse, error) {
+	if user.IsBlocked {
+		return users.LoginResponse{}, apperrors.ErrAccountBlocked
+	}
+	if err := s.enforceEmailVerification(ctx, user); err != nil {
+		return users.LoginResponse{}, err
+	}
 	if s.sessions == nil {
 		token, err := s.tokens.Issue(user.ID)
 		return loginResponse(user, token, ""), err
@@ -204,7 +210,7 @@ func (s *Service) signIn(ctx context.Context, user users.User) (users.LoginRespo
 		return users.LoginResponse{}, err
 	}
 	raw := base64.RawURLEncoding.EncodeToString(secret[:])
-	session := users.AuthSession{ID: uuid.NewString(), UserID: user.ID, TokenHash: sessionHash(raw), CreatedAt: time.Now().UTC()}
+	session := users.AuthSession{ID: uuid.NewString(), UserID: user.ID, TokenHash: sessionHash(raw), CreatedAt: time.Now().UTC(), ExpectedPasswordHash: user.PasswordHash}
 	response, err := s.sessionResponse(user, session, raw)
 	if err != nil {
 		return users.LoginResponse{}, err
@@ -325,11 +331,17 @@ func (s *Service) account(ctx context.Context, id string) (users.User, error) {
 	if errors.Is(err, apperrors.ErrNotFound) {
 		return users.User{}, apperrors.ErrUnauthorized
 	}
+	if err == nil && user.IsBlocked {
+		return users.User{}, apperrors.ErrAccountBlocked
+	}
 	if err != nil {
 		return users.User{}, err
 	}
 	if user.GuestConferenceID != nil {
 		return users.User{}, apperrors.ErrForbidden
+	}
+	if err := s.enforceEmailVerification(ctx, user); err != nil {
+		return users.User{}, err
 	}
 	return user, nil
 }
@@ -389,6 +401,9 @@ func (s *Service) Bootstrap(ctx context.Context, userID, raw, access string) (us
 	}
 	if identity != userID || scope != "" {
 		return users.LoginResponse{}, apperrors.ErrForbidden
+	}
+	if sessionID == "" && user.AuthInvalidBefore != nil {
+		return users.LoginResponse{}, apperrors.ErrUnauthorized
 	}
 	legacyHash := ""
 	if sessionID == "" {
@@ -487,8 +502,19 @@ func (s *Service) AuthorizeSession(ctx context.Context, userID, sessionID string
 		return apperrors.ErrUnauthorized
 	}
 	session, err := s.sessions.GetByID(ctx, sessionID)
-	if errors.Is(err, apperrors.ErrNotFound) || err == nil && (session.UserID != userID || session.RevokedAt != nil) {
+	if errors.Is(err, apperrors.ErrNotFound) {
+		// The caller's identity came from a verified bearer or one-use WS ticket.
+		// A blocked account is distinguishable without allowing the revoked session.
+		if user, accountErr := s.repository.GetByID(ctx, userID); accountErr == nil && user.IsBlocked {
+			return apperrors.ErrAccountBlocked
+		}
 		return apperrors.ErrUnauthorized
+	}
+	if err == nil && (session.UserID != userID || session.RevokedAt != nil) {
+		return apperrors.ErrUnauthorized
+	}
+	if err == nil && s.verification != nil {
+		_, err = s.account(ctx, userID)
 	}
 	return err
 }
@@ -519,6 +545,9 @@ func (s *Service) VerifyAuthorization(ctx context.Context, raw string) (string, 
 		return "", "", "", time.Time{}, apperrors.ErrUnauthorized
 	}
 	userID, scope, sessionID, expiry, err := tokens.VerifyAuthorization(raw)
+	if err == nil && sessionID == "" {
+		err = s.AuthorizeLegacyAccount(ctx, userID)
+	}
 	if err == nil && sessionID != "" {
 		err = s.AuthorizeSession(ctx, userID, sessionID)
 	}

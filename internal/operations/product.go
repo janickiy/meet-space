@@ -27,7 +27,7 @@ import (
 //     ли успешное изменение ее условного состояния.
 func productKind(kind string) bool {
 	switch kind {
-	case "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar":
+	case "auth.email_verification", "auth.password_recovery", "auth.password_changed", "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar":
 		return true
 	}
 	return false

@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	ws "github.com/gorilla/websocket"
@@ -108,15 +109,16 @@ type AccountChecker interface {
 // UserHandler не зависит от конференц-сессий и Pion. Он разделяет правила для тикетов и
 // источников.
 type UserHandler struct {
-	auth     *Handler
-	bus      UserBus
-	presence UserPresence
-	accounts AccountChecker
-	mu       sync.Mutex
-	draining bool
-	clients  map[*ws.Conn]context.CancelFunc
-	reserved int
-	wg       sync.WaitGroup
+	auth        *Handler
+	bus         UserBus
+	presence    UserPresence
+	accounts    AccountChecker
+	mu          sync.Mutex
+	draining    bool
+	clients     map[*ws.Conn]context.CancelCauseFunc
+	clientUsers map[*ws.Conn]string
+	reserved    int
+	wg          sync.WaitGroup
 }
 
 // NewUserHandler создает пользовательский обработчик с зависимостями и ограничениями,
@@ -134,7 +136,7 @@ type UserHandler struct {
 // @returns:
 //   - result1: Созданный или загруженный пользовательский обработчик.
 func NewUserHandler(verifier Verifier, tickets Tickets, limiter Limiter, cfg config.RealtimeConfig, bus UserBus, presence UserPresence, accounts AccountChecker) *UserHandler {
-	return &UserHandler{auth: NewHandler(nil, verifier, tickets, limiter, cfg), bus: bus, presence: presence, accounts: accounts, clients: map[*ws.Conn]context.CancelFunc{}}
+	return &UserHandler{auth: NewHandler(nil, verifier, tickets, limiter, cfg), bus: bus, presence: presence, accounts: accounts, clients: map[*ws.Conn]context.CancelCauseFunc{}}
 }
 
 // RegisterRoutes регистрирует аутентифицированные конечные точки в режиме реального времени и
@@ -164,7 +166,7 @@ func (h *UserHandler) BeginDrain(v bool) {
 	h.draining = v
 	if v {
 		for c, cancel := range h.clients {
-			cancel()
+			cancel(context.Canceled)
 			_ = c.Close()
 		}
 	}
@@ -196,6 +198,12 @@ func (h *UserHandler) valid(ctx context.Context, id domain.Identity) error {
 		}
 	} else if !id.ExpiresAt.After(time.Now()) {
 		return apperrors.ErrUnauthorized
+	} else if verifier, ok := h.auth.verifier.(interface {
+		AuthorizeLegacyAccount(context.Context, string) error
+	}); ok {
+		if err := verifier.AuthorizeLegacyAccount(ctx, id.UserID); err != nil {
+			return err
+		}
 	}
 	return h.accounts.Account(ctx, id.UserID)
 }
@@ -291,16 +299,20 @@ func (h *UserHandler) Connect(c *gin.Context) {
 		_ = sub.Close()
 		return
 	}
-	lifetime, stop := context.WithCancel(context.Background())
+	lifetime, stop := context.WithCancelCause(context.Background())
 	h.mu.Lock()
 	if h.draining {
 		h.mu.Unlock()
-		stop()
+		stop(context.Canceled)
 		_ = sub.Close()
 		_ = conn.Close()
 		return
 	}
 	h.clients[conn] = stop
+	if h.clientUsers == nil {
+		h.clientUsers = map[*ws.Conn]string{}
+	}
+	h.clientUsers[conn] = id.UserID
 	h.mu.Unlock()
 	handed = true
 	go h.run(lifetime, stop, conn, sub, id)
@@ -314,6 +326,7 @@ func (h *UserHandler) Connect(c *gin.Context) {
 func (h *UserHandler) release(conn *ws.Conn) {
 	h.mu.Lock()
 	delete(h.clients, conn)
+	delete(h.clientUsers, conn)
 	h.reserved--
 	h.mu.Unlock()
 	h.wg.Done()
@@ -328,7 +341,7 @@ func (h *UserHandler) release(conn *ws.Conn) {
 //   - conn: Подключение, принадлежащее текущей операции.
 //   - sub: Подписка на события Redis, принадлежащая компоненту.
 //   - id: Идентификатор ресурса, к которому обращается данная операция.
-func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *ws.Conn, sub *goredis.PubSub, id domain.Identity) {
+func (h *UserHandler) run(ctx context.Context, cancel context.CancelCauseFunc, conn *ws.Conn, sub *goredis.PubSub, id domain.Identity) {
 	operations.WSActive(1)
 	defer operations.WSActive(-1)
 	defer h.release(conn)
@@ -338,7 +351,10 @@ func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *
 	pong := make(chan struct{}, 1)
 	var children sync.WaitGroup
 	defer func() {
-		cancel()
+		if errors.Is(context.Cause(ctx), errUserAuthenticationRevoked) {
+			closeUserAuthentication(conn, cfg.WriteTimeout)
+		}
+		cancel(nil)
 		_ = conn.Close()
 		_ = sub.Close()
 		children.Wait()
@@ -372,7 +388,7 @@ func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *
 	children.Add(2)
 	go func() {
 		defer children.Done()
-		defer cancel()
+		defer cancel(nil)
 		// Это поток только для сервера.  Команды приложения используют авторизованный
 		// REST.
 		_, _, _ = conn.ReadMessage()
@@ -380,7 +396,7 @@ func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *
 	}()
 	go func() {
 		defer children.Done()
-		defer cancel()
+		defer cancel(nil)
 		for {
 			msg, err := sub.ReceiveMessage(ctx)
 			if err != nil {
@@ -437,6 +453,9 @@ func (h *UserHandler) run(ctx context.Context, cancel context.CancelFunc, conn *
 			err := h.valid(op, id)
 			stop()
 			if err != nil {
+				if errors.Is(err, apperrors.ErrUnauthorized) || apperrors.Classify(err) == apperrors.Forbidden {
+					cancel(errUserAuthenticationRevoked)
+				}
 				return
 			}
 		}

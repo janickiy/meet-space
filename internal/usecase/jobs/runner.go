@@ -134,7 +134,7 @@ func (r *Runner) work(ctx context.Context, pool Pool) {
 		r.active--
 		r.drainMu.Unlock()
 		if err != nil && ctx.Err() == nil {
-			slog.Warn("product job queue unavailable", "event_type", "product.queue.failed", "kind", pool.Kind)
+			slog.Error("product job queue unavailable", "event_type", "worker.failed", "kind", pool.Kind)
 		}
 		select {
 		case <-ctx.Done():
@@ -175,17 +175,20 @@ func (r *Runner) execute(ctx context.Context, pool Pool, job domain.Job) {
 	defer cancel()
 	if state == "failed" && pool.Handler.Fail != nil {
 		if failure := pool.Handler.Fail(finishCtx, job, code); failure != nil {
-			slog.Warn("product failure state not saved", "event_type", "product.failure.pending", "kind", pool.Kind, "job_id", job.ID)
+			slog.Error("product failure state not saved", "event_type", "worker.failed", "kind", pool.Kind, "job_id", job.ID)
 			return // Срок аренды истекает; при последующем запросе сохраняется терминальное состояние
 			// без обращения к провайдеру.
 		}
 	}
 	if finishErr := r.repo.Finish(finishCtx, job, state, code, retryAt); finishErr != nil {
-		slog.Warn("product job completion deferred", "event_type", "product.completion.pending", "kind", pool.Kind, "job_id", job.ID)
+		slog.Error("product job completion deferred", "event_type", "worker.failed", "kind", pool.Kind, "job_id", job.ID)
 		return
 	}
 	if r.observe != nil {
 		r.observe(pool.Kind, state, time.Since(start))
+	}
+	if err != nil {
+		slog.Error("product job failed", "event_type", "worker.failed", "kind", pool.Kind)
 	}
 	slog.Info("product job completed", "event_type", "product.job.completed", "kind", pool.Kind, "state", state, "job_id", job.ID, "entity_id", job.EntityID, "conference_id", job.ConferenceID, "attempt", job.Attempts, "code", code)
 }

@@ -11,7 +11,11 @@ import {
 import { formatBytes } from "../collaboration";
 import type { ChatAttachment } from "../types";
 import { Button, ErrorNotice } from "./ui";
-import { attachmentAccept, validateAttachment } from "../attachmentPolicy";
+import {
+  attachmentAccept,
+  attachmentLimit,
+  validateAttachment,
+} from "../attachmentPolicy";
 export { attachmentLimit, validateAttachment } from "../attachmentPolicy";
 /**
  * UploadRow хранит состояние файла, прогресс, результат загрузки и ошибку.
@@ -70,9 +74,47 @@ export function AttachmentUploader({
 }) {
   const [rows, setRows] = useState<UploadRow[]>([]);
   const [error, setError] = useState("");
+  const [maxBytes, setMaxBytes] = useState<number | null>(null);
+  const [policyError, setPolicyError] = useState("");
+  const [policyAttempt, setPolicyAttempt] = useState(0);
   const controllers = useRef(new Map<string, AbortController>());
   const mounted = useRef(true);
   const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    setMaxBytes(null);
+    setPolicyError("");
+    const timeout = setTimeout(() => {
+      if (!active) return;
+      setPolicyError(
+        "Не удалось загрузить ограничение вложений. Повторите запрос.",
+      );
+      controller.abort();
+    }, 10_000);
+    void api
+      .attachmentPolicy(controller.signal)
+      .then((policy) => {
+        if (!active || controller.signal.aborted) return;
+        if (
+          !Number.isSafeInteger(policy.maxBytes) ||
+          policy.maxBytes < 1024 ||
+          policy.maxBytes > attachmentLimit
+        )
+          throw new Error("Сервер вернул некорректное ограничение вложений.");
+        setMaxBytes(policy.maxBytes);
+      })
+      .catch((cause) => {
+        if (active && !controller.signal.aborted)
+          setPolicyError(errorMessage(cause));
+      })
+      .finally(() => clearTimeout(timeout));
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [policyAttempt]);
   useEffect(
     /**
      * Обработчик useEffect связывает внешние ресурсы с временем жизни React-компонента и возвращает необходимую очистку.
@@ -158,6 +200,14 @@ export function AttachmentUploader({
    * @returns Promise, который после завершения операции возвращает: значение не возвращается; функция выполняет описанные действия и обновляет нужное состояние.
    */
   const start = async (row: UploadRow) => {
+    const validation =
+      maxBytes === null
+        ? "Сначала загрузите ограничение вложений."
+        : validateAttachment(row.file, maxBytes);
+    if (validation) {
+      update(row.key, { state: "failed", error: validation });
+      return;
+    }
     const controller = new AbortController();
     controllers.current.set(row.key, controller);
     update(row.key, { state: "uploading", progress: 0, error: undefined });
@@ -234,7 +284,7 @@ export function AttachmentUploader({
         accept={attachmentAccept}
         aria-label="Выбрать файлы для сообщения"
         hidden
-        disabled={disabled || rows.length >= 5}
+        disabled={disabled || maxBytes === null || rows.length >= 5}
         onChange={
           /**
            * onChange обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
@@ -247,11 +297,17 @@ export function AttachmentUploader({
             const files = [...(event.currentTarget.files || [])];
             event.currentTarget.value = "";
             setError("");
+            if (maxBytes === null) {
+              setError("Сначала загрузите ограничение вложений.");
+              return;
+            }
             if (files.length + rows.length > 5) {
               setError("В одном сообщении может быть не больше 5 файлов.");
               return;
             }
-            const validation = files.map(validateAttachment).find(Boolean);
+            const validation = files
+              .map((file) => validateAttachment(file, maxBytes))
+              .find(Boolean);
             if (validation) {
               setError(validation);
               return;
@@ -290,8 +346,12 @@ export function AttachmentUploader({
         variant="outline"
         className={compact ? "chat-attachment-trigger" : undefined}
         aria-label="Прикрепить файл"
-        title="Прикрепить файл"
-        disabled={disabled || rows.length >= 5}
+        title={
+          maxBytes === null
+            ? "Загрузка ограничения вложений"
+            : `Прикрепить файл — до ${(maxBytes / (1024 * 1024)).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} МиБ`
+        }
+        disabled={disabled || maxBytes === null || rows.length >= 5}
         onClick={
           /**
            * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
@@ -305,9 +365,25 @@ export function AttachmentUploader({
         {!compact && "Прикрепить файл"}
       </Button>
       <span className={compact ? "sr-only" : "field-hint"}>
-        До 5 файлов, каждый до 10 МБ.
+        {maxBytes === null
+          ? policyError
+            ? "Ограничение вложений недоступно."
+            : "Загрузка ограничения вложений…"
+          : `До 5 файлов, каждый до ${(maxBytes / (1024 * 1024)).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} МиБ.`}
       </span>
       <UploadDetails target={detailsTarget}>
+        {policyError && (
+          <div>
+            <ErrorNotice>{policyError}</ErrorNotice>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPolicyAttempt((attempt) => attempt + 1)}
+            >
+              Повторить загрузку ограничения
+            </Button>
+          </div>
+        )}
         <ErrorNotice>{error || null}</ErrorNotice>
         <ul className="upload-list">
           {rows.map(
@@ -355,7 +431,7 @@ export function AttachmentUploader({
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={disabled}
+                    disabled={disabled || maxBytes === null}
                     onClick={
                       /**
                        * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.

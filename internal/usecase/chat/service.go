@@ -27,6 +27,8 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	domain "github.com/janickiy/meet-space/internal/domain/chat"
 	"github.com/janickiy/meet-space/internal/domain/realtime"
+	"github.com/janickiy/meet-space/internal/domain/settings"
+	"golang.org/x/sync/semaphore"
 )
 
 // Repository — репозиторий определяет заменяемый контракт зависимостей для постоянных сообщений чата и
@@ -387,13 +389,17 @@ type Events interface {
 	SendToParticipant(context.Context, string, string, realtime.Envelope) error
 }
 
-// Service — сервис координирует постоянные сообщения в чате и приватные вложения через настроенные
-// зависимости сохранения и передачи данных.
+// Shared across conference and personal chats: large uploads cannot multiply
+// their in-memory buffers by the number of independently constructed services.
+var attachmentUploadMemory = semaphore.NewWeighted(128 << 20)
+
+// Service coordinates persistent messages and private attachments.
 type Service struct {
-	repo    Repository
-	storage Storage
-	events  Events
-	uploads chan struct{}
+	settings settings.Reader
+	repo     Repository
+	storage  Storage
+	events   Events
+	uploads  chan struct{}
 }
 
 // NewService создает сервис с зависимостями и ограничениями, необходимыми для работы с
@@ -416,6 +422,22 @@ func NewService(ctx context.Context, repo Repository, storage Storage, events Ev
 		return nil, err
 	}
 	return &Service{repo: repo, storage: storage, events: events, uploads: make(chan struct{}, 4)}, nil
+}
+
+// WithSettings installs the shared live policy reader before serving requests.
+func (s *Service) WithSettings(reader settings.Reader) *Service { s.settings = reader; return s }
+
+func (s *Service) attachmentLimit(ctx context.Context) (int64, error) {
+	if s.settings == nil {
+		return domain.MaxAttachmentBytes, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	values, err := s.settings.Snapshot(ctx)
+	if err != nil || values.AttachmentMaxBytes < 1024 || values.AttachmentMaxBytes > domain.AbsoluteMaxAttachmentBytes {
+		return 0, apperrors.New(apperrors.ErrUnavailable, "attachment settings are unavailable")
+	}
+	return values.AttachmentMaxBytes, nil
 }
 
 // List возвращает страницу с ограниченным количеством записей о сообщениях чата с
@@ -582,7 +604,11 @@ func (s *Service) MarkRead(ctx context.Context, user, conference string, request
 //   - result3: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *Service) InitAttachment(ctx context.Context, user, conference string, request domain.InitRequest) (domain.Attachment, bool, error) {
-	request, err := domain.NormalizeInit(request)
+	limit, err := s.attachmentLimit(ctx)
+	if err != nil {
+		return domain.Attachment{}, false, err
+	}
+	request, err = domain.NormalizeInitWithLimit(request, limit)
 	if err != nil {
 		return domain.Attachment{}, false, err
 	}
@@ -600,7 +626,11 @@ func (s *Service) InitAttachment(ctx context.Context, user, conference string, r
 //   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func ValidateContent(data []byte, attachment domain.Attachment) error {
-	if int64(len(data)) != attachment.Size || len(data) == 0 || int64(len(data)) > domain.MaxAttachmentBytes {
+	return validateContentLimit(data, attachment, domain.MaxAttachmentBytes)
+}
+
+func validateContentLimit(data []byte, attachment domain.Attachment, limit int64) error {
+	if int64(len(data)) != attachment.Size || len(data) == 0 || int64(len(data)) > limit {
 		return apperrors.New(apperrors.ErrInvalidInput, "uploaded size differs from the declared attachment size")
 	}
 	canonical, allowed := domain.AttachmentMIMEType(attachment.Filename)
@@ -651,6 +681,10 @@ func (s *Service) Upload(ctx context.Context, user, conference, id string, reade
 	}
 	op, cancel := context.WithTimeout(ctx, 75*time.Second)
 	defer cancel()
+	limit, err := s.attachmentLimit(op)
+	if err != nil {
+		return result, err
+	}
 	token := uuid.NewString()
 	a, err := s.repo.ClaimUpload(op, user, conference, id, token)
 	if err != nil {
@@ -663,11 +697,20 @@ func (s *Service) Upload(ctx context.Context, user, conference, id string, reade
 			_ = s.repo.AbortUpload(cleanup, id, token)
 		}
 	}()
-	data, err := io.ReadAll(io.LimitReader(reader, domain.MaxAttachmentBytes+1))
-	if err != nil {
+	if a.Size < 1 || a.Size > limit {
+		return result, apperrors.New(apperrors.ErrInvalidInput, "attachment exceeds the current size limit")
+	}
+	if err = attachmentUploadMemory.Acquire(op, a.Size+1); err != nil {
+		return result, apperrors.ErrUnavailable
+	}
+	defer attachmentUploadMemory.Release(a.Size + 1)
+	data := make([]byte, a.Size+1)
+	n, readErr := io.ReadFull(reader, data)
+	data = data[:n]
+	if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
 		return result, apperrors.New(apperrors.ErrInvalidInput, "attachment upload was interrupted")
 	}
-	if err = ValidateContent(data, a); err != nil {
+	if err = validateContentLimit(data, a, limit); err != nil {
 		return result, err
 	}
 	sum := sha256.Sum256(data)
@@ -698,6 +741,10 @@ func (s *Service) Upload(ctx context.Context, user, conference, id string, reade
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *Service) FinalizeAttachment(ctx context.Context, user, conference, id string) (domain.Attachment, error) {
+	limit, err := s.attachmentLimit(ctx)
+	if err != nil {
+		return domain.Attachment{}, err
+	}
 	a, err := s.repo.AttachmentForFinalize(ctx, user, conference, id)
 	if err != nil {
 		return a, err
@@ -708,7 +755,7 @@ func (s *Service) FinalizeAttachment(ctx context.Context, user, conference, id s
 	if err != nil {
 		return domain.Attachment{}, apperrors.ErrUnavailable
 	}
-	if size != a.Size || mime != a.MimeType || checksum != a.Checksum {
+	if size < 1 || size > limit || size != a.Size || mime != a.MimeType || checksum != a.Checksum {
 		return domain.Attachment{}, apperrors.New(apperrors.ErrConflict, "stored attachment validation failed")
 	}
 	return s.repo.FinalizeAttachment(ctx, user, conference, id, a.ObjectKey)

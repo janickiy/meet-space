@@ -27,6 +27,7 @@ RUN apk add --no-cache ca-certificates \
     && addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /bin/media-worker /app/media-worker
+COPY database/migrations /app/database/migrations
 USER app
 EXPOSE 8091
 ENTRYPOINT ["/app/media-worker"]

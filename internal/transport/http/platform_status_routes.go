@@ -31,6 +31,8 @@ func RegisterPlatformStatusRoutes(router gin.IRouter, handler *platformapp.Handl
 		c.Next()
 	}
 	router.GET(APIV1Prefix+"/capabilities", private, auth, handler.Capabilities)
-	admin := router.Group(APIV1Prefix+"/admin", private, auth, middleware.RequireAdmin(checker))
-	admin.GET("/summary", handler.Summary)
+	// Preserve the existing read-only diagnostics capability on the public app,
+	// outside the independent administrator identity/API namespace.
+	diagnostics := router.Group(APIV1Prefix+"/platform", private, auth, middleware.RequireAdmin(checker))
+	diagnostics.GET("/summary", handler.Summary)
 }

@@ -729,8 +729,12 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request, operation stri
 				policy = &current
 			}
 		}
+		maxPeers := h.cfg.MaxPeers
+		if limits, ok := h.engine.(interface{ NegotiationPeerLimit() int }); ok {
+			maxPeers = limits.NegotiationPeerLimit()
+		}
 		ice := h.cfg.TURN.ClientICE(h.cfg.ICE, time.Now())
-		h.json(w, http.StatusOK, media.Result{MediaPeerID: peer.MediaPeerID, WorkerID: h.cfg.WorkerID, MaxPeers: h.cfg.MaxPeers, ICEServers: ice.ICEServers, ICETransportPolicy: ice.ICETransportPolicy, ICEExpiresAt: ice.ExpiresAt, Tracks: h.engine.Tracks(peer.MediaPeerID), Policy: policy, VideoCapture: media.VideoCaptureTarget{MaxWidth: h.cfg.VideoMaxWidth, MaxHeight: h.cfg.VideoMaxHeight, MaxFrameRate: h.cfg.VideoMaxFPS}})
+		h.json(w, http.StatusOK, media.Result{MediaPeerID: peer.MediaPeerID, WorkerID: h.cfg.WorkerID, MaxPeers: maxPeers, ICEServers: ice.ICEServers, ICETransportPolicy: ice.ICETransportPolicy, ICEExpiresAt: ice.ExpiresAt, Tracks: h.engine.Tracks(peer.MediaPeerID), Policy: policy, VideoCapture: media.VideoCaptureTarget{MaxWidth: h.cfg.VideoMaxWidth, MaxHeight: h.cfg.VideoMaxHeight, MaxFrameRate: h.cfg.VideoMaxFPS}})
 		return
 	}
 	binding, ok := h.engine.PeerBinding(cmd.MediaPeerID)

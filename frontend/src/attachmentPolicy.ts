@@ -1,4 +1,4 @@
-export const attachmentLimit = 10 * 1024 * 1024;
+export const attachmentLimit = 100 * 1024 * 1024;
 
 /** Allowed extensions mirror the server policy; server-side content checks remain authoritative. */
 export const attachmentExtensions = [
@@ -140,13 +140,16 @@ const allowedExtensions = new Set<string>(attachmentExtensions);
  */
 export function validateAttachment(
   file: Pick<File, "name" | "size">,
+  maxBytes = attachmentLimit,
 ): string | null {
   if (
-    !Number.isFinite(file.size) ||
-    file.size < 1 ||
-    file.size > attachmentLimit
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1024 ||
+    maxBytes > attachmentLimit
   )
-    return "Размер файла должен быть от 1 байта до 10 МБ.";
+    return "Не удалось определить допустимый размер вложения. Повторите загрузку ограничений.";
+  if (!Number.isFinite(file.size) || file.size < 1 || file.size > maxBytes)
+    return `Размер файла должен быть от 1 байта до ${(maxBytes / (1024 * 1024)).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} МиБ.`;
   const extension = file.name
     .slice(file.name.lastIndexOf(".") + 1)
     .toLowerCase();

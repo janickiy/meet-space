@@ -20,6 +20,8 @@ const staticRoutes = new Set([
   "/login",
   "/register",
   "/register/success",
+  "/verify-email",
+  "/reset-password",
   "/app",
   "/calendar",
   "/meetings",

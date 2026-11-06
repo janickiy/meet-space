@@ -12,6 +12,7 @@ package health
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ func NewHTTPReady(baseURL string) *HTTPReady {
 	return &HTTPReady{url: strings.TrimRight(baseURL, "/") + "/health/ready", client: &http.Client{
 		Timeout:       1500 * time.Millisecond,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		Transport:     &http.Transport{Proxy: nil, MaxIdleConnsPerHost: 2, IdleConnTimeout: 30 * time.Second},
+		Transport:     &http.Transport{Proxy: nil, MaxConnsPerHost: 2, MaxIdleConnsPerHost: 2, IdleConnTimeout: 30 * time.Second},
 	}}
 }
 
@@ -58,7 +59,10 @@ func (h *HTTPReady) Ready(ctx context.Context) bool {
 		return false
 	}
 	defer response.Body.Close()
-	return response.StatusCode == http.StatusOK
+	// Small readiness bodies must reach EOF for HTTP/1 keep-alive reuse. Bound
+	// reads so a misconfigured internal endpoint cannot force unbounded work.
+	_, err = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+	return err == nil && response.StatusCode == http.StatusOK
 }
 
 // Close закрывает ресурсы, принадлежащие компоненту, и завершает их жизненный цикл.

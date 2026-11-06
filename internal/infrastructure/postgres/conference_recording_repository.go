@@ -17,6 +17,7 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	"github.com/janickiy/meet-space/internal/domain/conferences"
 	"github.com/janickiy/meet-space/internal/domain/records"
+	"github.com/janickiy/meet-space/internal/domain/settings"
 	"github.com/janickiy/meet-space/internal/domain/users"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -24,7 +25,10 @@ import (
 
 // ConferenceRecordingRepository сохраняет авторизованный жизненный цикл записи конференции и
 // состояние исходящих команд через GORM.
-type ConferenceRecordingRepository struct{ db *gorm.DB }
+type ConferenceRecordingRepository struct {
+	db       *gorm.DB
+	settings settings.Reader
+}
 
 // NewConferenceRecordingRepository создает репозиторий записей конференции с зависимостями и
 // ограничениями, необходимыми для записи конференции.
@@ -218,7 +222,7 @@ func (r *ConferenceRecordingRepository) Accessible(ctx context.Context, userID, 
 		return records.Record{}, err
 	}
 	var record records.Record
-	err := r.db.WithContext(ctx).Scopes(availableRecordings).Where("uuid = ? AND platform_conference_id = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus')", recordID, conferenceID).Take(&record).Error
+	err := r.db.WithContext(ctx).Scopes(r.availableRecordings).Where("uuid = ? AND platform_conference_id = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus')", recordID, conferenceID).Take(&record).Error
 	return record, mapNotFound(err)
 }
 
@@ -241,7 +245,7 @@ func (r *ConferenceRecordingRepository) List(ctx context.Context, userID, confer
 		return nil, err
 	}
 	items := []records.Record{}
-	err := r.db.WithContext(ctx).Scopes(availableRecordings).Where("platform_conference_id = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus')", conferenceID).Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&items).Error
+	err := r.db.WithContext(ctx).Scopes(r.availableRecordings).Where("platform_conference_id = ? AND mode IN ('composite','audio_only','individual_tracks','screen_focus')", conferenceID).Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&items).Error
 	return items, err
 }
 
@@ -386,4 +390,14 @@ func (r *ConferenceRecordingRepository) CompleteCommand(ctx context.Context, com
 //     передачи данных или сохранения.
 func (r *ConferenceRecordingRepository) RetryCommand(ctx context.Context, command RecordingOutbox) error {
 	return r.db.WithContext(ctx).Model(&RecordingOutbox{}).Where("id = ? AND claim_token = ?", command.ID, command.ClaimToken).Updates(map[string]any{"claimed_until": time.Now().UTC().Add(time.Second)}).Error
+}
+
+// WithSettings installs the shared retention policy reader before serving requests.
+func (r *ConferenceRecordingRepository) WithSettings(reader settings.Reader) *ConferenceRecordingRepository {
+	r.settings = reader
+	return r
+}
+
+func (r *ConferenceRecordingRepository) availableRecordings(db *gorm.DB) *gorm.DB {
+	return retentionScope(db, r.settings)
 }

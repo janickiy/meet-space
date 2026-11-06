@@ -1,4 +1,4 @@
--- Общие пины для личных и групповых чатов.  История сообщений сохраняется.
+-- Shared pins for personal and group conversations. Message history remains intact.
 CREATE TABLE conversation_message_pins (
  conversation_id UUID NOT NULL,
  message_id UUID NOT NULL,

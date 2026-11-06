@@ -480,7 +480,7 @@ func (s *AssetService) Stream(ctx context.Context, user, conversation, attachmen
 			return apperrors.Wrap(apperrors.ErrUnavailable, err, "asset is unavailable")
 		}
 		defer body.Close()
-		if size != asset.Size || size < 1 || (attachment == "" && typ != asset.ContentType) {
+		if size != asset.Size || size < 1 || (attachment != "" && size > chat.AbsoluteMaxAttachmentBytes) || (attachment == "" && typ != asset.ContentType) {
 			return apperrors.ErrUnavailable
 		}
 		return deliver(asset, io.LimitReader(body, asset.Size))

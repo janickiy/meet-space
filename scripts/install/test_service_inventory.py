@@ -143,7 +143,8 @@ class ServiceInventoryTest(unittest.TestCase):
             shutil.copyfile(ROOT / name, deployment / name)
         original = {path.name: path.read_bytes() for path in deployment.iterdir()}
         state = {'root': str(self.root), 'domain': 'fixture.invalid', 'ip': '192.0.2.1',
-                 'project': 'meetspace-test', 'subnet': '172.30.240.0/24', 'token': 'fixture'}
+                 'project': 'meetspace-test', 'subnet': '172.30.240.0/24', 'token': 'fixture',
+                 'adminEnabled': True, 'adminHTTPSPort': 9443}
         original_run = wizard.run
         def render(*args, **kwargs):
             if args[:2] == ('docker', 'info'):
@@ -160,6 +161,9 @@ class ServiceInventoryTest(unittest.TestCase):
             self.assertEqual((deployment / name).read_bytes(), data)
         env = (self.root / 'config/meetspace.env').read_text()
         self.assertIn('RECORD_WORKER_IMAGE=', env)
+        self.assertIn('ADMIN_ENABLED=true\n', env)
+        self.assertIn('ADMIN_HTTPS_PORT=9443\n', env)
+        self.assertIn('ADMIN_PUBLIC_URL=https://fixture.invalid:9443\n', env)
         self.assertNotIn('LIVE_', env)
         keys = {line.split('=', 1)[0] for line in env.splitlines() if '=' in line}
         self.assertTrue({'MEDIA_INTERNAL_SECRET', 'METRICS_SECRET', 'WEBRTC_ICE_SERVERS_JSON'} <= keys)
@@ -178,7 +182,9 @@ class ServiceInventoryTest(unittest.TestCase):
                   'POSTGRES_USER': 'fixture', 'POSTGRES_PASSWORD': 'synthetic-fixture',
                   'REDIS_PASSWORD': 'synthetic-fixture', 'RABBIT_MQ_USER': 'fixture',
                   'RABBIT_MQ_PASSWORD': 'synthetic-fixture', 'MINIO_ROOT_USER': 'fixture',
-                  'MINIO_ROOT_PASSWORD': 'synthetic-fixture'}
+                  'MINIO_ROOT_PASSWORD': 'synthetic-fixture',
+                  'ADMIN_ENABLED': 'true', 'ADMIN_HTTPS_PORT': '9443',
+                  'ADMIN_PUBLIC_URL': 'https://fixture.invalid:9443'}
         values.update({name.upper().replace('-', '_') + '_IMAGE': 'fixture/image@sha256:' + '1' * 64
                        for name in SERVICES | {'grafana'}})
         values['OBJECT_STORAGE_IMAGE'] = values['MINIO_IMAGE']
@@ -209,6 +215,14 @@ class ServiceInventoryTest(unittest.TestCase):
             self.assertIn('record-worker', config['services'])
             self.assertNotIn('worker', config['services'])
             self.assertNotIn('live-worker', config['services'])
+            self.assertEqual(config['services']['api']['environment']['ADMIN_HTTP_PORT'], '8082')
+            self.assertEqual(config['services']['api']['environment']['ADMIN_ENABLED'], 'true')
+            self.assertNotIn(8082, [port['target'] for service in config['services'].values()
+                                   for port in service.get('ports', [])])
+            proxy = config['services']['proxy' if variant[0] == 'docker-compose.production.yml' else 'https']
+            self.assertEqual(proxy['environment']['ADMIN_ENABLED'], 'true')
+            self.assertTrue(any(port['target'] == 8081 and port['published'] == '9443'
+                                for port in proxy['ports']))
             for service in ('record-worker', 'record-worker-debug'):
                 for port in config['services'].get(service, {}).get('ports', []):
                     self.assertIn(port['target'], (8090, 2346))

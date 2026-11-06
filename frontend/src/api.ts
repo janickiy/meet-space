@@ -60,6 +60,7 @@ let accessToken: string | null = null;
 let identityVersion = 0;
 type SessionRecovery = (
   usedToken: string,
+  reason?: "blocked",
 ) => boolean | void | Promise<boolean | void>;
 let invalidSession: SessionRecovery = () => false;
 const tokenListeners = new Set<() => void>();
@@ -126,10 +127,41 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public reason?: string,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+export function isAccountBlocked(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    error.reason === "account blocked"
+  );
+}
+
+function responseMessage(data: unknown): string {
+  return data &&
+    typeof data === "object" &&
+    "message" in data &&
+    typeof data.message === "string"
+    ? data.message
+    : "";
+}
+
+async function rejectBlockedSession(
+  usedToken: string | null,
+  version: number,
+  message: string,
+) {
+  if (
+    message === "account blocked" &&
+    usedToken &&
+    accessToken === usedToken &&
+    version === identityVersion
+  )
+    await invalidSession(usedToken, "blocked");
 }
 const messages: Record<string, string> = {
   "browser account limit reached":
@@ -147,8 +179,17 @@ const messages: Record<string, string> = {
   "password must contain 8 to 128 characters":
     "Пароль должен содержать от 8 до 128 символов.",
   "invalid email or password": "Неверный email или пароль.",
+  "account blocked": "Аккаунт заблокирован.",
+  "password recovery unavailable":
+    "Восстановление пароля недоступно. Обратитесь к администратору сервиса.",
+  "invalid or expired password reset link":
+    "Ссылка недействительна, уже использована или срок её действия истёк. Запросите новую ссылку.",
   "email is already registered":
-    "Этот email уже зарегистрирован. Попробуйте войти.",
+    "Пользователь с таким email уже есть в системе.",
+  "email verification required":
+    "Подтвердите email по ссылке из письма, чтобы войти.",
+  "invalid or expired verification link":
+    "Ссылка недействительна или срок её действия истёк. Запросите новое письмо.",
   "conference is closed": "Эта конференция уже завершена или отменена.",
   "conference status does not allow this transition":
     "Состояние конференции изменилось. Обновите страницу.",
@@ -169,7 +210,7 @@ const statuses: Record<number, string> = {
   403: "У вас нет доступа к этому действию.",
   404: "Конференция или приглашение не найдены.",
   409: "Действие недоступно в текущем состоянии.",
-  413: "Файл слишком большой. Максимальный размер — 10 МБ.",
+  413: "Файл превышает допустимый размер на этом сервере.",
   422: "Проверьте введённые данные.",
   429: "Слишком много попыток. Подождите минуту и попробуйте снова.",
   500: "Сервис временно недоступен. Попробуйте позже.",
@@ -238,6 +279,9 @@ async function request<T>(
   if (usedToken && version !== identityVersion)
     throw new ApiError(409, "Аккаунт изменился. Повторите действие.");
   if (!response.ok) {
+    const message = responseMessage(data);
+    if (response.status === 403)
+      await rejectBlockedSession(usedToken, version, message);
     if (
       response.status === 401 &&
       usedToken &&
@@ -249,18 +293,12 @@ async function request<T>(
         return request<T>(path, options, false);
       }
     }
-    const message =
-      data &&
-      typeof data === "object" &&
-      "message" in data &&
-      typeof data.message === "string"
-        ? data.message
-        : "";
     throw new ApiError(
       response.status,
       messages[message] ||
         statuses[response.status] ||
         "Не удалось выполнить запрос.",
+      message,
     );
   }
   if (!data) throw new ApiError(502, "Сервер вернул некорректный ответ.");
@@ -292,7 +330,9 @@ async function binaryRequest(
     throw new DOMException("Account changed", "AbortError");
   }
   if (!response.ok) {
-    await response.body?.cancel();
+    const message = responseMessage(await response.json().catch(() => null));
+    if (response.status === 403)
+      await rejectBlockedSession(usedToken, version, message);
     if (
       response.status === 401 &&
       usedToken &&
@@ -304,7 +344,10 @@ async function binaryRequest(
     }
     throw new ApiError(
       response.status,
-      statuses[response.status] || "Не удалось загрузить файл.",
+      messages[message] ||
+        statuses[response.status] ||
+        "Не удалось загрузить файл.",
+      message,
     );
   }
   return response;
@@ -351,6 +394,8 @@ async function privateBlob(
   }
 }
 export const api = {
+  attachmentPolicy: (signal?: AbortSignal) =>
+    request<{ maxBytes: number }>("/attachments/policy", { signal }),
   folders: (target?: FolderTarget, signal?: AbortSignal) =>
     request<Items<PersonalFolder>>(
       `/folders${target ? `?${new URLSearchParams({ itemKind: target.type, itemId: target.id })}` : ""}`,
@@ -416,9 +461,9 @@ export const api = {
   /** Читает эффективные серверные функции без адресов и секретов провайдеров. */
   capabilities: (signal?: AbortSignal) =>
     request<CapabilitiesResponse>("/capabilities", { signal }),
-  /** Читает только безопасные агрегаты после отдельной серверной проверки admin. */
+  /** Читает безопасную диагностическую сводку по отдельному праву пользовательской учётной записи. */
   adminSummary: (signal?: AbortSignal) =>
-    request<Item<AdminSummary>>("/admin/summary", { signal }),
+    request<Item<AdminSummary>>("/platform/summary", { signal }),
   /**
    * myConferences читает страницу встреч пользователя с серверными фильтрами и курсором продолжения.
    *
@@ -558,6 +603,34 @@ export const api = {
       method: "POST",
       body: { email, password, displayName: displayName.trim() || null },
       public: true,
+    }),
+  recoverPassword: (email: string, signal?: AbortSignal) =>
+    request<{ status: string }>("/auth/password-recovery", {
+      method: "POST",
+      body: { email },
+      public: true,
+      signal,
+    }),
+  resetPassword: (token: string, password: string, signal?: AbortSignal) =>
+    request<{ status: string }>("/auth/reset-password", {
+      method: "POST",
+      body: { token, password },
+      public: true,
+      signal,
+    }),
+  verifyEmail: (token: string, signal?: AbortSignal) =>
+    request<{ status: string }>("/auth/verify-email", {
+      method: "POST",
+      body: { token },
+      public: true,
+      signal,
+    }),
+  resendVerification: (email: string, signal?: AbortSignal) =>
+    request<{ status: string }>("/auth/verify-email/resend", {
+      method: "POST",
+      body: { email },
+      public: true,
+      signal,
     }),
   /**
    * login отправляет учётные данные и получает токен и сведения пользователя.
@@ -1603,7 +1676,7 @@ export function createChatAPI(namespace: "conferences" | "conversations") {
       privateBlob(
         `${base(id)}/attachments/${encodeURIComponent(attachmentId)}/content`,
         signal,
-        10 * 1024 * 1024,
+        100 * 1024 * 1024,
       ),
   };
 }

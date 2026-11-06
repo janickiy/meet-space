@@ -33,7 +33,7 @@ import (
 //     передачи данных или сохранения.
 func (r *AuthSessionRepository) AuthorizeLegacy(ctx context.Context, hash, userID string) error {
 	var enabled bool
-	if err := r.db.WithContext(ctx).Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND password_hash<>'')", userID).Scan(&enabled).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND password_hash<>'' AND NOT is_blocked AND auth_invalid_before IS NULL)", userID).Scan(&enabled).Error; err != nil {
 		return err
 	}
 	if !enabled {
@@ -100,6 +100,9 @@ func NewAuthSessionRepository(db *gorm.DB) *AuthSessionRepository {
 //     передачи данных или сохранения.
 func (r *AuthSessionRepository) Create(ctx context.Context, session users.AuthSession) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockSessionAccount(tx, session.UserID, session.CreatedAt, false, session.ExpectedPasswordHash); err != nil {
+			return err
+		}
 		if err := tx.Create(&session).Error; err != nil {
 			return err
 		}
@@ -120,7 +123,7 @@ func (r *AuthSessionRepository) Create(ctx context.Context, session users.AuthSe
 func (r *AuthSessionRepository) GetByHash(ctx context.Context, hash string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").
-		Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>''").
+		Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>'' AND NOT u.is_blocked AND (u.auth_invalid_before IS NULL OR auth_sessions.created_at > u.auth_invalid_before)").
 		Joins("JOIN auth_session_tokens ON auth_session_tokens.session_id = auth_sessions.id").
 		Where("auth_session_tokens.token_hash = ?", hash).Take(&session).Error
 	return session, mapNotFound(err)
@@ -138,7 +141,7 @@ func (r *AuthSessionRepository) GetByHash(ctx context.Context, hash string) (use
 //     передачи данных или сохранения.
 func (r *AuthSessionRepository) GetByID(ctx context.Context, id string) (users.AuthSession, error) {
 	var session users.AuthSession
-	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>''").Where("auth_sessions.id = ?", id).Take(&session).Error
+	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>'' AND NOT u.is_blocked AND (u.auth_invalid_before IS NULL OR auth_sessions.created_at > u.auth_invalid_before)").Where("auth_sessions.id = ?", id).Take(&session).Error
 	return session, mapNotFound(err)
 }
 
@@ -191,6 +194,9 @@ func (r *AuthSessionRepository) RevokeByID(ctx context.Context, id, userID strin
 func (r *AuthSessionRepository) Bootstrap(ctx context.Context, candidate users.AuthSession, legacyHash, preferredID string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockSessionAccount(tx, candidate.UserID, candidate.CreatedAt, legacyHash != "", ""); err != nil {
+			return err
+		}
 		var legacy authLegacyToken
 		if legacyHash != "" {
 			legacy = authLegacyToken{TokenHash: legacyHash, UserID: candidate.UserID}
@@ -228,6 +234,26 @@ func (r *AuthSessionRepository) Bootstrap(ctx context.Context, candidate users.A
 		return tx.Create(&authSessionToken{TokenHash: candidate.TokenHash, SessionID: session.ID}).Error
 	})
 	return session, err
+}
+
+// Serialize session creation with administrator blocks, so a concurrent login
+// cannot leave a usable session after the block transaction commits.
+func lockSessionAccount(tx *gorm.DB, id string, created time.Time, legacy bool, expectedPasswordHash string) error {
+	var user users.User
+	err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ? AND password_hash <> ''", id).Take(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return apperrors.ErrUnauthorized
+	}
+	if err != nil {
+		return err
+	}
+	if expectedPasswordHash != "" && user.PasswordHash != expectedPasswordHash {
+		return apperrors.ErrUnauthorized
+	}
+	if user.IsBlocked || user.GuestConferenceID != nil || user.AuthInvalidBefore != nil && (legacy || !created.After(*user.AuthInvalidBefore)) {
+		return apperrors.ErrUnauthorized
+	}
+	return nil
 }
 
 // RevokeLegacy создает неизменяемый маркер, даже если параллельное обновление еще не запущено.

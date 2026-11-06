@@ -17,6 +17,9 @@ func TestGuestScopeCannotCrossResourceBoundaries(t *testing.T) {
 		{"GET", "/api/v1/conversations/" + meeting, false},
 		{"PATCH", "/api/v1/auth/me", false},
 		{"GET", "/api/v1/auth/me", true},
+		{"GET", "/api/v1/attachments/policy", true},
+		{"POST", "/api/v1/attachments/policy", false},
+		{"GET", "/api/v1/attachments/policy/extra", false},
 		{"POST", "/api/v1/auth/session", false},
 	} {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {

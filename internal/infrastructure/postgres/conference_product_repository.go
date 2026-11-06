@@ -234,10 +234,14 @@ func (r *ConferenceRepository) Timeline(ctx context.Context, userID string, quer
 //     передачи данных или сохранения.
 func (r *ConferenceRepository) History(ctx context.Context, conferenceID, userID string) (conferences.HistoryView, error) {
 	var result conferences.HistoryView
+	days, err := retentionDays(ctx, r.settings)
+	if err != nil {
+		return result, err
+	}
 	// Блокировка общего жизненного цикла конференции предотвращает изменение доступа при
 	// удалении, завершении или допуске участников, пока формируется ограниченный моментальный
 	// снимок истории.
-	err := r.db.WithContext(ctx).Transaction(
+	err = r.db.WithContext(ctx).Transaction(
 
 		func(tx *gorm.DB) error {
 			c, err := findConference(tx, conferenceID, true)
@@ -280,7 +284,7 @@ func (r *ConferenceRepository) History(ctx context.Context, conferenceID, userID
 				result.Participants = append(result.Participants, p.View())
 			}
 			result.ParticipantsTruncated = result.ParticipantCount > int64(len(rows))
-			return tx.Table("record").Scopes(availableRecordings).Select(`COUNT(*) AS total,
+			return tx.Table("record").Scopes(func(q *gorm.DB) *gorm.DB { return availableRecordingDays(q, days) }).Select(`COUNT(*) AS total,
 			COUNT(*) FILTER (WHERE status IN ('ready','partial_ready')) AS ready,
 			COUNT(*) FILTER (WHERE status IN ('starting','recording','degraded','stopping','finalizing','uploading')) AS processing,
 			COUNT(*) FILTER (WHERE status IN ('failed','cancelled')) AS failed`).

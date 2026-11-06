@@ -20,6 +20,7 @@ import (
 	"regexp"
 
 	"github.com/gin-gonic/gin"
+	"github.com/janickiy/meet-space/internal/operations"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -52,6 +53,8 @@ type Report struct {
 // данных поля; ошибки подсчитываются по фиксированным категориям.
 type Handler struct {
 	enabled bool
+	admin   bool
+	limiter *adminReportLimiter
 	logger  *slog.Logger
 	errors  *prometheus.CounterVec
 }
@@ -106,14 +109,24 @@ func (h *Handler) Receive(c *gin.Context) {
 		}
 		return
 	}
-	if decoder.Decode(new(any)) != io.EOF || !validReport(report) {
+	if decoder.Decode(new(any)) != io.EOF || (!h.admin && !validReport(report)) || (h.admin && !validAdminReport(report)) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	h.errors.WithLabelValues(report.Code, report.Browser, report.Route).Inc()
-	h.logger.Warn("client error", "version", report.Version, "route", report.Route,
+	if h.admin && !h.limiter.allow(c) {
+		c.Status(http.StatusTooManyRequests)
+		return
+	}
+	if h.errors != nil {
+		h.errors.WithLabelValues(report.Code, report.Browser, report.Route).Inc()
+	}
+	service := "frontend"
+	if h.admin {
+		service = "admin-frontend"
+	}
+	h.logger.WarnContext(c.Request.Context(), "client error", "service", service, "event_type", "client.error", "request_id", operations.ID(c.Request.Context()), "version", report.Version, "route", report.Route,
 		"code", report.Code, "browser", report.Browser, "stack", report.Stack)
-	c.Status(http.StatusAccepted)
+	c.JSON(http.StatusAccepted, gin.H{"status": "accepted"})
 }
 
 // validReport проверяет схему телеметрии клиента и его ограниченные разрешенные поля.

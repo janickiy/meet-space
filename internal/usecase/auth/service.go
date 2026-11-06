@@ -134,6 +134,8 @@ type Service struct {
 	sessions     SessionRepository
 	dummyHash    string
 	passwordWork chan struct{}
+	verification *verificationOptions
+	recovery     *passwordRecoveryOptions
 }
 
 // NewService создаёт сервис с зависимостями и ограничениями, необходимыми для аутентификации
@@ -172,6 +174,13 @@ func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (
 	if err != nil {
 		return users.View{}, err
 	}
+	// Keep blocked and active email addresses reserved, even if verification or
+	// SMTP settings are temporarily unavailable. The unique index also guards races.
+	if _, err := s.repository.GetByEmail(ctx, request.Email); err == nil {
+		return users.View{}, apperrors.New(apperrors.ErrConflict, "email is already registered")
+	} else if !errors.Is(err, apperrors.ErrNotFound) {
+		return users.View{}, err
+	}
 	hash, err := s.hashPassword(ctx, request.Password)
 	if err != nil {
 		return users.View{}, err
@@ -179,7 +188,20 @@ func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (
 	if err := ctx.Err(); err != nil {
 		return users.View{}, err
 	}
-	user, err := s.repository.Create(ctx, users.User{ID: uuid.NewString(), Email: request.Email, PasswordHash: hash, DisplayName: request.DisplayName})
+	required, err := s.verificationEnabled(ctx)
+	if err != nil {
+		return users.View{}, err
+	}
+	user := users.User{ID: uuid.NewString(), Email: request.Email, PasswordHash: hash, DisplayName: request.DisplayName, EmailVerificationRequired: required}
+	if required {
+		value, e := s.newVerification(user.ID)
+		if e != nil {
+			return users.View{}, e
+		}
+		user, err = s.verification.repo.CreatePending(ctx, user, value)
+	} else {
+		user, err = s.repository.Create(ctx, user)
+	}
 	if err != nil {
 		return users.View{}, err
 	}
@@ -211,15 +233,21 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 		return users.LoginResponse{}, err
 	}
 	hash := user.PasswordHash
-	if missing || user.GuestConferenceID != nil {
+	if missing || user.GuestConferenceID != nil || user.IsBlocked {
 		hash = s.dummyHash
 	}
 	valid, err := s.verifyPassword(ctx, request.Password, hash)
 	if err != nil {
 		return users.LoginResponse{}, err
 	}
+	if !missing && user.GuestConferenceID == nil && user.IsBlocked {
+		return users.LoginResponse{}, apperrors.ErrAccountBlocked
+	}
 	if missing || user.GuestConferenceID != nil || !valid {
 		return users.LoginResponse{}, invalidCredentials()
+	}
+	if err := s.enforceEmailVerification(ctx, user); err != nil {
+		return users.LoginResponse{}, err
 	}
 	if err := ctx.Err(); err != nil {
 		return users.LoginResponse{}, err
@@ -242,7 +270,13 @@ func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 	if errors.Is(err, apperrors.ErrNotFound) {
 		return users.View{}, apperrors.ErrUnauthorized
 	}
+	if err == nil && user.IsBlocked {
+		return users.View{}, apperrors.ErrAccountBlocked
+	}
 	if err != nil {
+		return users.View{}, err
+	}
+	if err := s.enforceEmailVerification(ctx, user); err != nil {
 		return users.View{}, err
 	}
 	return user.View(), nil

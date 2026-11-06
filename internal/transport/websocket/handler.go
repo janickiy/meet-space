@@ -439,6 +439,13 @@ func (h *Handler) Connect(c *gin.Context) {
 			httpresponse.Fail(c, err)
 			return
 		}
+	} else if verifier, ok := h.verifier.(interface {
+		AuthorizeLegacyAccount(context.Context, string) error
+	}); ok {
+		if err = verifier.AuthorizeLegacyAccount(ctx, identity.UserID); err != nil {
+			httpresponse.Fail(c, err)
+			return
+		}
 	}
 	session, err := h.hub.PrepareClient(ctx, id, identity.UserID, identity.ClientID)
 	if err != nil {
@@ -669,6 +676,16 @@ func (b *bucket) allow() bool {
 func (c *client) authorize() error {
 	if c.authSessionID == "" {
 		if c.expiresAt.After(time.Now()) {
+			if verifier, ok := c.handler.verifier.(interface {
+				AuthorizeLegacyAccount(context.Context, string) error
+			}); ok {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := verifier.AuthorizeLegacyAccount(ctx, c.session.UserID); err != nil {
+					c.Stop("authentication_revoked")
+					return err
+				}
+			}
 			return nil
 		}
 		c.Stop("authentication_expired")

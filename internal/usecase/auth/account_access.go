@@ -1,0 +1,25 @@
+package auth
+
+import (
+	"context"
+	"errors"
+
+	"github.com/janickiy/meet-space/internal/domain/apperrors"
+)
+
+// AuthorizeLegacyAccount also revokes pre-session JWTs and WebSocket tickets.
+// Once blocked, an account must sign in again using a durable session; unblocking
+// must never resurrect a bearer token that predates the block.
+func (s *Service) AuthorizeLegacyAccount(ctx context.Context, userID string) error {
+	user, err := s.repository.GetByID(ctx, userID)
+	if err == nil && user.IsBlocked {
+		return apperrors.ErrAccountBlocked
+	}
+	if errors.Is(err, apperrors.ErrNotFound) || err == nil && user.AuthInvalidBefore != nil {
+		return apperrors.ErrUnauthorized
+	}
+	if err == nil {
+		return s.enforceEmailVerification(ctx, user)
+	}
+	return err
+}
