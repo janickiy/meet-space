@@ -241,15 +241,18 @@ media/record/product worker, frontend и admin proxy. Новому медиав�
 файлы миграций конкретной установки, как описано выше, и добавьте новые файлы.
 Обычные последующие изменения через форму не требуют перезапуска сервисов.
 
-На обоих рабочих хостах установлен выпуск `20261106-errors-af21aae`:
-API, media/record/product workers, публичный frontend и административный proxy.
+На обоих рабочих хостах API, media/record/product workers и публичный frontend
+работают на выпуске `20261106-errors-af21aae`. Административный proxy обновлён
+до `20261106-settings-small-406edf3` (исходники `406edf3`): вкладка «Сеть» скрыта,
+поля числовых лимитов и SMTP-порта имеют ширину 80 px, выбор шифрования SMTP —
+100 px. Поле размера вложения сохраняет ширину 160 px; правые края полей совпадают.
 Набор редактируемых параметров одинаковый; значения, SMTP-секреты и ключи
 шифрования принадлежат каждой установке и при обновлении сохраняются.
 Фактический Compose project на `meeting.janickiy.com` —
 `recorder-staging-meeting`; конфигурация находится в
-`/opt/meetrix/releases/20261106-errors-af21aae/compose.json`.
+`/opt/meetrix/releases/20261106-settings-small-406edf3/compose.json`.
 На `chat.stage.org.ru` project — `meetspace`, конфигурация находится в
-`/opt/meetspace/updates/20261106-errors-af21aae/compose.json`.
+`/opt/meetspace/updates/20261106-settings-small-406edf3/compose.json`.
 Технический журнал `/errors` хранит до 20 000 групп в течение 14 дней;
 контракт, включение браузерной телеметрии и ограничения описаны в
 [ERROR_LOGGING_RU.md](ERROR_LOGGING_RU.md).
