@@ -1004,31 +1004,52 @@ select {
   color: var(--text);
   border-color: var(--accent);
 }
-.settings-list {
-  padding: 0 22px 8px;
+.settings-panel > .panel-head {
+  padding: 16px 20px 4px;
 }
-.settings-heading-actions,
-.settings-actions {
+.settings-list {
+  padding: 0 20px;
+}
+.settings-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
 }
-.settings-heading-actions {
-  justify-content: space-between;
-  margin-bottom: 22px;
+.settings-tabs {
+  flex: 1;
+  min-width: 0;
+  gap: 22px;
+  border-bottom: 0;
+  margin: 0;
 }
-.settings-heading-actions > span,
+.settings-tabs button {
+  padding: 12px 0;
+}
+.settings-refresh {
+  flex-shrink: 0;
+  margin-bottom: 6px;
+}
 .settings-actions > span {
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.6;
 }
 .settings-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
   border-top: 1px solid var(--line);
-  padding: 18px 22px;
+  padding: 12px 20px;
 }
-.settings-actions > span {
-  margin-right: auto;
+.settings-action-buttons {
+  display: flex;
+  gap: 8px;
+}
+.settings-action-buttons .button {
+  min-height: 36px;
 }
 .settings-dirty-dot {
   display: inline-block;
@@ -1041,7 +1062,7 @@ select {
 }
 .settings-feedback {
   padding: 14px 17px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   border-radius: 9px;
   font-size: 12px;
   line-height: 1.7;
@@ -1060,23 +1081,33 @@ select {
 }
 .setting-description {
   min-width: 0;
-  flex: 1;
+  padding-top: 3px;
 }
 .setting-control {
-  width: 320px;
-  max-width: 46%;
-  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
 }
 .setting-control input,
 .setting-control select {
   width: 100%;
   min-width: 0;
+  height: 40px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--bg);
   color: var(--text);
-  padding: 11px 12px;
+  padding: 9px 12px;
   font-size: 13px;
+  line-height: 20px;
+}
+.setting-control input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.setting-control input[type="number"]::-webkit-inner-spin-button,
+.setting-control input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .setting-control [aria-invalid="true"] {
   border-color: var(--red);
@@ -1093,14 +1124,19 @@ select {
 .setting-input-wrap {
   position: relative;
 }
-.setting-input-wrap:has(.setting-unit) input {
-  padding-right: 60px;
+.setting-input-wrap.has-unit input {
+  padding-right: 64px;
 }
 .setting-unit {
   position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: 1px;
+  top: 1px;
+  bottom: 1px;
+  width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--line);
   color: var(--muted);
   pointer-events: none;
   font-size: 11px;
@@ -1110,7 +1146,8 @@ select {
   align-items: center;
   gap: 10px;
   background: none;
-  padding: 5px 0;
+  min-height: 40px;
+  padding: 0;
   border: 0;
   font-size: 12px;
 }
@@ -1140,12 +1177,15 @@ select {
   background: var(--accent-ink);
 }
 .setting-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 25px;
-  padding: 22px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  align-items: start;
+  gap: 24px;
+  padding: 16px 0;
   border-bottom: 1px solid var(--line);
+}
+.setting-row:first-child {
+  padding-top: 12px;
 }
 .setting-row:last-child {
   border: 0;
@@ -1153,13 +1193,14 @@ select {
 .setting-row p {
   color: var(--muted);
   font-size: 11px;
-  margin-top: 6px;
+  margin-top: 5px;
+  line-height: 1.6;
   max-width: 700px;
 }
 .setting-value {
   text-align: right;
   min-width: 130px;
-  max-width: 40%;
+  padding-top: 3px;
   overflow-wrap: anywhere;
   font-size: 13px;
 }
@@ -1559,20 +1600,50 @@ select {
   }
 }
 @media (max-width: 760px) {
-  .setting-row.editable {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 14px;
+  .settings-toolbar {
+    gap: 12px;
+  }
+  .settings-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .settings-tabs button {
+    flex-shrink: 0;
+  }
+  .settings-refresh {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .settings-refresh > span {
+    display: none;
+  }
+  .setting-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
   }
   .setting-control {
     width: 100%;
-    max-width: none;
   }
-  .settings-actions > span {
-    width: 100%;
+  .setting-value {
+    text-align: left;
   }
-  .settings-actions .button {
-    flex: 1;
+  .setting-value .server-label {
+    justify-content: flex-start;
+  }
+  .settings-actions {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .settings-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .settings-action-buttons .button {
+    min-width: 0;
+    padding-inline: 10px;
   }
   .app-shell {
     display: block;
@@ -1765,8 +1836,7 @@ select {
     gap: 17px;
   }
   .setting-row {
-    align-items: flex-start;
-    gap: 13px;
+    gap: 10px;
   }
   .setting-value {
     min-width: 95px;
@@ -1775,8 +1845,10 @@ select {
   .setting-row h3 {
     font-size: 12px;
   }
-  .settings-list {
-    padding-inline: 17px;
+  .settings-list,
+  .settings-actions,
+  .settings-panel > .panel-head {
+    padding-inline: 16px;
   }
   .detail-row {
     font-size: 11px;

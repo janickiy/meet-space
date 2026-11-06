@@ -1486,14 +1486,6 @@ function SettingsEditor({ data }: { data: Settings }) {
   }
   return (
     <>
-      <div className="settings-heading-actions">
-        <span>
-          {Object.keys(drafts).length
-            ? "Есть несохранённые изменения"
-            : "Все изменения сохранены"}
-        </span>
-        <Refresh refresh={() => void refresh()} busy={busy} />
-      </div>
       {conflict && (
         <div className="settings-feedback conflict" role="alert">
           <p>
@@ -1520,40 +1512,60 @@ function SettingsEditor({ data }: { data: Settings }) {
           {notice}
         </p>
       )}
-      <div className="tabs" role="tablist" aria-label="Группы настроек">
-        {groups.map((value) => {
-          const dirty = base.items.some(
-            (item) => (item.group || "general") === value && item.key in drafts,
-          );
-          return (
-            <button
-              key={value}
-              role="tab"
-              disabled={busy}
-              type="button"
-              aria-selected={selected === value}
-              aria-controls="settings-content"
-              id={`settings-tab-${value}`}
-              className={selected === value ? "active" : ""}
-              onClick={() => {
-                setGroup(value);
-                setFailure("");
-                setNotice("");
-              }}
-            >
-              {settingsGroupNames[value] || value}
-              {dirty && (
-                <span
-                  className="settings-dirty-dot"
-                  title="Есть несохранённые изменения"
-                  aria-label="Есть несохранённые изменения"
-                />
-              )}
-            </button>
-          );
-        })}
+      <div className="settings-toolbar">
+        <div
+          className="tabs settings-tabs"
+          role="tablist"
+          aria-label="Группы настроек"
+        >
+          {groups.map((value) => {
+            const dirty = base.items.some(
+              (item) =>
+                (item.group || "general") === value && item.key in drafts,
+            );
+            return (
+              <button
+                key={value}
+                role="tab"
+                disabled={busy}
+                type="button"
+                aria-selected={selected === value}
+                aria-controls="settings-content"
+                id={`settings-tab-${value}`}
+                className={selected === value ? "active" : ""}
+                onClick={() => {
+                  setGroup(value);
+                  setFailure("");
+                  setNotice("");
+                }}
+              >
+                {settingsGroupNames[value] || value}
+                {dirty && (
+                  <span
+                    className="settings-dirty-dot"
+                    title="Есть несохранённые изменения"
+                    aria-label="Есть несохранённые изменения"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className="button settings-refresh"
+          aria-label="Обновить"
+          disabled={busy}
+          onClick={() => void refresh()}
+        >
+          <RefreshCw className={busy ? "spin" : ""} />
+          <span>Обновить</span>
+        </button>
       </div>
-      <Panel title={settingsGroupNames[selected] || selected}>
+      <Panel
+        className="settings-panel"
+        title={settingsGroupNames[selected] || selected}
+      >
         <form noValidate onSubmit={save}>
           <div
             className="settings-list"
@@ -1644,27 +1656,33 @@ function SettingsEditor({ data }: { data: Settings }) {
               <span>
                 {dirtyCount
                   ? `Изменено полей: ${dirtyCount}`
-                  : "Нет несохранённых изменений"}
+                  : Object.keys(drafts).length
+                    ? "Есть изменения в других группах"
+                    : "Все изменения сохранены"}
               </span>
-              <button
-                type="button"
-                className="button"
-                disabled={busy || !dirtyCount}
-                onClick={resetGroup}
-              >
-                Отменить изменения
-              </button>
-              <button
-                type="submit"
-                className="button primary"
-                disabled={busy || !dirtyCount || conflict || !editableRevision}
-              >
-                {operation === "save"
-                  ? "Сохраняем…"
-                  : operation === "refresh"
-                    ? "Обновляем…"
-                    : "Сохранить изменения"}
-              </button>
+              <div className="settings-action-buttons">
+                <button
+                  type="button"
+                  className="button"
+                  disabled={busy || !dirtyCount}
+                  onClick={resetGroup}
+                >
+                  Отменить изменения
+                </button>
+                <button
+                  type="submit"
+                  className="button primary"
+                  disabled={
+                    busy || !dirtyCount || conflict || !editableRevision
+                  }
+                >
+                  {operation === "save"
+                    ? "Сохраняем…"
+                    : operation === "refresh"
+                      ? "Обновляем…"
+                      : "Сохранить изменения"}
+                </button>
+              </div>
             </div>
           )}
         </form>
@@ -1727,7 +1745,9 @@ function SettingField({
     );
   const secret = isSecretSetting(item);
   return (
-    <div className="setting-input-wrap">
+    <div
+      className={`setting-input-wrap${["attachmentMaxBytes", "recordingRetentionDays"].includes(item.key) ? " has-unit" : ""}`}
+    >
       <input
         {...common}
         name={`setting-${item.key}`}
