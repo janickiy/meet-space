@@ -1,3 +1,4 @@
+import { documentationTitles } from "./docs-catalog";
 import type { DocumentationArticle } from "./docs";
 
 /**
@@ -8,7 +9,7 @@ import type { DocumentationArticle } from "./docs";
 export const productArticles: DocumentationArticle[] = [
   {
     slug: "features",
-    title: "Возможности",
+    title: documentationTitles["features"],
     description:
       "Возможности MeetSpace: видеозвонки, личные и групповые чаты, обмен файлами, календарь встреч и запись конференций.",
     sections: [
@@ -361,7 +362,7 @@ export const productArticles: DocumentationArticle[] = [
   },
   {
     slug: "architecture",
-    title: "Архитектура",
+    title: documentationTitles["architecture"],
     description:
       "Как устроен MeetSpace: веб-интерфейс, сервер приложений, медиасвязь, запись конференций и хранение данных.",
     sections: [
@@ -638,7 +639,7 @@ export const productArticles: DocumentationArticle[] = [
   },
   {
     slug: "support",
-    title: "Техническая поддержка",
+    title: documentationTitles["support"],
     description:
       "Если у вас возникли вопросы по установке, настройке или использованию MeetSpace, вы можете обратиться за технической поддержкой.",
     sections: [

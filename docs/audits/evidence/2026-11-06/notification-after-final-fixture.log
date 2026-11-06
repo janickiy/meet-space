@@ -1,0 +1,18 @@
+=== RUN   TestAuditNotificationHistoryUsesMessageIndex
+    notification_query_integration_test.go:69: query=0 run=0 execution_ms=1.012
+    notification_query_integration_test.go:69: query=0 run=1 execution_ms=0.791
+    notification_query_integration_test.go:69: query=0 run=2 execution_ms=1.035
+    notification_query_integration_test.go:69: query=0 run=3 execution_ms=1.018
+    notification_query_integration_test.go:69: query=0 run=4 execution_ms=1.012
+    notification_query_integration_test.go:82: query=0 node=Index Scan loops=100 rows_removed=0 shared_hits=300 index=conversation_messages_pkey
+    notification_query_integration_test.go:69: query=1 run=0 execution_ms=0.756
+    notification_query_integration_test.go:69: query=1 run=1 execution_ms=0.736
+    notification_query_integration_test.go:69: query=1 run=2 execution_ms=0.73
+    notification_query_integration_test.go:69: query=1 run=3 execution_ms=0.852
+    notification_query_integration_test.go:69: query=1 run=4 execution_ms=0.83
+    notification_query_integration_test.go:82: query=1 node=Index Scan loops=100 rows_removed=0 shared_hits=300 index=conversation_messages_pkey
+--- PASS: TestAuditNotificationHistoryUsesMessageIndex (0.79s)
+=== RUN   TestAuditNotificationVisibilityPreservesCanonicalIDsAndACL
+--- PASS: TestAuditNotificationVisibilityPreservesCanonicalIDsAndACL (0.29s)
+PASS
+ok  	github.com/janickiy/meet-space/internal/infrastructure/postgres	1.432s

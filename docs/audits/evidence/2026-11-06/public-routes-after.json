@@ -1,0 +1,211 @@
+{
+  "mode": "check",
+  "routes": [
+    {
+      "pathname": "/",
+      "heading": "MeetSpace - единая платформа для корпоративного общения и совместной работы",
+      "title": "MeetSpace - единая платформа для корпоративного общения и совместной работы",
+      "description": "Видеозвонки, чаты, файлы, календарь и запись конференций. MeetSpace доступна через веб-интерфейс и приложения для Windows, Linux, macOS и Android. Развёртывание на своём сервере (Self-Hosted).",
+      "canonical": "https://meeting.janickiy.com/",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"SoftwareApplication\",\"name\":\"MeetSpace\",\"description\":\"Видеозвонки, чаты, файлы, календарь и запись конференций. MeetSpace доступна через веб-интерфейс и приложения для Windows, Linux, macOS и Android. Развёртывание на своём сервере (Self-Hosted).\",\"url\":\"https://meeting.janickiy.com/\",\"inLanguage\":\"ru\",\"applicationCategory\":\"CommunicationApplication\"}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "6cccf074901d1371bdb293581205e8c7f0a05b334c49cdacd8878eb5501835b8"
+    },
+    {
+      "pathname": "/welcome",
+      "heading": "MeetSpace - единая платформа для корпоративного общения и совместной работы",
+      "title": "MeetSpace - единая платформа для корпоративного общения и совместной работы",
+      "description": "Видеозвонки, чаты, файлы, календарь и запись конференций. MeetSpace доступна через веб-интерфейс и приложения для Windows, Linux, macOS и Android. Развёртывание на своём сервере (Self-Hosted).",
+      "canonical": "https://meeting.janickiy.com/",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"SoftwareApplication\",\"name\":\"MeetSpace\",\"description\":\"Видеозвонки, чаты, файлы, календарь и запись конференций. MeetSpace доступна через веб-интерфейс и приложения для Windows, Linux, macOS и Android. Развёртывание на своём сервере (Self-Hosted).\",\"url\":\"https://meeting.janickiy.com/\",\"inLanguage\":\"ru\",\"applicationCategory\":\"CommunicationApplication\"}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "6cccf074901d1371bdb293581205e8c7f0a05b334c49cdacd8878eb5501835b8"
+    },
+    {
+      "pathname": "/download",
+      "heading": "Ваше пространство всегда под рукой.",
+      "title": "Скачать MeetSpace - Android, Windows, Linux и веб-версия",
+      "description": "Скачайте MeetSpace для Android, Windows и Linux или откройте веб-приложение. Выберите архитектуру и пакет, ознакомьтесь с требованиями и следуйте инструкциям по установке.",
+      "canonical": "https://meeting.janickiy.com/download",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"CollectionPage\",\"name\":\"Скачать MeetSpace - Android, Windows, Linux и веб-версия\",\"description\":\"Скачайте MeetSpace для Android, Windows и Linux или откройте веб-приложение. Выберите архитектуру и пакет, ознакомьтесь с требованиями и следуйте инструкциям по установке.\",\"url\":\"https://meeting.janickiy.com/download\",\"inLanguage\":\"ru\"}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "8c6cea080e987e3e40df885a55ed15c01fd294bac4b29edb44a5ac3c42a509df"
+    },
+    {
+      "pathname": "/self-hosted",
+      "heading": "Ваш MeetSpace. Ваш сервер. Ваши данные.",
+      "title": "MeetSpace на своём сервере - ваша инфраструктура и данные",
+      "description": "Разверните MeetSpace на собственной инфраструктуре. Используйте свой домен, управляйте хранением данных и настройками сервера. Установка с Docker и подробное руководство.",
+      "canonical": "https://meeting.janickiy.com/self-hosted",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"WebPage\",\"name\":\"MeetSpace на своём сервере - ваша инфраструктура и данные\",\"description\":\"Разверните MeetSpace на собственной инфраструктуре. Используйте свой домен, управляйте хранением данных и настройками сервера. Установка с Docker и подробное руководство.\",\"url\":\"https://meeting.janickiy.com/self-hosted\",\"inLanguage\":\"ru\"}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "e2bc63bed1974553fb7cefad44ab6e3938e4e4ff771ef66dfabaeb6d9db3cbd4"
+    },
+    {
+      "pathname": "/docs",
+      "heading": "Документация MeetSpace",
+      "title": "Документация MeetSpace - возможности, установка и настройка",
+      "description": "Руководство MeetSpace: видеоконференции, корпоративные чаты и совместная работа. Установка на собственный сервер, настройка и администрирование платформы.",
+      "canonical": "https://meeting.janickiy.com/docs",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Документация MeetSpace\",\"headline\":\"Документация MeetSpace - возможности, установка и настройка\",\"description\":\"Руководство MeetSpace: видеоконференции, корпоративные чаты и совместная работа. Установка на собственный сервер, настройка и администрирование платформы.\",\"url\":\"https://meeting.janickiy.com/docs\",\"keywords\":[\"MeetSpace\",\"документация MeetSpace\",\"корпоративное общение\",\"видеоконференции\",\"совместная работа\",\"Self-Hosted\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "bd36365895df05ee7f1e54691d9b957d72dbd013341276eda1d468e506e6f018"
+    },
+    {
+      "pathname": "/docs/self-hosted",
+      "heading": "Установка",
+      "title": "Установка MeetSpace на свой сервер - пошаговое руководство",
+      "description": "Установите MeetSpace на собственный Linux-сервер: мастер установки, Docker Compose, домен, HTTPS, почта и проверка видеоконференций после запуска.",
+      "canonical": "https://meeting.janickiy.com/docs/installation",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Установка\",\"headline\":\"Установка MeetSpace на свой сервер - пошаговое руководство\",\"description\":\"Установите MeetSpace на собственный Linux-сервер: мастер установки, Docker Compose, домен, HTTPS, почта и проверка видеоконференций после запуска.\",\"url\":\"https://meeting.janickiy.com/docs/installation\",\"keywords\":[\"установка MeetSpace\",\"MeetSpace на своём сервере\",\"Self-Hosted\",\"Docker Compose\",\"сервер видеоконференций\",\"настройка SMTP\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "743c943491da6f1ec48101a05769111951f489b4e20215d261be7bd0eeb75ab7"
+    },
+    {
+      "pathname": "/docs/overview",
+      "heading": "Документация MeetSpace",
+      "title": "Документация MeetSpace - возможности, установка и настройка",
+      "description": "Руководство MeetSpace: видеоконференции, корпоративные чаты и совместная работа. Установка на собственный сервер, настройка и администрирование платформы.",
+      "canonical": "https://meeting.janickiy.com/docs",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Документация MeetSpace\",\"headline\":\"Документация MeetSpace - возможности, установка и настройка\",\"description\":\"Руководство MeetSpace: видеоконференции, корпоративные чаты и совместная работа. Установка на собственный сервер, настройка и администрирование платформы.\",\"url\":\"https://meeting.janickiy.com/docs\",\"keywords\":[\"MeetSpace\",\"документация MeetSpace\",\"корпоративное общение\",\"видеоконференции\",\"совместная работа\",\"Self-Hosted\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "bd36365895df05ee7f1e54691d9b957d72dbd013341276eda1d468e506e6f018"
+    },
+    {
+      "pathname": "/docs/features",
+      "heading": "Возможности",
+      "title": "Возможности MeetSpace - видеозвонки, чаты и запись встреч",
+      "description": "Возможности MeetSpace: видеозвонки, личные и групповые чаты, обмен файлами, календарь встреч и запись конференций.",
+      "canonical": "https://meeting.janickiy.com/docs/features",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Возможности\",\"headline\":\"Возможности MeetSpace - видеозвонки, чаты и запись встреч\",\"description\":\"Возможности MeetSpace: видеозвонки, личные и групповые чаты, обмен файлами, календарь встреч и запись конференций.\",\"url\":\"https://meeting.janickiy.com/docs/features\",\"keywords\":[\"возможности MeetSpace\",\"видеозвонки\",\"корпоративный мессенджер\",\"групповые чаты\",\"обмен файлами\",\"календарь встреч\",\"запись конференций\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "eda8b5f85d92eacb23be11008ed40672e0e04d3dc99294d31035f3adc0cae9e5"
+    },
+    {
+      "pathname": "/docs/architecture",
+      "heading": "Архитектура",
+      "title": "Архитектура MeetSpace - WebRTC, сервисы и хранение данных",
+      "description": "Архитектура MeetSpace: API, WebRTC и SFU, сервис записи, PostgreSQL и S3. Как устроены видеосвязь, чаты, хранение данных и мониторинг платформы.",
+      "canonical": "https://meeting.janickiy.com/docs/architecture",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Архитектура\",\"headline\":\"Архитектура MeetSpace - WebRTC, сервисы и хранение данных\",\"description\":\"Архитектура MeetSpace: API, WebRTC и SFU, сервис записи, PostgreSQL и S3. Как устроены видеосвязь, чаты, хранение данных и мониторинг платформы.\",\"url\":\"https://meeting.janickiy.com/docs/architecture\",\"keywords\":[\"архитектура MeetSpace\",\"WebRTC\",\"SFU\",\"PostgreSQL\",\"S3\",\"сервер видеоконференций\",\"мониторинг\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "871e72499fb1a576829e366fcb54083b5e793906d05a55e57a52475b37e81726"
+    },
+    {
+      "pathname": "/docs/interface",
+      "heading": "Интерфейс",
+      "title": "Интерфейс MeetSpace - руководство по встречам и чатам",
+      "description": "Руководство по интерфейсу MeetSpace: создание встреч, микрофон и камера, личные и групповые чаты, календарь, записи, папки и настройки аккаунта.",
+      "canonical": "https://meeting.janickiy.com/docs/interface",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Интерфейс\",\"headline\":\"Интерфейс MeetSpace - руководство по встречам и чатам\",\"description\":\"Руководство по интерфейсу MeetSpace: создание встреч, микрофон и камера, личные и групповые чаты, календарь, записи, папки и настройки аккаунта.\",\"url\":\"https://meeting.janickiy.com/docs/interface\",\"keywords\":[\"интерфейс MeetSpace\",\"руководство пользователя\",\"создание встречи\",\"личные сообщения\",\"групповой чат\",\"настройки аккаунта\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "7013d5933b608809168889c3ea5249e5faedfb67a0bab506c9f8e9da9463ac3d"
+    },
+    {
+      "pathname": "/docs/support",
+      "heading": "Техническая поддержка",
+      "title": "Поддержка MeetSpace - помощь и обратная связь",
+      "description": "Помощь по MeetSpace: куда обратиться с вопросами об использовании и установке платформы, как описать проблему и связаться с автором проекта.",
+      "canonical": "https://meeting.janickiy.com/docs/support",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Техническая поддержка\",\"headline\":\"Поддержка MeetSpace - помощь и обратная связь\",\"description\":\"Помощь по MeetSpace: куда обратиться с вопросами об использовании и установке платформы, как описать проблему и связаться с автором проекта.\",\"url\":\"https://meeting.janickiy.com/docs/support\",\"keywords\":[\"поддержка MeetSpace\",\"помощь MeetSpace\",\"обратная связь\",\"проблемы с видеосвязью\",\"установка MeetSpace\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "f415910dc693a15fd08ea64feafbc58954c07f8a4b47b479d14fbf14b0de99e1"
+    },
+    {
+      "pathname": "/docs/before-you-begin",
+      "heading": "Перед началом работы",
+      "title": "Подготовка к установке MeetSpace - сервер, домен и HTTPS",
+      "description": "Подготовьте собственный сервер для MeetSpace: проверьте Linux, домен и DNS, HTTPS, сетевые порты, доступ к Docker и данные для установки.",
+      "canonical": "https://meeting.janickiy.com/docs/before-you-begin",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Перед началом работы\",\"headline\":\"Подготовка к установке MeetSpace - сервер, домен и HTTPS\",\"description\":\"Подготовьте собственный сервер для MeetSpace: проверьте Linux, домен и DNS, HTTPS, сетевые порты, доступ к Docker и данные для установки.\",\"url\":\"https://meeting.janickiy.com/docs/before-you-begin\",\"keywords\":[\"подготовка сервера MeetSpace\",\"Self-Hosted\",\"Linux VPS\",\"домен и DNS\",\"HTTPS\",\"Docker\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "d9126f6b195da3b5df3ab302e902d9fd2b405c9a5dabeb2cdffdd430e139cc51"
+    },
+    {
+      "pathname": "/docs/system-requirements",
+      "heading": "Системные требования",
+      "title": "Системные требования MeetSpace - Linux, Docker и сеть",
+      "description": "Требования MeetSpace к серверу: операционная система, Docker, процессор, память, место на диске и сетевые порты для видеоконференций и записи встреч.",
+      "canonical": "https://meeting.janickiy.com/docs/system-requirements",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Системные требования\",\"headline\":\"Системные требования MeetSpace - Linux, Docker и сеть\",\"description\":\"Требования MeetSpace к серверу: операционная система, Docker, процессор, память, место на диске и сетевые порты для видеоконференций и записи встреч.\",\"url\":\"https://meeting.janickiy.com/docs/system-requirements\",\"keywords\":[\"системные требования MeetSpace\",\"сервер для видеоконференций\",\"Linux\",\"Docker Compose\",\"оперативная память\",\"сетевые порты\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "c379dc6c8dd240855284cde7685374b9917151a7ca1949ee17245e67f8db27a3"
+    },
+    {
+      "pathname": "/docs/source-and-releases",
+      "heading": "Исходный код и релизы",
+      "title": "Исходный код и выпуски MeetSpace - загрузка с GitHub",
+      "description": "Исходный код и выпуски MeetSpace: официальный репозиторий GitHub, выбор версии, готовые пакеты и проверка файлов перед установкой на сервер.",
+      "canonical": "https://meeting.janickiy.com/docs/source-and-releases",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Исходный код и релизы\",\"headline\":\"Исходный код и выпуски MeetSpace - загрузка с GitHub\",\"description\":\"Исходный код и выпуски MeetSpace: официальный репозиторий GitHub, выбор версии, готовые пакеты и проверка файлов перед установкой на сервер.\",\"url\":\"https://meeting.janickiy.com/docs/source-and-releases\",\"keywords\":[\"исходный код MeetSpace\",\"выпуски MeetSpace\",\"GitHub\",\"скачать MeetSpace\",\"пакет установки\",\"проверка контрольных сумм\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "9821046cd48d6e6419da5ac8e30c7820d69b9d1674d5016cf6a086ef20080584"
+    },
+    {
+      "pathname": "/docs/installation",
+      "heading": "Установка",
+      "title": "Установка MeetSpace на свой сервер - пошаговое руководство",
+      "description": "Установите MeetSpace на собственный Linux-сервер: мастер установки, Docker Compose, домен, HTTPS, почта и проверка видеоконференций после запуска.",
+      "canonical": "https://meeting.janickiy.com/docs/installation",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Установка\",\"headline\":\"Установка MeetSpace на свой сервер - пошаговое руководство\",\"description\":\"Установите MeetSpace на собственный Linux-сервер: мастер установки, Docker Compose, домен, HTTPS, почта и проверка видеоконференций после запуска.\",\"url\":\"https://meeting.janickiy.com/docs/installation\",\"keywords\":[\"установка MeetSpace\",\"MeetSpace на своём сервере\",\"Self-Hosted\",\"Docker Compose\",\"сервер видеоконференций\",\"настройка SMTP\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "743c943491da6f1ec48101a05769111951f489b4e20215d261be7bd0eeb75ab7"
+    },
+    {
+      "pathname": "/docs/updates-and-backups",
+      "heading": "Обновления и резервное копирование",
+      "title": "Обновление и резервное копирование MeetSpace",
+      "description": "Как обновлять MeetSpace и создавать резервные копии: подготовка выпуска, остановка активных операций, сохранение PostgreSQL, S3 и конфигурации сервера.",
+      "canonical": "https://meeting.janickiy.com/docs/updates-and-backups",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Обновления и резервное копирование\",\"headline\":\"Обновление и резервное копирование MeetSpace\",\"description\":\"Как обновлять MeetSpace и создавать резервные копии: подготовка выпуска, остановка активных операций, сохранение PostgreSQL, S3 и конфигурации сервера.\",\"url\":\"https://meeting.janickiy.com/docs/updates-and-backups\",\"keywords\":[\"обновление MeetSpace\",\"резервное копирование MeetSpace\",\"восстановление данных\",\"PostgreSQL\",\"S3\",\"обслуживание сервера\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "d42b1a2a8ce9e6194de16c7255ff807f4ca0a4e0a3e2ee289600d1c68e46bd9b"
+    },
+    {
+      "pathname": "/docs/troubleshooting",
+      "heading": "Устранение неполадок",
+      "title": "Устранение неполадок MeetSpace - установка, связь и записи",
+      "description": "Диагностика MeetSpace: ошибки установки и входа, проблемы со звуком, видео и записью, настройка DNS, HTTPS, TURN и проверка журналов сервисов.",
+      "canonical": "https://meeting.janickiy.com/docs/troubleshooting",
+      "schema": "{\"@context\":\"https://schema.org\",\"@type\":\"TechArticle\",\"name\":\"Устранение неполадок\",\"headline\":\"Устранение неполадок MeetSpace - установка, связь и записи\",\"description\":\"Диагностика MeetSpace: ошибки установки и входа, проблемы со звуком, видео и записью, настройка DNS, HTTPS, TURN и проверка журналов сервисов.\",\"url\":\"https://meeting.janickiy.com/docs/troubleshooting\",\"keywords\":[\"ошибки MeetSpace\",\"устранение неполадок\",\"не работает микрофон\",\"проблемы с видеосвязью\",\"ошибка записи конференции\",\"TURN\",\"журналы сервисов\"],\"inLanguage\":\"ru\",\"isPartOf\":{\"@type\":\"WebSite\",\"name\":\"Документация MeetSpace\",\"url\":\"https://meeting.janickiy.com/docs\"}}",
+      "overflowing": false,
+      "errors": [],
+      "mainTextSHA256": "b7065d37e1a2b65681dd613329e7325a78ebe0a9fdc5b86b7fbcac186b82ad4b"
+    }
+  ],
+  "loginJS": [
+    {
+      "asset": "/assets/index-DXNJecnf.js",
+      "bytes": 463375,
+      "gzipBytes": 132246
+    },
+    {
+      "asset": "/assets/brand-BIpapwSF.js",
+      "bytes": 49845,
+      "gzipBytes": 18023
+    },
+    {
+      "asset": "/assets/ui-BGlPxXj2.js",
+      "bytes": 66229,
+      "gzipBytes": 20229
+    }
+  ],
+  "errors": [],
+  "completed": true
+}

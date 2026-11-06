@@ -1,0 +1,46 @@
+
+> meetspace-admin@1.0.0 test
+> node --experimental-strip-types --test tests/*.test.mjs
+
+✔ mutations use same-origin credentials and an in-memory CSRF token, including DELETE (125.091417ms)
+✔ clearing a session removes its CSRF token before a new login (2.638208ms)
+✔ expired-session responses trigger logout but bad login does not (1.740833ms)
+✔ network cancellation stays abortable instead of becoming a server error (0.29525ms)
+✔ filters are encoded and sentinel values never reach the API (0.433042ms)
+✔ the API client cannot send session credentials to an external URL (0.225042ms)
+✔ server conflict keeps its Russian explanation available for last-admin protection (0.40675ms)
+✔ a late 401 from a previous administrator cannot sign out the new session (0.293875ms)
+✔ successful responses from an old session are discarded after logout (0.155291ms)
+✔ aborting response-body parsing is not converted into successful null data (0.113125ms)
+✔ successful non-JSON responses are surfaced as protocol errors (0.214375ms)
+✔ internal paths cannot escape the administrative namespace (0.084416ms)
+✔ a session switch aborts in-flight mutations as well as reads (0.117ms)
+✔ unmounting a caller cancels an already pending request (0.100292ms)
+✔ an unresponsive request is bounded by a 30 second timeout (0.365ms)
+✔ missing metrics remain unknown while legitimate zero is visible (65.902209ms)
+✔ recording deletion requires a safe terminal state and server permission (0.085084ms)
+✔ username-only identity and password confirmation are validated (0.169958ms)
+✔ passwords accept 8–128 characters without composition requirements (0.058791ms)
+✔ password limits count Unicode code points and retain the 512 byte UTF-8 boundary (0.0685ms)
+✔ durations remain useful for recordings longer than one hour (0.050459ms)
+✔ admin telemetry only includes strict route and same-origin JS coordinates (1.912125ms)
+✔ inactive sessions never report; duplicates, minute and page budgets stay bounded (0.797584ms)
+✔ closing aborts pending reports and adapter errors do not recurse (3.206ms)
+✔ logout cancels both session discovery and resource requests before clearing private caches (1.209791ms)
+✔ a failed server logout cannot silently restore cookie auth after a page reload (0.304208ms)
+✔ disabled browser storage does not prevent local logout (0.104417ms)
+✔ attachment limits display MiB and send integer bytes within metadata bounds (0.73325ms)
+✔ a group save omits other groups, readonly keys and unchanged values (0.079917ms)
+✔ write-only secrets are removed before caching and an empty input preserves the password (0.161667ms)
+✔ editing email verification requires previously saved complete SMTP settings (0.218583ms)
+✔ verification must be disabled in General before disabling SMTP in Mail (0.115167ms)
+✔ mail validation catches invalid mode, sender, host, port and oversized secret (0.1095ms)
+✔ a server error cannot echo a submitted SMTP password into the interface (1.514292ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 837.137667

@@ -1,0 +1,2 @@
+internal/domain/records/library_test.go:40:4: should use t.Fatalf(...) instead of t.Fatal(fmt.Sprintf(...)) (S1038)
+exit status 1

@@ -1,0 +1,7 @@
+test_disabled_admin_has_no_listener_but_public_denial_remains (test_admin_proxy.AdminProxyTest) ... ok
+test_enabled_admin_is_separate_from_public_api (test_admin_proxy.AdminProxyTest) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 1.835s
+
+OK

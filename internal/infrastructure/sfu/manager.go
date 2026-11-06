@@ -13,6 +13,7 @@ package sfu
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"strconv"
@@ -80,8 +81,8 @@ type Manager struct {
 	closed                                   chan struct{}
 	shutdownOnce                             sync.Once
 	closeWG                                  sync.WaitGroup
-	udp                                      net.PacketConn
-	tcp                                      net.Listener
+	udp                                      io.Closer
+	tcp                                      io.Closer
 	total, failures, packets, bytes, dropped atomic.Uint64
 	egressDropped                            atomic.Uint64
 	relay, direct                            atomic.Uint64
@@ -207,8 +208,9 @@ func NewManager(options Options) (*Manager, error) {
 		if err != nil {
 			return nil, err
 		}
-		m.udp = conn
-		settings.SetICEUDPMux(pion.NewICEUDPMux(loggerFactory.NewLogger("ice"), conn))
+		mux := pion.NewICEUDPMux(loggerFactory.NewLogger("ice"), conn)
+		m.udp = mux
+		settings.SetICEUDPMux(mux)
 	} else if o.UDPMinPort > 0 {
 		if err := settings.SetEphemeralUDPPortRange(uint16(o.UDPMinPort), uint16(o.UDPMaxPort)); err != nil {
 			return nil, err
@@ -220,8 +222,10 @@ func NewManager(options Options) (*Manager, error) {
 			cleanup()
 			return nil, err
 		}
-		m.tcp = listener
-		settings.SetICETCPMux(pion.NewICETCPMux(loggerFactory.NewLogger("ice"), listener, 8))
+		owned := &ownedTCPListener{Listener: listener, connections: map[*ownedTCPConn]struct{}{}}
+		mux := pion.NewICETCPMux(loggerFactory.NewLogger("ice"), owned, 8)
+		m.tcp = mux
+		settings.SetICETCPMux(mux)
 		networks = append(networks, pion.NetworkTypeTCP4)
 	}
 	settings.SetNetworkTypes(networks)

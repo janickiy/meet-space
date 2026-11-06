@@ -1,0 +1,81 @@
+?   	github.com/janickiy/meet-space/cmd/admin	[no test files]
+?   	github.com/janickiy/meet-space/cmd/api	[no test files]
+?   	github.com/janickiy/meet-space/cmd/main	[no test files]
+?   	github.com/janickiy/meet-space/cmd/media-worker	[no test files]
+?   	github.com/janickiy/meet-space/cmd/product-worker	[no test files]
+?   	github.com/janickiy/meet-space/cmd/record-worker	[no test files]
+ok  	github.com/janickiy/meet-space/internal/app	6.478s
+ok  	github.com/janickiy/meet-space/internal/app/auth	1.279s
+?   	github.com/janickiy/meet-space/internal/app/calls	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/chat	[no test files]
+ok  	github.com/janickiy/meet-space/internal/app/conferences	1.278s
+?   	github.com/janickiy/meet-space/internal/app/engagement	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/folders	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/httpresponse	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/integrations	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/notifications	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/personal	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/platform	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/profile	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/recordings	[no test files]
+?   	github.com/janickiy/meet-space/internal/app/search	[no test files]
+ok  	github.com/janickiy/meet-space/internal/app/telemetry	1.354s
+?   	github.com/janickiy/meet-space/internal/buildinfo	[no test files]
+ok  	github.com/janickiy/meet-space/internal/config	1.292s
+ok  	github.com/janickiy/meet-space/internal/domain/admin	1.245s
+?   	github.com/janickiy/meet-space/internal/domain/apperrors	[no test files]
+ok  	github.com/janickiy/meet-space/internal/domain/avatar	3.051s
+?   	github.com/janickiy/meet-space/internal/domain/calls	[no test files]
+ok  	github.com/janickiy/meet-space/internal/domain/chat	1.249s
+ok  	github.com/janickiy/meet-space/internal/domain/conferences	1.247s
+ok  	github.com/janickiy/meet-space/internal/domain/errorlogs	1.224s
+?   	github.com/janickiy/meet-space/internal/domain/folders	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/integrations	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/jobs	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/media	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/notifications	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/personal	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/platform	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/ratelimit	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/realtime	[no test files]
+ok  	github.com/janickiy/meet-space/internal/domain/records	1.368s
+?   	github.com/janickiy/meet-space/internal/domain/search	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/settings	[no test files]
+?   	github.com/janickiy/meet-space/internal/domain/users	[no test files]
+?   	github.com/janickiy/meet-space/internal/infrastructure/composite	[no test files]
+ok  	github.com/janickiy/meet-space/internal/infrastructure/ffmpeg	5.671s
+ok  	github.com/janickiy/meet-space/internal/infrastructure/health	1.392s
+ok  	github.com/janickiy/meet-space/internal/infrastructure/postgres	1.572s
+?   	github.com/janickiy/meet-space/internal/infrastructure/providers	[no test files]
+?   	github.com/janickiy/meet-space/internal/infrastructure/rabbitmq	[no test files]
+?   	github.com/janickiy/meet-space/internal/infrastructure/redis	[no test files]
+ok  	github.com/janickiy/meet-space/internal/infrastructure/security	1.365s
+ok  	github.com/janickiy/meet-space/internal/infrastructure/sfu	1.668s
+?   	github.com/janickiy/meet-space/internal/infrastructure/storage/s3	[no test files]
+ok  	github.com/janickiy/meet-space/internal/operations	3.502s
+ok  	github.com/janickiy/meet-space/internal/transport/http	3.283s
+ok  	github.com/janickiy/meet-space/internal/transport/http/middleware	1.259s
+ok  	github.com/janickiy/meet-space/internal/transport/mediaworker	1.239s
+ok  	github.com/janickiy/meet-space/internal/transport/websocket	1.313s
+ok  	github.com/janickiy/meet-space/internal/usecase/admin	1.793s
+ok  	github.com/janickiy/meet-space/internal/usecase/auth	1.692s
+?   	github.com/janickiy/meet-space/internal/usecase/calls	[no test files]
+ok  	github.com/janickiy/meet-space/internal/usecase/chat	1.940s
+?   	github.com/janickiy/meet-space/internal/usecase/conferences	[no test files]
+?   	github.com/janickiy/meet-space/internal/usecase/folders	[no test files]
+ok  	github.com/janickiy/meet-space/internal/usecase/integrations	1.293s
+?   	github.com/janickiy/meet-space/internal/usecase/jobs	[no test files]
+?   	github.com/janickiy/meet-space/internal/usecase/media	[no test files]
+?   	github.com/janickiy/meet-space/internal/usecase/notifications	[no test files]
+ok  	github.com/janickiy/meet-space/internal/usecase/personal	1.541s
+?   	github.com/janickiy/meet-space/internal/usecase/platform	[no test files]
+ok  	github.com/janickiy/meet-space/internal/usecase/profile	1.224s
+?   	github.com/janickiy/meet-space/internal/usecase/realtime	[no test files]
+ok  	github.com/janickiy/meet-space/internal/usecase/recorder	1.412s
+ok  	github.com/janickiy/meet-space/internal/usecase/recordings	1.277s
+ok  	github.com/janickiy/meet-space/internal/usecase/search	1.255s
+ok  	github.com/janickiy/meet-space/internal/usecase/settings	1.241s
+?   	github.com/janickiy/meet-space/tmp/blocked-auth/hash-helper	[no test files]
+?   	github.com/janickiy/meet-space/tmp/smtp-copy/helper	[no test files]
+?   	github.com/janickiy/meet-space/tools/architecture-audit	[no test files]
+?   	github.com/janickiy/meet-space/tools/object-backup	[no test files]

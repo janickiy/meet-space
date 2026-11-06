@@ -1,0 +1,85 @@
+(node:41404) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✖ a late 204 mutation cannot report success after switching accounts (22.104417ms)
+✔ an unchanged account still accepts an empty 204 response (0.206792ms)
+✖ JSON body cancellation remains AbortError without session recovery (0.303834ms)
+✔ invalid successful JSON still surfaces a protocol error (1.98975ms)
+✖ late profile avatar metadata is discarded when identity changes while reading the body (0.347625ms)
+✖ late group avatar metadata is discarded when identity changes while reading the body (0.164708ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 2
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 162.708208
+
+✖ failing tests:
+
+test at frontend/tests/api-response-lifecycle.test.mjs:20:1
+✖ a late 204 mutation cannot report success after switching accounts (22.104417ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///Users/aleksandranickij/htdocs/go-recorder/frontend/tests/api-response-lifecycle.test.mjs:26:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at frontend/tests/api-response-lifecycle.test.mjs:34:1
+✖ JSON body cancellation remains AbortError without session recovery (0.303834ms)
+  AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false
+
+  Caught error:
+
+  ApiError: Сервер вернул некорректный ответ.
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///Users/aleksandranickij/htdocs/go-recorder/frontend/tests/api-response-lifecycle.test.mjs:43:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: ApiError: Сервер вернул некорректный ответ.
+        at request (/Users/aleksandranickij/htdocs/go-recorder/frontend/src/api.ts:266:20)
+        at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+        at async waitForActual (node:assert:646:5)
+        at async strict.rejects (node:assert:769:25)
+        at async TestContext.<anonymous> (file:///Users/aleksandranickij/htdocs/go-recorder/frontend/tests/api-response-lifecycle.test.mjs:43:5)
+        at async Test.run (node:internal/test_runner/test:1409:7)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7),
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at frontend/tests/api-response-lifecycle.test.mjs:54:3
+✖ late profile avatar metadata is discarded when identity changes while reading the body (0.347625ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///Users/aleksandranickij/htdocs/go-recorder/frontend/tests/api-response-lifecycle.test.mjs:70:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at frontend/tests/api-response-lifecycle.test.mjs:54:3
+✖ late group avatar metadata is discarded when identity changes while reading the body (0.164708ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///Users/aleksandranickij/htdocs/go-recorder/frontend/tests/api-response-lifecycle.test.mjs:70:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    operator: 'rejects',
+    diff: 'simple'
+  }

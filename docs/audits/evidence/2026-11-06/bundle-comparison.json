@@ -1,0 +1,408 @@
+{
+  "before": {
+    "chunks": 36,
+    "bytes": 1140317,
+    "gzipBytes": 330506,
+    "entries": [
+      {
+        "file": "index-BFVYDIXy.js",
+        "bytes": 693898,
+        "gzipBytes": 184799
+      },
+      {
+        "file": "ui-D6i7X5Y0.js",
+        "bytes": 115592,
+        "gzipBytes": 37221
+      },
+      {
+        "file": "ConferencePage-Bo1jBxpx.js",
+        "bytes": 43405,
+        "gzipBytes": 12358
+      },
+      {
+        "file": "ChatPanel-D4nRvvIB.js",
+        "bytes": 39167,
+        "gzipBytes": 12546
+      },
+      {
+        "file": "Dashboard-Ka2sVo4F.js",
+        "bytes": 37827,
+        "gzipBytes": 10418
+      },
+      {
+        "file": "FolderPicker-goJ7SAzH.js",
+        "bytes": 36201,
+        "gzipBytes": 10869
+      },
+      {
+        "file": "ConferenceModals-iLymDpVe.js",
+        "bytes": 33457,
+        "gzipBytes": 11148
+      },
+      {
+        "file": "AccountPages-DFXhnabF.js",
+        "bytes": 28458,
+        "gzipBytes": 8679
+      },
+      {
+        "file": "PreJoinPage-jLajDDKS.js",
+        "bytes": 17922,
+        "gzipBytes": 6208
+      },
+      {
+        "file": "RecordingsPage-b3nScnG1.js",
+        "bytes": 17036,
+        "gzipBytes": 5517
+      },
+      {
+        "file": "PersonalPage-wnxRuUlV.js",
+        "bytes": 14856,
+        "gzipBytes": 5372
+      },
+      {
+        "file": "FoldersPage-DApJKiLb.js",
+        "bytes": 14203,
+        "gzipBytes": 4502
+      },
+      {
+        "file": "CalendarPage-m9xQTTef.js",
+        "bytes": 12435,
+        "gzipBytes": 4194
+      },
+      {
+        "file": "RecordingDetailPage-BMVbRfIr.js",
+        "bytes": 7782,
+        "gzipBytes": 2591
+      },
+      {
+        "file": "NotificationsPage-8sEeOQm0.js",
+        "bytes": 4599,
+        "gzipBytes": 1916
+      },
+      {
+        "file": "AdminPage-Df9XDiOd.js",
+        "bytes": 4591,
+        "gzipBytes": 1839
+      },
+      {
+        "file": "AvatarPicker-TnsgrCIR.js",
+        "bytes": 3242,
+        "gzipBytes": 1588
+      },
+      {
+        "file": "MessagingSkeleton-B5U_Yuv_.js",
+        "bytes": 3014,
+        "gzipBytes": 1407
+      },
+      {
+        "file": "NewDirectChatModal-8D2OTIa_.js",
+        "bytes": 2408,
+        "gzipBytes": 1253
+      },
+      {
+        "file": "recordingPresentation-Ca2EgQWG.js",
+        "bytes": 1409,
+        "gzipBytes": 830
+      },
+      {
+        "file": "chatPresentation-CcH4DWBb.js",
+        "bytes": 1148,
+        "gzipBytes": 585
+      },
+      {
+        "file": "useInfiniteQuery-BbgdJbO9.js",
+        "bytes": 1112,
+        "gzipBytes": 468
+      },
+      {
+        "file": "InvitePage-BGC4eapW.js",
+        "bytes": 1080,
+        "gzipBytes": 595
+      },
+      {
+        "file": "queries-DBCym-JN.js",
+        "bytes": 1031,
+        "gzipBytes": 508
+      },
+      {
+        "file": "collaboration-BQXhOll8.js",
+        "bytes": 1014,
+        "gzipBytes": 564
+      },
+      {
+        "file": "MeetingSkeleton-C59KnRKy.js",
+        "bytes": 507,
+        "gzipBytes": 304
+      },
+      {
+        "file": "star-CJ8V1gWb.js",
+        "bytes": 498,
+        "gzipBytes": 305
+      },
+      {
+        "file": "clapperboard-Bttrmect.js",
+        "bytes": 386,
+        "gzipBytes": 279
+      },
+      {
+        "file": "trash-BQqWdAGv.js",
+        "bytes": 372,
+        "gzipBytes": 243
+      },
+      {
+        "file": "camera-BwLaLByG.js",
+        "bytes": 362,
+        "gzipBytes": 266
+      },
+      {
+        "file": "ellipsis-vertical-BGvJrP-6.js",
+        "bytes": 287,
+        "gzipBytes": 200
+      },
+      {
+        "file": "lock-keyhole-CdFs9ss2.js",
+        "bytes": 281,
+        "gzipBytes": 237
+      },
+      {
+        "file": "useCapabilities-B1rAcwWb.js",
+        "bytes": 213,
+        "gzipBytes": 191
+      },
+      {
+        "file": "clock-3-uRXB6pwv.js",
+        "bytes": 195,
+        "gzipBytes": 181
+      },
+      {
+        "file": "square-DuQnnWsM.js",
+        "bytes": 173,
+        "gzipBytes": 166
+      },
+      {
+        "file": "chevron-left-jo8fwNUA.js",
+        "bytes": 156,
+        "gzipBytes": 159
+      }
+    ]
+  },
+  "after": {
+    "chunks": 40,
+    "bytes": 1142794,
+    "gzipBytes": 333802,
+    "entries": [
+      {
+        "file": "index-DXNJecnf.js",
+        "bytes": 463375,
+        "gzipBytes": 132246
+      },
+      {
+        "file": "PublicPage-CpxsbgCs.js",
+        "bytes": 231103,
+        "gzipBytes": 54135
+      },
+      {
+        "file": "ui-BGlPxXj2.js",
+        "bytes": 66229,
+        "gzipBytes": 20229
+      },
+      {
+        "file": "brand-BIpapwSF.js",
+        "bytes": 49845,
+        "gzipBytes": 18023
+      },
+      {
+        "file": "ConferencePage-CYuLNCTY.js",
+        "bytes": 43468,
+        "gzipBytes": 12380
+      },
+      {
+        "file": "ChatPanel-Do7LfR0Z.js",
+        "bytes": 39192,
+        "gzipBytes": 12537
+      },
+      {
+        "file": "Dashboard-Czk5JzZc.js",
+        "bytes": 37878,
+        "gzipBytes": 10415
+      },
+      {
+        "file": "FolderPicker-DrDFTbxZ.js",
+        "bytes": 36257,
+        "gzipBytes": 10866
+      },
+      {
+        "file": "ConferenceModals-DE2fy_pQ.js",
+        "bytes": 33548,
+        "gzipBytes": 11182
+      },
+      {
+        "file": "AccountPages-BRG8jDzK.js",
+        "bytes": 28490,
+        "gzipBytes": 8697
+      },
+      {
+        "file": "PreJoinPage-DAFr5hbo.js",
+        "bytes": 17944,
+        "gzipBytes": 6215
+      },
+      {
+        "file": "RecordingsPage-D8l3szMQ.js",
+        "bytes": 17097,
+        "gzipBytes": 5542
+      },
+      {
+        "file": "PersonalPage-D7EbJiAL.js",
+        "bytes": 14914,
+        "gzipBytes": 5372
+      },
+      {
+        "file": "FoldersPage-M0WSEnSf.js",
+        "bytes": 14259,
+        "gzipBytes": 4507
+      },
+      {
+        "file": "CalendarPage-D0Qzi8lc.js",
+        "bytes": 12464,
+        "gzipBytes": 4184
+      },
+      {
+        "file": "RecordingDetailPage-CAUo3F8D.js",
+        "bytes": 7810,
+        "gzipBytes": 2602
+      },
+      {
+        "file": "AdminPage-Bi33B7Uu.js",
+        "bytes": 4629,
+        "gzipBytes": 1852
+      },
+      {
+        "file": "NotificationsPage-D5m0u0wp.js",
+        "bytes": 4627,
+        "gzipBytes": 1921
+      },
+      {
+        "file": "AvatarPicker-CHcvwm9Y.js",
+        "bytes": 3272,
+        "gzipBytes": 1601
+      },
+      {
+        "file": "MessagingSkeleton-D3qeOInx.js",
+        "bytes": 3014,
+        "gzipBytes": 1408
+      },
+      {
+        "file": "NewDirectChatModal-woZgDmDt.js",
+        "bytes": 2470,
+        "gzipBytes": 1280
+      },
+      {
+        "file": "recordingPresentation-CBO_mDYe.js",
+        "bytes": 1409,
+        "gzipBytes": 830
+      },
+      {
+        "file": "chatPresentation-CcH4DWBb.js",
+        "bytes": 1148,
+        "gzipBytes": 585
+      },
+      {
+        "file": "InvitePage-C2HUqJzT.js",
+        "bytes": 1115,
+        "gzipBytes": 609
+      },
+      {
+        "file": "useInfiniteQuery-BeHiR6CQ.js",
+        "bytes": 1112,
+        "gzipBytes": 469
+      },
+      {
+        "file": "queries-Cs8sr255.js",
+        "bytes": 1031,
+        "gzipBytes": 508
+      },
+      {
+        "file": "collaboration-BQXhOll8.js",
+        "bytes": 1014,
+        "gzipBytes": 564
+      },
+      {
+        "file": "MeetingSkeleton-DONr6Q4P.js",
+        "bytes": 509,
+        "gzipBytes": 306
+      },
+      {
+        "file": "star-DLKJiIqB.js",
+        "bytes": 501,
+        "gzipBytes": 310
+      },
+      {
+        "file": "clapperboard-BiEsCDkE.js",
+        "bytes": 389,
+        "gzipBytes": 281
+      },
+      {
+        "file": "search-DGXWq6kL.js",
+        "bytes": 379,
+        "gzipBytes": 256
+      },
+      {
+        "file": "trash-D0Zw2G82.js",
+        "bytes": 375,
+        "gzipBytes": 247
+      },
+      {
+        "file": "camera-xkfuAA1W.js",
+        "bytes": 365,
+        "gzipBytes": 271
+      },
+      {
+        "file": "ellipsis-vertical-CJwJyXQV.js",
+        "bytes": 290,
+        "gzipBytes": 203
+      },
+      {
+        "file": "lock-keyhole-BpLbeP5j.js",
+        "bytes": 284,
+        "gzipBytes": 243
+      },
+      {
+        "file": "mail--M-6y0C7.js",
+        "bytes": 242,
+        "gzipBytes": 218
+      },
+      {
+        "file": "useCapabilities-4z1SznRZ.js",
+        "bytes": 213,
+        "gzipBytes": 191
+      },
+      {
+        "file": "clock-3-C8gswV12.js",
+        "bytes": 198,
+        "gzipBytes": 186
+      },
+      {
+        "file": "square-6pISMZ7w.js",
+        "bytes": 176,
+        "gzipBytes": 169
+      },
+      {
+        "file": "chevron-left-BmFXQseB.js",
+        "bytes": 159,
+        "gzipBytes": 162
+      }
+    ]
+  },
+  "admin": {
+    "chunks": 1,
+    "bytes": 393179,
+    "gzipBytes": 117656,
+    "entries": [
+      {
+        "file": "index-2nBkBT6y.js",
+        "bytes": 393179,
+        "gzipBytes": 117656
+      }
+    ]
+  }
+}

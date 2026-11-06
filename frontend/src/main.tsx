@@ -2,7 +2,7 @@
 // Контакты автора: см. NOTICE в корне проекта.
 // SPDX-License-Identifier: Apache-2.0
 
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { BrowserRouter, useLocation } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -26,10 +26,16 @@ import { App } from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { installClientTelemetry } from "./clientTelemetry";
 import { installRecordingAudioUnlock } from "./recordingAnnouncement";
-import { PublicPage } from "./landing/PublicPage";
+import { Loading } from "./components/ui";
 import { PublicMetadata } from "./landing/PublicMetadata";
 import { publicPath } from "./landing/metadata";
 import { MARKETING_ONLY } from "./landing/application";
+
+const PublicPage = lazy(() =>
+  import("./landing/PublicPage").then((module) => ({
+    default: module.PublicPage,
+  })),
+);
 
 const stopTelemetry = installClientTelemetry();
 const stopRecordingAudioUnlock = installRecordingAudioUnlock();
@@ -67,7 +73,9 @@ function ApplicationBootstrap() {
     return (
       <>
         <PublicMetadata />
-        <PublicPage path={path} />
+        <Suspense fallback={<Loading />}>
+          <PublicPage path={path} />
+        </Suspense>
       </>
     );
   }

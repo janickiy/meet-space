@@ -1,0 +1,15 @@
+{
+  "kind": "isolated-browser-fixture",
+  "baseline": false,
+  "tests": {
+    "privateVisibleAfterFailedLogout": false,
+    "privateVisibleAfterFailedLogoutReload": false,
+    "modalRestoresTriggerFocusAfterMutation": true,
+    "previousAccountDataVisibleDuringSwitch": false,
+    "lateMeRestoredPrivateShell": false,
+    "pollingStopsAfterNavigation": true,
+    "errorRetryAndEmptyState": true,
+    "mobileDocumentWidth": 390
+  },
+  "completed": true
+}

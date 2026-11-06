@@ -25,6 +25,7 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 	"github.com/janickiy/meet-space/internal/operations"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"golang.org/x/sync/semaphore"
 )
 
 // Options содержит информацию о зависимостях брокера, таймаутах и параметрах создания
@@ -48,7 +49,7 @@ type Publisher struct {
 	exchange   string
 	routingKey string
 	options    Options
-	mu         sync.Mutex
+	gate       *semaphore.Weighted
 	alive      atomic.Bool
 	closed     atomic.Bool
 	current    atomic.Pointer[amqp.Connection]
@@ -108,6 +109,7 @@ func NewPublisher(ctx context.Context, options Options) (*Publisher, error) {
 		exchange:   options.Exchange,
 		routingKey: options.RoutingKey,
 		options:    options,
+		gate:       semaphore.NewWeighted(1),
 	}
 	p.watch(conn)
 	return p, nil
@@ -162,8 +164,8 @@ func (p *Publisher) Close() {
 	// Закрытие сокета перед получением мьютекса публикации также прерывает заблокированную
 	// запись; сам Channel.Close ожидает снятия блокировки записи библиотеки.
 	closeAMQP(p.current.Load())
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	_ = p.gate.Acquire(context.Background(), 1)
+	defer p.gate.Release(1)
 	closeAMQP(p.conn)
 }
 
@@ -187,14 +189,21 @@ func (p *Publisher) publish(ctx context.Context, command records.Command) error 
 	if err != nil {
 		return err
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	// Ожидание занятого издателя входит в срок запроса и не затрагивает
+	// соединение текущей публикации при отмене ожидающего запроса.
+	if err := p.gate.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer p.gate.Release(1)
 	if p.closed.Load() {
 		return fmt.Errorf("rabbitmq publisher closed")
 	}
 
 	if err := p.publishLocked(ctx, body, command.Type); err == nil {
 		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := p.reconnectLocked(ctx); err != nil {
 		return err
@@ -214,6 +223,9 @@ func (p *Publisher) publish(ctx context.Context, command records.Command) error 
 //   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (p *Publisher) publishLocked(ctx context.Context, body []byte, commandType string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if p.channel == nil {
 		return fmt.Errorf("rabbitmq channel is not configured")
 	}
@@ -257,10 +269,10 @@ func (p *Publisher) Check(ctx context.Context) error {
 		return fmt.Errorf("publisher closed")
 	}
 	if !p.alive.Load() {
-		if !p.mu.TryLock() {
+		if !p.gate.TryAcquire(1) {
 			return fmt.Errorf("broker reconnect in progress")
 		}
-		defer p.mu.Unlock()
+		defer p.gate.Release(1)
 		if p.closed.Load() {
 			return fmt.Errorf("publisher closed")
 		}
@@ -278,14 +290,14 @@ func (p *Publisher) Check(ctx context.Context) error {
 //   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (p *Publisher) reconnectLocked(ctx context.Context) error {
-	closeAMQP(p.conn)
-	p.channel, p.conn = nil, nil
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if p.closed.Load() {
 		return fmt.Errorf("rabbitmq publisher closed")
 	}
+	closeAMQP(p.conn)
+	p.channel, p.conn = nil, nil
 	conn, channel, err := openDeclaredChannel(ctx, p.options)
 	if err != nil {
 		return err
@@ -316,11 +328,11 @@ func (p *Publisher) watch(conn *amqp.Connection) {
 	p.alive.Store(true)
 	go func() {
 		<-conn.NotifyClose(make(chan *amqp.Error, 1))
-		p.mu.Lock()
+		_ = p.gate.Acquire(context.Background(), 1)
 		if p.conn == conn {
 			p.alive.Store(false)
 		}
-		p.mu.Unlock()
+		p.gate.Release(1)
 	}()
 }
 

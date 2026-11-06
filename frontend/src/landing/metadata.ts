@@ -1,4 +1,4 @@
-import { DOC_SLUGS, documentationArticles } from "./docs";
+import { DOC_SLUGS, documentationTitles } from "./docs-catalog";
 
 const configuredSite =
   import.meta.env.VITE_PUBLIC_SITE_URL || "https://meeting.janickiy.com";
@@ -233,11 +233,10 @@ export function pageMetadata(
           : path === "/docs/self-hosted"
             ? "installation"
             : path.slice("/docs/".length);
-      const article = documentationArticles.find((item) => item.slug === slug);
-      if (!article) throw new Error(`No documentation article for ${path}`);
+      const articleSlug = DOC_SLUGS.find((item) => item === slug);
+      if (!articleSlug) throw new Error(`No documentation article for ${path}`);
       const canonical = `${PUBLIC_SITE_ORIGIN}${slug === "overview" ? "/docs" : `/docs/${slug}`}`;
-      const { title, description, keywords } =
-        documentationSeo[article.slug as (typeof DOC_SLUGS)[number]];
+      const { title, description, keywords } = documentationSeo[articleSlug];
       return {
         language: "ru",
         title,
@@ -248,7 +247,7 @@ export function pageMetadata(
         structuredData: {
           "@context": "https://schema.org",
           "@type": "TechArticle",
-          name: article.title,
+          name: documentationTitles[articleSlug],
           headline: title,
           description,
           url: canonical,
