@@ -1,0 +1,21 @@
+['docker-compose.yml']: exit=0
+
+['docker-compose.production.yml']: exit=0
+
+['docker-compose.production.yml', 'docker-compose.grafana.yml']: exit=0
+
+['docker-compose.production.yml', 'docker-compose.hardened.yml']: exit=0
+
+['docker-compose.yml', 'docker-compose.media-range.yml']: exit=0
+
+['docker-compose.yml', 'docker-compose.media-udp.yml']: exit=0
+
+['docker-compose.production.yml', 'docker-compose.release-local.yml', 'docker-compose.grafana.yml', 'docker-compose.release-local-grafana.yml']: exit=0
+
+['docker-compose.production.yml', 'docker-compose.release-local.yml', 'docker-compose.release-local-hardened.yml']: exit=0
+
+['docker-compose.production.yml', 'docker-compose.release-local.yml']: exit=0
+
+['docker-compose.production.yml', 'docker-compose.shared-host.yml']: exit=0
+
+['docker-compose.yml', 'docker-compose.smtp.yml']: exit=0

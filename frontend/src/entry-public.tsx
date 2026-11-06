@@ -1,4 +1,5 @@
 import { renderToString } from "react-dom/server";
+import { Suspense } from "react";
 import { MemoryRouter } from "react-router";
 import { PublicPage } from "./landing/PublicPage";
 import { pageMetadata, publicPath, socialMetadata } from "./landing/metadata";
@@ -28,7 +29,9 @@ export function renderPublicPage(pathname: string) {
   const metadata = pageMetadata(path);
   const html = renderToString(
     <MemoryRouter initialEntries={[path]}>
-      <PublicPage path={path} />
+      <Suspense>
+        <PublicPage path={path} />
+      </Suspense>
     </MemoryRouter>,
   );
   const head = [

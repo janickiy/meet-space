@@ -43,8 +43,8 @@ func createConversationNotifications(tx *gorm.DB, messageID string) error {
 // notificationVisibilitySQL формирует предикат доступа, используемый для скрытия уведомлений,
 // источник которых больше не виден.
 //
-// Ресурсы IDs сравниваются как текстовые, поэтому некорректные исторические данные JSON не
-// приводят к закрытию, а не к разрыву всей ленты уведомлений.  В полезных данных нет текста
+// Канонические UUID из JSON проверяются до приведения типа: повреждённые значения
+// не прерывают ленту, а индексируемые столбцы сохраняют тип UUID. В полезных данных нет текста
 // сообщения или вложений; при открытии целевого объекта всегда проверяются текущие разрешения.
 //
 // @Parameters:
@@ -53,19 +53,29 @@ func createConversationNotifications(tx *gorm.DB, messageID string) error {
 // @returns:
 //   - result1: Предикат доступа к уведомлениям, созданный сервером.
 func notificationVisibilitySQL(alias string) string {
+	conferenceID := notificationPayloadUUID(alias, "conferenceId")
+	conversationID := notificationPayloadUUID(alias, "conversationId")
+	messageID := notificationPayloadUUID(alias, "messageId")
 	return `NOT EXISTS (SELECT 1 FROM conference_chat_preferences cp
-		WHERE cp.user_id=` + alias + `.user_id AND cp.conference_id::text=` + alias + `.payload->>'conferenceId'
+		WHERE cp.user_id=` + alias + `.user_id AND cp.conference_id=` + conferenceID + `
 		AND (cp.left_at IS NOT NULL OR NOT cp.notifications_enabled))
 		AND (` + alias + `.type<>'chat.message' OR (
 		 EXISTS(SELECT 1 FROM conversations c
 		 JOIN conversation_members member ON member.conversation_id=c.id AND member.user_id=` + alias + `.user_id
-		 JOIN conversation_messages m ON m.conversation_id=c.id AND m.id::text=` + alias + `.payload->>'messageId'
-		 WHERE c.id::text=` + alias + `.payload->>'conversationId' AND c.deleted_at IS NULL
+		 JOIN conversation_messages m ON m.conversation_id=c.id AND m.id=` + messageID + `
+		 WHERE c.id=` + conversationID + ` AND c.deleted_at IS NULL
 		 AND member.left_at IS NULL AND member.hidden_at IS NULL AND member.notifications_enabled
 		 AND m.deleted_at IS NULL AND m.sender_user_id<>member.user_id AND m.sequence>member.history_cleared_through)
 		 OR (COALESCE(` + alias + `.payload->>'conversationId','')='' AND
 		 EXISTS(SELECT 1 FROM chat_messages m JOIN conference_participants p ON p.conference_id=m.conference_id
-		 WHERE m.id::text=` + alias + `.payload->>'messageId' AND m.conference_id::text=` + alias + `.payload->>'conferenceId'
+		 WHERE m.id=` + messageID + ` AND m.conference_id=` + conferenceID + `
 		 AND p.user_id=` + alias + `.user_id AND p.admission_state='admitted' AND p.status IN ('joined','left')
 		 AND m.deleted_at IS NULL AND m.sender_user_id<>p.user_id))))`
+}
+
+// Аргументы задаются только сервером. CASE защищает cast независимо от порядка
+// вычисления WHERE. Только каноническая запись сохраняет прежнюю семантику UUID::text.
+func notificationPayloadUUID(alias, key string) string {
+	value := alias + ".payload->>'" + key + "'"
+	return "(CASE WHEN " + value + " ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (" + value + ")::uuid END)"
 }

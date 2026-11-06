@@ -1,0 +1,6 @@
+
+> go-recorder-meet@1.0.0 lint
+> prettier --check src *.ts *.json index.html
+
+Checking formatting...
+All matched files use Prettier code style!

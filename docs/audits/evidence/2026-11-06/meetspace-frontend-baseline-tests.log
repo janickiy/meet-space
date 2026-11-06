@@ -1,0 +1,89 @@
+
+> go-recorder-meet@1.0.0 test
+> node --experimental-transform-types --test tests/*.test.mjs
+
+(node:40264) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ attachment picker and server allow exactly the same extensions (1.466334ms)
+✔ all supported documents and archives pass client validation (0.970834ms)
+✔ client still rejects active extensions and invalid attachment sizes (11.26075ms)
+✔ current server size limit applies without changing allowed file types (0.171334ms)
+(node:40265) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ настройки без уровней получают 85/85/100%; изменения изолированы по аккаунту (2.709ms)
+✔ раздельные сигналы объединяются без потери отключённого звука и пользовательских уровней (0.255875ms)
+✔ повреждённые уровни не попадают в AudioParam и HTMLMediaElement (0.133542ms)
+✔ уровень микрофона меняется на существующей дорожке и освобождает захват при закрытии (0.336583ms)
+✔ проверочный сигнал меняет громкость на ходу и отменяется до позднего play (6.769958ms)
+✔ уведомления используют сохранённый уровень, обновляются и снимают подписку при закрытии (6.634167ms)
+(node:40266) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ avatar source allows photos but excludes active and oversized formats (0.524792ms)
+✔ avatar preparation closes late decoded images after cancellation (1.247542ms)
+✔ avatar preparation crops phone photos to a small metadata-free JPEG (0.503208ms)
+(node:40267) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ protected blocked response rejects only the token used by the request (199.669708ms)
+✔ ordinary permission failure never rejects an active account (0.271125ms)
+✔ response from an account switched away cannot reject the new account (1.488583ms)
+✔ public auth forms translate blocked and duplicate email without rejecting another session (20.159083ms)
+✔ unavailable recovery describes the current service capability (0.202833ms)
+✔ blocked file request uses the same scoped session rejection (0.2575ms)
+(node:40268) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ verification and password links retain only their fixed telemetry route (1.133ms)
+✔ email link tokens never enter serialized telemetry, including error messages and stack URLs (35.726333ms)
+(node:40269) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ all time clears both meeting date bounds (1.927583ms)
+✔ quick periods include today and update both local date bounds (25.279709ms)
+✔ calendar periods cross year and leap-day boundaries (0.087125ms)
+✔ period dates stay local across a daylight-saving transition (5.041708ms)
+(node:40270) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 100 camera join/leave cycles release all owned tracks and peers (297.089166ms)
+✔ capture that resolves after stop does not leave the camera running (0.226959ms)
+✔ late camera constraints cannot recreate a stopped PeerConnection (0.192125ms)
+✔ screen capture resolving after leave is stopped without publication (0.270166ms)
+✔ joining without devices never asks for camera or microphone access (0.108167ms)
+(node:40271) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ notification requests use the requested modal or history page size (24.525792ms)
+✔ notification pagination preserves opaque cursor bytes (0.202958ms)
+✔ notification callers without an explicit size keep the previous default (0.155166ms)
+(node:40272) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ repeated rejected notification responses release every stream (303.123875ms)
+✔ invalid SSE content type releases an otherwise successful response (0.170416ms)
+✔ 401 response is released before session recovery and replacement request (0.157417ms)
+✔ response is released even when session recovery throws (0.134541ms)
+✔ a response from a previous account is canceled rather than returned (0.154166ms)
+✔ abort during response acquisition cancels the body (21.478ms)
+✔ valid SSE response remains open for the caller to consume (0.155791ms)
+(node:40283) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ reset posts credentials only in the body without using another active session (12.883583ms)
+✔ expired or reused links have an actionable message (0.369709ms)
+✔ blocked reset does not revoke an unrelated browser account (0.213042ms)
+(node:40292) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ legacy diagnostics use the user API outside the admin identity boundary (17.270709ms)
+(node:40302) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the client no longer exposes speech-processing operations (0.397791ms)
+✔ recording creation and authorized playback remain available (318.769125ms)
+✔ conference keyword search preserves membership and date filters (0.27925ms)
+✔ notification preferences contain only supported event and delivery settings (25.410334ms)
+(node:40303) ExperimentalWarning: Transform Types is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ only a valid guest scope gets the three-hour client ceiling (13.959792ms)
+✔ a three-hour guest session survives cache reload (4.788292ms)
+✔ cache rejects lifetimes beyond the appropriate account ceiling (0.157292ms)
+ℹ tests 51
+ℹ suites 0
+ℹ pass 51
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1791.439042

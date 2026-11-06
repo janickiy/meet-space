@@ -1,0 +1,115 @@
+
+> go-recorder-meet@1.0.0 build
+> tsc --noEmit && vite build && node scripts/prerender-public.mjs
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 2194 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/version.json                                       0.05 kB │ gzip:   0.07 kB
+dist/index.html                                         0.94 kB │ gzip:   0.51 kB
+dist/assets/inter-cyrillic-400-normal-obahsSVq.woff2    7.71 kB
+dist/assets/inter-cyrillic-500-normal-BasfLYem.woff2    7.90 kB
+dist/assets/inter-cyrillic-700-normal-CjBOestx.woff2    7.90 kB
+dist/assets/inter-cyrillic-600-normal-CWCymEST.woff2    7.97 kB
+dist/assets/inter-cyrillic-400-normal-HOLc17fK.woff     9.78 kB
+dist/assets/inter-cyrillic-700-normal-DrXBdSj3.woff     9.91 kB
+dist/assets/inter-cyrillic-600-normal-4D_pXhcN.woff     9.93 kB
+dist/assets/inter-cyrillic-500-normal-CxZf_p3X.woff     9.94 kB
+dist/assets/inter-latin-400-normal-C38fXH4l.woff2      23.66 kB
+dist/assets/inter-latin-500-normal-Cerq10X2.woff2      24.27 kB
+dist/assets/inter-latin-700-normal-Yt3aPRUw.woff2      24.35 kB
+dist/assets/inter-latin-600-normal-LgqL8muc.woff2      24.45 kB
+dist/assets/inter-latin-400-normal-CyCys3Eg.woff       30.69 kB
+dist/assets/inter-latin-600-normal-CiBQ2DWP.woff       31.26 kB
+dist/assets/inter-latin-500-normal-BL9OpVg8.woff       31.28 kB
+dist/assets/inter-latin-700-normal-BLAVimhd.woff       31.32 kB
+dist/assets/device-tone--3RIYZMa.wav                   48.04 kB
+dist/assets/recording-started-en-BLqWG9hK.wav          64.83 kB
+dist/assets/MeetingSkeleton-B2Jq5p1v.css                0.61 kB │ gzip:   0.27 kB
+dist/assets/NewDirectChatModal-Dj7nNXUp.css             1.26 kB │ gzip:   0.52 kB
+dist/assets/PersonalPage-Bg0UgLJG.css                   1.84 kB │ gzip:   0.62 kB
+dist/assets/AdminPage-BmUV7rqG.css                      2.97 kB │ gzip:   0.90 kB
+dist/assets/MessagingSkeleton-C1mgzW00.css              4.40 kB │ gzip:   1.26 kB
+dist/assets/FoldersPage-BrPjlqI8.css                    4.65 kB │ gzip:   1.24 kB
+dist/assets/AccountPages-ikER4XvS.css                   6.69 kB │ gzip:   1.80 kB
+dist/assets/FolderPicker-BDV8nikP.css                   8.14 kB │ gzip:   1.97 kB
+dist/assets/PreJoinPage-ChhlUMr8.css                    8.52 kB │ gzip:   1.96 kB
+dist/assets/CalendarPage-BYE8gepP.css                  10.11 kB │ gzip:   2.18 kB
+dist/assets/history-notifications-G-CJ2s6X.css         11.70 kB │ gzip:   2.46 kB
+dist/assets/recordings-o5tIk5K4.css                    15.62 kB │ gzip:   2.97 kB
+dist/assets/PublicPage-MygM8lxy.css                    18.09 kB │ gzip:   4.46 kB
+dist/assets/ConferenceModals-Bw44lei1.css              18.22 kB │ gzip:   3.33 kB
+dist/assets/ConferencePage-DetvCp7s.css                25.27 kB │ gzip:   5.01 kB
+dist/assets/ChatPanel-DWCArM5A.css                     25.85 kB │ gzip:   4.43 kB
+dist/assets/Dashboard-CZFckh_r.css                     33.06 kB │ gzip:   5.87 kB
+dist/assets/index-BaPaFhAV.css                        167.00 kB │ gzip:  32.15 kB
+dist/assets/chevron-left-BmFXQseB.js                    0.15 kB │ gzip:   0.16 kB
+dist/assets/square-6pISMZ7w.js                          0.17 kB │ gzip:   0.16 kB
+dist/assets/clock-3-C8gswV12.js                         0.19 kB │ gzip:   0.18 kB
+dist/assets/useCapabilities-4z1SznRZ.js                 0.21 kB │ gzip:   0.19 kB
+dist/assets/mail--M-6y0C7.js                            0.24 kB │ gzip:   0.21 kB
+dist/assets/lock-keyhole-BpLbeP5j.js                    0.28 kB │ gzip:   0.24 kB
+dist/assets/ellipsis-vertical-CJwJyXQV.js               0.29 kB │ gzip:   0.20 kB
+dist/assets/camera-xkfuAA1W.js                          0.36 kB │ gzip:   0.27 kB
+dist/assets/trash-D0Zw2G82.js                           0.37 kB │ gzip:   0.24 kB
+dist/assets/search-DGXWq6kL.js                          0.37 kB │ gzip:   0.25 kB
+dist/assets/clapperboard-BiEsCDkE.js                    0.38 kB │ gzip:   0.28 kB
+dist/assets/star-DLKJiIqB.js                            0.50 kB │ gzip:   0.31 kB
+dist/assets/MeetingSkeleton-DONr6Q4P.js                 0.50 kB │ gzip:   0.30 kB
+dist/assets/collaboration-BQXhOll8.js                   1.01 kB │ gzip:   0.56 kB
+dist/assets/queries-Cs8sr255.js                         1.03 kB │ gzip:   0.50 kB
+dist/assets/useInfiniteQuery-BeHiR6CQ.js                1.11 kB │ gzip:   0.47 kB
+dist/assets/InvitePage-C2HUqJzT.js                      1.11 kB │ gzip:   0.60 kB
+dist/assets/chatPresentation-CcH4DWBb.js                1.14 kB │ gzip:   0.58 kB
+dist/assets/recordingPresentation-CBO_mDYe.js           1.40 kB │ gzip:   0.83 kB
+dist/assets/NewDirectChatModal-woZgDmDt.js              2.47 kB │ gzip:   1.28 kB
+dist/assets/MessagingSkeleton-D3qeOInx.js               3.01 kB │ gzip:   1.40 kB
+dist/assets/AvatarPicker-CHcvwm9Y.js                    3.27 kB │ gzip:   1.60 kB
+dist/assets/NotificationsPage-D5m0u0wp.js               4.62 kB │ gzip:   1.92 kB
+dist/assets/AdminPage-Bi33B7Uu.js                       4.62 kB │ gzip:   1.85 kB
+dist/assets/RecordingDetailPage-CAUo3F8D.js             7.81 kB │ gzip:   2.60 kB
+dist/assets/CalendarPage-D0Qzi8lc.js                   12.46 kB │ gzip:   4.19 kB
+dist/assets/FoldersPage-M0WSEnSf.js                    14.25 kB │ gzip:   4.51 kB
+dist/assets/PersonalPage-D7EbJiAL.js                   14.91 kB │ gzip:   5.37 kB
+dist/assets/RecordingsPage-D8l3szMQ.js                 17.09 kB │ gzip:   5.56 kB
+dist/assets/PreJoinPage-DAFr5hbo.js                    17.94 kB │ gzip:   6.22 kB
+dist/assets/AccountPages-BRG8jDzK.js                   28.49 kB │ gzip:   8.71 kB
+dist/assets/ConferenceModals-DE2fy_pQ.js               33.54 kB │ gzip:  11.23 kB
+dist/assets/FolderPicker-DrDFTbxZ.js                   36.25 kB │ gzip:  10.89 kB
+dist/assets/Dashboard-Czk5JzZc.js                      37.87 kB │ gzip:  10.43 kB
+dist/assets/ChatPanel-Do7LfR0Z.js                      39.19 kB │ gzip:  12.56 kB
+dist/assets/ConferencePage-CYuLNCTY.js                 43.46 kB │ gzip:  12.40 kB
+dist/assets/brand-BIpapwSF.js                          49.84 kB │ gzip:  18.17 kB
+dist/assets/ui-BGlPxXj2.js                             66.22 kB │ gzip:  20.38 kB
+dist/assets/PublicPage-CpxsbgCs.js                    231.10 kB │ gzip:  54.06 kB
+dist/assets/index-DXNJecnf.js                         463.37 kB │ gzip: 133.15 kB
+
+✓ built in 220ms
+vite v8.3.5 building ssr environment for production...
+transforming...
+✓ 1893 modules transformed.
+rendering chunks...
+computing gzip size...
+.prerender/version.json       0.05 kB │ gzip:  0.07 kB
+.prerender/entry-public.js  397.40 kB │ gzip: 86.30 kB
+
+✓ built in 57ms
+Prerendered /
+Prerendered /welcome
+Prerendered /download
+Prerendered /self-hosted
+Prerendered /docs
+Prerendered /docs/self-hosted
+Prerendered /docs/overview
+Prerendered /docs/features
+Prerendered /docs/architecture
+Prerendered /docs/interface
+Prerendered /docs/support
+Prerendered /docs/before-you-begin
+Prerendered /docs/system-requirements
+Prerendered /docs/source-and-releases
+Prerendered /docs/installation
+Prerendered /docs/updates-and-backups
+Prerendered /docs/troubleshooting

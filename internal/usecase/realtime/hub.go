@@ -929,7 +929,12 @@ func (h *Hub) receiveLowPriority() {
 func (h *Hub) entries(conferenceID string) []*localSocket {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	rows := make([]*localSocket, 0, len(h.local))
+	capacity := 0
+	if conferenceID == "" {
+		capacity = len(h.local)
+	}
+	// Событие одной комнаты не резервирует память под сокеты всех конференций.
+	rows := make([]*localSocket, 0, capacity)
 	for _, entry := range h.local {
 		if entry.ready && (conferenceID == "" || entry.session.ConferenceID == conferenceID) {
 			rows = append(rows, entry)

@@ -1,0 +1,170 @@
+=== RUN   TestAuditAdminSessionsAndAudit
+--- PASS: TestAuditAdminSessionsAndAudit (0.72s)
+=== RUN   TestAuditAdminConcurrentLastActive
+=== RUN   TestAuditAdminConcurrentLastActive/block_block
+=== RUN   TestAuditAdminConcurrentLastActive/delete_delete
+=== RUN   TestAuditAdminConcurrentLastActive/block_delete
+--- PASS: TestAuditAdminConcurrentLastActive (1.07s)
+    --- PASS: TestAuditAdminConcurrentLastActive/block_block (0.41s)
+    --- PASS: TestAuditAdminConcurrentLastActive/delete_delete (0.31s)
+    --- PASS: TestAuditAdminConcurrentLastActive/block_delete (0.35s)
+=== RUN   TestAuditAdminUserBlockingAndRateLimit
+--- PASS: TestAuditAdminUserBlockingAndRateLimit (0.84s)
+=== RUN   TestAuditAdminConferencePageUsesRecordingIndex
+--- PASS: TestAuditAdminConferencePageUsesRecordingIndex (0.31s)
+=== RUN   TestAuditAdminSearchIndexMigrationUpgradeAndRollback
+--- PASS: TestAuditAdminSearchIndexMigrationUpgradeAndRollback (0.29s)
+=== RUN   TestAuditAdminIndexedSearchPreservesFieldAndLiteralSemantics
+--- PASS: TestAuditAdminIndexedSearchPreservesFieldAndLiteralSemantics (0.27s)
+=== RUN   TestAuditAdminQueryCancellationReleasesPoolWaiters
+--- PASS: TestAuditAdminQueryCancellationReleasesPoolWaiters (0.37s)
+=== RUN   TestAuditAdminPaginationStableForEqualSortValues
+--- PASS: TestAuditAdminPaginationStableForEqualSortValues (0.32s)
+=== RUN   TestAuditAdminResourceMetadataAndSafeDelete
+--- PASS: TestAuditAdminResourceMetadataAndSafeDelete (0.27s)
+=== RUN   TestAuditUserBlockPublicAuthAndGuestCompatibility
+--- PASS: TestAuditUserBlockPublicAuthAndGuestCompatibility (0.25s)
+=== RUN   TestAuditAdminRevokeDuringBodyCannotCreateAccount
+=== RUN   TestAuditAdminRevokeDuringBodyCannotCreateAccount/logout
+=== RUN   TestAuditAdminRevokeDuringBodyCannotCreateAccount/block
+=== RUN   TestAuditAdminRevokeDuringBodyCannotCreateAccount/block-unblock
+=== RUN   TestAuditAdminRevokeDuringBodyCannotCreateAccount/password-reset
+=== RUN   TestAuditAdminRevokeDuringBodyCannotCreateAccount/delete
+=== RUN   TestAuditAdminRevokeDuringBodyCannotCreateAccount/expire
+--- PASS: TestAuditAdminRevokeDuringBodyCannotCreateAccount (1.68s)
+    --- PASS: TestAuditAdminRevokeDuringBodyCannotCreateAccount/logout (0.27s)
+    --- PASS: TestAuditAdminRevokeDuringBodyCannotCreateAccount/block (0.26s)
+    --- PASS: TestAuditAdminRevokeDuringBodyCannotCreateAccount/block-unblock (0.28s)
+    --- PASS: TestAuditAdminRevokeDuringBodyCannotCreateAccount/password-reset (0.27s)
+    --- PASS: TestAuditAdminRevokeDuringBodyCannotCreateAccount/delete (0.28s)
+    --- PASS: TestAuditAdminRevokeDuringBodyCannotCreateAccount/expire (0.31s)
+=== RUN   TestAuditAdminCanonicalSelfMutationGuards
+--- PASS: TestAuditAdminCanonicalSelfMutationGuards (0.26s)
+=== RUN   TestAuditAdminLoginPreservesDatabaseTimeout
+--- PASS: TestAuditAdminLoginPreservesDatabaseTimeout (0.36s)
+=== RUN   TestAuditAdminLoginCleanupSkipsLockedExpiredSessions
+--- PASS: TestAuditAdminLoginCleanupSkipsLockedExpiredSessions (0.28s)
+=== RUN   TestAuditAdminLoginCannotSurviveSecurityChange
+=== RUN   TestAuditAdminLoginCannotSurviveSecurityChange/password-reset
+=== RUN   TestAuditAdminLoginCannotSurviveSecurityChange/block
+=== RUN   TestAuditAdminLoginCannotSurviveSecurityChange/delete
+--- PASS: TestAuditAdminLoginCannotSurviveSecurityChange (0.80s)
+    --- PASS: TestAuditAdminLoginCannotSurviveSecurityChange/password-reset (0.27s)
+    --- PASS: TestAuditAdminLoginCannotSurviveSecurityChange/block (0.25s)
+    --- PASS: TestAuditAdminLoginCannotSurviveSecurityChange/delete (0.27s)
+=== RUN   TestAuditAdminConcurrentLogoutDoesNotDeadlock
+--- PASS: TestAuditAdminConcurrentLogoutDoesNotDeadlock (0.30s)
+=== RUN   TestAuditAdminCancelledMutationReleasesLocks
+--- PASS: TestAuditAdminCancelledMutationReleasesLocks (0.38s)
+=== RUN   TestAuditAdminLoginLimitRotationBounded
+    admin_revocation_audit_test.go:375: 100 rotating usernames from one IP retained exactly 31 rate buckets (1 IP + 30 usernames)
+--- PASS: TestAuditAdminLoginLimitRotationBounded (0.49s)
+=== RUN   TestAuditAdminLoginLimitCleanupSkipsLockedRows
+--- PASS: TestAuditAdminLoginLimitCleanupSkipsLockedRows (0.27s)
+=== RUN   TestAuditAdminSessionCountIsBounded
+    admin_revocation_audit_test.go:418: 25 successful session creations retained exactly 20 sessions
+--- PASS: TestAuditAdminSessionCountIsBounded (0.33s)
+=== RUN   TestAuditAdminFailedMutationsAreRecordedWithoutSecrets
+2026/11/06 15:19:50 ERROR admin request failed event_type=http.5xx request_id=0def8f65-8cfc-46e7-9a01-0b0901ca7afa route=/api/v1/admin/recordings/:id category=internal_error
+--- PASS: TestAuditAdminFailedMutationsAreRecordedWithoutSecrets (0.26s)
+=== RUN   TestAuditSessionRevocation
+--- PASS: TestAuditSessionRevocation (0.25s)
+=== RUN   TestAuditRepositoryAuthorization
+=== RUN   TestAuditRepositoryAuthorization/recording_member_allowed
+=== RUN   TestAuditRepositoryAuthorization/recording_outsider_denied
+=== RUN   TestAuditRepositoryAuthorization/recording_stop_non_owner_denied
+=== RUN   TestAuditRepositoryAuthorization/meeting_outsider_cannot_finish
+=== RUN   TestAuditRepositoryAuthorization/chat_outsider_denied
+=== RUN   TestAuditRepositoryAuthorization/chat_other_sender_edit_denied
+=== RUN   TestAuditRepositoryAuthorization/direct_outsider_denied
+=== RUN   TestAuditRepositoryAuthorization/group_outsider_denied
+=== RUN   TestAuditRepositoryAuthorization/group_member_cannot_promote_self
+=== RUN   TestAuditRepositoryAuthorization/group_avatar_outsider_denied
+=== RUN   TestAuditRepositoryAuthorization/attachment_other_owner_denied
+=== RUN   TestAuditRepositoryAuthorization/folder_other_owner_denied
+=== RUN   TestAuditRepositoryAuthorization/group_removed_member_denied
+=== RUN   TestAuditRepositoryAuthorization/kicked_meeting_member_denied
+--- PASS: TestAuditRepositoryAuthorization (0.32s)
+    --- PASS: TestAuditRepositoryAuthorization/recording_member_allowed (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/recording_outsider_denied (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/recording_stop_non_owner_denied (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/meeting_outsider_cannot_finish (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/chat_outsider_denied (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/chat_other_sender_edit_denied (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/direct_outsider_denied (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/group_outsider_denied (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/group_member_cannot_promote_self (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/group_avatar_outsider_denied (0.00s)
+    --- PASS: TestAuditRepositoryAuthorization/attachment_other_owner_denied (0.01s)
+    --- PASS: TestAuditRepositoryAuthorization/folder_other_owner_denied (0.01s)
+    --- PASS: TestAuditRepositoryAuthorization/group_removed_member_denied (0.01s)
+    --- PASS: TestAuditRepositoryAuthorization/kicked_meeting_member_denied (0.00s)
+=== RUN   TestRecordingRecoveryOnlySelectsSFURecords
+=== RUN   TestRecordingRecoveryOnlySelectsSFURecords/recovery_batch
+=== RUN   TestRecordingRecoveryOnlySelectsSFURecords/lease_claim
+--- PASS: TestRecordingRecoveryOnlySelectsSFURecords (0.00s)
+    --- PASS: TestRecordingRecoveryOnlySelectsSFURecords/recovery_batch (0.00s)
+    --- PASS: TestRecordingRecoveryOnlySelectsSFURecords/lease_claim (0.00s)
+=== RUN   TestAuditTimelineSorting
+=== RUN   TestAuditTimelineSorting/upcoming/
+=== RUN   TestAuditTimelineSorting/upcoming/newest
+=== RUN   TestAuditTimelineSorting/upcoming/oldest
+=== RUN   TestAuditTimelineSorting/active/
+=== RUN   TestAuditTimelineSorting/active/newest
+=== RUN   TestAuditTimelineSorting/active/oldest
+=== RUN   TestAuditTimelineSorting/past/
+=== RUN   TestAuditTimelineSorting/past/newest
+=== RUN   TestAuditTimelineSorting/past/oldest
+--- PASS: TestAuditTimelineSorting (0.34s)
+    --- PASS: TestAuditTimelineSorting/upcoming/ (0.01s)
+    --- PASS: TestAuditTimelineSorting/upcoming/newest (0.00s)
+    --- PASS: TestAuditTimelineSorting/upcoming/oldest (0.00s)
+    --- PASS: TestAuditTimelineSorting/active/ (0.01s)
+    --- PASS: TestAuditTimelineSorting/active/newest (0.00s)
+    --- PASS: TestAuditTimelineSorting/active/oldest (0.00s)
+    --- PASS: TestAuditTimelineSorting/past/ (0.01s)
+    --- PASS: TestAuditTimelineSorting/past/newest (0.00s)
+    --- PASS: TestAuditTimelineSorting/past/oldest (0.00s)
+=== RUN   TestEmailVerificationLifecycle
+--- PASS: TestEmailVerificationLifecycle (0.31s)
+=== RUN   TestEmailVerificationExpiry
+--- PASS: TestEmailVerificationExpiry (0.27s)
+=== RUN   TestEmailVerificationPolicyRevokesPendingDurableAuthorization
+--- PASS: TestEmailVerificationPolicyRevokesPendingDurableAuthorization (0.28s)
+=== RUN   TestAuditErrorLogIdempotencyPrivacyFiltersAndCursor
+--- PASS: TestAuditErrorLogIdempotencyPrivacyFiltersAndCursor (0.27s)
+=== RUN   TestAuditErrorLogStrictFourteenDayExpiryAndReset
+--- PASS: TestAuditErrorLogStrictFourteenDayExpiryAndReset (0.27s)
+=== RUN   TestAuditErrorLogHardCapAndConcurrentWriters
+--- PASS: TestAuditErrorLogHardCapAndConcurrentWriters (0.50s)
+=== RUN   TestAuditErrorLogGoPipelineFlushAndPrivacy
+--- PASS: TestAuditErrorLogGoPipelineFlushAndPrivacy (0.50s)
+=== RUN   TestAuditLiveRetentionReadSurfacesAndSafeCleanup
+--- PASS: TestAuditLiveRetentionReadSurfacesAndSafeCleanup (0.29s)
+=== RUN   TestAuditAttachmentSizeCeilingMigration
+--- PASS: TestAuditAttachmentSizeCeilingMigration (0.28s)
+=== RUN   TestPasswordRecoveryLifecycleAndRevocation
+--- PASS: TestPasswordRecoveryLifecycleAndRevocation (0.29s)
+=== RUN   TestPasswordRecoveryCooldownRotationExpiryAndEligibility
+--- PASS: TestPasswordRecoveryCooldownRotationExpiryAndEligibility (0.26s)
+=== RUN   TestPasswordRecoveryRejectsLoginVerifiedBeforeReset
+--- PASS: TestPasswordRecoveryRejectsLoginVerifiedBeforeReset (0.29s)
+=== RUN   TestRecordingLibraryAuthorizationLifecycleAndPagination
+--- PASS: TestRecordingLibraryAuthorizationLifecycleAndPagination (0.33s)
+=== RUN   TestAuditPlatformSettingsPersistEncryptedAndAuditKeysOnly
+--- PASS: TestAuditPlatformSettingsPersistEncryptedAndAuditKeysOnly (0.27s)
+=== RUN   TestAuditPlatformSettingsConcurrentRevisionOnlyOneWins
+--- PASS: TestAuditPlatformSettingsConcurrentRevisionOnlyOneWins (0.28s)
+=== RUN   TestAuditPlatformSettingsRevokedSessionAndAuditFailureRollback
+--- PASS: TestAuditPlatformSettingsRevokedSessionAndAuditFailureRollback (0.26s)
+=== RUN   TestAuditPlatformSettingsHTTPContract
+--- PASS: TestAuditPlatformSettingsHTTPContract (0.32s)
+=== RUN   TestAuditSpeechRemovalFreshInstall
+    speech_removal_integration_test.go:69: schema without migration ledger: tables=50 columns=498 sequences=9; notifications=CHECK (((type)::text = ANY ((ARRAY['conference.soon'::character varying, 'admission.decided'::character varying, 'recording.ready'::character varying, 'conference.invited'::character varying, 'conference.rescheduled'::character varying, 'conference.cancelled'::character varying, 'chat.message'::character varying])::text[])))
+--- PASS: TestAuditSpeechRemovalFreshInstall (0.31s)
+=== RUN   TestAuditSpeechRemovalUpgradePreservesRecordingAndSearch
+--- PASS: TestAuditSpeechRemovalUpgradePreservesRecordingAndSearch (0.33s)
+=== RUN   TestAuditProfileAvatars
+--- PASS: TestAuditProfileAvatars (0.33s)
+PASS
+ok  	github.com/janickiy/meet-space/internal/infrastructure/postgres	18.823s

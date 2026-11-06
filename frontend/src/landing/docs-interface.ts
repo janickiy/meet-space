@@ -1,8 +1,9 @@
+import { documentationTitles } from "./docs-catalog";
 import type { DocumentationArticle } from "./docs";
 
 export const interfaceArticle: DocumentationArticle = {
   slug: "interface",
-  title: "Интерфейс",
+  title: documentationTitles["interface"],
   description:
     "Руководство по рабочему пространству MeetSpace: встречи, чаты, звонки, записи, папки и настройки.",
   lead: "Рабочее пространство объединяет встречи, переписку, календарь, записи и настройки.",

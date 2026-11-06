@@ -1,0 +1,1 @@
+ok  	github.com/janickiy/meet-space/internal/infrastructure/rabbitmq	2.558s

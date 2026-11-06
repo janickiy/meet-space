@@ -233,12 +233,15 @@ func (e *egress) Ping() {
 //   - packet: Закодированный RTP или медиапакет.
 func (m *Manager) recordPacket(t *publishedTrack, packet *rtp.Packet) {
 	t.publisher.room.mu.Lock()
-	egresses := make([]*egress, 0, len(t.publisher.room.egresses))
+	// SubscribeRecording допускает только одну запись комнаты. Сохраняем ссылку
+	// под блокировкой, не создавая список получателей для каждого RTP-пакета.
+	var recording *egress
 	for _, e := range t.publisher.room.egresses {
-		egresses = append(egresses, e)
+		recording = e
+		break
 	}
 	t.publisher.room.mu.Unlock()
-	if len(egresses) == 0 {
+	if recording == nil {
 		return
 	}
 	raw, err := packet.Marshal()
@@ -246,7 +249,5 @@ func (m *Manager) recordPacket(t *publishedTrack, packet *rtp.Packet) {
 		return
 	}
 	at := time.Now().UnixNano()
-	for _, e := range egresses {
-		e.packet(t, raw, at)
-	}
+	recording.packet(t, raw, at)
 }

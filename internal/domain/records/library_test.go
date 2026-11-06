@@ -2,7 +2,6 @@ package records
 
 import (
 	"encoding/base64"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +36,7 @@ func TestLibraryCursorRoundTripAndValidation(t *testing.T) {
 	}
 	for _, limit := range []int{0, -1, 101} {
 		if err := (LibraryQuery{Limit: limit}).Validate(); err == nil {
-			t.Fatal(fmt.Sprintf("accepted limit %d", limit))
+			t.Fatalf("accepted limit %d", limit)
 		}
 	}
 }

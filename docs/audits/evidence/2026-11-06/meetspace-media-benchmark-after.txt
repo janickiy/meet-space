@@ -1,0 +1,16 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/janickiy/meet-space/internal/infrastructure/sfu
+cpu: Apple M5
+BenchmarkRecordPacket/inactive-10         	113312595	         5.254 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRecordPacket/inactive-10         	100000000	         5.185 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRecordPacket/inactive-10         	100000000	         5.350 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRecordPacket/inactive-10         	110157283	         5.247 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRecordPacket/inactive-10         	100000000	         5.281 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRecordPacket/active-10           	 3199308	       196.3 ns/op	    1280 B/op	       1 allocs/op
+BenchmarkRecordPacket/active-10           	 3229430	       189.0 ns/op	    1280 B/op	       1 allocs/op
+BenchmarkRecordPacket/active-10           	 3189549	       192.5 ns/op	    1280 B/op	       1 allocs/op
+BenchmarkRecordPacket/active-10           	 3200526	       187.8 ns/op	    1280 B/op	       1 allocs/op
+BenchmarkRecordPacket/active-10           	 3111284	       191.3 ns/op	    1280 B/op	       1 allocs/op
+PASS
+ok  	github.com/janickiy/meet-space/internal/infrastructure/sfu	7.902s

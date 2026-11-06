@@ -1,0 +1,21 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/janickiy/meet-space/internal/usecase/realtime
+cpu: Apple M5
+BenchmarkEntriesSmallRoom/100-10         	 2390294	       505.4 ns/op	     896 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/100-10         	 2348488	       510.1 ns/op	     896 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/100-10         	 2356507	       506.7 ns/op	     896 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/100-10         	 2498215	       482.9 ns/op	     896 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/100-10         	 2428507	       517.2 ns/op	     896 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/1000-10        	  201219	      5942 ns/op	    8192 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/1000-10        	  199477	      6160 ns/op	    8192 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/1000-10        	  206360	      5832 ns/op	    8192 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/1000-10        	  207224	      5796 ns/op	    8192 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/1000-10        	  204091	      5904 ns/op	    8192 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/10000-10       	   19855	     60591 ns/op	   81920 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/10000-10       	   19822	     60429 ns/op	   81920 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/10000-10       	   19852	     60913 ns/op	   81920 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/10000-10       	   18561	     62710 ns/op	   81920 B/op	       1 allocs/op
+BenchmarkEntriesSmallRoom/10000-10       	   19947	     61282 ns/op	   81920 B/op	       1 allocs/op
+PASS
+ok  	github.com/janickiy/meet-space/internal/usecase/realtime	18.311s

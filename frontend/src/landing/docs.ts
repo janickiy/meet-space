@@ -1,6 +1,7 @@
 import { productArticles } from "./docs-product";
 import { installationArticles } from "./docs-install";
 import { interfaceArticle } from "./docs-interface";
+import { DOC_SLUGS, documentationTitles } from "./docs-catalog";
 
 export interface DocumentationScreenshot {
   src: string;
@@ -45,19 +46,7 @@ export interface DocumentationArticle {
   sections: DocumentationSection[];
 }
 
-export const DOC_SLUGS = [
-  "overview",
-  "features",
-  "architecture",
-  "interface",
-  "support",
-  "before-you-begin",
-  "system-requirements",
-  "source-and-releases",
-  "installation",
-  "updates-and-backups",
-  "troubleshooting",
-] as const;
+export { DOC_SLUGS } from "./docs-catalog";
 
 export const documentationGroups = [
   {
@@ -79,7 +68,7 @@ export const documentationGroups = [
 
 const overview: DocumentationArticle = {
   slug: "overview",
-  title: "Документация MeetSpace",
+  title: documentationTitles["overview"],
   description:
     "Руководство по использованию MeetSpace, развёртыванию, настройке и администрированию собственного сервера.",
   sections: [

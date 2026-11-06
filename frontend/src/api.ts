@@ -227,6 +227,16 @@ export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   return "Не удалось связаться с сервером. Проверьте подключение и попробуйте снова.";
 }
+
+/** Отмена чтения тела остаётся отменой: она не запускает восстановление сессии. */
+async function responseJSON(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
+    return null;
+  }
+}
 /**
  * request отправляет JSON-запрос к API, добавляет Bearer-токен для приватного маршрута и проверяет ответ; при 401 уведомляет владельца использованной сессии.
  *
@@ -267,15 +277,14 @@ async function request<T>(
     signal: options.signal,
     credentials: options.sessionCookie ? "same-origin" : "omit",
   });
+  options.signal?.throwIfAborted();
+  if (usedToken && version !== identityVersion) {
+    await response.body?.cancel().catch(() => {});
+    throw new ApiError(409, "Аккаунт изменился. Повторите действие.");
+  }
   if (response.status === 204) return undefined as T;
-  const data: unknown = await response.json().catch(
-    /**
-     * Обработчик catch выполняет переданный шаг вызова catch в типизированных HTTP-запросах.
-     *
-     *
-     * @returns вычисленное значение: null.
-     */ () => null,
-  );
+  const data = await responseJSON(response);
+  options.signal?.throwIfAborted();
   if (usedToken && version !== identityVersion)
     throw new ApiError(409, "Аккаунт изменился. Повторите действие.");
   if (!response.ok) {
@@ -330,7 +339,11 @@ async function binaryRequest(
     throw new DOMException("Account changed", "AbortError");
   }
   if (!response.ok) {
-    const message = responseMessage(await response.json().catch(() => null));
+    const data = await responseJSON(response);
+    options.signal?.throwIfAborted();
+    if (version !== identityVersion)
+      throw new DOMException("Account changed", "AbortError");
+    const message = responseMessage(data);
     if (response.status === 403)
       await rejectBlockedSession(usedToken, version, message);
     if (
@@ -351,6 +364,26 @@ async function binaryRequest(
     );
   }
   return response;
+}
+
+/** Ответ загрузки остаётся привязанным к аккаунту до полного чтения JSON. */
+async function uploadAvatar<T>(
+  path: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<T> {
+  const version = identityVersion;
+  const response = await binaryRequest(path, {
+    method: "PUT",
+    body: file,
+    signal,
+  });
+  const data = await responseJSON(response);
+  signal?.throwIfAborted();
+  if (version !== identityVersion)
+    throw new DOMException("Account changed", "AbortError");
+  if (!data) throw new ApiError(502, "Сервер вернул некорректный ответ.");
+  return data as T;
 }
 
 async function privateBlob(
@@ -1274,12 +1307,11 @@ export const api = {
       !["image/png", "image/jpeg"].includes(file.type)
     )
       throw new ApiError(400, "Выберите PNG или JPEG размером до 2 МБ.");
-    const response = await binaryRequest("/auth/me/avatar", {
-      method: "PUT",
-      body: file,
+    return uploadAvatar<{ status: string; user: User }>(
+      "/auth/me/avatar",
+      file,
       signal,
-    });
-    return response.json() as Promise<{ status: string; user: User }>;
+    );
   },
   deleteProfileAvatar: (signal?: AbortSignal) =>
     request<{ status: string; user: User }>("/auth/me/avatar", {
@@ -1293,11 +1325,11 @@ export const api = {
       !["image/png", "image/jpeg"].includes(file.type)
     )
       throw new ApiError(400, "Выберите PNG или JPEG размером до 2 МБ.");
-    const response = await binaryRequest(
+    return uploadAvatar<Item<GroupConversation>>(
       `/conversations/${encodeURIComponent(id)}/avatar`,
-      { method: "PUT", body: file, signal },
+      file,
+      signal,
     );
-    return response.json() as Promise<Item<GroupConversation>>;
   },
   deleteGroupAvatar: (id: string) =>
     request<Item<GroupConversation>>(

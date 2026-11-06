@@ -1,0 +1,105 @@
+{
+  "kind": "isolated-browser-fixture",
+  "samples": [
+    {
+      "label": "baseline",
+      "elapsedSeconds": 0,
+      "heapUsedBytes": 2977048,
+      "heapTotalBytes": 3735552,
+      "documents": 1,
+      "nodes": 426,
+      "listeners": 184,
+      "visibleNodes": 314
+    },
+    {
+      "label": "navigation-25",
+      "elapsedSeconds": 2,
+      "heapUsedBytes": 4303184,
+      "heapTotalBytes": 5046272,
+      "documents": 1,
+      "nodes": 469,
+      "listeners": 190,
+      "visibleNodes": 247
+    },
+    {
+      "label": "navigation-50",
+      "elapsedSeconds": 3,
+      "heapUsedBytes": 4468124,
+      "heapTotalBytes": 5046272,
+      "documents": 1,
+      "nodes": 455,
+      "listeners": 184,
+      "visibleNodes": 314
+    },
+    {
+      "label": "navigation-75",
+      "elapsedSeconds": 5,
+      "heapUsedBytes": 4573188,
+      "heapTotalBytes": 5046272,
+      "documents": 1,
+      "nodes": 469,
+      "listeners": 190,
+      "visibleNodes": 247
+    },
+    {
+      "label": "navigation-100",
+      "elapsedSeconds": 6,
+      "heapUsedBytes": 4754540,
+      "heapTotalBytes": 5570560,
+      "documents": 1,
+      "nodes": 455,
+      "listeners": 184,
+      "visibleNodes": 314
+    },
+    {
+      "label": "modal-50",
+      "elapsedSeconds": 10,
+      "heapUsedBytes": 4987152,
+      "heapTotalBytes": 5832704,
+      "documents": 1,
+      "nodes": 457,
+      "listeners": 184,
+      "visibleNodes": 314
+    },
+    {
+      "label": "login-logout-10",
+      "elapsedSeconds": 11,
+      "heapUsedBytes": 5105448,
+      "heapTotalBytes": 5832704,
+      "documents": 1,
+      "nodes": 425,
+      "listeners": 184,
+      "visibleNodes": 314
+    },
+    {
+      "label": "stable-final",
+      "elapsedSeconds": 11,
+      "heapUsedBytes": 5109152,
+      "heapTotalBytes": 5832704,
+      "documents": 1,
+      "nodes": 426,
+      "listeners": 184,
+      "visibleNodes": 314
+    }
+  ],
+  "navigationCount": 100,
+  "modalCycles": 50,
+  "loginLogoutCycles": 10,
+  "javascriptErrors": [],
+  "requestCounts": {
+    "/auth/me": 11,
+    "/dashboard": 11,
+    "/conferences": 12,
+    "/users": 1,
+    "/administrators": 1,
+    "/chats": 1,
+    "/recordings": 1,
+    "/files": 1,
+    "/system": 1,
+    "/settings": 1,
+    "/audit": 1,
+    "/auth/logout": 10,
+    "/auth/login": 10
+  },
+  "completed": true
+}

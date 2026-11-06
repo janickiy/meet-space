@@ -1,9 +1,10 @@
+import { documentationTitles } from "./docs-catalog";
 import type { DocumentationArticle } from "./docs";
 
 export const installationArticles: DocumentationArticle[] = [
   {
     slug: "before-you-begin",
-    title: "Перед началом работы",
+    title: documentationTitles["before-you-begin"],
     description:
       "Подготовьте всё необходимое для установки MeetSpace: VDS/VPS-сервер, доступ по SSH и домен. После запуска проверьте вход, сообщения и видеосвязь.",
     sections: [
@@ -190,7 +191,7 @@ export const installationArticles: DocumentationArticle[] = [
   },
   {
     slug: "system-requirements",
-    title: "Системные требования",
+    title: documentationTitles["system-requirements"],
     description:
       "Требования к VDS/VPS-серверу и устройствам пользователей: процессор, память, диск, Linux, Docker, сеть и браузеры. Отдельные рекомендации для готовых образов и сборки из исходников.",
     sections: [
@@ -594,7 +595,7 @@ export const installationArticles: DocumentationArticle[] = [
   },
   {
     slug: "source-and-releases",
-    title: "Исходный код и релизы",
+    title: documentationTitles["source-and-releases"],
     description: "Официальный репозиторий исходного кода MeetSpace на GitHub.",
     sections: [
       {
@@ -611,7 +612,7 @@ export const installationArticles: DocumentationArticle[] = [
   },
   {
     slug: "installation",
-    title: "Установка",
+    title: documentationTitles["installation"],
     description:
       "Установите MeetSpace на VDS/VPS-сервер: скачайте установщик, настройте домен, HTTPS и почту, затем проверьте работу приложения. Сборка из исходников и ручное развёртывание описаны отдельно.",
     sections: [
@@ -1088,7 +1089,7 @@ export const installationArticles: DocumentationArticle[] = [
   },
   {
     slug: "updates-and-backups",
-    title: "Обновления и резервное копирование",
+    title: documentationTitles["updates-and-backups"],
     description:
       "Подготовьте обновление MeetSpace, сохраните данные и проверьте восстановление. Выберите процедуру для своей установки и заранее спланируйте обслуживание сервера.",
     sections: [
@@ -1358,7 +1359,7 @@ export const installationArticles: DocumentationArticle[] = [
   },
   {
     slug: "troubleshooting",
-    title: "Устранение неполадок",
+    title: documentationTitles["troubleshooting"],
     description:
       "Рекомендации по решению проблем с установкой, входом, видеосвязью, записями и обновлением MeetSpace. Выберите подходящий раздел и последовательно выполните проверки.",
     sections: [

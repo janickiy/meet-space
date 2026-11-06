@@ -1,0 +1,102 @@
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=363312 heap_objects=1214 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=395496 heap_objects=1327 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=411256 heap_objects=1429 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=424280 heap_objects=1456 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.13s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=449408 heap_objects=1525 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=458640 heap_objects=1571 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=479920 heap_objects=1623 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=480640 heap_objects=1630 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.13s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=499928 heap_objects=1689 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=501528 heap_objects=1703 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=503208 heap_objects=1718 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=503976 heap_objects=1726 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.12s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=505384 heap_objects=1729 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=509960 heap_objects=1740 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=510632 heap_objects=1746 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=510632 heap_objects=1746 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.12s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=512352 heap_objects=1763 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=512608 heap_objects=1765 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=530304 heap_objects=1808 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=530728 heap_objects=1811 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.13s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=555616 heap_objects=1859 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=557168 heap_objects=1871 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=559408 heap_objects=1891 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=559880 heap_objects=1896 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.13s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=560352 heap_objects=1898 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=570384 heap_objects=1943 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=573408 heap_objects=1970 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=575424 heap_objects=1988 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.13s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=561080 heap_objects=1861 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=566872 heap_objects=1913 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=566872 heap_objects=1913 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=567320 heap_objects=1917 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.13s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=567184 heap_objects=1916 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=568416 heap_objects=1926 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=568664 heap_objects=1929 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=570008 heap_objects=1941 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.13s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+=== RUN   TestRecordPacketConcurrentClose
+--- PASS: TestRecordPacketConcurrentClose (0.00s)
+=== RUN   TestRepeatedJoinLeaveReleasesResources
+    lifecycle_test.go:77: batch=1 cycles=20 heap_alloc_bytes=570848 heap_objects=1948 goroutines=2
+    lifecycle_test.go:77: batch=2 cycles=40 heap_alloc_bytes=571104 heap_objects=1950 goroutines=2
+    lifecycle_test.go:77: batch=3 cycles=60 heap_alloc_bytes=571152 heap_objects=1951 goroutines=2
+    lifecycle_test.go:77: batch=4 cycles=80 heap_alloc_bytes=571712 heap_objects=1956 goroutines=2
+--- PASS: TestRepeatedJoinLeaveReleasesResources (0.13s)
+=== RUN   TestConcurrentJoinAndShutdown
+--- PASS: TestConcurrentJoinAndShutdown (0.00s)
+PASS
+ok  	github.com/janickiy/meet-space/internal/infrastructure/sfu	1.536s

@@ -1,0 +1,54 @@
+{
+  "kind": "isolated-browser-fixture",
+  "durationSeconds": 180,
+  "samples": [
+    {
+      "label": "minute-0",
+      "elapsedSeconds": 0,
+      "heapUsedBytes": 3045292,
+      "heapTotalBytes": 3473408,
+      "documents": 1,
+      "nodes": 426,
+      "listeners": 184,
+      "visibleNodes": 314
+    },
+    {
+      "label": "minute-1",
+      "elapsedSeconds": 60,
+      "heapUsedBytes": 3232832,
+      "heapTotalBytes": 3735552,
+      "documents": 1,
+      "nodes": 426,
+      "listeners": 184,
+      "visibleNodes": 314
+    },
+    {
+      "label": "minute-2",
+      "elapsedSeconds": 120,
+      "heapUsedBytes": 3394712,
+      "heapTotalBytes": 3735552,
+      "documents": 1,
+      "nodes": 426,
+      "listeners": 184,
+      "visibleNodes": 314
+    },
+    {
+      "label": "minute-3",
+      "elapsedSeconds": 180,
+      "heapUsedBytes": 3474824,
+      "heapTotalBytes": 3997696,
+      "documents": 1,
+      "nodes": 426,
+      "listeners": 184,
+      "visibleNodes": 314
+    }
+  ],
+  "requestCounts": {
+    "/auth/me": 1,
+    "/dashboard": 6,
+    "/conferences": 6
+  },
+  "javascriptErrors": [],
+  "completed": true,
+  "actualDurationSeconds": 180
+}

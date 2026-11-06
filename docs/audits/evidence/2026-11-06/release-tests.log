@@ -1,0 +1,9 @@
+test_absent_proxy_preserves_apache_and_coturn_renewal (test_renew_meeting_certificate.RenewalHookTests.test_absent_proxy_preserves_apache_and_coturn_renewal) ... ok
+test_nginx_failure_is_visible_and_stops_hook (test_renew_meeting_certificate.RenewalHookTests.test_nginx_failure_is_visible_and_stops_hook) ... ok
+test_other_certificate_is_untouched (test_renew_meeting_certificate.RenewalHookTests.test_other_certificate_is_untouched) ... ok
+test_reloads_each_running_proxy_after_copy_and_validation (test_renew_meeting_certificate.RenewalHookTests.test_reloads_each_running_proxy_after_copy_and_validation) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 1.789s
+
+OK
