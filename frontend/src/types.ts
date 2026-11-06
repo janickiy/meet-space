@@ -9,6 +9,7 @@
  *   - updatedAt — время последнего сохранённого изменения.
  */
 export interface User {
+  emailVerificationRequired?: boolean;
   id: string;
   email: string;
   displayName: string | null;

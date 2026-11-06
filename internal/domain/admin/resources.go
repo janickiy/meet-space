@@ -97,16 +97,21 @@ type Dashboard struct {
 // Settings are an explicit allowlist of safe, effective configuration values.
 // Secret settings only expose whether a value is configured.
 type Setting struct {
-	Key         string `json:"key"`
-	Label       string `json:"label"`
-	Description string `json:"description"`
-	Value       any    `json:"value"`
-	Editable    bool   `json:"editable"`
-	Type        string `json:"type"`
-	Group       string `json:"group"`
-	Secret      bool   `json:"secret"`
-	Configured  bool   `json:"configured"`
+	Key         string   `json:"key"`
+	Label       string   `json:"label"`
+	Description string   `json:"description"`
+	Value       any      `json:"value"`
+	Editable    bool     `json:"editable"`
+	Type        string   `json:"type"`
+	Group       string   `json:"group"`
+	Secret      bool     `json:"secret"`
+	Configured  bool     `json:"configured"`
+	Min         *int64   `json:"min,omitempty"`
+	Max         *int64   `json:"max,omitempty"`
+	Step        *int64   `json:"step,omitempty"`
+	Options     []string `json:"options,omitempty"`
 }
 type Settings struct {
-	Items []Setting `json:"items"`
+	Items    []Setting `json:"items"`
+	Revision int64     `json:"revision"`
 }

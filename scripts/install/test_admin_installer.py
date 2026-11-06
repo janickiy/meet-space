@@ -1,10 +1,12 @@
 """Admin bootstrap/recovery boundary tests without a real database or secret files."""
 import importlib.util
+import base64
 import io
 import json
 from contextlib import redirect_stdout
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 from unittest import mock
 
@@ -15,6 +17,37 @@ spec.loader.exec_module(wizard)
 
 
 class AdministratorInstallerTest(unittest.TestCase):
+    def test_fresh_provider_key_is_independent_private_and_never_overwritten(self):
+        with tempfile.TemporaryDirectory(prefix='meetspace-admin-key-') as scratch:
+            root = Path(scratch)
+            for folder in ('config', 'secrets', 'bundle/deployment'):
+                (root / folder).mkdir(parents=True, exist_ok=True)
+            (root / 'bundle/deployment/.env.production.example').write_text(
+                'JWT_SECRET=\nPROVIDER_TOKEN_ENCRYPTION_KEY=\n')
+            manifest = {'version': 'test', 'images': {
+                name: 'sha256:' + '1' * 64 for name in ('api', 'product-worker', 'proxy', 'minio')}}
+            state = {'domain': 'meet.example.invalid', 'ip': '192.0.2.1',
+                     'subnet': '172.30.0.0/24', 'token': 'fixture', 'project': 'fixture'}
+            output = io.StringIO()
+            with mock.patch.object(wizard, 'run', side_effect=lambda *args, **kwargs:
+                                   '{"NCPU":4}' if args[:2] == ('docker', 'info') else '{"services":{}}'), \
+                    mock.patch.object(wizard, 'save_installer_runtime'), \
+                    mock.patch.object(wizard, 'configure_monitoring'), redirect_stdout(output):
+                wizard.make_configuration(root, manifest, state)
+                env_path = root / 'config/meetspace.env'
+                before = env_path.read_text()
+                values = dict(line.split('=', 1) for line in before.splitlines())
+                key = values['PROVIDER_TOKEN_ENCRYPTION_KEY']
+                decoded = base64.b64decode(key, validate=True)
+                self.assertEqual(len(decoded), 32)
+                self.assertNotEqual(key, values['JWT_SECRET'])
+                self.assertNotEqual(decoded, values['JWT_SECRET'].encode())
+                self.assertEqual(env_path.stat().st_mode & 0o777, 0o600)
+                with self.assertRaises(FileExistsError):
+                    wizard.make_configuration(root, manifest, state)
+                self.assertEqual(env_path.read_text(), before)
+                self.assertNotIn(key, output.getvalue())
+
     def test_existing_administrators_are_never_prompted_or_reset(self):
         with mock.patch.object(wizard, 'administrator_command', return_value={
                 'exists': True, 'username': 'existing.admin'}) as command, \

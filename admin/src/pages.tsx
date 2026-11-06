@@ -1,6 +1,6 @@
-import { useState } from "react";
-import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import {
   Activity,
@@ -26,7 +26,7 @@ import {
   Users,
   Video,
 } from "lucide-react";
-import { api } from "./api";
+import { api, APIError } from "./api";
 import {
   Badge,
   EmptyState,
@@ -52,6 +52,15 @@ import {
   percent,
 } from "./format";
 import { useList } from "./hooks";
+import {
+  buildSettingsChanges,
+  isSecretSetting,
+  sanitizeSettings,
+  settingInput,
+  settingScale,
+  settingsFailureMessage,
+} from "./settings";
+import type { SettingsDraft } from "./settings";
 import type {
   Administrator,
   AuditEvent,
@@ -61,6 +70,7 @@ import type {
   FileSummary,
   Recording,
   ServiceHealth,
+  Setting,
   Settings,
   SystemSummary,
   User,
@@ -1257,115 +1267,498 @@ export function SystemPage() {
   );
 }
 
+const settingsGroupNames: Record<string, string> = {
+  general: "Основные",
+  limits: "Лимиты",
+  smtp: "Почта",
+  mail: "Почта",
+  recording: "Запись и хранение",
+  storage: "Хранилище",
+  media: "Медиа",
+  network: "Сеть",
+  security: "Безопасность",
+};
+
 export function SettingsPage() {
   const result = useQuery({
     queryKey: ["admin", "settings"],
-    queryFn: ({ signal }) => api<Settings>("/settings", { signal }),
+    queryFn: async ({ signal }) =>
+      sanitizeSettings(await api<Settings>("/settings", { signal })),
   });
-  const [group, setGroup] = useState("");
-  const data = result.data;
-  const groups = [
-    ...new Set(data?.items.map((item) => item.group || "Основные") || []),
-  ];
-  const selected = groups.includes(group) ? group : groups[0];
-  const groupNames: Record<string, string> = {
-    general: "Основные",
-    limits: "Лимиты",
-    smtp: "Почта",
-    mail: "Почта",
-    recording: "Запись и хранение",
-    storage: "Хранилище",
-    media: "Медиа",
-    network: "Сеть",
-    security: "Безопасность",
-  };
   return (
     <>
-      <Heading title="Настройки" subtitle="Действующие параметры платформы.">
-        <Badge>Конфигурация сервера</Badge>
-        <Refresh
-          refresh={() => void result.refetch()}
-          busy={result.isFetching}
-        />
-      </Heading>
-      <Note icon={<ShieldCheck />}>
-        Настройки этой установки управляются на сервере. Изменения выполняются в
-        конфигурации с последующим перезапуском соответствующего сервиса.
-        Значения секретов не показываются.
+      <Heading title="Настройки" subtitle="Управляйте параметрами платформы." />
+      <Note icon={<Info />}>
+        Сохраняйте изменения в каждой группе отдельно. Новые значения
+        применяются в течение нескольких секунд.
       </Note>
-      {result.isPending ? (
-        <Skeleton />
-      ) : result.isError ? (
-        <Panel>
-          <ErrorState
-            error={result.error}
-            retry={() => void result.refetch()}
-          />
-        </Panel>
-      ) : !data?.items.length ? (
+      {!result.data ? (
+        result.isPending ? (
+          <Skeleton />
+        ) : (
+          <Panel>
+            <ErrorState
+              error={result.error}
+              retry={() => void result.refetch()}
+            />
+          </Panel>
+        )
+      ) : !result.data.items.length ? (
         <Panel>
           <EmptyState message="Сервер не предоставил доступные параметры." />
         </Panel>
       ) : (
-        <>
-          <div className="tabs" role="tablist" aria-label="Группы настроек">
-            {groups.map((value) => (
-              <button
-                role="tab"
-                aria-selected={selected === value}
-                aria-controls="settings-content"
-                id={`settings-tab-${value}`}
-                className={selected === value ? "active" : ""}
-                key={value}
-                onClick={() => setGroup(value)}
-              >
-                {groupNames[value] || value}
-              </button>
-            ))}
-          </div>
-          <Panel title={groupNames[selected] || selected}>
-            <div
-              className="settings-list"
-              role="tabpanel"
-              id="settings-content"
-              aria-labelledby={`settings-tab-${selected}`}
-            >
-              {data.items
-                .filter((item) => (item.group || "Основные") === selected)
-                .map((item) => (
-                  <div className="setting-row" key={item.key}>
-                    <div>
-                      <h3>{item.label}</h3>
-                      <p>{item.description}</p>
-                    </div>
-                    <div className="setting-value">
-                      {item.secret || item.type === "secret" ? (
-                        <Badge kind={item.configured ? "good" : "neutral"}>
-                          {item.configured ? "Секрет настроен" : "Не настроен"}
-                        </Badge>
-                      ) : typeof item.value === "boolean" ? (
-                        <Badge kind={item.value ? "good" : "neutral"}>
-                          {item.value ? "Включено" : "Выключено"}
-                        </Badge>
-                      ) : (
-                        <span>
-                          {item.value == null || item.value === ""
-                            ? "Не задано"
-                            : String(item.value)}
-                        </span>
-                      )}
-                      <span className="server-label">
-                        <LockKeyhole />
-                        На сервере
-                      </span>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </Panel>
-        </>
+        <SettingsEditor data={result.data} />
       )}
     </>
+  );
+}
+
+function SettingsEditor({ data }: { data: Settings }) {
+  const queryClient = useQueryClient();
+  const { notify } = useAdmin();
+  const [base, setBase] = useState(data);
+  const baseRef = useRef(data);
+  const [drafts, setDrafts] = useState<SettingsDraft>({});
+  const draftsRef = useRef<SettingsDraft>({});
+  const [group, setGroup] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [failure, setFailure] = useState("");
+  const [conflict, setConflict] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [operation, setOperation] = useState<"save" | "refresh" | null>(null);
+  const busy = operation !== null;
+  const pending = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  const adopt = (next: Settings) => {
+    baseRef.current = next;
+    setBase(next);
+  };
+  const replaceDrafts = (next: SettingsDraft) => {
+    draftsRef.current = next;
+    setDrafts(next);
+  };
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      pending.current?.abort();
+    };
+  }, []);
+  useEffect(() => {
+    if (pending.current || data.revision <= baseRef.current.revision) return;
+    if (Object.keys(draftsRef.current).length) setConflict(true);
+    else adopt(data);
+  }, [data]);
+
+  const groups = [
+    ...new Set(base.items.map((item) => item.group || "general")),
+  ];
+  const selected = groups.includes(group) ? group : groups[0];
+  const items = base.items.filter(
+    (item) => (item.group || "general") === selected,
+  );
+  const dirtyCount = items.filter((item) => item.key in drafts).length;
+  const editable = items.some((item) => item.editable);
+  const editableRevision =
+    Number.isSafeInteger(base.revision) && base.revision >= 0;
+  function change(item: Setting, value: string | boolean) {
+    const next = { ...draftsRef.current };
+    if (value === settingInput(item)) delete next[item.key];
+    else next[item.key] = value;
+    replaceDrafts(next);
+    setErrors((previous) => {
+      const nextErrors = { ...previous };
+      delete nextErrors[item.key];
+      return nextErrors;
+    });
+    setFailure("");
+    setNotice("");
+  }
+  function resetGroup() {
+    const next = { ...draftsRef.current };
+    for (const item of items) delete next[item.key];
+    replaceDrafts(next);
+    setErrors({});
+    setFailure("");
+    setNotice("");
+  }
+  async function refresh() {
+    if (pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    setOperation("refresh");
+    setFailure("");
+    try {
+      await queryClient.cancelQueries({ queryKey: ["admin", "settings"] });
+      const latest = sanitizeSettings(
+        await api<Settings>("/settings", { signal: controller.signal }),
+      );
+      if (!mounted.current || controller.signal.aborted) return;
+      const preserved = { ...draftsRef.current };
+      for (const key of Object.keys(preserved)) {
+        const item = latest.items.find((item) => item.key === key);
+        if (!item?.editable || preserved[key] === settingInput(item))
+          delete preserved[key];
+      }
+      adopt(latest);
+      replaceDrafts(preserved);
+      setConflict(false);
+      setErrors({});
+      queryClient.setQueryData(["admin", "settings"], latest);
+      setNotice(
+        Object.keys(preserved).length
+          ? "Актуальные настройки загружены. Ваши изменения сохранены в форме — проверьте их перед сохранением."
+          : "Настройки обновлены.",
+      );
+    } catch (error) {
+      if (
+        mounted.current &&
+        !controller.signal.aborted &&
+        !(error instanceof Error && error.name === "AbortError")
+      )
+        setFailure(settingsFailureMessage(error, draftsRef.current));
+    } finally {
+      pending.current = null;
+      if (mounted.current) setOperation(null);
+    }
+  }
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (pending.current || conflict || !editableRevision) return;
+    const validation = buildSettingsChanges(
+      baseRef.current,
+      draftsRef.current,
+      selected,
+    );
+    setErrors(validation.errors);
+    setFailure("");
+    setNotice("");
+    if (Object.keys(validation.errors).length) {
+      document
+        .getElementById(`setting-${Object.keys(validation.errors)[0]}`)
+        ?.focus();
+      return;
+    }
+    if (!Object.keys(validation.changes).length) {
+      resetGroup();
+      return;
+    }
+    const controller = new AbortController();
+    pending.current = controller;
+    setOperation("save");
+    try {
+      await queryClient.cancelQueries({ queryKey: ["admin", "settings"] });
+      const saved = sanitizeSettings(
+        await api<Settings>("/settings", {
+          method: "PATCH",
+          signal: controller.signal,
+          body: {
+            revision: baseRef.current.revision,
+            changes: validation.changes,
+          },
+        }),
+      );
+      if (!mounted.current || controller.signal.aborted) return;
+      const remaining = { ...draftsRef.current };
+      for (const item of items) delete remaining[item.key];
+      adopt(saved);
+      replaceDrafts(remaining);
+      setErrors({});
+      setConflict(false);
+      queryClient.setQueryData(["admin", "settings"], saved);
+      void queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
+      setNotice("Изменения сохранены.");
+      notify("Настройки сохранены");
+    } catch (error) {
+      if (
+        !mounted.current ||
+        controller.signal.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      )
+        return;
+      if (error instanceof APIError && error.status === 409) setConflict(true);
+      else setFailure(settingsFailureMessage(error, draftsRef.current));
+    } finally {
+      pending.current = null;
+      if (mounted.current) setOperation(null);
+    }
+  }
+  return (
+    <>
+      <div className="settings-heading-actions">
+        <span>
+          {Object.keys(drafts).length
+            ? "Есть несохранённые изменения"
+            : "Все изменения сохранены"}
+        </span>
+        <Refresh refresh={() => void refresh()} busy={busy} />
+      </div>
+      {conflict && (
+        <div className="settings-feedback conflict" role="alert">
+          <p>
+            Настройки уже изменились. Обновите их и проверьте свой ввод перед
+            сохранением.
+          </p>
+          <button
+            className="button"
+            type="button"
+            disabled={busy}
+            onClick={() => void refresh()}
+          >
+            Обновить и проверить изменения
+          </button>
+        </div>
+      )}
+      {failure && (
+        <p className="settings-feedback form-error" role="alert">
+          {failure}
+        </p>
+      )}
+      {notice && (
+        <p className="settings-feedback success" role="status">
+          {notice}
+        </p>
+      )}
+      <div className="tabs" role="tablist" aria-label="Группы настроек">
+        {groups.map((value) => {
+          const dirty = base.items.some(
+            (item) => (item.group || "general") === value && item.key in drafts,
+          );
+          return (
+            <button
+              key={value}
+              role="tab"
+              disabled={busy}
+              type="button"
+              aria-selected={selected === value}
+              aria-controls="settings-content"
+              id={`settings-tab-${value}`}
+              className={selected === value ? "active" : ""}
+              onClick={() => {
+                setGroup(value);
+                setFailure("");
+                setNotice("");
+              }}
+            >
+              {settingsGroupNames[value] || value}
+              {dirty && (
+                <span
+                  className="settings-dirty-dot"
+                  title="Есть несохранённые изменения"
+                  aria-label="Есть несохранённые изменения"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <Panel title={settingsGroupNames[selected] || selected}>
+        <form noValidate onSubmit={save}>
+          <div
+            className="settings-list"
+            role="tabpanel"
+            id="settings-content"
+            aria-labelledby={`settings-tab-${selected}`}
+          >
+            {items.map((item) => (
+              <div
+                className={`setting-row ${item.editable ? "editable" : ""}`}
+                key={item.key}
+              >
+                <div className="setting-description">
+                  <h3 id={`setting-label-${item.key}`}>{item.label}</h3>
+                  <p id={`setting-description-${item.key}`}>
+                    {item.description}
+                  </p>
+                  {item.key === "emailVerificationRequired" && (
+                    <p>
+                      Для подтверждения email нужна включённая и настроенная
+                      почта.
+                    </p>
+                  )}
+                </div>
+                {item.editable ? (
+                  <div className="setting-control">
+                    <SettingField
+                      item={item}
+                      value={drafts[item.key] ?? settingInput(item)}
+                      disabled={busy || !editableRevision}
+                      invalid={Boolean(errors[item.key])}
+                      change={(value) => change(item, value)}
+                    />
+                    {isSecretSetting(item) && (
+                      <p className="setting-help">
+                        {item.configured
+                          ? "Пароль настроен. Пустое поле сохранит текущий пароль."
+                          : "Пароль ещё не задан."}
+                      </p>
+                    )}
+                    {errors[item.key] && (
+                      <p
+                        className="setting-error"
+                        id={`setting-error-${item.key}`}
+                        role="alert"
+                      >
+                        {errors[item.key]}
+                      </p>
+                    )}
+                    {item.key in drafts && !isSecretSetting(item) && (
+                      <p className="setting-help">
+                        Сохранено:{" "}
+                        {typeof item.value === "boolean"
+                          ? item.value
+                            ? "Включено"
+                            : "Выключено"
+                          : `${settingInput(item) || "не задано"}${item.key === "attachmentMaxBytes" ? " MiB" : ""}`}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="setting-value">
+                    {isSecretSetting(item) ? (
+                      <Badge kind={item.configured ? "good" : "neutral"}>
+                        {item.configured ? "Секрет настроен" : "Не настроен"}
+                      </Badge>
+                    ) : typeof item.value === "boolean" ? (
+                      <Badge kind={item.value ? "good" : "neutral"}>
+                        {item.value ? "Включено" : "Выключено"}
+                      </Badge>
+                    ) : (
+                      <span>
+                        {item.value == null || item.value === ""
+                          ? "Не задано"
+                          : String(item.value)}
+                      </span>
+                    )}
+                    <span className="server-label">
+                      <LockKeyhole />В конфигурации установки
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {editable && (
+            <div className="settings-actions">
+              <span>
+                {dirtyCount
+                  ? `Изменено полей: ${dirtyCount}`
+                  : "Нет несохранённых изменений"}
+              </span>
+              <button
+                type="button"
+                className="button"
+                disabled={busy || !dirtyCount}
+                onClick={resetGroup}
+              >
+                Отменить изменения
+              </button>
+              <button
+                type="submit"
+                className="button primary"
+                disabled={busy || !dirtyCount || conflict || !editableRevision}
+              >
+                {operation === "save"
+                  ? "Сохраняем…"
+                  : operation === "refresh"
+                    ? "Обновляем…"
+                    : "Сохранить изменения"}
+              </button>
+            </div>
+          )}
+        </form>
+      </Panel>
+    </>
+  );
+}
+
+function SettingField({
+  item,
+  value,
+  disabled,
+  invalid,
+  change,
+}: {
+  item: Setting;
+  value: string | boolean;
+  disabled: boolean;
+  invalid: boolean;
+  change: (value: string | boolean) => void;
+}) {
+  const common = {
+    id: `setting-${item.key}`,
+    "aria-labelledby": `setting-label-${item.key}`,
+    "aria-describedby": `setting-description-${item.key}${invalid ? ` setting-error-${item.key}` : ""}`,
+    "aria-invalid": invalid,
+    disabled,
+  };
+  if (item.type === "boolean")
+    return (
+      <button
+        {...common}
+        type="button"
+        className="setting-toggle"
+        role="switch"
+        aria-checked={value === true}
+        onClick={() => change(value !== true)}
+      >
+        <span className="setting-toggle-track" aria-hidden="true" />
+        <span>{value === true ? "Включено" : "Выключено"}</span>
+      </button>
+    );
+  if (item.options?.length)
+    return (
+      <select
+        {...common}
+        value={String(value)}
+        onChange={(event) => change(event.target.value)}
+      >
+        {item.options.map((option) => (
+          <option key={option} value={option}>
+            {option === "tls"
+              ? "TLS"
+              : option === "starttls"
+                ? "STARTTLS"
+                : option}
+          </option>
+        ))}
+      </select>
+    );
+  const secret = isSecretSetting(item);
+  return (
+    <div className="setting-input-wrap">
+      <input
+        {...common}
+        name={`setting-${item.key}`}
+        type={secret ? "password" : item.type === "number" ? "number" : "text"}
+        value={String(value)}
+        onChange={(event) => change(event.target.value)}
+        autoComplete={secret ? "new-password" : "off"}
+        min={item.min == null ? undefined : item.min / settingScale(item)}
+        max={item.max == null ? undefined : item.max / settingScale(item)}
+        step={
+          item.type === "number"
+            ? (item.step || 1) / settingScale(item)
+            : undefined
+        }
+        placeholder={
+          secret
+            ? item.configured
+              ? "Оставьте пустым, чтобы сохранить"
+              : "Введите пароль SMTP"
+            : item.key === "smtpFrom"
+              ? "MeetSpace <team@example.com>"
+              : undefined
+        }
+      />
+      {item.key === "attachmentMaxBytes" && (
+        <span className="setting-unit">MiB</span>
+      )}
+      {item.key === "recordingRetentionDays" && (
+        <span className="setting-unit">дней</span>
+      )}
+    </div>
   );
 }
 

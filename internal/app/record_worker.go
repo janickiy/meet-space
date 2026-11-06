@@ -75,7 +75,14 @@ func RunRecordWorker() error {
 		return err
 	}
 
-	repository := postgresinfra.NewRecordRepository(db)
+	runtimeSettings, err := newRuntimeSettings(cfg, db)
+	if err != nil {
+		return err
+	}
+	repository := postgresinfra.NewRecordRepository(db).WithSettings(runtimeSettings)
+	retentionDone := make(chan struct{})
+	go func() { defer close(retentionDone); recorder.RunRetention(ctx, repository, s3Client) }()
+	defer func() { stop(); <-retentionDone }()
 	redisClient, err := redisinfra.NewClient(ctx, cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 	if err != nil {
 		return err

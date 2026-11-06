@@ -67,6 +67,9 @@ type Stats struct {
 // удаление.
 type Manager struct {
 	opts                                     Options
+	maxPeers, maxRooms                       int
+	settingsReady                            bool
+	negotiationPeers                         atomic.Int64
 	api                                      *pion.API
 	mu                                       sync.Mutex
 	rooms                                    map[string]*room
@@ -159,7 +162,7 @@ func defaults(o Options) Options {
 //     передачи данных или сохранения.
 func NewManager(options Options) (*Manager, error) {
 	o := defaults(options)
-	if o.MaxPeers < 2 || o.MaxPeers > 100 || o.MaxRooms < 1 || o.MaxRooms > 10000 ||
+	if o.MaxPeers < 1 || o.MaxPeers > 100 || o.MaxRooms < 1 || o.MaxRooms > 10000 ||
 		o.MaxPublishedTracks < 1 || o.MaxPublishedTracks > 4 || o.MaxAudioTracks < 1 || o.MaxAudioTracks > 2 || o.MaxVideoTracks < 1 || o.MaxVideoTracks > 2 ||
 		o.MaxScreenSharers < 1 || o.MaxScreenSharers > 4 || o.EgressQueueSize < 1 || o.EgressQueueSize > 8192 ||
 		o.QueueSize < 1 || o.QueueSize > 4096 || o.NegotiationTimeout < 100*time.Millisecond ||
@@ -188,7 +191,8 @@ func NewManager(options Options) (*Manager, error) {
 	}
 	settings := pion.SettingEngine{LoggerFactory: loggerFactory}
 	settings.SetICETimeouts(o.ICEDisconnectedTimeout, o.ICEFailedTimeout, o.ICEKeepaliveInterval)
-	m := &Manager{opts: o, rooms: map[string]*room{}, peers: map[string]*peer{}, connections: map[string]*peer{}, roomClosures: map[string]chan struct{}{}, closed: make(chan struct{})}
+	m := &Manager{opts: o, maxPeers: o.MaxPeers, maxRooms: o.MaxRooms, settingsReady: true, rooms: map[string]*room{}, peers: map[string]*peer{}, connections: map[string]*peer{}, roomClosures: map[string]chan struct{}{}, closed: make(chan struct{})}
+	m.negotiationPeers.Store(int64(o.MaxPeers))
 	cleanup := func() {
 		if m.udp != nil {
 			_ = m.udp.Close()
@@ -279,6 +283,10 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 		}
 		return media.PeerView{}, media.ErrUnauthorized
 	}
+	if !m.settingsReady {
+		m.mu.Unlock()
+		return media.PeerView{}, media.ErrUnavailable
+	}
 	// Создайте соединение вне общей блокировки, но сделайте так, чтобы функция Shutdown
 	// дождалась завершения регистрации или закрытия NewPeerConnection, находящегося в процессе
 	// обработки.
@@ -310,13 +318,13 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 		}
 		return media.PeerView{}, media.ErrUnauthorized
 	}
-	if m.closing || ctx.Err() != nil || m.roomClosures[binding.ConferenceID] != nil {
+	if m.closing || !m.settingsReady || ctx.Err() != nil || m.roomClosures[binding.ConferenceID] != nil {
 		m.mu.Unlock()
 		return media.PeerView{}, media.ErrUnavailable
 	}
 	r := m.rooms[binding.ConferenceID]
 	if r == nil {
-		if len(m.rooms) >= m.opts.MaxRooms {
+		if len(m.rooms) >= m.maxRooms {
 			m.mu.Unlock()
 			return media.PeerView{}, media.ErrLimit
 		}
@@ -329,7 +337,7 @@ func (m *Manager) Join(ctx context.Context, binding media.Binding) (media.PeerVi
 		m.mu.Unlock()
 		return media.PeerView{}, media.ErrPolicy
 	}
-	if len(r.peers) >= m.opts.MaxPeers {
+	if len(r.peers) >= m.maxPeers {
 		r.mu.Unlock()
 		m.mu.Unlock()
 		return media.PeerView{}, media.ErrLimit
@@ -712,3 +720,20 @@ func supported(track *pion.TrackRemote) bool {
 	return (track.Kind() == pion.RTPCodecTypeAudio && strings.EqualFold(track.Codec().MimeType, pion.MimeTypeOpus)) ||
 		(track.Kind() == pion.RTPCodecTypeVideo && strings.EqualFold(track.Codec().MimeType, pion.MimeTypeVP8))
 }
+
+// SetAdmissionLimits changes only new admission decisions. Existing peers/rooms
+// remain alive, and their previously negotiated SDP budget never shrinks.
+func (m *Manager) SetAdmissionLimits(peers, rooms int, available bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !available || peers < 1 || peers > 100 || rooms < 1 || rooms > 10000 {
+		m.settingsReady = false
+		return
+	}
+	m.maxPeers, m.maxRooms, m.settingsReady = peers, rooms, true
+	if int64(peers) > m.negotiationPeers.Load() {
+		m.negotiationPeers.Store(int64(peers))
+	}
+}
+func (m *Manager) SettingsReady() bool       { m.mu.Lock(); defer m.mu.Unlock(); return m.settingsReady }
+func (m *Manager) NegotiationPeerLimit() int { return int(m.negotiationPeers.Load()) }

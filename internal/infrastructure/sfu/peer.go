@@ -364,7 +364,7 @@ func (m *Manager) OfferSources(ctx context.Context, id, negotiationID, raw strin
 	if err != nil {
 		return pion.SessionDescription{}, err
 	}
-	sources, err := validateSourceOffer(raw, m.opts.MaxPeers, publications, m.opts.MaxPublishedTracks, m.opts.MaxAudioTracks, m.opts.MaxVideoTracks)
+	sources, err := validateSourceOffer(raw, m.NegotiationPeerLimit(), publications, m.opts.MaxPublishedTracks, m.opts.MaxAudioTracks, m.opts.MaxVideoTracks)
 	if err != nil {
 		return pion.SessionDescription{}, err
 	}

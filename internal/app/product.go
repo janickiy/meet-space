@@ -23,6 +23,7 @@ import (
 	"github.com/janickiy/meet-space/internal/infrastructure/providers"
 	"github.com/janickiy/meet-space/internal/infrastructure/security"
 	"github.com/janickiy/meet-space/internal/operations"
+	authusecase "github.com/janickiy/meet-space/internal/usecase/auth"
 	integrations "github.com/janickiy/meet-space/internal/usecase/integrations"
 	jobrunner "github.com/janickiy/meet-space/internal/usecase/jobs"
 	"gorm.io/gorm"
@@ -32,6 +33,7 @@ import (
 // или FFmpeg.
 type productServices struct {
 	integrations *integrations.Service
+	verification authusecase.VerificationSender
 }
 
 // newProductServices создает зависимости уведомлений и внешних интеграций.
@@ -57,7 +59,11 @@ func newProductServices(cfg config.Config, db *gorm.DB) (productServices, error)
 	if err != nil {
 		return productServices{}, err
 	}
-	channels.Email = measuredEmail{channels.Email}
+	settings, err := newRuntimeSettings(cfg, db)
+	if err != nil {
+		return productServices{}, err
+	}
+	channels.Email = settingsEmail{settings: settings, fallback: measuredEmail{channels.Email}, fallbackMode: channels.Capabilities.Email}
 	channels.Push = measuredPush{channels.Push}
 	channels.Calendar = measuredCalendar{channels.Calendar}
 	tokenCipher, err := security.NewProviderTokens(c.EncryptionKey)
@@ -76,7 +82,8 @@ func newProductServices(cfg config.Config, db *gorm.DB) (productServices, error)
 	if err != nil {
 		return productServices{}, err
 	}
-	return productServices{integrations: integrationService}, nil
+	verification := authusecase.VerificationSender{Repo: pg.NewEmailVerificationRepository(db), Reader: settings, Cipher: tokenCipher, Email: channels.Email, PublicURL: c.PublicURL}
+	return productServices{integrations: integrationService, verification: verification}, nil
 }
 
 // RunProductWorker запускает продукт-воркер с настроенными зависимостями и передает информацию о сбоях при запуске
@@ -124,6 +131,7 @@ func RunProductWorker() error {
 		deliveryTimeout = s.SMTP.Timeout
 	}
 	runner, err := jobrunner.New(repo, []jobrunner.Pool{
+		{Kind: authusecase.VerificationJobKind, Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: 20 * time.Second, Handler: jobrunner.Handler{Handle: services.verification.Handle}},
 		{Kind: "integrations.conference", Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout, Handler: i}, {Kind: "integrations.event", Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout, Handler: i},
 		{Kind: "integrations.delivery", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i},
 		{Kind: "integrations.invitation", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i}, {Kind: "integrations.calendar", Concurrency: s.CalendarWorkers, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout * 3, Handler: i},
@@ -187,7 +195,7 @@ func runProductTicks(ctx context.Context, service *integrations.Service, repo *p
 		counts, err := repo.Counts(tickCtx)
 		cancel()
 		if err == nil {
-			for _, kind := range []string{"integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar"} {
+			for _, kind := range []string{authusecase.VerificationJobKind, "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar"} {
 				for _, state := range []string{"queued", "processing", "failed"} {
 					operations.ProductQueue(kind, state, 0)
 				}

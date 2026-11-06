@@ -240,7 +240,7 @@ func (h *Handler) Upload(c *gin.Context) {
 	controller := http.NewResponseController(c.Writer)
 	_ = controller.SetReadDeadline(time.Now().Add(60 * time.Second))
 	defer controller.SetReadDeadline(time.Time{})
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, chat.MaxAttachmentBytes+1)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, chat.AbsoluteMaxAttachmentBytes+1)
 	item, err := h.service.Upload(c.Request.Context(), httpmiddleware.UserID(c), id, attachmentID, c.Request.Body)
 	if err != nil {
 		httpresponse.Fail(c, err)

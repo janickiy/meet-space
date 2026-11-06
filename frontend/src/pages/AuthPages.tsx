@@ -44,6 +44,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [recovery, setRecovery] = useState(false);
+  const [verificationNeeded, setVerificationNeeded] = useState(false);
   const submitted = useRef(false);
   // Автоматический вход не должен прерывать переход на страницу успешной регистрации.
   if (auth.user && !auth.loading && !submitted.current)
@@ -59,6 +60,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setVerificationNeeded(false);
     if (
       !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
       utf8Bytes(email.trim()) > 254
@@ -83,7 +85,15 @@ export function AuthPage({ register = false }: { register?: boolean }) {
     setBusy(true);
     try {
       if (register) {
-        await api.register(email.trim(), password, name);
+        const registration = await api.register(email.trim(), password, name);
+        if (registration.user.emailVerificationRequired) {
+          setPassword("");
+          navigate("/verify-email", {
+            replace: true,
+            state: { email: email.trim() },
+          });
+          return;
+        }
         try {
           await auth.login(email.trim(), password);
         } catch {
@@ -98,6 +108,11 @@ export function AuthPage({ register = false }: { register?: boolean }) {
       }
     } catch (error) {
       submitted.current = false;
+      if (
+        error instanceof Error &&
+        error.message === "email verification required"
+      )
+        setVerificationNeeded(true);
       setError(errorMessage(error));
     } finally {
       setBusy(false);
@@ -180,6 +195,13 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                 ? "Сессия завершилась. Войдите снова, чтобы продолжить."
                 : null)}
           </ErrorNotice>
+          {verificationNeeded && (
+            <p>
+              <Link to="/verify-email" state={{ email: email.trim() }}>
+                Отправить письмо подтверждения повторно
+              </Link>
+            </p>
+          )}
           <form onSubmit={submit} noValidate>
             <label className="field" htmlFor="email">
               Email

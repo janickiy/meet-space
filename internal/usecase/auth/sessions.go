@@ -192,6 +192,9 @@ func (s *Service) WithSessions(repository SessionRepository) *Service {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *Service) signIn(ctx context.Context, user users.User) (users.LoginResponse, error) {
+	if err := s.enforceEmailVerification(ctx, user); err != nil {
+		return users.LoginResponse{}, err
+	}
 	if user.IsBlocked {
 		return users.LoginResponse{}, invalidCredentials()
 	}
@@ -333,6 +336,9 @@ func (s *Service) account(ctx context.Context, id string) (users.User, error) {
 	}
 	if user.GuestConferenceID != nil {
 		return users.User{}, apperrors.ErrForbidden
+	}
+	if err := s.enforceEmailVerification(ctx, user); err != nil {
+		return users.User{}, err
 	}
 	return user, nil
 }
@@ -495,6 +501,9 @@ func (s *Service) AuthorizeSession(ctx context.Context, userID, sessionID string
 	session, err := s.sessions.GetByID(ctx, sessionID)
 	if errors.Is(err, apperrors.ErrNotFound) || err == nil && (session.UserID != userID || session.RevokedAt != nil) {
 		return apperrors.ErrUnauthorized
+	}
+	if err == nil && s.verification != nil {
+		_, err = s.account(ctx, userID)
 	}
 	return err
 }

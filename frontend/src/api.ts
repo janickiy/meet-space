@@ -149,6 +149,10 @@ const messages: Record<string, string> = {
   "invalid email or password": "Неверный email или пароль.",
   "email is already registered":
     "Этот email уже зарегистрирован. Попробуйте войти.",
+  "email verification required":
+    "Подтвердите email по ссылке из письма, чтобы войти.",
+  "invalid or expired verification link":
+    "Ссылка недействительна или срок её действия истёк. Запросите новое письмо.",
   "conference is closed": "Эта конференция уже завершена или отменена.",
   "conference status does not allow this transition":
     "Состояние конференции изменилось. Обновите страницу.",
@@ -169,7 +173,7 @@ const statuses: Record<number, string> = {
   403: "У вас нет доступа к этому действию.",
   404: "Конференция или приглашение не найдены.",
   409: "Действие недоступно в текущем состоянии.",
-  413: "Файл слишком большой. Максимальный размер — 10 МБ.",
+  413: "Файл превышает допустимый размер на этом сервере.",
   422: "Проверьте введённые данные.",
   429: "Слишком много попыток. Подождите минуту и попробуйте снова.",
   500: "Сервис временно недоступен. Попробуйте позже.",
@@ -351,6 +355,8 @@ async function privateBlob(
   }
 }
 export const api = {
+  attachmentPolicy: (signal?: AbortSignal) =>
+    request<{ maxBytes: number }>("/attachments/policy", { signal }),
   folders: (target?: FolderTarget, signal?: AbortSignal) =>
     request<Items<PersonalFolder>>(
       `/folders${target ? `?${new URLSearchParams({ itemKind: target.type, itemId: target.id })}` : ""}`,
@@ -558,6 +564,20 @@ export const api = {
       method: "POST",
       body: { email, password, displayName: displayName.trim() || null },
       public: true,
+    }),
+  verifyEmail: (token: string, signal?: AbortSignal) =>
+    request<{ status: string }>("/auth/verify-email", {
+      method: "POST",
+      body: { token },
+      public: true,
+      signal,
+    }),
+  resendVerification: (email: string, signal?: AbortSignal) =>
+    request<{ status: string }>("/auth/verify-email/resend", {
+      method: "POST",
+      body: { email },
+      public: true,
+      signal,
     }),
   /**
    * login отправляет учётные данные и получает токен и сведения пользователя.
@@ -1603,7 +1623,7 @@ export function createChatAPI(namespace: "conferences" | "conversations") {
       privateBlob(
         `${base(id)}/attachments/${encodeURIComponent(attachmentId)}/content`,
         signal,
-        10 * 1024 * 1024,
+        100 * 1024 * 1024,
       ),
   };
 }

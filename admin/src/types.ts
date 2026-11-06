@@ -110,15 +110,20 @@ export interface Setting {
   key: string;
   label: string;
   description: string;
-  value: string | number | boolean | null;
+  value?: string | number | boolean | null;
   editable: boolean;
   type: "string" | "number" | "boolean" | "secret";
   group: string;
   secret: boolean;
   configured: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: string[];
 }
 export interface Settings {
   items: Setting[];
+  revision: number;
 }
 export interface AuditEvent {
   id: string;

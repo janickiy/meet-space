@@ -15,5 +15,8 @@ func (s *Service) AuthorizeLegacyAccount(ctx context.Context, userID string) err
 	if errors.Is(err, apperrors.ErrNotFound) || err == nil && (user.IsBlocked || user.AuthInvalidBefore != nil) {
 		return apperrors.ErrUnauthorized
 	}
+	if err == nil {
+		return s.enforceEmailVerification(ctx, user)
+	}
 	return err
 }

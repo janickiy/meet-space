@@ -104,6 +104,10 @@ func RunAPI() error {
 	if err := postgresinfra.RunStartupMigrations(db, "database/migrations"); err != nil {
 		return err
 	}
+	settings, err := runtimeSettingsWithMedia(cfg, mediaConfig, db)
+	if err != nil {
+		return err
+	}
 	s3Client, err := s3storage.NewClient(context.Background(), cfg.MinIOEndpoint, cfg.MinIOAccessKey, cfg.MinIOSecretKey, cfg.MinIOBucket, cfg.MinIOUseSSL)
 	if err != nil {
 		return err
@@ -117,7 +121,7 @@ func RunAPI() error {
 	conferenceLock := redisinfra.NewConferenceLock(redisClient, cfg.RecordLockTTL)
 	rateLimiter := redisinfra.NewRateLimiter(redisClient)
 
-	repository := postgresinfra.NewRecordRepository(db)
+	repository := postgresinfra.NewRecordRepository(db).WithSettings(settings)
 	commandPublisher, err := rabbitmqinfra.NewPublisher(context.Background(), rabbitmqinfra.Options{
 		URL:        cfg.RabbitMQURL,
 		Exchange:   cfg.RabbitMQExchange,
@@ -150,7 +154,12 @@ func RunAPI() error {
 		return err
 	}
 	authService.WithSessions(postgresinfra.NewAuthSessionRepository(db))
-	conferenceRepository := postgresinfra.NewConferenceRepository(db)
+	verificationCipher, err := security.NewProviderTokens(cfg.StageSeven.EncryptionKey)
+	if err != nil {
+		return err
+	}
+	authService.WithEmailVerification(settings, postgresinfra.NewEmailVerificationRepository(db), verificationCipher)
+	conferenceRepository := postgresinfra.NewConferenceRepository(db).WithSettings(settings)
 	conferenceService := conferenceusecase.NewService(conferenceRepository, users, security.GenerateInviteCode)
 	store := redisinfra.NewRealtimeStore(redisClient, realtimeConfig.Namespace)
 	hub, err := realtimeusecase.NewHub(postgresinfra.NewSessionRepository(db), store, realtimeConfig.SessionTTL, logger)
@@ -167,6 +176,7 @@ func RunAPI() error {
 	if err != nil {
 		return fmt.Errorf("chat initialization: %w", err)
 	}
+	chatService.WithSettings(settings)
 	personalRepository := postgresinfra.NewPersonalRepository(db)
 	personalEvents := &personalusecase.Events{Members: personalRepository, Bus: notificationBus}
 	personalAssets, err := personalusecase.NewAssetService(context.Background(), postgresinfra.NewPersonalAssetRepository(db), s3Client, personalEvents)
@@ -178,6 +188,7 @@ func RunAPI() error {
 	if err != nil {
 		return fmt.Errorf("personal chat initialization: %w", err)
 	}
+	personalChat.WithSettings(settings)
 	userPresence := redisinfra.NewUserPresence(redisClient, realtimeConfig.Namespace, realtimeConfig.SessionTTL)
 	globalWS := wstransport.NewUserHandler(authService, redisinfra.NewRealtimeStore(redisClient, realtimeConfig.Namespace+":user-ws"), rateLimiter, realtimeConfig, notificationBus, userPresence, personalRepository)
 	defer globalWS.Shutdown()
@@ -200,7 +211,7 @@ func RunAPI() error {
 	mediaController := mediausecase.NewController(redisinfra.NewMediaRegistry(redisClient, mediaConfig.Namespace), mediaTickets, mediaClient, hub, store, mediaConfig, realtimeConfig)
 	mediaController.SetPolicyProvider(conferenceRepository)
 	controlService := conferenceusecase.NewControlService(conferenceRepository, mediaController, hub)
-	recordingRepository := postgresinfra.NewConferenceRecordingRepository(db)
+	recordingRepository := postgresinfra.NewConferenceRecordingRepository(db).WithSettings(settings)
 	recordingService := recordingsusecase.NewConferenceService(recordingRepository, service, hub, s3Client)
 	recordingCommands := recordingsusecase.NewCommandDispatcher(recordingRepository, commandPublisher, conferenceLock, hub)
 	hub.SetDisconnectObserver(realtimeusecase.DisconnectObservers{controlService, mediaController})
@@ -211,6 +222,7 @@ func RunAPI() error {
 	httptransport.RegisterControlRoutes(router, conferencesapp.NewControlHandler(controlService), httpmiddleware.Authenticate(authService))
 	httptransport.RegisterConferenceRecordingRoutes(router, recordingsapp.NewHandler(recordingService), httpmiddleware.Authenticate(authService))
 	httptransport.RegisterChatRoutes(router, chatapp.NewHandler(chatService), httpmiddleware.Authenticate(authService), rateLimiter)
+	httptransport.RegisterAttachmentPolicyRoutes(router, settings, httpmiddleware.Authenticate(authService))
 	httptransport.RegisterChatActionRoutes(router, &chatapp.ActionHandler{Service: chatusecase.NewActionService(conferenceChatRepository, hub).WithPresence(userPresence, hub)}, httpmiddleware.Authenticate(authService), rateLimiter)
 	notificationHandler := notificationsapp.NewHandler(notificationService, notificationBus, authService, rateLimiter, realtimeConfig.Namespace)
 	ops.ConfigureDrain(func() { notificationHandler.BeginDrain(); globalWS.BeginDrain(true) }, func() int { return hub.LocalCount() + globalWS.LocalCount() })
@@ -234,7 +246,7 @@ func RunAPI() error {
 	defer stop()
 	var adminServer *http.Server
 	if adminConfig.Enabled {
-		resources := newAdminResources(db, cfg, realtimeConfig, mediaConfig, ops, s3Client, hub)
+		resources := newAdminResources(db, cfg, realtimeConfig, mediaConfig, ops, s3Client, hub, settings)
 		defer resources.Close()
 		adminServer, err = NewAdminServer(adminConfig, db, resources, func(_ context.Context, userID string) error {
 			hub.DisconnectUser(userID)
@@ -325,6 +337,8 @@ func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 		{Method: "GET", Path: path("/conference-invites/:code"), Scope: "invite_lookup_ip", Limit: 60, Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/login"), Scope: "ip", Limit: limit(cfg.RateLimit.AuthLoginIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/register"), Scope: "ip", Limit: limit(cfg.RateLimit.AuthRegisterIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
+		{Method: "POST", Path: path("/auth/verify-email/resend"), Scope: "verification_resend_ip", Limit: 5, Window: time.Minute, Key: httpmiddleware.ClientIPKey},
+		{Method: "POST", Path: path("/auth/verify-email"), Scope: "verification_ip", Limit: 20, Window: time.Minute, Key: httpmiddleware.ClientIPKey},
 		{Method: "DELETE", Path: path("/auth/me"), Scope: "account_delete_ip", Limit: 5, Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/accounts/list"), Scope: "account_list_ip", Limit: 60, Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/accounts/switch"), Scope: "account_switch_ip", Limit: 30, Window: window, Key: httpmiddleware.ClientIPKey},

@@ -449,7 +449,20 @@ func NewService(repo Repository, adapters d.Providers, cipher TokenCipher, optio
 //
 // @returns:
 //   - result1: Результирующие возможности.
-func (s *Service) Capabilities() d.Capabilities { return s.adapters.Capabilities }
+func (s *Service) Capabilities() d.Capabilities {
+	result := s.adapters.Capabilities
+	if dynamic, ok := s.adapters.Email.(emailMode); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		mode, err := dynamic.Mode(ctx)
+		if err != nil {
+			result.Email = "noop"
+		} else {
+			result.Email = mode
+		}
+	}
+	return result
+}
 
 // Preferences считывает сохраненные настройки доставки или переписки действующего аккаунта.
 //
@@ -878,7 +891,11 @@ func (s *Service) deliver(ctx context.Context, job jobs.Job, payload eventPayloa
 	}
 	skip := !delivery.Allowed || !delivery.Preferences.Allows(delivery.Notification.Type)
 	if payload.Channel == "email" {
-		skip = skip || !delivery.Preferences.Email || s.adapters.Capabilities.Email == "noop"
+		enabled, e := s.emailEnabled(ctx)
+		if e != nil {
+			return e
+		}
+		skip = skip || !delivery.Preferences.Email || !enabled
 		// Explicit invitees receive the dedicated reminder, including its guest-capable link.
 		// Their in-app and push notifications continue through the ordinary delivery path.
 		skip = skip || delivery.Notification.Type == "conference.soon" && delivery.ExplicitInvitation

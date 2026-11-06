@@ -77,7 +77,7 @@ func GuestRequestAllowed(method, path, conferenceID string) bool {
 	if conferenceID == "" {
 		return true
 	}
-	if method == "GET" && (path == "/api/v1/auth/me" || path == "/api/v1/capabilities" || path == "/api/v1/webrtc/config") {
+	if method == "GET" && (path == "/api/v1/auth/me" || path == "/api/v1/capabilities" || path == "/api/v1/webrtc/config" || path == "/api/v1/attachments/policy") {
 		return true
 	}
 	if method == "POST" && path == "/api/v1/auth/logout" {

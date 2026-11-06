@@ -84,7 +84,11 @@ func (s *Service) deliverInvitation(ctx context.Context, job jobs.Job) error {
 		}
 		return jobs.ErrSkip
 	}
-	if s.adapters.Capabilities.Email == "noop" || s.adapters.Email == nil {
+	enabled, err := s.emailEnabled(ctx)
+	if err != nil {
+		return err
+	}
+	if !enabled {
 		return jobs.Error{Code: "invitation_email_unconfigured", Retryable: true}
 	}
 	link := strings.TrimRight(s.options.PublicURL, "/") + "/i/" + url.PathEscape(delivery.Conference.InviteCode)
@@ -115,7 +119,11 @@ func (s *Service) deliverInvitationReminder(ctx context.Context, job jobs.Job) e
 	if !delivery.Allowed {
 		return jobs.ErrSkip
 	}
-	if s.adapters.Capabilities.Email == "noop" || s.adapters.Email == nil {
+	enabled, err := s.emailEnabled(ctx)
+	if err != nil {
+		return err
+	}
+	if !enabled {
 		return jobs.Error{Code: "invitation_email_unconfigured", Retryable: true}
 	}
 	link := strings.TrimRight(s.options.PublicURL, "/") + "/i/" + url.PathEscape(delivery.Conference.InviteCode)

@@ -1007,6 +1007,138 @@ select {
 .settings-list {
   padding: 0 22px 8px;
 }
+.settings-heading-actions,
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.settings-heading-actions {
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+.settings-heading-actions > span,
+.settings-actions > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.settings-actions {
+  border-top: 1px solid var(--line);
+  padding: 18px 22px;
+}
+.settings-actions > span {
+  margin-right: auto;
+}
+.settings-dirty-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+.settings-feedback {
+  padding: 14px 17px;
+  margin-bottom: 20px;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.settings-feedback.success {
+  color: var(--accent);
+  background: var(--soft);
+}
+.settings-feedback.conflict {
+  color: var(--yellow);
+  background: var(--yellow-bg);
+}
+.settings-feedback.conflict .button {
+  margin-top: 10px;
+}
+.setting-description {
+  min-width: 0;
+  flex: 1;
+}
+.setting-control {
+  width: 320px;
+  max-width: 46%;
+  flex-shrink: 0;
+}
+.setting-control input,
+.setting-control select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 11px 12px;
+  font-size: 13px;
+}
+.setting-control [aria-invalid="true"] {
+  border-color: var(--red);
+}
+.setting-control .setting-help,
+.setting-control .setting-error {
+  font-size: 10px;
+  line-height: 1.6;
+  margin-top: 7px;
+}
+.setting-control .setting-error {
+  color: var(--red);
+}
+.setting-input-wrap {
+  position: relative;
+}
+.setting-input-wrap:has(.setting-unit) input {
+  padding-right: 60px;
+}
+.setting-unit {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+  font-size: 11px;
+}
+.setting-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  padding: 5px 0;
+  border: 0;
+  font-size: 12px;
+}
+.setting-toggle-track {
+  position: relative;
+  display: block;
+  width: 38px;
+  height: 22px;
+  border-radius: 12px;
+  background: var(--line);
+}
+.setting-toggle-track::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.setting-toggle[aria-checked="true"] .setting-toggle-track {
+  background: var(--accent);
+}
+.setting-toggle[aria-checked="true"] .setting-toggle-track::after {
+  transform: translateX(16px);
+  background: var(--accent-ink);
+}
 .setting-row {
   display: flex;
   justify-content: space-between;
@@ -1427,6 +1559,21 @@ select {
   }
 }
 @media (max-width: 760px) {
+  .setting-row.editable {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .setting-control {
+    width: 100%;
+    max-width: none;
+  }
+  .settings-actions > span {
+    width: 100%;
+  }
+  .settings-actions .button {
+    flex: 1;
+  }
   .app-shell {
     display: block;
   }
@@ -1643,6 +1790,12 @@ select {
   }
 }
 @media (pointer: coarse) {
+  .setting-control input,
+  .setting-control select,
+  .setting-toggle {
+    min-height: 44px;
+    font-size: 16px;
+  }
   .toolbar {
     --filter-control-height: 44px;
   }

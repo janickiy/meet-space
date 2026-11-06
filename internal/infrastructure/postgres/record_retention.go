@@ -11,28 +11,41 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
 
+	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	"github.com/janickiy/meet-space/internal/domain/records"
+	"github.com/janickiy/meet-space/internal/domain/settings"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-// Неделя начинается с момента завершения, включая время обработки и загрузки.  Для исторических
+// Срок хранения начинается с момента завершения, включая время обработки и загрузки.  Для исторических
 // записей терминалов без ended_at используется последняя зафиксированная временная метка
 // терминала.
 const expiredRecording = `status IN ('ready','partial_ready','failed','cancelled')
-	AND COALESCE(ended_at,stopped_at,updated_at,created_at) <= clock_timestamp() - INTERVAL '7 days'`
+	AND COALESCE(ended_at,stopped_at,updated_at,created_at) <= clock_timestamp() - (? * INTERVAL '1 day')`
 
-// availableRecordings формирует запрос на запись с фильтрацией доступа, используемый вызывающей
-// стороной.
-//
-// @Parameters:
-//   - db: Database дескриптор, используемый для операции или транзакции.
-//
-// @returns:
-//   - result1: Созданная или загруженная база данных.
-func availableRecordings(db *gorm.DB) *gorm.DB {
-	return db.Where("deleted_at IS NULL AND NOT (" + expiredRecording + ")")
+func retentionDays(ctx context.Context, reader settings.Reader) (int, error) {
+	if reader == nil {
+		return settings.DefaultRecordingRetentionDays, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	value, err := reader.Snapshot(ctx)
+	if err != nil || value.RecordingRetentionDays < 1 || value.RecordingRetentionDays > 3650 {
+		return 0, apperrors.ErrUnavailable
+	}
+	return value.RecordingRetentionDays, nil
+}
+
+func retentionScope(db *gorm.DB, reader settings.Reader) *gorm.DB {
+	days, err := retentionDays(db.Statement.Context, reader)
+	if err != nil {
+		db.AddError(err)
+		return db
+	}
+	return availableRecordingDays(db, days)
 }
 
 // ExpireNextRecording блокирует строку посредством идемпотентного удаления объекта.  Маркер
@@ -49,11 +62,15 @@ func availableRecordings(db *gorm.DB) *gorm.DB {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (r *RecordRepository) ExpireNextRecording(ctx context.Context, attempted []int64, remove func(context.Context, records.Record) error) (int64, error) {
+	days, err := retentionDays(ctx, r.settings)
+	if err != nil {
+		return 0, err
+	}
 	var id int64
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var record records.Record
 		query := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
-			Where("deleted_at IS NULL AND (" + expiredRecording + ")").
+			Where("deleted_at IS NULL AND ("+expiredRecording+")", days).
 			Where("recorder_lease_until IS NULL OR recorder_lease_until <= clock_timestamp()")
 		if len(attempted) > 0 {
 			query = query.Where("id NOT IN ?", attempted)
@@ -100,4 +117,8 @@ func removeRecordingArtifacts(ctx context.Context, tx *gorm.DB, record records.R
 		"deleted_at": gorm.Expr("clock_timestamp()"), "storage_object_key": nil,
 		"preview_object_key": nil, "size_bytes": nil,
 	}).Error
+}
+
+func availableRecordingDays(db *gorm.DB, days int) *gorm.DB {
+	return db.Where("deleted_at IS NULL AND NOT ("+expiredRecording+")", days)
 }

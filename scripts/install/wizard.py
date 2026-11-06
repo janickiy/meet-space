@@ -852,7 +852,8 @@ def make_configuration(root, manifest, state, smtp=None):
                   TURN_URLS=f'turn:{domain}:3478?transport=udp,turn:{domain}:3478?transport=tcp,turns:{domain}:5349?transport=tcp',
                   HTTP_TRUSTED_PROXIES=state['subnet'], BUILD_VERSION=manifest['version'],
                   RECORDER_STORAGE_DIR=str(root / 'storage'), TLS_CERT_DIR=str(root / 'certs'),
-                  TURN_TLS_CERT_DIR=str(root / 'certs'), PROVIDER_TOKEN_ENCRYPTION_KEY='',
+                  TURN_TLS_CERT_DIR=str(root / 'certs'),
+                  PROVIDER_TOKEN_ENCRYPTION_KEY=base64.b64encode(secrets.token_bytes(32)).decode('ascii'),
                   DB_MAX_OPEN='10', DB_MAX_IDLE='2', REMINDER_OFFSETS='3h')
     values.update(ADMIN_ENABLED='true', ADMIN_HTTP_PORT='8082',
                   ADMIN_HTTPS_PORT=str(state.get('adminHTTPSPort', 8081)),

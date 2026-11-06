@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	"github.com/janickiy/meet-space/internal/domain/conferences"
+	"github.com/janickiy/meet-space/internal/domain/settings"
 	"github.com/janickiy/meet-space/internal/domain/users"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -25,7 +26,10 @@ import (
 
 // ConferenceRepository сохраняет информацию о жизненном цикле конференции и членстве участников
 // с помощью GORM.
-type ConferenceRepository struct{ db *gorm.DB }
+type ConferenceRepository struct {
+	db       *gorm.DB
+	settings settings.Reader
+}
 
 // NewConferenceRepository создает репозиторий конференций с зависимостями и ограничениями,
 // необходимыми для проведения конференции.
@@ -400,4 +404,10 @@ func findMembership(db *gorm.DB, id, userID string) (conferences.Participant, er
 	var participant conferences.Participant
 	err := db.Where("conference_id = ? AND user_id = ?", id, userID).Take(&participant).Error
 	return participant, mapNotFound(err)
+}
+
+// WithSettings installs the shared retention policy reader before serving requests.
+func (r *ConferenceRepository) WithSettings(reader settings.Reader) *ConferenceRepository {
+	r.settings = reader
+	return r
 }

@@ -134,6 +134,7 @@ type Service struct {
 	sessions     SessionRepository
 	dummyHash    string
 	passwordWork chan struct{}
+	verification *verificationOptions
 }
 
 // NewService создаёт сервис с зависимостями и ограничениями, необходимыми для аутентификации
@@ -179,7 +180,20 @@ func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (
 	if err := ctx.Err(); err != nil {
 		return users.View{}, err
 	}
-	user, err := s.repository.Create(ctx, users.User{ID: uuid.NewString(), Email: request.Email, PasswordHash: hash, DisplayName: request.DisplayName})
+	required, err := s.verificationEnabled(ctx)
+	if err != nil {
+		return users.View{}, err
+	}
+	user := users.User{ID: uuid.NewString(), Email: request.Email, PasswordHash: hash, DisplayName: request.DisplayName, EmailVerificationRequired: required}
+	if required {
+		value, e := s.newVerification(user.ID)
+		if e != nil {
+			return users.View{}, e
+		}
+		user, err = s.verification.repo.CreatePending(ctx, user, value)
+	} else {
+		user, err = s.repository.Create(ctx, user)
+	}
 	if err != nil {
 		return users.View{}, err
 	}
@@ -221,6 +235,9 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 	if missing || user.GuestConferenceID != nil || user.IsBlocked || !valid {
 		return users.LoginResponse{}, invalidCredentials()
 	}
+	if err := s.enforceEmailVerification(ctx, user); err != nil {
+		return users.LoginResponse{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return users.LoginResponse{}, err
 	}
@@ -243,6 +260,9 @@ func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 		return users.View{}, apperrors.ErrUnauthorized
 	}
 	if err != nil {
+		return users.View{}, err
+	}
+	if err := s.enforceEmailVerification(ctx, user); err != nil {
 		return users.View{}, err
 	}
 	return user.View(), nil

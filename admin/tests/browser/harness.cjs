@@ -192,6 +192,7 @@ async function fixture(page, options = {}) {
         },
       },
       "/settings": {
+        revision: 1,
         items: [
           {
             key: "fixture",

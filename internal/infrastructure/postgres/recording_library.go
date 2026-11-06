@@ -19,11 +19,15 @@ func (r *ConferenceRecordingRepository) Library(ctx context.Context, userID stri
 	if err != nil {
 		return nil, err
 	}
+	days, err := retentionDays(ctx, r.settings)
+	if err != nil {
+		return nil, err
+	}
 	result := []records.LibraryRecord{}
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Apply the existing retention scope before joining other tables, whose
 		// status/created_at columns would otherwise make that scope ambiguous.
-		available := tx.Model(&records.Record{}).Scopes(availableRecordings).
+		available := tx.Model(&records.Record{}).Scopes(func(q *gorm.DB) *gorm.DB { return availableRecordingDays(q, days) }).
 			Where("mode IN ('composite','audio_only','individual_tracks','screen_focus')")
 		q := tx.Table("(?) AS r", available).Select("r.*").
 			Joins("JOIN conferences c ON c.id = r.platform_conference_id AND c.kind = 'meeting'").

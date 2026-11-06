@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"github.com/janickiy/meet-space/internal/domain/records"
+	"github.com/janickiy/meet-space/internal/domain/settings"
 	"gorm.io/gorm"
 )
 
 // RecordRepository сохраняет задания записи и связанные с ними артефакты через GORM.
 type RecordRepository struct {
-	db *gorm.DB
+	db       *gorm.DB
+	settings settings.Reader
 }
 
 // NewRecordRepository создает репозиторий записей с зависимостями и ограничениями, необходимыми
@@ -72,7 +74,7 @@ func (r *RecordRepository) ListSummaryDetailsByConferenceIDs(ctx context.Context
 	}
 
 	query := r.db.WithContext(ctx).
-		Scopes(availableRecordings).
+		Scopes(r.availableRecordings).
 		Where("conference_id IN ? AND mode <> 'composite'", conferenceIDs)
 	if status != "" {
 		query = query.Where("status = ?", status)
@@ -118,7 +120,7 @@ func (r *RecordRepository) ListSummaryDetailsByConferenceIDs(ctx context.Context
 //     передачи данных или сохранения.
 func (r *RecordRepository) FindDetailsByUUID(ctx context.Context, uuid string) (records.RecordDetails, error) {
 	var record records.Record
-	err := r.db.WithContext(ctx).Scopes(availableRecordings).Where("uuid = ?", uuid).First(&record).Error
+	err := r.db.WithContext(ctx).Scopes(r.availableRecordings).Where("uuid = ?", uuid).First(&record).Error
 	if err != nil {
 		return records.RecordDetails{}, err
 	}
@@ -152,7 +154,7 @@ func (r *RecordRepository) FindDetailsByUUIDs(ctx context.Context, ids []string)
 		return []records.RecordDetails{}, nil
 	}
 	var rows []records.Record
-	if err := r.db.WithContext(ctx).Scopes(availableRecordings).Where("uuid IN ?", ids).Find(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Scopes(r.availableRecordings).Where("uuid IN ?", ids).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	byUUID := make(map[string]records.Record, len(rows))
@@ -405,4 +407,14 @@ func upsertRecordSegment(tx *gorm.DB, segment *records.RecordSegment) error {
 	}
 
 	return tx.Create(segment).Error
+}
+
+// WithSettings installs the shared retention policy reader before serving requests.
+func (r *RecordRepository) WithSettings(reader settings.Reader) *RecordRepository {
+	r.settings = reader
+	return r
+}
+
+func (r *RecordRepository) availableRecordings(db *gorm.DB) *gorm.DB {
+	return retentionScope(db, r.settings)
 }

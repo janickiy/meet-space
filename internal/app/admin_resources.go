@@ -12,12 +12,12 @@ import (
 	"github.com/janickiy/meet-space/internal/config"
 	"github.com/janickiy/meet-space/internal/domain/admin"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
-	"github.com/janickiy/meet-space/internal/domain/chat"
 	"github.com/janickiy/meet-space/internal/domain/realtime"
 	"github.com/janickiy/meet-space/internal/domain/records"
 	healthinfra "github.com/janickiy/meet-space/internal/infrastructure/health"
 	postgresinfra "github.com/janickiy/meet-space/internal/infrastructure/postgres"
 	"github.com/janickiy/meet-space/internal/operations"
+	settingsusecase "github.com/janickiy/meet-space/internal/usecase/settings"
 	"gorm.io/gorm"
 )
 
@@ -32,19 +32,21 @@ type adminCached struct {
 	expires time.Time
 }
 type adminResources struct {
-	repository *postgresinfra.AdminRepository
-	storage    adminStorage
-	events     adminEvents
-	settings   admin.Settings
-	checks     map[string]operations.Check
-	clients    []*healthinfra.HTTPReady
-	mu         sync.Mutex
-	cache      map[string]adminCached
-	cacheGates map[string]chan struct{}
-	cacheEpoch uint64
+	repository     *postgresinfra.AdminRepository
+	storage        adminStorage
+	events         adminEvents
+	settings       *settingsusecase.Service
+	settingsErr    error
+	staticSettings []admin.Setting
+	checks         map[string]operations.Check
+	clients        []*healthinfra.HTTPReady
+	mu             sync.Mutex
+	cache          map[string]adminCached
+	cacheGates     map[string]chan struct{}
+	cacheEpoch     uint64
 }
 
-func newAdminResources(db *gorm.DB, cfg config.Config, rtc config.RealtimeConfig, media config.MediaConfig, ops *operations.Runtime, storage adminStorage, events adminEvents) *adminResources {
+func newAdminResources(db *gorm.DB, cfg config.Config, rtc config.RealtimeConfig, media config.MediaConfig, ops *operations.Runtime, storage adminStorage, events adminEvents, settings ...*settingsusecase.Service) *adminResources {
 	r := &adminResources{repository: postgresinfra.NewAdminRepository(db), storage: storage, events: events, cache: map[string]adminCached{}, checks: map[string]operations.Check{}}
 	r.checks["API"] = func(context.Context) error {
 		if ops.Ready() {
@@ -67,7 +69,12 @@ func newAdminResources(db *gorm.DB, cfg config.Config, rtc config.RealtimeConfig
 			return errors.New("not ready")
 		}
 	}
-	r.settings = adminEffectiveSettings(cfg, rtc, media)
+	r.staticSettings = adminEffectiveSettings(cfg, rtc).Items
+	if len(settings) > 0 && settings[0] != nil {
+		r.settings = settings[0]
+	} else {
+		r.settings, r.settingsErr = runtimeSettingsWithMedia(cfg, media, db)
+	}
 	return r
 }
 
@@ -86,7 +93,18 @@ func (r *adminResources) Query(ctx context.Context, resource string, q admin.Que
 	case "recordings":
 		return r.repository.Recordings(ctx, q)
 	case "settings":
-		return r.settings, nil
+		if r.settingsErr != nil {
+			return nil, r.settingsErr
+		}
+		if r.settings == nil {
+			return nil, apperrors.ErrUnavailable
+		}
+		view, err := r.settings.Admin(ctx)
+		if err != nil {
+			return nil, err
+		}
+		view.Items = append(view.Items, r.staticSettings...)
+		return view, nil
 	case "dashboard", "chats", "files", "system":
 		return r.cachedQuery(ctx, resource, func() (any, error) {
 			switch resource {
@@ -229,23 +247,30 @@ func (r *adminResources) DeleteRecording(ctx context.Context, id string, audit a
 	return nil
 }
 
-func (r *adminResources) UpdateSettings(context.Context, json.RawMessage, admin.AuditInput) (any, error) {
-	return nil, apperrors.New(apperrors.ErrConflict, "Эти параметры задаются конфигурацией сервера. Изменение без перезапуска пока не поддерживается.")
+func (r *adminResources) UpdateSettings(ctx context.Context, data json.RawMessage, audit admin.AuditInput) (any, error) {
+	if r.settingsErr != nil {
+		return nil, r.settingsErr
+	}
+	if r.settings == nil {
+		return nil, apperrors.ErrUnavailable
+	}
+	input, err := settingsusecase.DecodePatch(data)
+	if err != nil {
+		return nil, err
+	}
+	view, err := r.settings.Update(ctx, input, audit)
+	if err != nil {
+		return nil, err
+	}
+	view.Items = append(view.Items, r.staticSettings...)
+	return view, nil
 }
 
-func adminEffectiveSettings(cfg config.Config, rtc config.RealtimeConfig, media config.MediaConfig) admin.Settings {
+func adminEffectiveSettings(cfg config.Config, rtc config.RealtimeConfig) admin.Settings {
 	server := "Задаётся на сервере; изменение требует перезапуска соответствующего сервиса."
-	items := []admin.Setting{
+	return admin.Settings{Items: []admin.Setting{
 		{Key: "registration", Label: "Регистрация пользователей", Description: "Регистрация включена в текущей версии платформы.", Value: true, Type: "boolean", Group: "general", Configured: true},
 		{Key: "publicUrl", Label: "Адрес платформы", Description: server, Value: cfg.StageSeven.PublicURL, Type: "string", Group: "general", Configured: true},
-		{Key: "attachmentMaxBytes", Label: "Максимальный размер вложения", Description: "Ограничение действующего сервиса чатов, в байтах.", Value: chat.MaxAttachmentBytes, Type: "number", Group: "limits", Configured: true},
-		{Key: "mediaMaxPeers", Label: "Лимит медиаподключений", Description: server, Value: media.MaxPeers, Type: "number", Group: "limits", Configured: true},
-		{Key: "mediaMaxRooms", Label: "Лимит медиакомнат", Description: server, Value: media.MaxRooms, Type: "number", Group: "limits", Configured: true},
-		{Key: "recordingRetentionDays", Label: "Срок хранения записей, дней", Description: "Существующая политика автоматически удаляет завершённые записи через 7 дней.", Value: 7, Type: "number", Group: "storage", Configured: true},
-		{Key: "smtpHost", Label: "SMTP-сервер", Description: server, Value: cfg.StageSeven.SMTP.Host, Type: "string", Group: "mail", Configured: cfg.StageSeven.SMTP.Host != ""},
-		{Key: "smtpPort", Label: "SMTP-порт", Description: server, Value: cfg.StageSeven.SMTP.Port, Type: "number", Group: "mail", Configured: cfg.StageSeven.SMTP.Port > 0},
-		{Key: "smtpPassword", Label: "Пароль SMTP", Description: "Значение секрета никогда не передаётся в браузер.", Value: nil, Type: "string", Group: "mail", Secret: true, Configured: cfg.StageSeven.SMTP.Password != ""},
 		{Key: "iceServerCount", Label: "Количество STUN/TURN серверов", Description: server, Value: len(rtc.ICE.ICEServers), Type: "number", Group: "network", Configured: true},
-	}
-	return admin.Settings{Items: items}
+	}}
 }

@@ -402,7 +402,7 @@ func (c *Controller) join(ctx context.Context, binding domain.Binding, requestID
 	if err != nil {
 		return err
 	}
-	if parsed, err := uuid.Parse(result.MediaPeerID); err != nil || parsed == uuid.Nil || result.MaxPeers < 2 || result.MaxPeers > 32 || result.WorkerID != route.WorkerID {
+	if parsed, err := uuid.Parse(result.MediaPeerID); err != nil || parsed == uuid.Nil || result.MaxPeers < 1 || result.MaxPeers > 100 || result.WorkerID != route.WorkerID {
 		return domain.ErrUnavailable
 	}
 	video := result.VideoCapture
