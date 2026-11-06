@@ -63,12 +63,36 @@ test("username-only identity and password confirmation are validated", () => {
   );
 });
 
-test("password length is counted as Unicode code points with a letter and a digit", () => {
-  assert.equal(validatePassword("НадёжныйПароль123"), null);
-  assert.match(validatePassword("OnlyLettersPassword"), /букву и цифру/);
-  assert.match(validatePassword("123456789012"), /букву и цифру/);
-  assert.match(validatePassword("А1😀😀😀😀😀😀"), /12 до 128/);
-  assert.match(validatePassword("a1".repeat(70)), /12 до 128/);
+test("passwords accept 8–128 characters without composition requirements", () => {
+  const syntheticNumericPassword = "90716428";
+  assert.equal(validatePassword(syntheticNumericPassword), null);
+  assert.match(
+    validatePassword(syntheticNumericPassword.slice(0, 7)),
+    /8 до 128/,
+  );
+  assert.equal(validatePassword("abcdefgh"), null);
+  assert.equal(validatePassword("1".repeat(128)), null);
+  assert.match(validatePassword("1".repeat(129)), /8 до 128/);
+  assert.equal(
+    validateAdministrator(
+      "operator",
+      syntheticNumericPassword,
+      syntheticNumericPassword,
+      true,
+    ),
+    null,
+  );
+});
+
+test("password limits count Unicode code points and retain the 512 byte UTF-8 boundary", () => {
+  assert.equal(validatePassword("😀".repeat(8)), null);
+  assert.match(validatePassword("😀".repeat(7)), /8 до 128/);
+  assert.equal(validatePassword("е\u0301".repeat(4)), null);
+  const maximum = "😀".repeat(128);
+  assert.equal([...maximum].length, 128);
+  assert.equal(new TextEncoder().encode(maximum).length, 512);
+  assert.equal(validatePassword(maximum), null);
+  assert.match(validatePassword("😀".repeat(129)), /8 до 128/);
 });
 
 test("durations remain useful for recordings longer than one hour", () => {

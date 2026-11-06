@@ -79,12 +79,10 @@ export function validateAdministrator(
 }
 export function validatePassword(password: string): string | null {
   if (
-    [...password].length < 12 ||
+    [...password].length < 8 ||
     [...password].length > 128 ||
     new TextEncoder().encode(password).length > 512
   )
-    return "Пароль должен содержать от 12 до 128 символов.";
-  if (!/\p{L}/u.test(password) || !/\p{Nd}/u.test(password))
-    return "Добавьте в пароль хотя бы одну букву и цифру.";
+    return "Пароль должен содержать от 8 до 128 символов.";
   return null;
 }

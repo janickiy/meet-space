@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
@@ -164,16 +163,8 @@ func NormalizeUsername(v string) (string, error) {
 }
 func ValidatePassword(v string) error {
 	n := utf8.RuneCountInString(v)
-	if n < 12 || n > 128 || len(v) > 512 {
-		return apperrors.New(apperrors.ErrInvalidInput, "Пароль должен содержать от 12 до 128 символов")
-	}
-	var letter, digit bool
-	for _, r := range v {
-		letter = letter || unicode.IsLetter(r)
-		digit = digit || unicode.IsDigit(r)
-	}
-	if !letter || !digit {
-		return apperrors.New(apperrors.ErrInvalidInput, "Пароль должен содержать буквы и цифры")
+	if !utf8.ValidString(v) || n < 8 || n > 128 || len(v) > 512 {
+		return apperrors.New(apperrors.ErrInvalidInput, "Пароль должен содержать от 8 до 128 символов")
 	}
 	return nil
 }

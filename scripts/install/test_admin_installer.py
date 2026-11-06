@@ -1,6 +1,8 @@
 """Admin bootstrap/recovery boundary tests without a real database or secret files."""
 import importlib.util
+import io
 import json
+from contextlib import redirect_stdout
 from pathlib import Path
 import subprocess
 import unittest
@@ -24,11 +26,11 @@ class AdministratorInstallerTest(unittest.TestCase):
         password.assert_not_called()
 
     def test_password_is_only_passed_on_stdin(self):
-        fake_password = 'Test only password 42'
+        fake_password = '13579024'  # Synthetic eight-digit fixture, never a real credential.
         with mock.patch.object(wizard, 'run', side_effect=[
                 '{"exists":false}', '{"exists":true,"username":"admin"}']) as run, \
                 mock.patch.object(wizard, 'ask', return_value='Admin'), \
-                mock.patch.object(wizard, 'administrator_password', return_value=fake_password):
+                mock.patch.object(wizard.getpass, 'getpass', side_effect=[fake_password, fake_password]):
             self.assertEqual(wizard.bootstrap_administrator(['docker', 'compose']), 'admin')
         first, second = run.call_args_list
         self.assertIsNone(first.kwargs['data'])
@@ -61,11 +63,48 @@ class AdministratorInstallerTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'не подтверждено'):
                 wizard.bootstrap_administrator([])
 
-    def test_hidden_input_rejects_weak_and_mismatching_passwords(self):
+    def test_hidden_input_rejects_seven_characters_and_mismatching_passwords(self):
         with mock.patch.object(wizard.getpass, 'getpass', side_effect=[
-                'short1', 'short1', 'Long enough 42', 'Different 42',
-                'Long enough 42', 'Long enough 42']):
-            self.assertEqual(wizard.administrator_password(), 'Long enough 42')
+                '1357902', '1357902', '13579024', '13579025',
+                '13579024', '13579024']) as getpass:
+            self.assertEqual(wizard.administrator_password(), '13579024')
+        self.assertEqual(getpass.call_count, 6)
+
+    def test_eight_character_password_does_not_require_letters_or_digits(self):
+        for password in ('13579024', 'abcdefgh', '🔒' * 8):
+            with self.subTest(password_kind='numeric' if password.isdecimal() else 'non-numeric'), \
+                    mock.patch.object(wizard.getpass, 'getpass', side_effect=[password, password]) as getpass:
+                self.assertEqual(wizard.administrator_password(), password)
+                self.assertEqual(getpass.call_count, 2)
+
+    def test_unicode_character_and_utf8_upper_bound(self):
+        limit = '🔒' * 128
+        with mock.patch.object(wizard.getpass, 'getpass', side_effect=[
+                '🔒' * 7, '🔒' * 7, limit + '🔒', limit + '🔒', limit, limit]) as getpass:
+            self.assertEqual(wizard.administrator_password(), limit)
+        self.assertEqual(len(limit.encode('utf-8')), 512)
+        self.assertEqual(getpass.call_count, 6)
+
+    def test_reset_accepts_numeric_password_and_keeps_secret_on_stdin(self):
+        fake_password = '13579024'
+        output = io.StringIO()
+        with mock.patch.object(wizard, 'require_local_docker'), \
+                mock.patch.object(Path, 'read_text', return_value='{}'), \
+                mock.patch.object(wizard, 'metadata', return_value={}), \
+                mock.patch.object(wizard, 'require_image_store'), \
+                mock.patch.object(wizard, 'compose_args', return_value=['docker', 'compose']), \
+                mock.patch.object(wizard, 'ask', return_value='Admin'), \
+                mock.patch.object(wizard.getpass, 'getpass', side_effect=[fake_password, fake_password]), \
+                mock.patch.object(wizard, 'run', return_value='{"username":"admin","reset":true}') as run, \
+                redirect_stdout(output):
+            wizard.manage(Path('/unused-admin-test-fixture'), 'reset-admin-password', [])
+        run.assert_called_once()
+        call = run.call_args
+        self.assertEqual(call.args[-1], 'reset-password')
+        self.assertIn('-T', call.args)
+        self.assertNotIn(fake_password, repr(call.args))
+        self.assertNotIn(fake_password, output.getvalue())
+        self.assertEqual(json.loads(call.kwargs['data']), {'username': 'admin', 'password': fake_password})
 
     def test_echo_fallback_is_never_allowed(self):
         with mock.patch.object(wizard.getpass, 'getpass', side_effect=wizard.getpass.GetPassWarning):

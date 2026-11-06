@@ -150,18 +150,17 @@ def administrator_password():
         with warnings.catch_warnings():
             warnings.simplefilter('error', getpass.GetPassWarning)
             try:
-                password = getpass.getpass('Пароль администратора (ввод скрыт): ')
+                password = getpass.getpass('Пароль администратора (8–128 символов, ввод скрыт): ')
                 repeated = getpass.getpass('Повторите пароль: ')
             except getpass.GetPassWarning:
                 raise RuntimeError('Для безопасного ввода пароля нужен интерактивный терминал.') from None
-        valid = (12 <= len(password) <= 128 and len(password.encode('utf-8')) <= 512
-                 and any(c.isalpha() for c in password) and any(c.isdecimal() for c in password)
+        valid = (8 <= len(password) <= 128 and len(password.encode('utf-8')) <= 512
                  and not any(c in password for c in '\r\n\x00'))
         if valid and secrets.compare_digest(password.encode(), repeated.encode()):
             repeated = None
             return password
         password = repeated = None
-        print('Пароли должны совпадать: 12–128 символов, хотя бы одна буква и цифра.')
+        print('Пароли должны совпадать: 8–128 символов, до 512 байт UTF-8, без переводов строки и NUL.')
 
 
 def administrator_command(args, command, data=None):

@@ -948,7 +948,7 @@ function AdministratorForm({
                 disabled={saving.busy}
               />
               <span className="field-help">
-                12–128 символов, минимум одна буква и цифра
+                8–128 символов
               </span>
             </label>
             <label className="field">
@@ -1076,7 +1076,7 @@ function PasswordForm({
             disabled={saving.busy}
           />
           <span className="field-help">
-            12–128 символов, минимум одна буква и цифра
+            8–128 символов
           </span>
         </label>
         <label className="field">

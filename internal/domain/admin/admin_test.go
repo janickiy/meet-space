@@ -18,12 +18,12 @@ func TestAdministratorValidation(t *testing.T) {
 			t.Errorf("accepted invalid username %q", v)
 		}
 	}
-	for _, v := range []string{"short1", "onlyletterspassword", "12345678901234", strings.Repeat("a", 128) + "1"} {
+	for _, v := range []string{"", "2468246", strings.Repeat("😀", 7), strings.Repeat("a", 129), strings.Repeat("😀", 129), "invalid\xffpassword"} {
 		if ValidatePassword(v) == nil {
-			t.Errorf("accepted weak/long password")
+			t.Errorf("accepted invalid password")
 		}
 	}
-	for _, v := range []string{"correct-password123", "длинныйпароль123"} {
+	for _, v := range []string{"24682468", "onlyletterspassword", "correct-password123", "длинныйпароль123", strings.Repeat("😀", 8), strings.Repeat("a", 128), strings.Repeat("😀", 128)} {
 		if err := ValidatePassword(v); err != nil {
 			t.Errorf("valid password rejected: %v", err)
 		}
