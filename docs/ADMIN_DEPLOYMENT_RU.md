@@ -242,13 +242,13 @@ media/record/product worker, frontend и admin proxy. Новому медиав�
 Обычные последующие изменения через форму не требуют перезапуска сервисов.
 
 Выпуск настроек `620e63b` установлен на обоих рабочих хостах; административный
-proxy с компактной формой настроек — `e6a0672`. Набор редактируемых параметров
+proxy с компактной формой настроек — `eab5862`. Набор редактируемых параметров
 одинаковый, при этом значения, SMTP-секреты и ключи шифрования принадлежат
 каждой установке и при обновлении сохраняются. Фактический Compose project
 на `meeting.janickiy.com` — `recorder-staging-meeting`; конфигурация выпуска
-находится в `/opt/meetrix/releases/20261106-settings-right-e6a0672/compose.json`.
+находится в `/opt/meetrix/releases/20261106-settings-toggle-eab5862/compose.json`.
 На `chat.stage.org.ru` project — `meetspace`, форма поставляется proxy-образом
-`meetspace-update/proxy:20261106-settings-right-e6a0672`.
+`meetspace-update/proxy:20261106-settings-toggle-eab5862`.
 
 ## Проверки исходников
 
