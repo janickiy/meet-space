@@ -1349,7 +1349,7 @@ function SettingsEditor({ data }: { data: Settings }) {
 
   const groups = [
     ...new Set(base.items.map((item) => item.group || "general")),
-  ];
+  ].filter((value) => value !== "network");
   const selected = groups.includes(group) ? group : groups[0];
   const items = base.items.filter(
     (item) => (item.group || "general") === selected,
