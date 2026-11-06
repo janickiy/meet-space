@@ -241,15 +241,18 @@ media/record/product worker, frontend и admin proxy. Новому медиав�
 файлы миграций конкретной установки, как описано выше, и добавьте новые файлы.
 Обычные последующие изменения через форму не требуют перезапуска сервисов.
 
-Выпуск настроек `620e63b` установлен на обоих рабочих хостах; административный
-API, публичный frontend и admin proxy — `81b64f2`; рабочие сервисы сохраняют
-выпуск настроек `620e63b`. Набор редактируемых параметров
-одинаковый, при этом значения, SMTP-секреты и ключи шифрования принадлежат
-каждой установке и при обновлении сохраняются. Фактический Compose project
-на `meeting.janickiy.com` — `recorder-staging-meeting`; конфигурация выпуска
-находится в `/opt/meetrix/releases/20261106-blocked-auth-81b64f2/compose.json`.
-На `chat.stage.org.ru` project — `meetspace`, форма поставляется proxy-образом
-`meetspace-update/proxy:20261106-blocked-auth-81b64f2`.
+На обоих рабочих хостах установлен выпуск `20261106-errors-af21aae`:
+API, media/record/product workers, публичный frontend и административный proxy.
+Набор редактируемых параметров одинаковый; значения, SMTP-секреты и ключи
+шифрования принадлежат каждой установке и при обновлении сохраняются.
+Фактический Compose project на `meeting.janickiy.com` —
+`recorder-staging-meeting`; конфигурация находится в
+`/opt/meetrix/releases/20261106-errors-af21aae/compose.json`.
+На `chat.stage.org.ru` project — `meetspace`, конфигурация находится в
+`/opt/meetspace/updates/20261106-errors-af21aae/compose.json`.
+Технический журнал `/errors` хранит до 20 000 групп в течение 14 дней;
+контракт, включение браузерной телеметрии и ограничения описаны в
+[ERROR_LOGGING_RU.md](ERROR_LOGGING_RU.md).
 
 ## Проверки исходников
 
