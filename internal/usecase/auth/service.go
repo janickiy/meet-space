@@ -173,6 +173,13 @@ func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (
 	if err != nil {
 		return users.View{}, err
 	}
+	// Keep blocked and active email addresses reserved, even if verification or
+	// SMTP settings are temporarily unavailable. The unique index also guards races.
+	if _, err := s.repository.GetByEmail(ctx, request.Email); err == nil {
+		return users.View{}, apperrors.New(apperrors.ErrConflict, "email is already registered")
+	} else if !errors.Is(err, apperrors.ErrNotFound) {
+		return users.View{}, err
+	}
 	hash, err := s.hashPassword(ctx, request.Password)
 	if err != nil {
 		return users.View{}, err
@@ -232,7 +239,10 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 	if err != nil {
 		return users.LoginResponse{}, err
 	}
-	if missing || user.GuestConferenceID != nil || user.IsBlocked || !valid {
+	if !missing && user.GuestConferenceID == nil && user.IsBlocked {
+		return users.LoginResponse{}, apperrors.ErrAccountBlocked
+	}
+	if missing || user.GuestConferenceID != nil || !valid {
 		return users.LoginResponse{}, invalidCredentials()
 	}
 	if err := s.enforceEmailVerification(ctx, user); err != nil {
@@ -256,8 +266,11 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 //     передачи данных или сохранения.
 func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 	user, err := s.repository.GetByID(ctx, userID)
-	if errors.Is(err, apperrors.ErrNotFound) || err == nil && user.IsBlocked {
+	if errors.Is(err, apperrors.ErrNotFound) {
 		return users.View{}, apperrors.ErrUnauthorized
+	}
+	if err == nil && user.IsBlocked {
+		return users.View{}, apperrors.ErrAccountBlocked
 	}
 	if err != nil {
 		return users.View{}, err

@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, ApiError, configureAuth } from "./api";
+import { api, ApiError, configureAuth, isAccountBlocked } from "./api";
 import type { User, LoginResponse, Item, Participant } from "./types";
 import {
   ACCOUNT_CHANGE_KEY,
@@ -29,6 +29,7 @@ interface Auth {
   user: User | null;
   loading: boolean;
   expired: boolean;
+  blocked: boolean;
   startupError: boolean;
   login: (email: string, password: string) => Promise<void>;
   switchAccount: (id: string) => Promise<void>;
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userRef = useRef(user);
   const [loading, setLoading] = useState(true);
   const [expired, setExpired] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const [startupError, setStartupError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
@@ -68,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const renewal = useRef<Promise<boolean> | null>(null);
   const renewalController = useRef<AbortController | null>(null);
   const identityController = useRef<AbortController | null>(null);
+  const validationController = useRef<AbortController | null>(null);
   const restoreAllowed = useRef(true);
   const migrationNeeded = useRef(!!session);
   const startupComplete = useRef(false);
@@ -92,6 +95,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setExpired(isExpired);
     },
     [client],
+  );
+
+  const rejectBlocked = useCallback(
+    (usedToken?: string) => {
+      if (usedToken && sessionRef.current?.token !== usedToken) return;
+      accountRestoreBlocked.current = true;
+      loggedOut.current = true;
+      generation.current++;
+      renewalController.current?.abort();
+      identityController.current?.abort();
+      validationController.current?.abort();
+      renewal.current = null;
+      markLogout();
+      clear();
+      setBlocked(true);
+    },
+    [clear],
   );
 
   /** При обновлении не сбрасываются запросы, загрузка или подключенная конференция. */
@@ -121,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(next);
       setUser(result.user);
       setExpired(false);
+      setBlocked(false);
       setStartupError(false);
       return true;
     },
@@ -164,7 +185,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .catch((error: unknown) => {
           if (controller.signal.aborted || generation.current !== expected)
             return false;
-          if (error instanceof ApiError && error.status === 401) {
+          if (isAccountBlocked(error)) {
+            rejectBlocked(current?.token);
+          } else if (error instanceof ApiError && error.status === 401) {
             clear(!!sessionRef.current);
           } else if (!userRef.current) {
             setStartupError(true);
@@ -181,16 +204,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       renewal.current = pending;
       return pending;
     },
-    [applySession, clear],
+    [applySession, clear, rejectBlocked],
   );
   renewRef.current = renew;
 
   useEffect(() => {
     const expected = generation.current;
     const controller = new AbortController();
-    configureAuth(sessionRef.current?.token ?? null, (usedToken) =>
-      renewRef.current(usedToken),
-    );
+    configureAuth(sessionRef.current?.token ?? null, (usedToken, reason) => {
+      if (reason === "blocked") {
+        rejectBlocked(usedToken);
+        return false;
+      }
+      return renewRef.current(usedToken);
+    });
     const start = async () => {
       if (!userRef.current) setLoading(true);
       setStartupError(false);
@@ -231,7 +258,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           if (controller.signal.aborted || generation.current !== expected)
             return;
-          if (error instanceof ApiError && error.status === 401) {
+          if (isAccountBlocked(error)) {
+            rejectBlocked(cached.token);
+          } else if (error instanceof ApiError && error.status === 401) {
             // Отозванный гостевой токен означает завершённую сессию,
             // а не недоступность сервера и не повод восстанавливать аккаунт.
             if (restoreAllowed.current) await renewRef.current();
@@ -248,7 +277,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
     return () => controller.abort();
-  }, [attempt, applySession, clear]);
+  }, [attempt, applySession, clear, rejectBlocked]);
+
+  useEffect(() => {
+    const check = async () => {
+      const current = sessionRef.current;
+      if (
+        !startupComplete.current ||
+        !current ||
+        loggedOut.current ||
+        identityController.current ||
+        validationController.current
+      )
+        return;
+      const expected = generation.current;
+      const controller = new AbortController();
+      validationController.current = controller;
+      try {
+        await api.me(controller.signal);
+      } catch (error) {
+        if (
+          controller.signal.aborted ||
+          generation.current !== expected ||
+          sessionRef.current?.token !== current.token
+        )
+          return;
+        if (isAccountBlocked(error)) rejectBlocked(current.token);
+        // Expired/revoked sessions use the existing 401 recovery path. Network failures and other 403s preserve the account.
+      } finally {
+        if (validationController.current === controller)
+          validationController.current = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void check();
+    };
+    const onCheck = () => {
+      void check();
+    };
+    const interval = window.setInterval(onCheck, RETRY_MS);
+    window.addEventListener("focus", onCheck);
+    window.addEventListener("online", onCheck);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onCheck);
+      window.removeEventListener("online", onCheck);
+      document.removeEventListener("visibilitychange", onVisibility);
+      validationController.current?.abort();
+      validationController.current = null;
+    };
+  }, [user?.id, rejectBlocked]);
 
   useEffect(() => {
     const check = () => {
@@ -289,6 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       generation.current++;
       renewalController.current?.abort();
       identityController.current?.abort();
+      validationController.current?.abort();
       renewal.current = null;
       clear();
     };
@@ -503,6 +583,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         expired,
+        blocked,
         startupError,
         login,
         updateProfile,

@@ -464,7 +464,16 @@ export function usePersonalRealtime(userId?: string) {
             });
         };
         socket.onerror = () => socket?.close();
-        socket.onclose = retry;
+        socket.onclose = (event) => {
+          if (controller.signal.aborted) return;
+          if (
+            event.code === 4401 ||
+            event.reason === "authentication_revoked"
+          ) {
+            void api.me(controller.signal).catch(() => {});
+          }
+          retry();
+        };
       } catch {
         retry();
       }

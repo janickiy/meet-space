@@ -11,15 +11,16 @@ package apperrors
 import "errors"
 
 var (
-	ErrInvalidInput = errors.New("invalid input")
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
-	ErrNotFound     = errors.New("not found")
-	ErrConflict     = errors.New("conflict")
-	ErrUnavailable  = errors.New("unavailable")
-	ErrRateLimited  = errors.New("rate limited")
-	ErrTimeout      = errors.New("timeout")
-	ErrInternal     = errors.New("internal")
+	ErrInvalidInput   = errors.New("invalid input")
+	ErrUnauthorized   = errors.New("unauthorized")
+	ErrForbidden      = errors.New("forbidden")
+	ErrAccountBlocked = New(ErrForbidden, "account blocked")
+	ErrNotFound       = errors.New("not found")
+	ErrConflict       = errors.New("conflict")
+	ErrUnavailable    = errors.New("unavailable")
+	ErrRateLimited    = errors.New("rate limited")
+	ErrTimeout        = errors.New("timeout")
+	ErrInternal       = errors.New("internal")
 )
 
 // Error — ошибка привязывает категорию приложения к безопасному клиентскому сообщению. Kind — это

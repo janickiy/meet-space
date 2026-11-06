@@ -12,7 +12,10 @@ import (
 // must never resurrect a bearer token that predates the block.
 func (s *Service) AuthorizeLegacyAccount(ctx context.Context, userID string) error {
 	user, err := s.repository.GetByID(ctx, userID)
-	if errors.Is(err, apperrors.ErrNotFound) || err == nil && (user.IsBlocked || user.AuthInvalidBefore != nil) {
+	if err == nil && user.IsBlocked {
+		return apperrors.ErrAccountBlocked
+	}
+	if errors.Is(err, apperrors.ErrNotFound) || err == nil && user.AuthInvalidBefore != nil {
 		return apperrors.ErrUnauthorized
 	}
 	if err == nil {

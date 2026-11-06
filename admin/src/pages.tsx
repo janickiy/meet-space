@@ -1288,10 +1288,6 @@ export function SettingsPage() {
   return (
     <>
       <Heading title="Настройки" subtitle="Управляйте параметрами платформы." />
-      <Note icon={<Info />}>
-        Сохраняйте изменения в каждой группе отдельно. Новые значения
-        применяются в течение нескольких секунд.
-      </Note>
       {!result.data ? (
         result.isPending ? (
           <Skeleton />

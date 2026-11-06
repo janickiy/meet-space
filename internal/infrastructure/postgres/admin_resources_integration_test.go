@@ -159,14 +159,24 @@ func TestAuditUserBlockPublicAuthAndGuestCompatibility(t *testing.T) {
 	if _, err = repo.SetUserStatus(ctx, id, "blocked", audit); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = login(); !errors.Is(err, apperrors.ErrUnauthorized) {
+	if _, err = login(); !errors.Is(err, apperrors.ErrAccountBlocked) {
 		t.Fatalf("blocked login: %v", err)
+	}
+	if err = auth.PasswordRecovery(ctx, " "+strings.ToUpper(email)+" "); !errors.Is(err, apperrors.ErrAccountBlocked) {
+		t.Fatalf("blocked recovery: %v", err)
+	}
+	if _, err = auth.Register(ctx, users.RegisterRequest{Email: strings.ToUpper(email), Password: "replacement-password"}); !errors.Is(err, apperrors.ErrConflict) || err.Error() != "email is already registered" {
+		t.Fatalf("blocked email registration: %v", err)
+	}
+	var sameEmail int64
+	if err = db.Table("users").Where("email=? AND is_blocked", email).Count(&sameEmail).Error; err != nil || sameEmail != 1 {
+		t.Fatalf("registration changed blocked account: count=%d err=%v", sameEmail, err)
 	}
 	if _, err = auth.Refresh(ctx, session.SessionToken); !errors.Is(err, apperrors.ErrUnauthorized) {
 		t.Fatalf("blocked refresh: %v", err)
 	}
 	for _, token := range []string{session.AccessToken, legacy} {
-		if _, _, _, _, err = auth.VerifyAuthorization(ctx, token); !errors.Is(err, apperrors.ErrUnauthorized) {
+		if _, _, _, _, err = auth.VerifyAuthorization(ctx, token); !errors.Is(err, apperrors.ErrAccountBlocked) {
 			t.Fatalf("blocked bearer: %v", err)
 		}
 	}

@@ -60,6 +60,7 @@ let accessToken: string | null = null;
 let identityVersion = 0;
 type SessionRecovery = (
   usedToken: string,
+  reason?: "blocked",
 ) => boolean | void | Promise<boolean | void>;
 let invalidSession: SessionRecovery = () => false;
 const tokenListeners = new Set<() => void>();
@@ -126,10 +127,41 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public reason?: string,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+export function isAccountBlocked(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    error.reason === "account blocked"
+  );
+}
+
+function responseMessage(data: unknown): string {
+  return data &&
+    typeof data === "object" &&
+    "message" in data &&
+    typeof data.message === "string"
+    ? data.message
+    : "";
+}
+
+async function rejectBlockedSession(
+  usedToken: string | null,
+  version: number,
+  message: string,
+) {
+  if (
+    message === "account blocked" &&
+    usedToken &&
+    accessToken === usedToken &&
+    version === identityVersion
+  )
+    await invalidSession(usedToken, "blocked");
 }
 const messages: Record<string, string> = {
   "browser account limit reached":
@@ -147,8 +179,11 @@ const messages: Record<string, string> = {
   "password must contain 8 to 128 characters":
     "Пароль должен содержать от 8 до 128 символов.",
   "invalid email or password": "Неверный email или пароль.",
+  "account blocked": "Аккаунт заблокирован.",
+  "password recovery unavailable":
+    "Восстановление пароля пока недоступно. Обратитесь к администратору сервиса.",
   "email is already registered":
-    "Этот email уже зарегистрирован. Попробуйте войти.",
+    "Пользователь с таким email уже есть в системе.",
   "email verification required":
     "Подтвердите email по ссылке из письма, чтобы войти.",
   "invalid or expired verification link":
@@ -242,6 +277,9 @@ async function request<T>(
   if (usedToken && version !== identityVersion)
     throw new ApiError(409, "Аккаунт изменился. Повторите действие.");
   if (!response.ok) {
+    const message = responseMessage(data);
+    if (response.status === 403)
+      await rejectBlockedSession(usedToken, version, message);
     if (
       response.status === 401 &&
       usedToken &&
@@ -253,18 +291,12 @@ async function request<T>(
         return request<T>(path, options, false);
       }
     }
-    const message =
-      data &&
-      typeof data === "object" &&
-      "message" in data &&
-      typeof data.message === "string"
-        ? data.message
-        : "";
     throw new ApiError(
       response.status,
       messages[message] ||
         statuses[response.status] ||
         "Не удалось выполнить запрос.",
+      message,
     );
   }
   if (!data) throw new ApiError(502, "Сервер вернул некорректный ответ.");
@@ -296,7 +328,9 @@ async function binaryRequest(
     throw new DOMException("Account changed", "AbortError");
   }
   if (!response.ok) {
-    await response.body?.cancel();
+    const message = responseMessage(await response.json().catch(() => null));
+    if (response.status === 403)
+      await rejectBlockedSession(usedToken, version, message);
     if (
       response.status === 401 &&
       usedToken &&
@@ -308,7 +342,10 @@ async function binaryRequest(
     }
     throw new ApiError(
       response.status,
-      statuses[response.status] || "Не удалось загрузить файл.",
+      messages[message] ||
+        statuses[response.status] ||
+        "Не удалось загрузить файл.",
+      message,
     );
   }
   return response;
@@ -564,6 +601,13 @@ export const api = {
       method: "POST",
       body: { email, password, displayName: displayName.trim() || null },
       public: true,
+    }),
+  recoverPassword: (email: string, signal?: AbortSignal) =>
+    request<{ status: string }>("/auth/password-recovery", {
+      method: "POST",
+      body: { email },
+      public: true,
+      signal,
     }),
   verifyEmail: (token: string, signal?: AbortSignal) =>
     request<{ status: string }>("/auth/verify-email", {

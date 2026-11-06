@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SubmitEvent } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import {
@@ -43,9 +43,36 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [recovery, setRecovery] = useState(false);
+  const [recovery, setRecovery] = useState("");
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const recoveryController = useRef<AbortController | null>(null);
+  useEffect(() => () => recoveryController.current?.abort(), []);
   const [verificationNeeded, setVerificationNeeded] = useState(false);
   const submitted = useRef(false);
+  async function recoverPassword() {
+    recoveryController.current?.abort();
+    setRecovery("");
+    if (
+      !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
+      utf8Bytes(email.trim()) > 254
+    ) {
+      setRecovery("Введите корректный email для восстановления пароля.");
+      return;
+    }
+    const controller = new AbortController();
+    recoveryController.current = controller;
+    setRecoveryBusy(true);
+    try {
+      await api.recoverPassword(email.trim(), controller.signal);
+    } catch (error) {
+      if (!controller.signal.aborted) setRecovery(errorMessage(error));
+    } finally {
+      if (recoveryController.current === controller) {
+        recoveryController.current = null;
+        setRecoveryBusy(false);
+      }
+    }
+  }
   // Автоматический вход не должен прерывать переход на страницу успешной регистрации.
   if (auth.user && !auth.loading && !submitted.current)
     return <Navigate to={next} replace />;
@@ -191,9 +218,11 @@ export function AuthPage({ register = false }: { register?: boolean }) {
           </div>
           <ErrorNotice>
             {error ||
-              (!register && auth.expired
-                ? "Сессия завершилась. Войдите снова, чтобы продолжить."
-                : null)}
+              (!register && auth.blocked
+                ? "Аккаунт заблокирован."
+                : !register && auth.expired
+                  ? "Сессия завершилась. Войдите снова, чтобы продолжить."
+                  : null)}
           </ErrorNotice>
           {verificationNeeded && (
             <p>
@@ -220,7 +249,12 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                    *   - event — проверенный конверт события комнаты.
                    *
                    * @returns вычисленное значение: setEmail(event.target.value).
-                   */ (event) => setEmail(event.target.value)
+                   */ (event) => {
+                    setEmail(event.target.value);
+                    recoveryController.current?.abort();
+                    setRecovery("");
+                    setRecoveryBusy(false);
+                  }
                 }
                 disabled={busy}
               />
@@ -278,21 +312,14 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                   <button
                     type="button"
                     className="text-button"
-                    onClick={
-                      /**
-                       * onClick обрабатывает соответствующее событие интерфейса и изменяет состояние текущего действия.
-                       *
-                       *
-                       * @returns вычисленное значение: setRecovery(!recovery).
-                       */ () => setRecovery(!recovery)
-                    }
+                    disabled={busy || recoveryBusy}
+                    onClick={() => void recoverPassword()}
                   >
-                    Забыли пароль?
+                    {recoveryBusy ? "Проверяем…" : "Забыли пароль?"}
                   </button>
                   {recovery && (
                     <p className="field-hint" role="status">
-                      Восстановление пароля пока недоступно. Обратитесь к
-                      администратору сервиса.
+                      {recovery}
                     </p>
                   )}
                 </div>
