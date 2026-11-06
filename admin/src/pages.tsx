@@ -954,10 +954,6 @@ export function ChatsPage() {
           busy={result.isFetching}
         />
       </Heading>
-      <Note icon={<LockKeyhole />}>
-        Личные сообщения остаются личными. В панели доступна только
-        агрегированная статистика.
-      </Note>
       {result.isPending ? (
         <Skeleton />
       ) : result.isError ? (
