@@ -1153,8 +1153,12 @@ select {
   font-size: 11px;
 }
 .setting-toggle {
-  display: inline-flex;
+  display: flex;
+  flex-direction: row-reverse;
   align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
   gap: 10px;
   background: none;
   min-height: 40px;
