@@ -45,7 +45,7 @@ func NewRouter(middleware ...gin.HandlerFunc) *gin.Engine {
 		func(c *gin.Context) {
 			defer func() {
 				if recover() != nil {
-					slog.Error("http request panic", "method", c.Request.Method, "route", c.FullPath())
+					slog.Error("http request panic", "event_type", "server.panic", "method", c.Request.Method, "route", c.FullPath(), "request_id", operations.ID(c.Request.Context()))
 					c.AbortWithStatusJSON(500, gin.H{"status": "failed", "message": "internal server error"})
 				}
 			}()
@@ -57,6 +57,9 @@ func NewRouter(middleware ...gin.HandlerFunc) *gin.Engine {
 			c.Next()
 			// Никогда не логируйте строки запроса: одноразовые билеты WebSocket — это тоже
 			// учетные данные.
+			if c.Writer.Status() >= 500 {
+				slog.Error("http request failed", "event_type", "http.5xx", "route", c.FullPath(), "request_id", operations.ID(c.Request.Context()))
+			}
 			slog.Info("http request", "method", c.Request.Method, "route", c.FullPath(), "status", c.Writer.Status(), "duration_ms", time.Since(start).Milliseconds(), "request_id", operations.ID(c.Request.Context()))
 		})
 	if len(middleware) > 0 {

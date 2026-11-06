@@ -11,6 +11,7 @@ package operations
 import (
 	"log/slog"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -18,6 +19,8 @@ import (
 // сервисом.  Он не сохраняет сообщения и удаляет из них секретные значения окружения перед
 // выводом.
 type LogWriter struct{}
+
+var legacyFailurePattern = regexp.MustCompile(`(?i)\b(error|failed|failure|panic|fatal)\b`)
 
 // Функция Write принимает выходные байты через контракт io.Writer, соблюдая правила буферизации
 // компонента.
@@ -31,7 +34,7 @@ type LogWriter struct{}
 //     передачи данных или сохранения.
 func (LogWriter) Write(p []byte) (int, error) {
 	message := string(p)
-	for _, key := range []string{"JWT_SECRET", "MEDIA_TICKET_SECRET", "MEDIA_INTERNAL_SECRET", "WORKER_INTERNAL_SECRET", "METRICS_SECRET", "TURN_SHARED_SECRET", "POSTGRES_PASSWORD", "REDIS_PASSWORD", "RABBIT_MQ_PASSWORD", "MINIO_ROOT_PASSWORD", "PROVIDER_TOKEN_ENCRYPTION_KEY", "EMAIL_PROVIDER_TOKEN", "PUSH_PROVIDER_TOKEN", "CALENDAR_PROVIDER_TOKEN", "CALENDAR_OAUTH_CLIENT_SECRET"} {
+	for _, key := range []string{"JWT_SECRET", "MEDIA_TICKET_SECRET", "MEDIA_INTERNAL_SECRET", "WORKER_INTERNAL_SECRET", "METRICS_SECRET", "TURN_SHARED_SECRET", "POSTGRES_PASSWORD", "SMTP_PASSWORD", "REDIS_PASSWORD", "RABBIT_MQ_PASSWORD", "MINIO_ROOT_PASSWORD", "PROVIDER_TOKEN_ENCRYPTION_KEY", "EMAIL_PROVIDER_TOKEN", "PUSH_PROVIDER_TOKEN", "CALENDAR_PROVIDER_TOKEN", "CALENDAR_OAUTH_CLIENT_SECRET"} {
 		if secret := os.Getenv(key); len(secret) >= 8 {
 			message = strings.ReplaceAll(message, secret, "[redacted]")
 		}
@@ -39,6 +42,12 @@ func (LogWriter) Write(p []byte) (int, error) {
 	if len(message) > 4096 {
 		message = message[:4096] + " [truncated]"
 	}
-	slog.Info(strings.TrimSpace(message), "event_type", "component.log")
+	if legacyFailurePattern.MatchString(message) {
+		// The journal handler retains only a generic catalog message, not this
+		// potentially sensitive legacy diagnostic line.
+		slog.Error(strings.TrimSpace(message), "event_type", "component.error")
+	} else {
+		slog.Info(strings.TrimSpace(message), "event_type", "component.log")
+	}
 	return len(p), nil
 }

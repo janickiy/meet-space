@@ -51,7 +51,7 @@ func RunMediaWorker() error {
 	if err != nil {
 		return err
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "media-worker", "instance_id", cfg.WorkerID)
+	logger := slog.New(operations.NewErrorHandler(slog.NewJSONHandler(os.Stdout, nil))).With("service", "media-worker", "instance_id", cfg.WorkerID)
 	slog.SetDefault(logger)
 	signalCtx, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopSignals()
@@ -73,9 +73,14 @@ func RunMediaWorker() error {
 		return err
 	}
 	defer sqlDB.Close()
+	errorRecorder, stopErrorLogging := startErrorLogging(db)
+	defer stopErrorLogging()
 	sqlDB.SetMaxOpenConns(2)
 	sqlDB.SetMaxIdleConns(1)
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	if err := postgresinfra.RunStartupMigrations(db, "database/migrations"); err != nil {
+		return err
+	}
 	runtimeSettings, err := newRuntimeSettings(base, db)
 	if err != nil {
 		return err
@@ -162,6 +167,7 @@ func RunMediaWorker() error {
 		}
 		return nil
 	}})
+	registerErrorLoggingMetrics(ops, errorRecorder)
 	ops.ConfigureDrain(handler.BeginDrain, handler.ActiveRooms)
 	ops.Run(ctx)
 	go runProfiling(ctx, ops)

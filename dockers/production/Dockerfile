@@ -4,6 +4,8 @@ WORKDIR /admin
 COPY admin/package.json admin/package-lock.json ./
 RUN npm ci
 COPY admin/ ./
+ARG BUILD_VERSION=dev
+ENV VITE_BUILD_VERSION=$BUILD_VERSION
 RUN npm run build
 
 FROM nginx:1.30.6-alpine@sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951 AS runtime

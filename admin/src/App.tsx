@@ -11,6 +11,7 @@ import {
 } from "react-router";
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
   ChevronsUpDown,
   Disc3,
@@ -29,6 +30,7 @@ import {
   Video,
   X,
 } from "lucide-react";
+import { ErrorsPage } from "./ErrorsPage";
 import { api, APIError, configureSession } from "./api";
 import {
   clearAdministrativeCache,
@@ -80,6 +82,7 @@ const sections = [
   { path: "/system", label: "Система", Icon: Activity },
   { path: "/settings", label: "Настройки", Icon: SlidersHorizontal },
   { path: "/audit", label: "Журнал аудита", Icon: ScrollText },
+  { path: "/errors", label: "Ошибки", Icon: AlertTriangle },
 ];
 
 function initialTheme(): "dark" | "light" {
@@ -324,6 +327,7 @@ export default function App() {
               <Route path="/system" element={<SystemPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/audit" element={<AuditPage />} />
+              <Route path="/errors" element={<ErrorsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <footer className="app-footer">
@@ -947,9 +951,7 @@ function AdministratorForm({
                 maxLength={512}
                 disabled={saving.busy}
               />
-              <span className="field-help">
-                8–128 символов
-              </span>
+              <span className="field-help">8–128 символов</span>
             </label>
             <label className="field">
               Повторите пароль
@@ -1075,9 +1077,7 @@ function PasswordForm({
             maxLength={512}
             disabled={saving.busy}
           />
-          <span className="field-help">
-            8–128 символов
-          </span>
+          <span className="field-help">8–128 символов</span>
         </label>
         <label className="field">
           Повторите новый пароль

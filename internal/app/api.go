@@ -90,7 +90,7 @@ func RunAPI() error {
 	if err != nil {
 		return err
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(operations.NewErrorHandler(slog.NewJSONHandler(os.Stdout, nil))).With("service", "api", "instance_id", hostname())
 	slog.SetDefault(logger)
 	db, err := postgresinfra.Connect(cfg.PostgresDSN)
 	if err != nil {
@@ -101,6 +101,8 @@ func RunAPI() error {
 		return err
 	}
 	defer sqlDB.Close()
+	errorRecorder, stopErrorLogging := startErrorLogging(db)
+	defer stopErrorLogging()
 	if err := postgresinfra.RunStartupMigrations(db, "database/migrations"); err != nil {
 		return err
 	}
@@ -142,6 +144,7 @@ func RunAPI() error {
 		"minio":    s3Client.Check,
 		"rabbitmq": commandPublisher.Check,
 	})
+	registerErrorLoggingMetrics(ops, errorRecorder)
 	router := httptransport.NewRouter(ops.Middleware(), httpmiddleware.RateLimit(rateLimiter, rateLimitConfig(cfg)))
 	ops.RegisterGin(router)
 	httptransport.RegisterClientErrorRoutes(router, telemetryapp.NewHandler(os.Getenv("CLIENT_TELEMETRY_ENABLED") == "true", slog.Default(), ops.Registry), rateLimiter)

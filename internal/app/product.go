@@ -106,6 +106,8 @@ func RunProductWorker() error {
 		return err
 	}
 	defer sqlDB.Close()
+	errorRecorder, stopErrorLogging := startErrorLogging(db)
+	defer stopErrorLogging()
 	sqlDB.SetMaxOpenConns(cfg.Operations.DBMaxOpen)
 	sqlDB.SetMaxIdleConns(cfg.Operations.DBMaxIdle)
 	sqlDB.SetConnMaxLifetime(cfg.Operations.DBLifetime)
@@ -120,6 +122,7 @@ func RunProductWorker() error {
 	}
 	checks := map[string]operations.Check{"postgres": sqlDB.PingContext}
 	ops := operations.New("product-worker", hostname(), cfg.Operations, checks)
+	registerErrorLoggingMetrics(ops, errorRecorder)
 	ops.Run(ctx)
 	go runProfiling(ctx, ops)
 	go sampleDatabase(ctx, sqlDB)

@@ -14,9 +14,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	telemetryapp "github.com/janickiy/meet-space/internal/app/telemetry"
 	"github.com/janickiy/meet-space/internal/config"
 	domain "github.com/janickiy/meet-space/internal/domain/admin"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	"github.com/janickiy/meet-space/internal/operations"
 	adminusecase "github.com/janickiy/meet-space/internal/usecase/admin"
 )
 
@@ -42,6 +44,14 @@ func NewAdminRouter(service *adminusecase.Service, cfg config.AdminConfig, resou
 	}
 	h := &adminHandler{service: service, cfg: cfg, resources: resources, onUserBlocked: onUserBlocked}
 	r.Use(func(c *gin.Context) {
+		id := c.GetHeader("X-Request-ID")
+		if parsed, err := uuid.Parse(id); err != nil {
+			id = uuid.NewString()
+		} else {
+			id = parsed.String()
+		}
+		c.Header("X-Request-ID", id)
+		c.Request = c.Request.WithContext(operations.WithID(c.Request.Context(), id))
 		c.Next()
 		h.auditFailure(c)
 	}, gin.CustomRecovery(func(c *gin.Context, _ any) { adminFailure(c, apperrors.ErrInternal) }), func(c *gin.Context) {
@@ -105,6 +115,9 @@ func NewAdminRouter(service *adminusecase.Service, cfg config.AdminConfig, resou
 		v, err := service.Repo.AuditLog(c.Request.Context(), adminQuery(c))
 		adminResult(c, v, err)
 	})
+	protected.GET("/errors", h.errorList)
+	protected.GET("/errors/:id", h.errorDetail)
+	protected.POST("/errors/client", telemetryapp.NewAdminHandler(slog.Default()).Receive)
 	for _, resource := range []string{"dashboard", "conferences", "chats", "recordings", "files", "system", "settings"} {
 		resource := resource
 		protected.GET("/"+resource, func(c *gin.Context) {
@@ -206,7 +219,7 @@ func adminFailure(c *gin.Context, err error) {
 		message = appErr.Message
 	}
 	if status >= 500 {
-		slog.Error("admin request failed", "route", c.FullPath(), "category", code)
+		slog.Error("admin request failed", "event_type", "http.5xx", "request_id", operations.ID(c.Request.Context()), "route", c.FullPath(), "category", code)
 	}
 	c.AbortWithStatusJSON(status, gin.H{"error": code, "message": message})
 }

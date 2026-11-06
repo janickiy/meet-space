@@ -85,7 +85,7 @@ type correlationKey struct{}
 // @returns:
 //   - result1: Созданная или загруженная среда выполнения.
 func New(service, instance string, cfg config.OperationsConfig, checks map[string]Check) *Runtime {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", service, "instance_id", instance))
+	slog.SetDefault(slog.New(NewErrorHandler(slog.NewJSONHandler(os.Stdout, nil))).With("service", service, "instance_id", instance))
 	r := &Runtime{Config: cfg, Checks: checks, Registry: prometheus.NewRegistry(), customNames: map[string]struct{}{}, dependencyState: map[string]bool{}}
 	build := buildinfo.Current()
 	buildMetric := prometheus.NewGauge(prometheus.GaugeOpts{Name: "recorder_build_info", Help: "Immutable public release metadata.", ConstLabels: prometheus.Labels{"version": build.Version, "commit": build.Commit}})
@@ -152,11 +152,20 @@ func (r *Runtime) probe(ctx context.Context) {
 	defer cancel()
 	ok := true
 	states := make(map[string]bool, len(r.Checks))
+	r.dependencyMu.RLock()
+	previous := make(map[string]bool, len(r.dependencyState))
+	for name, healthy := range r.dependencyState {
+		previous[name] = healthy
+	}
+	r.dependencyMu.RUnlock()
 	for name, check := range r.Checks {
 		value := 1.
 		healthy := check(ctx) == nil
 		if !healthy {
 			Event("dependency_failed")
+			if wasHealthy, known := previous[name]; !known || wasHealthy {
+				slog.Error("dependency check failed", "event_type", "dependency.failed", "dependency", name)
+			}
 			value = 0
 			ok = false
 		}

@@ -33,6 +33,10 @@ export function configureSession(
   onUnauthorized = callback;
 }
 
+export function hasAdministrativeSession(): boolean {
+  return administratorID !== null && csrfToken !== null;
+}
+
 export function queryString(
   values: Record<string, string | number | undefined>,
 ): string {

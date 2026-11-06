@@ -33,6 +33,7 @@ type adminCached struct {
 }
 type adminResources struct {
 	repository     *postgresinfra.AdminRepository
+	errorLogs      adminErrorLogRepository
 	storage        adminStorage
 	events         adminEvents
 	settings       *settingsusecase.Service
@@ -47,7 +48,7 @@ type adminResources struct {
 }
 
 func newAdminResources(db *gorm.DB, cfg config.Config, rtc config.RealtimeConfig, media config.MediaConfig, ops *operations.Runtime, storage adminStorage, events adminEvents, settings ...*settingsusecase.Service) *adminResources {
-	r := &adminResources{repository: postgresinfra.NewAdminRepository(db), storage: storage, events: events, cache: map[string]adminCached{}, checks: map[string]operations.Check{}}
+	r := &adminResources{repository: postgresinfra.NewAdminRepository(db), errorLogs: postgresinfra.NewErrorLogsRepository(db), storage: storage, events: events, cache: map[string]adminCached{}, checks: map[string]operations.Check{}}
 	r.checks["API"] = func(context.Context) error {
 		if ops.Ready() {
 			return nil
