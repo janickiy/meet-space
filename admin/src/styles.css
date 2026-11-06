@@ -774,11 +774,20 @@ tbody tr:hover {
   color: var(--yellow);
 }
 .toolbar {
+  --filter-control-height: 38px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 9px;
   padding: 17px 18px;
+}
+.toolbar .search,
+.toolbar select {
+  height: var(--filter-control-height);
+}
+.toolbar .search input {
+  height: 100%;
+  padding-block: 0;
 }
 .search {
   display: flex;
@@ -1634,6 +1643,9 @@ select {
   }
 }
 @media (pointer: coarse) {
+  .toolbar {
+    --filter-control-height: 44px;
+  }
   .button,
   .icon-button,
   select,
