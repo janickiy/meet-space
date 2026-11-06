@@ -135,6 +135,22 @@ func (s *Service) Update(ctx context.Context, input domain.Patch, audit admin.Au
 	if err != nil {
 		return admin.Settings{}, err
 	}
+	_, verificationChanged := input.Changes["emailVerificationRequired"]
+	if verificationChanged {
+		// Mail must already be saved before registration policy can be edited;
+		// SMTP fields supplied in this same patch are not a saved prerequisite.
+		if !smtpConfigured(values) {
+			return admin.Settings{}, apperrors.New(apperrors.ErrInvalidInput, "Для изменения подтверждения email сначала настройте и сохраните SMTP во вкладке «Почта».")
+		}
+		if state.SMTPPasswordCiphertext != "" {
+			if s.cipher == nil {
+				return admin.Settings{}, encryptionUnavailable()
+			}
+			if _, err = s.cipher.Decrypt(state.SMTPPasswordCiphertext, smtpPasswordBinding); err != nil {
+				return admin.Settings{}, apperrors.New(apperrors.ErrInvalidInput, "Не удалось расшифровать пароль SMTP. Укажите пароль заново или восстановите ключ шифрования.")
+			}
+		}
+	}
 	var overrides map[string]json.RawMessage
 	if err = json.Unmarshal(state.Overrides, &overrides); err != nil {
 		return admin.Settings{}, err
@@ -186,7 +202,6 @@ func (s *Service) Update(ctx context.Context, input domain.Patch, audit admin.Au
 	}
 	// Enabling SMTP must prove that the configured credential is usable with the
 	// current encryption key, not merely that some ciphertext exists in storage.
-	_, verificationChanged := input.Changes["emailVerificationRequired"]
 	if verificationChanged && values.EmailVerificationRequired && s.cipher == nil {
 		return admin.Settings{}, apperrors.New(apperrors.ErrInvalidInput, "Для подтверждения email настройте PROVIDER_TOKEN_ENCRYPTION_KEY на сервере.")
 	}

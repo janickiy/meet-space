@@ -59,6 +59,7 @@ import {
   settingInput,
   settingScale,
   settingsFailureMessage,
+  smtpConfigured,
 } from "./settings";
 import type { SettingsDraft } from "./settings";
 import type {
@@ -1358,6 +1359,7 @@ function SettingsEditor({ data }: { data: Settings }) {
   const editable = items.some((item) => item.editable);
   const editableRevision =
     Number.isSafeInteger(base.revision) && base.revision >= 0;
+  const mailConfigured = smtpConfigured(base);
   function change(item: Setting, value: string | boolean) {
     const next = { ...draftsRef.current };
     if (value === settingInput(item)) delete next[item.key];
@@ -1579,19 +1581,25 @@ function SettingsEditor({ data }: { data: Settings }) {
                   <p id={`setting-description-${item.key}`}>
                     {item.description}
                   </p>
-                  {item.key === "emailVerificationRequired" && (
-                    <p>
-                      Для подтверждения email нужна включённая и настроенная
-                      почта.
-                    </p>
-                  )}
+                  {item.key === "emailVerificationRequired" &&
+                    !mailConfigured && (
+                      <p>
+                        Для изменения сначала настройте и сохраните SMTP во
+                        вкладке «Почта».
+                      </p>
+                    )}
                 </div>
                 {item.editable ? (
                   <div className="setting-control">
                     <SettingField
                       item={item}
                       value={drafts[item.key] ?? settingInput(item)}
-                      disabled={busy || !editableRevision}
+                      disabled={
+                        busy ||
+                        !editableRevision ||
+                        (item.key === "emailVerificationRequired" &&
+                          !mailConfigured)
+                      }
                       invalid={Boolean(errors[item.key])}
                       change={(value) => change(item, value)}
                     />

@@ -54,11 +54,15 @@ func TestSMTPEncryptedWriteOnlyAndBlankPreserves(t *testing.T) {
 	repo := &testRepository{state: domain.State{Overrides: json.RawMessage(`{}`)}}
 	svc := NewService(repo, testDefaults(), "", testCipher(t), "https://meet.example.invalid")
 	ctx := context.Background()
-	view, err := svc.Update(ctx, testPatch(t, `{"revision":0,"changes":{"smtpEnabled":true,"smtpHost":"smtp.example.invalid","smtpUsername":"sender","smtpPassword":"PrivateSyntheticSMTPValue","smtpFrom":"MeetSpace <sender@example.invalid>","emailVerificationRequired":true}}`), admin.AuditInput{})
+	view, err := svc.Update(ctx, testPatch(t, `{"revision":0,"changes":{"smtpEnabled":true,"smtpHost":"smtp.example.invalid","smtpUsername":"sender","smtpPassword":"PrivateSyntheticSMTPValue","smtpFrom":"MeetSpace <sender@example.invalid>"}}`), admin.AuditInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Revision != 1 || repo.state.SMTPPasswordCiphertext == "" || strings.Contains(repo.state.SMTPPasswordCiphertext, "PrivateSyntheticSMTPValue") || strings.Contains(string(repo.state.Overrides), "smtpPassword") {
+	view, err = svc.Update(ctx, testPatch(t, `{"revision":1,"changes":{"emailVerificationRequired":true}}`), admin.AuditInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Revision != 2 || repo.state.SMTPPasswordCiphertext == "" || strings.Contains(repo.state.SMTPPasswordCiphertext, "PrivateSyntheticSMTPValue") || strings.Contains(string(repo.state.Overrides), "smtpPassword") {
 		t.Fatal("password not isolated in encrypted storage")
 	}
 	encoded, _ := json.Marshal(view)
@@ -78,7 +82,7 @@ func TestSMTPEncryptedWriteOnlyAndBlankPreserves(t *testing.T) {
 		t.Fatal("missing password metadata")
 	}
 	ciphertext := repo.state.SMTPPasswordCiphertext
-	if _, err := svc.Update(ctx, testPatch(t, `{"revision":1,"changes":{"smtpPassword":"","smtpUsername":"next-sender"}}`), admin.AuditInput{}); err != nil {
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":2,"changes":{"smtpPassword":"","smtpUsername":"next-sender"}}`), admin.AuditInput{}); err != nil {
 		t.Fatal(err)
 	}
 	if repo.state.SMTPPasswordCiphertext != ciphertext {
@@ -92,10 +96,10 @@ func TestSMTPEncryptedWriteOnlyAndBlankPreserves(t *testing.T) {
 	if strings.Contains(string(encoded), "PrivateSyntheticSMTPValue") {
 		t.Fatal("SMTP credentials JSON exposes password")
 	}
-	if _, err := svc.Update(ctx, testPatch(t, `{"revision":2,"changes":{"smtpEnabled":false}}`), admin.AuditInput{}); !errors.Is(err, apperrors.ErrInvalidInput) {
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":3,"changes":{"smtpEnabled":false}}`), admin.AuditInput{}); !errors.Is(err, apperrors.ErrInvalidInput) {
 		t.Fatal("SMTP disabled while verification required", err)
 	}
-	if _, err := svc.Update(ctx, testPatch(t, `{"revision":2,"changes":{"smtpEnabled":false,"emailVerificationRequired":false}}`), admin.AuditInput{}); err != nil {
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":3,"changes":{"smtpEnabled":false,"emailVerificationRequired":false}}`), admin.AuditInput{}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -198,11 +202,75 @@ func TestEmailVerificationNeedsEncryptionKeyWithEnvironmentSMTP(t *testing.T) {
 	}
 }
 
+func TestEmailVerificationPolicyRequiresPreviouslySavedSMTP(t *testing.T) {
+	ctx := context.Background()
+	repo := &testRepository{state: domain.State{Overrides: json.RawMessage(`{}`)}}
+	svc := NewService(repo, testDefaults(), "", testCipher(t), "https://meet.example.invalid")
+	for _, patch := range []string{
+		`{"revision":0,"changes":{"emailVerificationRequired":true}}`,
+		`{"revision":0,"changes":{"emailVerificationRequired":false}}`,
+		`{"revision":0,"changes":{"smtpEnabled":true,"smtpHost":"smtp.invalid","smtpUsername":"sender","smtpPassword":"SyntheticCredential","smtpFrom":"sender@example.invalid","emailVerificationRequired":true}}`,
+	} {
+		if _, err := svc.Update(ctx, testPatch(t, patch), admin.AuditInput{}); !errors.Is(err, apperrors.ErrInvalidInput) || repo.saves != 0 {
+			t.Fatal("verification edited without saved SMTP", err)
+		}
+	}
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":0,"changes":{"smtpEnabled":true,"smtpHost":"smtp.invalid","smtpUsername":"sender","smtpPassword":"SyntheticCredential","smtpFrom":"sender@example.invalid"}}`), admin.AuditInput{}); err != nil {
+		t.Fatal(err)
+	}
+	view, err := svc.Admin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range view.Items {
+		if item.Key == "emailVerificationRequired" {
+			found = true
+			if item.Group != "general" || !item.Editable {
+				t.Fatal("verification not editable in General")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("verification policy missing")
+	}
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":1,"changes":{"emailVerificationRequired":true}}`), admin.AuditInput{}); err != nil {
+		t.Fatal("saved SMTP did not unlock verification", err)
+	}
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":2,"changes":{"smtpEnabled":false}}`), admin.AuditInput{}); !errors.Is(err, apperrors.ErrInvalidInput) {
+		t.Fatal("SMTP disabled with required verification", err)
+	}
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":2,"changes":{"emailVerificationRequired":false}}`), admin.AuditInput{}); err != nil {
+		t.Fatal("verification could not be disabled with saved SMTP", err)
+	}
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":3,"changes":{"smtpEnabled":false}}`), admin.AuditInput{}); err != nil {
+		t.Fatal("SMTP could not be disabled after verification", err)
+	}
+	if _, err := svc.Update(ctx, testPatch(t, `{"revision":4,"changes":{"mediaMaxPeers":20}}`), admin.AuditInput{}); err != nil {
+		t.Fatal("unrelated edit was blocked by absent SMTP", err)
+	}
+}
+
+func TestEmailVerificationPolicyRejectsUnusableSavedSMTPPassword(t *testing.T) {
+	d := testDefaults()
+	d.SMTPEnabled = true
+	d.SMTPHost = "smtp.invalid"
+	d.SMTPUsername = "sender"
+	d.SMTPFrom = "sender@example.invalid"
+	for _, cipher := range []Cipher{nil, testCipher(t)} {
+		repo := &testRepository{state: domain.State{Overrides: json.RawMessage(`{"emailVerificationRequired":true}`), SMTPPasswordCiphertext: "unusable-ciphertext"}}
+		svc := NewService(repo, d, "", cipher, "https://meet.example.invalid")
+		if _, err := svc.Update(context.Background(), testPatch(t, `{"revision":0,"changes":{"emailVerificationRequired":false}}`), admin.AuditInput{}); !errors.Is(err, apperrors.ErrInvalidInput) || repo.saves != 0 {
+			t.Fatal("verification policy edited with unusable saved credentials", err)
+		}
+	}
+}
+
 func TestSMTPActivationRequiresUsablePublicOrigin(t *testing.T) {
 	for _, origin := range []string{"", "https://", "https://user:password@example.invalid", "https://example.invalid/app", "https://example.invalid?token=private"} {
 		repo := &testRepository{state: domain.State{Overrides: json.RawMessage(`{}`)}}
 		svc := NewService(repo, testDefaults(), "", testCipher(t), origin)
-		_, err := svc.Update(context.Background(), testPatch(t, `{"revision":0,"changes":{"smtpEnabled":true,"smtpHost":"smtp.example.invalid","smtpUsername":"sender","smtpPassword":"SyntheticCredential","smtpFrom":"sender@example.invalid","emailVerificationRequired":true}}`), admin.AuditInput{})
+		_, err := svc.Update(context.Background(), testPatch(t, `{"revision":0,"changes":{"smtpEnabled":true,"smtpHost":"smtp.example.invalid","smtpUsername":"sender","smtpPassword":"SyntheticCredential","smtpFrom":"sender@example.invalid"}}`), admin.AuditInput{})
 		if !errors.Is(err, apperrors.ErrInvalidInput) || repo.saves != 0 {
 			t.Fatal("email enabled without public origin")
 		}

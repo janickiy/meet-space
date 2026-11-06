@@ -95,6 +95,12 @@ func validate(v domain.Values) error {
 	return nil
 }
 
+// smtpConfigured checks persisted prerequisites without opening a connection or
+// requiring public consumers to decrypt credentials.
+func smtpConfigured(v domain.Values) bool {
+	return v.SMTPEnabled && validate(v) == nil
+}
+
 func validHost(host string) bool {
 	if len(host) > 253 || strings.ContainsAny(host, "/\\\r\n\t @?#") || strings.TrimSpace(host) != host {
 		return false

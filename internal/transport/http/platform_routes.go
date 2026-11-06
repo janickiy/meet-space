@@ -32,6 +32,7 @@ func RegisterPlatformRoutes(router gin.IRouter, auth *authapp.Handler, conferenc
 	public.POST("/verify-email/resend", auth.ResendVerification)
 	public.POST("/login", auth.Login)
 	public.POST("/password-recovery", auth.PasswordRecovery)
+	public.POST("/reset-password", auth.ResetPassword)
 	public.POST("/refresh", auth.Refresh)
 	public.POST("/accounts/list", auth.Accounts)
 	public.POST("/accounts/switch", auth.SwitchAccount)

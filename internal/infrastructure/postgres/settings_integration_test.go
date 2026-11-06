@@ -60,12 +60,19 @@ func TestAuditPlatformSettingsPersistEncryptedAndAuditKeysOnly(t *testing.T) {
 	if err != nil || initial.Revision != 0 {
 		t.Fatal("missing settings defaults", err)
 	}
-	view, err := svc.Update(ctx, settingsPatch(t, `{"revision":0,"changes":{"attachmentMaxBytes":20971520,"smtpEnabled":true,"smtpHost":"smtp.example.invalid","smtpUsername":"sender","smtpPassword":"PrivateSyntheticSMTPValue","smtpFrom":"sender@example.invalid","emailVerificationRequired":true}}`), actor)
+	if _, err = svc.Update(ctx, settingsPatch(t, `{"revision":0,"changes":{"emailVerificationRequired":false}}`), actor); !errors.Is(err, apperrors.ErrInvalidInput) {
+		t.Fatal("verification edited without saved SMTP", err)
+	}
+	view, err := svc.Update(ctx, settingsPatch(t, `{"revision":0,"changes":{"attachmentMaxBytes":20971520,"smtpEnabled":true,"smtpHost":"smtp.example.invalid","smtpUsername":"sender","smtpPassword":"PrivateSyntheticSMTPValue","smtpFrom":"sender@example.invalid"}}`), actor)
 	if err != nil || view.Revision != 1 {
 		t.Fatal("settings update failed", err)
 	}
+	view, err = svc.Update(ctx, settingsPatch(t, `{"revision":1,"changes":{"emailVerificationRequired":true}}`), actor)
+	if err != nil || view.Revision != 2 {
+		t.Fatal("verification update failed after SMTP save", err)
+	}
 	state, err := NewSettingsRepository(db).Load(context.Background())
-	if err != nil || state.Revision != 1 || state.SMTPPasswordCiphertext == "" {
+	if err != nil || state.Revision != 2 || state.SMTPPasswordCiphertext == "" {
 		t.Fatal("settings not persisted", err)
 	}
 	if strings.Contains(string(state.Overrides), "PrivateSyntheticSMTPValue") || strings.Contains(state.SMTPPasswordCiphertext, "PrivateSyntheticSMTPValue") || strings.Contains(string(state.Overrides), "smtpPassword") {
@@ -80,7 +87,7 @@ func TestAuditPlatformSettingsPersistEncryptedAndAuditKeysOnly(t *testing.T) {
 		t.Fatal("encrypted credential not usable", err)
 	}
 	ciphertext := state.SMTPPasswordCiphertext
-	if _, err := svc.Update(ctx, settingsPatch(t, `{"revision":1,"changes":{"smtpPassword":"","smtpPort":587,"smtpTLSMode":"starttls"}}`), actor); err != nil {
+	if _, err := svc.Update(ctx, settingsPatch(t, `{"revision":2,"changes":{"smtpPassword":"","smtpPort":587,"smtpTLSMode":"starttls"}}`), actor); err != nil {
 		t.Fatal(err)
 	}
 	state, err = NewSettingsRepository(db).Load(ctx)
@@ -88,7 +95,7 @@ func TestAuditPlatformSettingsPersistEncryptedAndAuditKeysOnly(t *testing.T) {
 		t.Fatal("blank password replaced existing ciphertext", err)
 	}
 	events, err := NewAdminRepository(db).AuditLog(ctx, admin.Query{Action: "settings.update"})
-	if err != nil || events.Total != 2 {
+	if err != nil || events.Total != 3 {
 		t.Fatal("missing settings audit", err)
 	}
 	for _, event := range events.Items {

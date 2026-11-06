@@ -162,6 +162,11 @@ func RunAPI() error {
 		return err
 	}
 	authService.WithEmailVerification(settings, postgresinfra.NewEmailVerificationRepository(db), verificationCipher)
+	var recoveryCipher authusecase.VerificationCipher
+	if verificationCipher != nil {
+		recoveryCipher = verificationCipher
+	}
+	authService.WithPasswordRecovery(settings, postgresinfra.NewPasswordRecoveryRepository(db), recoveryCipher)
 	conferenceRepository := postgresinfra.NewConferenceRepository(db).WithSettings(settings)
 	conferenceService := conferenceusecase.NewService(conferenceRepository, users, security.GenerateInviteCode)
 	store := redisinfra.NewRealtimeStore(redisClient, realtimeConfig.Namespace)
@@ -195,6 +200,7 @@ func RunAPI() error {
 	userPresence := redisinfra.NewUserPresence(redisClient, realtimeConfig.Namespace, realtimeConfig.SessionTTL)
 	globalWS := wstransport.NewUserHandler(authService, redisinfra.NewRealtimeStore(redisClient, realtimeConfig.Namespace+":user-ws"), rateLimiter, realtimeConfig, notificationBus, userPresence, personalRepository)
 	defer globalWS.Shutdown()
+	authService.WithPasswordResetObserver(func(userID string) { hub.DisconnectUser(userID); globalWS.DisconnectUser(userID) })
 	globalWS.RegisterRoutes(router)
 	personalHandler := &personalapp.Handler{Repo: personalRepository, Events: personalEvents, Presence: userPresence}
 	httptransport.RegisterProfileAvatarRoutes(router, &profileapp.AvatarHandler{Service: profileusecase.NewAvatarService(users)}, httpmiddleware.Authenticate(authService), personalHandler.AccountOnly, rateLimiter)
@@ -341,6 +347,7 @@ func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 		{Method: "POST", Path: path("/auth/login"), Scope: "ip", Limit: limit(cfg.RateLimit.AuthLoginIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/register"), Scope: "ip", Limit: limit(cfg.RateLimit.AuthRegisterIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/password-recovery"), Scope: "password_recovery_ip", Limit: 5, Window: time.Minute, Key: httpmiddleware.ClientIPKey},
+		{Method: "POST", Path: path("/auth/reset-password"), Scope: "password_reset_ip", Limit: 5, Window: time.Minute, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/verify-email/resend"), Scope: "verification_resend_ip", Limit: 5, Window: time.Minute, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/verify-email"), Scope: "verification_ip", Limit: 20, Window: time.Minute, Key: httpmiddleware.ClientIPKey},
 		{Method: "DELETE", Path: path("/auth/me"), Scope: "account_delete_ip", Limit: 5, Window: window, Key: httpmiddleware.ClientIPKey},

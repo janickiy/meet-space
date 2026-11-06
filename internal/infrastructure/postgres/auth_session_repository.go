@@ -100,7 +100,7 @@ func NewAuthSessionRepository(db *gorm.DB) *AuthSessionRepository {
 //     передачи данных или сохранения.
 func (r *AuthSessionRepository) Create(ctx context.Context, session users.AuthSession) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockSessionAccount(tx, session.UserID, session.CreatedAt, false); err != nil {
+		if err := lockSessionAccount(tx, session.UserID, session.CreatedAt, false, session.ExpectedPasswordHash); err != nil {
 			return err
 		}
 		if err := tx.Create(&session).Error; err != nil {
@@ -194,7 +194,7 @@ func (r *AuthSessionRepository) RevokeByID(ctx context.Context, id, userID strin
 func (r *AuthSessionRepository) Bootstrap(ctx context.Context, candidate users.AuthSession, legacyHash, preferredID string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockSessionAccount(tx, candidate.UserID, candidate.CreatedAt, legacyHash != ""); err != nil {
+		if err := lockSessionAccount(tx, candidate.UserID, candidate.CreatedAt, legacyHash != "", ""); err != nil {
 			return err
 		}
 		var legacy authLegacyToken
@@ -238,7 +238,7 @@ func (r *AuthSessionRepository) Bootstrap(ctx context.Context, candidate users.A
 
 // Serialize session creation with administrator blocks, so a concurrent login
 // cannot leave a usable session after the block transaction commits.
-func lockSessionAccount(tx *gorm.DB, id string, created time.Time, legacy bool) error {
+func lockSessionAccount(tx *gorm.DB, id string, created time.Time, legacy bool, expectedPasswordHash string) error {
 	var user users.User
 	err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ? AND password_hash <> ''", id).Take(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -246,6 +246,9 @@ func lockSessionAccount(tx *gorm.DB, id string, created time.Time, legacy bool) 
 	}
 	if err != nil {
 		return err
+	}
+	if expectedPasswordHash != "" && user.PasswordHash != expectedPasswordHash {
+		return apperrors.ErrUnauthorized
 	}
 	if user.IsBlocked || user.GuestConferenceID != nil || user.AuthInvalidBefore != nil && (legacy || !created.After(*user.AuthInvalidBefore)) {
 		return apperrors.ErrUnauthorized

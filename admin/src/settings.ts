@@ -30,6 +30,26 @@ export function settingInput(item: Setting): string | boolean {
   return item.value == null ? "" : String(item.value);
 }
 
+// Only saved values count. Draft SMTP data must be saved successfully before
+// it can unlock the registration policy in another group.
+export function smtpConfigured(data: Settings): boolean {
+  const values = Object.fromEntries(
+    data.items.map((item) => [item.key, item.value]),
+  );
+  return (
+    values.smtpEnabled === true &&
+    ["smtpHost", "smtpUsername", "smtpFrom"].every(
+      (key) => typeof values[key] === "string" && values[key].trim() !== "",
+    ) &&
+    typeof values.smtpPort === "number" &&
+    Number.isInteger(values.smtpPort) &&
+    values.smtpPort >= 1 &&
+    values.smtpPort <= 65535 &&
+    ["tls", "starttls"].includes(String(values.smtpTLSMode)) &&
+    data.items.some((item) => item.key === "smtpPassword" && item.configured)
+  );
+}
+
 export function buildSettingsChanges(
   data: Settings,
   drafts: SettingsDraft,
@@ -81,6 +101,10 @@ export function buildSettingsChanges(
     }
   }
 
+  if ("emailVerificationRequired" in changes && !smtpConfigured(data))
+    errors.emailVerificationRequired =
+      "Для изменения подтверждения email сначала настройте и сохраните SMTP во вкладке «Почта».";
+
   if (group === "mail" || group === "smtp") {
     const values = Object.fromEntries(
       data.items.map((item) => [item.key, item.value]),
@@ -90,8 +114,8 @@ export function buildSettingsChanges(
       values.emailVerificationRequired === true &&
       values.smtpEnabled !== true
     )
-      errors.emailVerificationRequired =
-        "Для подтверждения email включите и настройте почту.";
+      errors.smtpEnabled =
+        "Сначала отключите подтверждение email во вкладке «Основные».";
     if (values.smtpEnabled === true) {
       for (const key of ["smtpHost", "smtpUsername", "smtpFrom"])
         if (typeof values[key] !== "string" || !values[key].trim())

@@ -13,6 +13,7 @@ import { Layout } from "./components/Layout";
 import { Landing } from "./pages/Landing";
 import { AuthPage, RegistrationSuccess } from "./pages/AuthPages";
 import { EmailVerificationPage } from "./pages/EmailVerificationPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { Link } from "react-router";
 import { CalendarCallback } from "./components/IntegrationsSettings";
 import { AccountSettingsModal } from "./components/AccountSettingsModal";
@@ -191,6 +192,7 @@ export function App() {
       <Route path="/register" element={<AuthPage register />} />
       <Route path="/register/success" element={<RegistrationSuccess />} />
       <Route path="/verify-email" element={<EmailVerificationPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         path="/i/:code"
         element={

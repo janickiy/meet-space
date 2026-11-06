@@ -29,7 +29,7 @@ func describe(v domain.Values) admin.Settings {
 		{Key: "smtpPassword", Label: "Пароль SMTP", Description: "Оставьте пустым, чтобы сохранить текущий пароль. Значение никогда не возвращается в браузер.", Group: "mail", Type: "string", Value: nil, Editable: true, Secret: true, Configured: v.SMTPPasswordConfigured},
 		setting("smtpFrom", "Отправитель", "Один email; допускается отображаемое имя.", "mail", "string", v.SMTPFrom),
 		{Key: "smtpTLSMode", Label: "Шифрование SMTP", Description: "Незашифрованная отправка не поддерживается.", Group: "mail", Type: "string", Value: v.SMTPTLSMode, Editable: true, Configured: true, Options: []string{"tls", "starttls"}},
-		setting("emailVerificationRequired", "Подтверждение email", "Требует настроенной доставки SMTP.", "mail", "boolean", v.EmailVerificationRequired),
+		setting("emailVerificationRequired", "Подтверждение email", "Новые пользователи получают ссылку на email и могут войти после подтверждения адреса.", "general", "boolean", v.EmailVerificationRequired),
 	}
 	return admin.Settings{Revision: v.Revision, Items: items}
 }

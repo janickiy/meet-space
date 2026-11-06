@@ -88,7 +88,7 @@ test("unavailable recovery describes the current service capability", async () =
     api.recoverPassword("active@example.test"),
     (error) =>
       error.message ===
-      "Восстановление пароля пока недоступно. Обратитесь к администратору сервиса.",
+      "Восстановление пароля недоступно. Обратитесь к администратору сервиса.",
   );
 });
 test("blocked file request uses the same scoped session rejection", async () => {

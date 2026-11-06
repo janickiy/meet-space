@@ -6,6 +6,7 @@ import {
   sanitizeSettings,
   settingInput,
   settingsFailureMessage,
+  smtpConfigured,
 } from "../src/settings.ts";
 
 const setting = (key, type, value, extra = {}) => ({
@@ -52,7 +53,10 @@ const mail = {
     }),
     setting("smtpFrom", "string", ""),
     setting("smtpTLSMode", "string", "tls", { options: ["tls", "starttls"] }),
-  ].map((item) => ({ ...item, group: "mail" })),
+  ].map((item) => ({
+    ...item,
+    group: item.key === "emailVerificationRequired" ? "general" : "mail",
+  })),
 };
 
 test("attachment limits display MiB and send integer bytes within metadata bounds", () => {
@@ -129,9 +133,10 @@ test("write-only secrets are removed before caching and an empty input preserves
   );
 });
 
-test("enabling email verification requires enabled and complete SMTP settings", () => {
+test("editing email verification requires previously saved complete SMTP settings", () => {
+  assert.equal(smtpConfigured(mail), false);
   assert(
-    buildSettingsChanges(mail, { emailVerificationRequired: true }, "mail")
+    buildSettingsChanges(mail, { emailVerificationRequired: true }, "general")
       .errors.emailVerificationRequired,
   );
   const incomplete = buildSettingsChanges(
@@ -141,23 +146,52 @@ test("enabling email verification requires enabled and complete SMTP settings", 
   );
   for (const key of ["smtpHost", "smtpUsername", "smtpPassword", "smtpFrom"])
     assert(incomplete.errors[key]);
+  const drafts = {
+    smtpEnabled: true,
+    emailVerificationRequired: true,
+    smtpHost: "smtp.example.test",
+    smtpUsername: "mailer",
+    smtpPassword: "synthetic-smtp-password",
+    smtpFrom: "MeetSpace <mail@example.test>",
+  };
   const complete = buildSettingsChanges(
     mail,
-    {
-      smtpEnabled: true,
-      emailVerificationRequired: true,
-      smtpHost: "smtp.example.test",
-      smtpUsername: "mailer",
-      smtpPassword: "synthetic-smtp-password",
-      smtpFrom: "MeetSpace <mail@example.test>",
-    },
+    drafts,
     "mail",
   );
   assert.deepEqual(complete.errors, {});
   assert.equal(complete.changes.smtpPassword, "synthetic-smtp-password");
+  assert(!("emailVerificationRequired" in complete.changes));
+  assert(
+    buildSettingsChanges(mail, drafts, "general").errors.emailVerificationRequired,
+  );
+  const saved = {
+    ...mail,
+    items: mail.items.map((item) => ({
+      ...item,
+      value: item.key === "emailVerificationRequired" ? false : (complete.changes[item.key] ?? item.value),
+      configured: item.key === "smtpPassword" || item.configured,
+    })),
+  };
+  assert.equal(smtpConfigured(saved), true);
+  assert.deepEqual(
+    buildSettingsChanges(saved, { emailVerificationRequired: true }, "general"),
+    { changes: { emailVerificationRequired: true }, errors: {} },
+  );
+  for (const key of ["smtpEnabled", "smtpHost", "smtpUsername", "smtpFrom", "smtpPassword", "smtpPort", "smtpTLSMode"]) {
+    const broken = {
+      ...saved,
+      items: saved.items.map((item) => item.key !== key ? item : {
+        ...item,
+        value: key === "smtpEnabled" ? false : key === "smtpPort" ? 0 : "",
+        configured: false,
+      }),
+    };
+    assert.equal(smtpConfigured(broken), false, key);
+  }
 });
 
-test("SMTP and verification can be disabled atomically without clearing the stored password", () => {
+test("verification must be disabled in General before disabling SMTP in Mail", () => {
   const configured = {
     ...mail,
     items: mail.items.map((item) => {
@@ -177,22 +211,33 @@ test("SMTP and verification can be disabled atomically without clearing the stor
   };
   assert(
     buildSettingsChanges(configured, { smtpEnabled: false }, "mail").errors
-      .emailVerificationRequired,
+      .smtpEnabled,
   );
   assert.deepEqual(
     buildSettingsChanges(
       configured,
-      {
-        smtpEnabled: false,
-        emailVerificationRequired: false,
-        smtpPassword: "",
-      },
-      "mail",
+      { emailVerificationRequired: false },
+      "general",
     ),
     {
-      changes: { smtpEnabled: false, emailVerificationRequired: false },
+      changes: { emailVerificationRequired: false },
       errors: {},
     },
+  );
+  const disabled = {
+    ...configured,
+    items: configured.items.map((item) => item.key === "emailVerificationRequired" ? { ...item, value: false } : item),
+  };
+  assert.deepEqual(
+    buildSettingsChanges(disabled, { smtpEnabled: false, smtpPassword: "" }, "mail"),
+    { changes: { smtpEnabled: false }, errors: {} },
+  );
+  const noSMTP = {
+    ...configured,
+    items: configured.items.map((item) => item.key === "smtpEnabled" ? { ...item, value: false } : item),
+  };
+  assert(
+    buildSettingsChanges(noSMTP, { emailVerificationRequired: false }, "general").errors.emailVerificationRequired,
   );
 });
 

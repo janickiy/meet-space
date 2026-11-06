@@ -9,7 +9,7 @@ import {
   Play,
   Video,
 } from "lucide-react";
-import { api, errorMessage } from "../api";
+import { api, ApiError, errorMessage } from "../api";
 import { useAuth } from "../auth";
 import {
   Brand,
@@ -64,6 +64,10 @@ export function AuthPage({ register = false }: { register?: boolean }) {
     setRecoveryBusy(true);
     try {
       await api.recoverPassword(email.trim(), controller.signal);
+      if (!controller.signal.aborted)
+        setRecovery(
+          "Если аккаунт существует, на указанный email придёт ссылка для восстановления пароля. Ссылка действует 1 час.",
+        );
     } catch (error) {
       if (!controller.signal.aborted) setRecovery(errorMessage(error));
     } finally {
@@ -136,8 +140,8 @@ export function AuthPage({ register = false }: { register?: boolean }) {
     } catch (error) {
       submitted.current = false;
       if (
-        error instanceof Error &&
-        error.message === "email verification required"
+        error instanceof ApiError &&
+        error.reason === "email verification required"
       )
         setVerificationNeeded(true);
       setError(errorMessage(error));
@@ -315,7 +319,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                     disabled={busy || recoveryBusy}
                     onClick={() => void recoverPassword()}
                   >
-                    {recoveryBusy ? "Проверяем…" : "Забыли пароль?"}
+                    {recoveryBusy ? "Отправляем…" : "Забыли пароль?"}
                   </button>
                   {recovery && (
                     <p className="field-hint" role="status">

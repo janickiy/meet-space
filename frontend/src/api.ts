@@ -181,7 +181,9 @@ const messages: Record<string, string> = {
   "invalid email or password": "Неверный email или пароль.",
   "account blocked": "Аккаунт заблокирован.",
   "password recovery unavailable":
-    "Восстановление пароля пока недоступно. Обратитесь к администратору сервиса.",
+    "Восстановление пароля недоступно. Обратитесь к администратору сервиса.",
+  "invalid or expired password reset link":
+    "Ссылка недействительна, уже использована или срок её действия истёк. Запросите новую ссылку.",
   "email is already registered":
     "Пользователь с таким email уже есть в системе.",
   "email verification required":
@@ -606,6 +608,13 @@ export const api = {
     request<{ status: string }>("/auth/password-recovery", {
       method: "POST",
       body: { email },
+      public: true,
+      signal,
+    }),
+  resetPassword: (token: string, password: string, signal?: AbortSignal) =>
+    request<{ status: string }>("/auth/reset-password", {
+      method: "POST",
+      body: { token, password },
       public: true,
       signal,
     }),

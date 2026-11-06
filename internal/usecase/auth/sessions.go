@@ -210,7 +210,7 @@ func (s *Service) signIn(ctx context.Context, user users.User) (users.LoginRespo
 		return users.LoginResponse{}, err
 	}
 	raw := base64.RawURLEncoding.EncodeToString(secret[:])
-	session := users.AuthSession{ID: uuid.NewString(), UserID: user.ID, TokenHash: sessionHash(raw), CreatedAt: time.Now().UTC()}
+	session := users.AuthSession{ID: uuid.NewString(), UserID: user.ID, TokenHash: sessionHash(raw), CreatedAt: time.Now().UTC(), ExpectedPasswordHash: user.PasswordHash}
 	response, err := s.sessionResponse(user, session, raw)
 	if err != nil {
 		return users.LoginResponse{}, err

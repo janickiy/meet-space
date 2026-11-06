@@ -62,7 +62,7 @@ const item = (key, label, type, value, group, extra = {}) => ({
         "Подтверждение email",
         "boolean",
         false,
-        "mail",
+        "general",
       ),
       item("smtpHost", "SMTP-сервер", "string", "", "mail"),
       item("smtpPort", "Порт SMTP", "number", 465, "mail", {
@@ -250,17 +250,15 @@ const item = (key, label, type, value, group, extra = {}) => ({
       "",
     );
     assert(!(await page.locator("body").innerText()).includes(responseSecret));
-    await page
-      .getByRole("switch", { name: "Подтверждение email", exact: true })
-      .click();
-    const countBeforeMail = calls.length;
-    await save().click();
-    await page
-      .getByText("Для подтверждения email включите и настройте почту.", {
-        exact: true,
-      })
-      .waitFor();
-    assert.equal(calls.length, countBeforeMail);
+    assert.equal(
+      await page.getByRole("switch", { name: "Подтверждение email", exact: true }).count(),
+      0,
+    );
+    await page.getByRole("tab", { name: /^Основные/ }).click();
+    const verification = () => page.getByRole("switch", { name: "Подтверждение email", exact: true });
+    assert.equal(await verification().isDisabled(), true);
+    await page.getByText("Для изменения сначала настройте и сохраните SMTP во вкладке «Почта».", { exact: true }).waitFor();
+    await page.getByRole("tab", { name: /^Почта/ }).click();
     await page
       .getByRole("switch", { name: "Отправка почты", exact: true })
       .click();
@@ -275,11 +273,28 @@ const item = (key, label, type, value, group, extra = {}) => ({
     await page
       .getByLabel("Шифрование", { exact: true })
       .selectOption("starttls");
+    await page.getByRole("tab", { name: /^Основные/ }).click();
+    assert.equal(await verification().isDisabled(), true, "unsaved SMTP unlocked verification");
+    await page.getByRole("tab", { name: /^Почта/ }).click();
     await save().click();
     await saved();
     assert.equal(calls.at(-1).changes.smtpEnabled, true);
-    assert.equal(calls.at(-1).changes.emailVerificationRequired, true);
+    assert(!("emailVerificationRequired" in calls.at(-1).changes));
     assert(!("smtpPassword" in calls.at(-1).changes));
+    await page.getByRole("tab", { name: /^Основные/ }).click();
+    assert.equal(await verification().isEnabled(), true);
+    await verification().click();
+    await save().click();
+    await saved();
+    assert.deepEqual(calls.at(-1).changes, { emailVerificationRequired: true });
+    report.tests.generalVerificationRequiresSavedSMTP = true;
+    await page.getByRole("tab", { name: /^Почта/ }).click();
+    const countBeforeDisable = calls.length;
+    await page.getByRole("switch", { name: "Отправка почты", exact: true }).click();
+    await save().click();
+    await page.getByText("Сначала отключите подтверждение email во вкладке «Основные».", { exact: true }).waitFor();
+    assert.equal(calls.length, countBeforeDisable);
+    await page.getByRole("button", { name: "Отменить изменения", exact: true }).click();
     await page.getByLabel("Пароль SMTP", { exact: true }).fill(replacement);
     await save().click();
     await saved();
@@ -356,6 +371,19 @@ const item = (key, label, type, value, group, extra = {}) => ({
       .click();
     await mobile.screenshot({
       path: "test-results/settings-mobile-light.png",
+      fullPage: true,
+    });
+    await mobile.getByRole("tab", { name: /^Основные/ }).click();
+    assert.equal(
+      await mobile.getByRole("switch", { name: "Подтверждение email", exact: true }).isEnabled(),
+      true,
+    );
+    assert.equal(
+      await mobile.evaluate(() => document.documentElement.scrollWidth),
+      390,
+    );
+    await mobile.screenshot({
+      path: "test-results/settings-general-mobile-light.png",
       fullPage: true,
     });
     report.tests.mobileAndLightTheme = true;

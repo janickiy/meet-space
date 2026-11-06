@@ -135,6 +135,7 @@ type Service struct {
 	dummyHash    string
 	passwordWork chan struct{}
 	verification *verificationOptions
+	recovery     *passwordRecoveryOptions
 }
 
 // NewService создаёт сервис с зависимостями и ограничениями, необходимыми для аутентификации

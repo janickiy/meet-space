@@ -34,6 +34,7 @@ import (
 type productServices struct {
 	integrations *integrations.Service
 	verification authusecase.VerificationSender
+	recovery     authusecase.PasswordRecoverySender
 }
 
 // newProductServices создает зависимости уведомлений и внешних интеграций.
@@ -83,7 +84,12 @@ func newProductServices(cfg config.Config, db *gorm.DB) (productServices, error)
 		return productServices{}, err
 	}
 	verification := authusecase.VerificationSender{Repo: pg.NewEmailVerificationRepository(db), Reader: settings, Cipher: tokenCipher, Email: channels.Email, PublicURL: c.PublicURL}
-	return productServices{integrations: integrationService, verification: verification}, nil
+	var recoveryCipher authusecase.VerificationCipher
+	if tokenCipher != nil {
+		recoveryCipher = tokenCipher
+	}
+	recovery := authusecase.PasswordRecoverySender{Repo: pg.NewPasswordRecoveryRepository(db), Reader: settings, Cipher: recoveryCipher, Email: channels.Email, PublicURL: c.PublicURL}
+	return productServices{integrations: integrationService, verification: verification, recovery: recovery}, nil
 }
 
 // RunProductWorker запускает продукт-воркер с настроенными зависимостями и передает информацию о сбоях при запуске
@@ -134,6 +140,8 @@ func RunProductWorker() error {
 		deliveryTimeout = s.SMTP.Timeout
 	}
 	runner, err := jobrunner.New(repo, []jobrunner.Pool{
+		{Kind: authusecase.PasswordRecoveryJobKind, Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: 20 * time.Second, Handler: jobrunner.Handler{Handle: services.recovery.Handle}},
+		{Kind: authusecase.PasswordChangedJobKind, Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: 20 * time.Second, Handler: jobrunner.Handler{Handle: services.recovery.Handle}},
 		{Kind: authusecase.VerificationJobKind, Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: 20 * time.Second, Handler: jobrunner.Handler{Handle: services.verification.Handle}},
 		{Kind: "integrations.conference", Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout, Handler: i}, {Kind: "integrations.event", Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: s.ProviderTimeout, Handler: i},
 		{Kind: "integrations.delivery", Concurrency: s.DeliveryWorkers, MaxAttempts: s.MaxAttempts, Timeout: deliveryTimeout, Handler: i},
@@ -198,7 +206,7 @@ func runProductTicks(ctx context.Context, service *integrations.Service, repo *p
 		counts, err := repo.Counts(tickCtx)
 		cancel()
 		if err == nil {
-			for _, kind := range []string{authusecase.VerificationJobKind, "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar"} {
+			for _, kind := range []string{authusecase.VerificationJobKind, authusecase.PasswordRecoveryJobKind, authusecase.PasswordChangedJobKind, "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar"} {
 				for _, state := range []string{"queued", "processing", "failed"} {
 					operations.ProductQueue(kind, state, 0)
 				}
