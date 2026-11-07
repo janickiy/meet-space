@@ -205,11 +205,34 @@ func TestPasswordRecoveryCooldownRotationExpiryAndEligibility(t *testing.T) {
 	if count != 1 {
 		t.Fatal("per-account cooldown bypassed")
 	}
+	var initial authusecase.PasswordRecovery
+	if err := f.db.Table("password_recoveries").Where("user_id=?::uuid", f.user.ID).Take(&initial).Error; err != nil {
+		t.Fatal(err)
+	}
+	// A request after one minute must still preserve the existing link and job.
+	if err := f.db.Exec(`UPDATE password_recoveries SET created_at=clock_timestamp()-INTERVAL '90 seconds' WHERE user_id=?::uuid`, f.user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := f.service.PasswordRecovery(ctx, f.user.Email); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.Table("background_jobs").Where("kind=?", authusecase.PasswordRecoveryJobKind).Count(&count).Error; err != nil || count != 1 {
+		t.Fatal("password recovery allowed before two minutes", count, err)
+	}
+	var unchanged authusecase.PasswordRecovery
+	if err := f.db.Table("password_recoveries").Where("user_id=?::uuid", f.user.ID).Take(&unchanged).Error; err != nil || unchanged.ID != initial.ID || unchanged.TokenHash != initial.TokenHash {
+		t.Fatal("cooldown replaced the original recovery link", err)
+	}
 	if err := f.service.PasswordRecovery(ctx, "missing@example.invalid"); err != nil {
 		t.Fatal("unknown email disclosed", err)
 	}
-	f.db.Exec(`UPDATE password_recoveries SET created_at=clock_timestamp()-INTERVAL '2 minutes' WHERE user_id=?::uuid`, f.user.ID)
+	if err := f.db.Exec(`UPDATE password_recoveries SET created_at=clock_timestamp()-INTERVAL '2 minutes' WHERE user_id=?::uuid`, f.user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
 	token, _ := f.request(t)
+	if err := f.db.Table("background_jobs").Where("kind=?", authusecase.PasswordRecoveryJobKind).Count(&count).Error; err != nil || count != 2 {
+		t.Fatal("password recovery not queued after two minutes", count, err)
+	}
 	if token == oldToken {
 		t.Fatal("reset token reused")
 	}

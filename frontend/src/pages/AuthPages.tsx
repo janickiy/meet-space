@@ -50,49 +50,11 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const [busy, setBusy] = useState(false);
   const policy = useAuthPolicy();
   const corporate = !register && policy.directoryOnly;
-  const [recovery, setRecovery] = useState("");
-  const [recoveryBusy, setRecoveryBusy] = useState(false);
-  const recoveryController = useRef<AbortController | null>(null);
-  useEffect(() => () => recoveryController.current?.abort(), []);
   const [verificationNeeded, setVerificationNeeded] = useState(false);
   const submitted = useRef(false);
   useEffect(() => {
-    if (!policy.recoveryAllowed) {
-      recoveryController.current?.abort();
-      setRecovery("");
-      setRecoveryBusy(false);
-      setVerificationNeeded(false);
-    }
-  }, [policy.recoveryAllowed]);
-  async function recoverPassword() {
-    if (!policy.recoveryAllowed) return;
-    recoveryController.current?.abort();
-    setRecovery("");
-    if (
-      !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
-      utf8Bytes(email.trim()) > 254
-    ) {
-      setRecovery("Введите корректный email для восстановления пароля.");
-      return;
-    }
-    const controller = new AbortController();
-    recoveryController.current = controller;
-    setRecoveryBusy(true);
-    try {
-      await api.recoverPassword(email.trim(), controller.signal);
-      if (!controller.signal.aborted)
-        setRecovery(
-          "Если аккаунт существует, на указанный email придёт ссылка для восстановления пароля. Ссылка действует 1 час.",
-        );
-    } catch (error) {
-      if (!controller.signal.aborted) setRecovery(errorMessage(error));
-    } finally {
-      if (recoveryController.current === controller) {
-        recoveryController.current = null;
-        setRecoveryBusy(false);
-      }
-    }
-  }
+    if (!policy.registrationAllowed) setVerificationNeeded(false);
+  }, [policy.registrationAllowed]);
   // Автоматический вход не должен прерывать переход на страницу успешной регистрации.
   if (auth.user && !auth.loading && !submitted.current)
     return <Navigate to={next} replace />;
@@ -282,12 +244,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                    *   - event — проверенный конверт события комнаты.
                    *
                    * @returns вычисленное значение: setEmail(event.target.value).
-                   */ (event) => {
-                    setEmail(event.target.value);
-                    recoveryController.current?.abort();
-                    setRecovery("");
-                    setRecoveryBusy(false);
-                  }
+                   */ (event) => setEmail(event.target.value)
                 }
                 disabled={busy || !policy.ready}
               />
@@ -347,19 +304,18 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                 </p>
               ) : policy.recoveryAllowed ? (
                 <div className="recovery">
-                  <button
-                    type="button"
+                  <Link
                     className="text-button"
-                    disabled={busy || recoveryBusy}
-                    onClick={() => void recoverPassword()}
+                    to="/reset-password"
+                    state={{ email: email.trim() }}
+                    aria-disabled={busy}
+                    tabIndex={busy ? -1 : undefined}
+                    onClick={(event) => {
+                      if (busy) event.preventDefault();
+                    }}
                   >
-                    {recoveryBusy ? "Отправляем…" : "Забыли пароль?"}
-                  </button>
-                  {recovery && (
-                    <p className="field-hint" role="status">
-                      {recovery}
-                    </p>
-                  )}
+                    Забыли пароль?
+                  </Link>
                 </div>
               ) : null}
             </div>

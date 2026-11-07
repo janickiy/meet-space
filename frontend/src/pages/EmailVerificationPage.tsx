@@ -5,6 +5,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { api, errorMessage } from "../api";
 import { Brand, ErrorNotice, SuccessMark } from "../components/ui";
 import { utf8Bytes } from "../utils";
+import { useResendCooldown } from "../useResendCooldown";
 import "./auth-pages.css";
 
 export function EmailVerificationPage() {
@@ -21,6 +22,9 @@ export function EmailVerificationPage() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const cooldown = useResendCooldown(
+    "meetspace.email-verification.resend-until",
+  );
   const pending = useRef(false);
   const mounted = useRef(true);
   const controller = useRef<AbortController | null>(null);
@@ -41,6 +45,7 @@ export function EmailVerificationPage() {
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending.current || !policy.registrationAllowed) return;
+    if (!token && cooldown.isActive()) return;
     if (
       !token &&
       (!/^[^\s@]+@[^\s@]+$/.test(email.trim()) || utf8Bytes(email.trim()) > 254)
@@ -59,6 +64,7 @@ export function EmailVerificationPage() {
       if (mounted.current) {
         setConfirmed(!!token);
         setSent(!token);
+        if (!token) cooldown.start();
       }
     } catch (cause) {
       if (mounted.current && !controller.current.signal.aborted)
@@ -102,11 +108,14 @@ export function EmailVerificationPage() {
           {sent && (
             <p role="status">
               Если аккаунт ожидает подтверждения, письмо будет отправлено.
-              Повторная отправка доступна не чаще раза в минуту.
             </p>
           )}
           {!confirmed && (
-            <form onSubmit={submit} noValidate>
+            <form
+              className="auth-verification-form"
+              onSubmit={submit}
+              noValidate
+            >
               {!token && (
                 <label className="field" htmlFor="verification-email">
                   Email
@@ -115,7 +124,10 @@ export function EmailVerificationPage() {
                     type="email"
                     autoComplete="email"
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      setSent(false);
+                    }}
                     disabled={busy}
                   />
                 </label>
@@ -123,7 +135,12 @@ export function EmailVerificationPage() {
               <button
                 type="submit"
                 className="button button-primary full-width"
-                disabled={busy}
+                disabled={busy || (!token && cooldown.remainingSeconds > 0)}
+                aria-describedby={
+                  !token && cooldown.remainingSeconds > 0
+                    ? "verification-resend-countdown"
+                    : undefined
+                }
               >
                 {busy
                   ? "Подождите…"
@@ -131,10 +148,20 @@ export function EmailVerificationPage() {
                     ? "Подтвердить email"
                     : "Отправить письмо повторно"}
               </button>
+              {!token && cooldown.remainingSeconds > 0 && (
+                <p
+                  id="verification-resend-countdown"
+                  className="auth-resend-countdown"
+                  role="timer"
+                  aria-live="off"
+                >
+                  Повторная отправка через <span>{cooldown.time}</span>
+                </p>
+              )}
             </form>
           )}
           {token && !confirmed && (
-            <p>
+            <p className="auth-verification-secondary">
               <Link
                 to="/verify-email"
                 onClick={() => {

@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = join(root, ".prerender");
 const output = join(root, "dist");
+const marketingOnly = process.env.VITE_MARKETING_ONLY === "true";
 
 try {
   const result = spawnSync(
@@ -37,6 +38,8 @@ try {
   // The SPA fallback stays neutral, even when JavaScript is disabled.
   await writeFile(join(output, "app.html"), template);
   for (const path of PUBLIC_PATHS) {
+    // Корень приложения восстанавливает сеанс и открывает вход без HTML лендинга.
+    if (path === "/" && !marketingOnly) continue;
     const { html, head, language } = renderPublicPage(path);
     const document = template
       .replace(/<html\s+lang="[^"]+"/, `<html lang="${language}"`)

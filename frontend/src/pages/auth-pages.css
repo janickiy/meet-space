@@ -406,6 +406,57 @@
   font-size: var(--text-base);
   line-height: 1.7;
 }
+.auth-business-success .auth-verification-form,
+.auth-business-success .auth-password-reset-form {
+  display: grid;
+  gap: 18px;
+}
+.auth-business-success .auth-verification-form .field,
+.auth-business-success .auth-password-reset-form .field {
+  margin: 0;
+  text-align: left;
+}
+.auth-business-success .auth-resend-countdown {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+.auth-business-success .auth-resend-countdown span {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.auth-business-success .registration-success > .auth-verification-secondary,
+.auth-business-success .registration-success > .auth-password-reset-secondary {
+  margin: 16px 0 0;
+}
+.auth-verification-secondary a,
+.auth-password-reset-secondary button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--primary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.auth-verification-secondary a:hover,
+.auth-password-reset-secondary button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.auth-verification-secondary a:focus-visible,
+.auth-password-reset-secondary button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
 .auth-business-success .auth-footer {
   justify-content: center;
 }

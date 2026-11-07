@@ -96,7 +96,12 @@ const USER = {
       }
       if (endpoint === "/auth/verify-email/resend") {
         state.resend.push(request.postDataJSON());
-        return send({ status: "success" });
+        return send(
+          state.resendError
+            ? { message: state.resendError }
+            : { status: "success" },
+          state.resendStatus || 200,
+        );
       }
       return send({ items: [], status: "success" });
     });
@@ -115,17 +120,148 @@ const USER = {
   }
   try {
     const recovery = await fixture();
+    const recoveryStart = new Date("2026-11-08T00:00:00Z");
+    await recovery.page.clock.setFixedTime(recoveryStart);
     await recovery.page.goto(server.url + "/login");
     await recovery.page.getByLabel("Email", { exact: true }).fill(USER.email);
     await recovery.page
-      .getByRole("button", { name: "Забыли пароль?", exact: true })
+      .getByRole("link", { name: "Забыли пароль?", exact: true })
+      .click();
+    await recovery.page.waitForURL(server.url + "/reset-password");
+    await recovery.page
+      .getByRole("heading", { name: "Восстановление пароля", exact: true })
+      .waitFor();
+    assert.equal(
+      await recovery.page.getByLabel("Email", { exact: true }).inputValue(),
+      USER.email,
+    );
+    assert.equal(recovery.state.recovery.length, 0);
+    assert.equal(new URL(recovery.page.url()).search, "");
+    assert.equal(new URL(recovery.page.url()).hash, "");
+    await recovery.page
+      .getByRole("button", { name: "Отправить ссылку", exact: true })
       .click();
     await recovery.page
-      .locator(".recovery [role=status]")
+      .getByRole("status")
       .filter({ hasText: "Ссылка действует 1 час" })
       .waitFor();
     assert.deepEqual(recovery.state.recovery, [{ email: USER.email }]);
-    report.tests.loginRecoveryReportsQueuedEmail = true;
+    assert(recovery.state.requests.every((url) => !url.includes(USER.email)));
+    report.tests.loginRecoveryNavigatesAndPrefillsEmailWithoutSending = true;
+    report.tests.recoveryFormReportsQueuedEmail = true;
+
+    const recoveryButton = recovery.page.getByRole("button", {
+      name: "Отправить ссылку",
+      exact: true,
+    });
+    await recovery.page
+      .getByRole("timer")
+      .filter({ hasText: "02:00" })
+      .waitFor();
+    assert.equal(await recoveryButton.isDisabled(), true);
+    await recovery.page
+      .locator("form")
+      .evaluate((form) => form.requestSubmit());
+    await recovery.page.waitForTimeout(50);
+    assert.equal(recovery.state.recovery.length, 1);
+    await recovery.page.clock.setFixedTime(new Date(+recoveryStart + 30_000));
+    await recovery.page
+      .getByRole("timer")
+      .filter({ hasText: "01:30" })
+      .waitFor();
+    await recovery.page.reload();
+    await recovery.page
+      .getByRole("timer")
+      .filter({ hasText: "01:30" })
+      .waitFor();
+    await recovery.page
+      .getByLabel("Email", { exact: true })
+      .fill("another@example.test");
+    assert.equal(await recoveryButton.isDisabled(), true);
+    await recovery.page.getByLabel("Email", { exact: true }).fill(USER.email);
+    await recovery.page.clock.setFixedTime(new Date(+recoveryStart + 119_000));
+    await recovery.page
+      .getByRole("timer")
+      .filter({ hasText: "00:01" })
+      .waitFor();
+    assert.equal(await recoveryButton.isDisabled(), true);
+    await recovery.page.clock.setFixedTime(new Date(+recoveryStart + 120_000));
+    await recovery.page.locator("button[type=submit]:enabled").waitFor();
+    assert.equal(await recovery.page.getByRole("timer").count(), 0);
+    await recoveryButton.click();
+    await recovery.page
+      .getByRole("timer")
+      .filter({ hasText: "02:00" })
+      .waitFor();
+    assert.equal(recovery.state.recovery.length, 2);
+    report.tests.recoveryWaitsTwoMinutesAndSurvivesReload = true;
+
+    // Receiving a reset link must not be blocked by the email request pause.
+    await recovery.page.goto(server.url + "/reset-password#token=" + TOKEN);
+    const resetDuringPause = recovery.page.getByRole("button", {
+      name: "Сохранить новый пароль",
+      exact: true,
+    });
+    await resetDuringPause.waitFor();
+    assert.equal(await resetDuringPause.isDisabled(), false);
+    assert.equal(await recovery.page.getByRole("timer").count(), 0);
+    await resetForm(recovery);
+    await recovery.page
+      .getByRole("heading", { name: "Пароль изменён", exact: true })
+      .waitFor();
+    assert.deepEqual(recovery.state.reset, [
+      { token: TOKEN, password: PASSWORD },
+    ]);
+    report.tests.passwordResetIsAvailableDuringRecoveryPause = true;
+
+    // Verification emails and recovery emails keep separate resend deadlines.
+    await recovery.page.goto(server.url + "/verify-email");
+    await recovery.page.getByLabel("Email", { exact: true }).fill(USER.email);
+    const verificationAfterRecovery = recovery.page.getByRole("button", {
+      name: "Отправить письмо повторно",
+      exact: true,
+    });
+    assert.equal(await verificationAfterRecovery.isDisabled(), false);
+    await verificationAfterRecovery.click();
+    await recovery.page
+      .getByRole("timer")
+      .filter({ hasText: "02:00" })
+      .waitFor();
+    assert.equal(recovery.state.resend.length, 1);
+    report.tests.recoveryAndVerificationPausesAreIndependent = true;
+
+    const emptyRecovery = await fixture();
+    await emptyRecovery.page.goto(server.url + "/login");
+    await emptyRecovery.page
+      .getByRole("link", { name: "Забыли пароль?", exact: true })
+      .click();
+    await emptyRecovery.page.waitForURL(server.url + "/reset-password");
+    await emptyRecovery.page
+      .getByRole("heading", { name: "Восстановление пароля", exact: true })
+      .waitFor();
+    assert.equal(
+      await emptyRecovery.page
+        .getByLabel("Email", { exact: true })
+        .inputValue(),
+      "",
+    );
+    await emptyRecovery.page
+      .getByRole("button", { name: "Отправить ссылку", exact: true })
+      .click();
+    await emptyRecovery.page
+      .getByRole("alert")
+      .filter({ hasText: "Введите корректный email." })
+      .waitFor();
+    assert.equal(emptyRecovery.state.recovery.length, 0);
+    assert.equal(await emptyRecovery.page.getByRole("timer").count(), 0);
+    assert.equal(
+      await emptyRecovery.page
+        .getByRole("button", { name: "Отправить ссылку", exact: true })
+        .isDisabled(),
+      false,
+    );
+    report.tests.forgotPasswordNavigatesWithAnEmptyEmail = true;
+    report.tests.invalidRecoveryEmailDoesNotStartPause = true;
 
     const blocked = await fixture({
       recoveryError: "account blocked",
@@ -134,10 +270,13 @@ const USER = {
     await blocked.page.goto(server.url + "/login");
     await blocked.page.getByLabel("Email", { exact: true }).fill(USER.email);
     await blocked.page
-      .getByRole("button", { name: "Забыли пароль?", exact: true })
+      .getByRole("link", { name: "Забыли пароль?", exact: true })
       .click();
     await blocked.page
-      .locator(".recovery [role=status]")
+      .getByRole("button", { name: "Отправить ссылку", exact: true })
+      .click();
+    await blocked.page
+      .getByRole("alert")
       .filter({ hasText: "Аккаунт заблокирован." })
       .waitFor();
     report.tests.blockedRecoveryMessage = true;
@@ -146,15 +285,20 @@ const USER = {
     await stale.page.goto(server.url + "/login");
     await stale.page.getByLabel("Email", { exact: true }).fill(USER.email);
     await stale.page
-      .getByRole("button", { name: "Забыли пароль?", exact: true })
+      .getByRole("link", { name: "Забыли пароль?", exact: true })
+      .click();
+    await stale.page
+      .getByRole("button", { name: "Отправить ссылку", exact: true })
       .click();
     await stale.page
       .waitForResponse(() => false, { timeout: 100 })
       .catch(() => {});
     assert(stale.state.pending);
+    await stale.page.getByRole("link", { name: "Войти", exact: true }).click();
+    await stale.page.waitForURL(server.url + "/login");
     await stale.page
-      .getByLabel("Email", { exact: true })
-      .fill("new@example.test");
+      .getByRole("heading", { name: "Вход в MeetSpace", exact: true })
+      .waitFor();
     await stale.state.pending
       .fulfill({
         status: 200,
@@ -163,10 +307,13 @@ const USER = {
       })
       .catch(() => {});
     assert.equal(
-      await stale.page.locator(".recovery [role=status]").count(),
+      await stale.page
+        .getByRole("status")
+        .filter({ hasText: "Ссылка действует 1 час" })
+        .count(),
       0,
     );
-    report.tests.emailChangeCancelsStaleRecoveryMessage = true;
+    report.tests.leavingRecoveryCancelsStaleResult = true;
 
     const reset = await fixture();
     await reset.page.goto(server.url + "/reset-password#token=" + TOKEN);
@@ -272,6 +419,14 @@ const USER = {
       ),
     );
     report.tests.smtpUnavailableAndMobileLayout = true;
+    assert.equal(await mobile.page.getByRole("timer").count(), 0);
+    assert.equal(
+      await mobile.page
+        .getByRole("button", { name: "Отправить ссылку", exact: true })
+        .isDisabled(),
+      false,
+    );
+    report.tests.failedRecoveryDoesNotStartPause = true;
 
     const registration = await fixture();
     await registration.page.goto(server.url + "/register");
@@ -330,6 +485,77 @@ const USER = {
     assert.deepEqual(verification.state.verify, [{ token: TOKEN }]);
     assert.equal(verification.state.login, 0);
     report.tests.verificationLinkConfirmsAccountAndOffersLogin = true;
+
+    const resend = await fixture();
+    const resendStart = new Date("2026-11-08T00:00:00Z");
+    await resend.page.clock.setFixedTime(resendStart);
+    await resend.page.goto(server.url + "/verify-email");
+    await resend.page.getByLabel("Email", { exact: true }).fill(USER.email);
+    const resendButton = resend.page.getByRole("button", {
+      name: "Отправить письмо повторно",
+      exact: true,
+    });
+    await resendButton.click();
+    await resend.page.getByRole("timer").filter({ hasText: "02:00" }).waitFor();
+    assert.equal(await resendButton.isDisabled(), true);
+    await resend.page.locator("form").evaluate((form) => form.requestSubmit());
+    await resend.page.waitForTimeout(50);
+    assert.equal(resend.state.resend.length, 1);
+
+    await resend.page.clock.setFixedTime(new Date(+resendStart + 30_000));
+    await resend.page.getByRole("timer").filter({ hasText: "01:30" }).waitFor();
+    await resend.page.reload();
+    await resend.page.getByRole("timer").filter({ hasText: "01:30" }).waitFor();
+    await resend.page
+      .getByLabel("Email", { exact: true })
+      .fill("another@example.test");
+    assert.equal(await resendButton.isDisabled(), true);
+    await resend.page.getByLabel("Email", { exact: true }).fill(USER.email);
+    await resend.page.clock.setFixedTime(new Date(+resendStart + 119_000));
+    await resend.page.getByRole("timer").filter({ hasText: "00:01" }).waitFor();
+    assert.equal(await resendButton.isDisabled(), true);
+    await resend.page.clock.setFixedTime(new Date(+resendStart + 120_000));
+    await resend.page.locator("button[type=submit]:enabled").waitFor();
+    assert.equal(await resend.page.getByRole("timer").count(), 0);
+    await resendButton.click();
+    await resend.page.getByRole("timer").filter({ hasText: "02:00" }).waitFor();
+    assert.equal(resend.state.resend.length, 2);
+    report.tests.verificationResendWaitsTwoMinutesAndSurvivesReload = true;
+
+    // A resend pause must not delay confirmation using an already received link.
+    await resend.page.goto(server.url + "/verify-email#token=" + TOKEN);
+    const confirmDuringPause = resend.page.getByRole("button", {
+      name: "Подтвердить email",
+      exact: true,
+    });
+    await confirmDuringPause.waitFor();
+    assert.equal(await confirmDuringPause.isDisabled(), false);
+    await confirmDuringPause.click();
+    await resend.page
+      .getByRole("heading", { name: "Email подтверждён", exact: true })
+      .waitFor();
+    report.tests.verificationConfirmationIsAvailableDuringResendPause = true;
+
+    const failedResend = await fixture({
+      resendStatus: 503,
+      resendError: "service unavailable",
+    });
+    await failedResend.page.goto(server.url + "/verify-email");
+    await failedResend.page
+      .getByLabel("Email", { exact: true })
+      .fill(USER.email);
+    await failedResend.page
+      .getByRole("button", { name: "Отправить письмо повторно", exact: true })
+      .click();
+    await failedResend.page.getByRole("alert").waitFor();
+    assert.equal(await failedResend.page.getByRole("timer").count(), 0);
+    assert.equal(
+      await failedResend.page
+        .getByRole("button", { name: "Отправить письмо повторно", exact: true })
+        .isDisabled(),
+      false,
+    );
+    report.tests.failedVerificationResendDoesNotStartPause = true;
 
     assert.deepEqual(report.javascriptErrors, []);
     report.completed = true;

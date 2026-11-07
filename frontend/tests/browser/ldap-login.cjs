@@ -106,7 +106,7 @@ const { chromium, serve } = require("../../../admin/tests/browser/harness.cjs");
     );
     assert.equal(
       await page
-        .getByRole("button", { name: "Забыли пароль?", exact: true })
+        .getByRole("link", { name: "Забыли пароль?", exact: true })
         .count(),
       0,
     );
@@ -199,7 +199,7 @@ const { chromium, serve } = require("../../../admin/tests/browser/harness.cjs");
     const local = await fixture({ mode: "local" });
     await local.page.goto(server.url + "/login");
     await local.page
-      .getByRole("button", { name: "Забыли пароль?", exact: true })
+      .getByRole("link", { name: "Забыли пароль?", exact: true })
       .waitFor();
     assert(
       (await local.page

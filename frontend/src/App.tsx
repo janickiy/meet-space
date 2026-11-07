@@ -10,7 +10,6 @@ import {
 import { useAuth } from "./auth";
 import { Brand, Button, ErrorNotice, Loading } from "./components/ui";
 import { Layout } from "./components/Layout";
-import { Landing } from "./pages/Landing";
 import { AuthPage, RegistrationSuccess } from "./pages/AuthPages";
 import { EmailVerificationPage } from "./pages/EmailVerificationPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
@@ -90,8 +89,8 @@ function SettingsRoute() {
 }
 
 /**
- * Protected выбирает публичную главную либо кабинет после восстановления сессии.
- * Остальные защищённые страницы без авторизации перенаправляются на вход.
+ * Protected открывает кабинет после восстановления сессии.
+ * Без авторизации защищённые страницы перенаправляются на вход.
  *
  *
  * @returns JSX-представление компонента для текущих свойств и состояния.
@@ -129,15 +128,15 @@ function Protected() {
         </div>
       </div>
     );
-  if (!auth.user)
-    return location.pathname === "/" ? (
-      <Landing />
-    ) : (
+  if (!auth.user) {
+    const next = location.pathname + location.search + location.hash;
+    return (
       <Navigate
-        to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}
+        to={next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`}
         replace
       />
     );
+  }
   if (
     auth.user.guestConferenceId &&
     !["/conferences/", "/meetings/"].some(

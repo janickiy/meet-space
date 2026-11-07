@@ -111,6 +111,21 @@ func TestEmailVerificationLifecycle(t *testing.T) {
 	if count != 1 {
 		t.Fatal("resend cooldown bypassed", count)
 	}
+	// One minute is no longer enough: the first link remains valid while a
+	// repeat request is acknowledged without queuing another message.
+	if err = db.Exec(`UPDATE email_verifications SET created_at=clock_timestamp()-INTERVAL '90 seconds' WHERE user_id=?::uuid`, view.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.ResendVerification(ctx, view.Email); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.Table("background_jobs").Where("kind=?", authusecase.VerificationJobKind).Count(&count).Error; err != nil || count != 1 {
+		t.Fatal("verification resend allowed before two minutes", count, err)
+	}
+	var initialVerificationID string
+	if err = db.Raw(`SELECT id FROM email_verifications WHERE user_id=?::uuid`, view.ID).Scan(&initialVerificationID).Error; err != nil || initialVerificationID != job.EntityID {
+		t.Fatal("cooldown replaced the original verification link", err)
+	}
 	policy.values.EmailVerificationRequired = false
 	if _, err = svc.Login(ctx, credentials); err != nil {
 		t.Fatal("disabled policy still blocks login", err)
@@ -128,6 +143,9 @@ func TestEmailVerificationLifecycle(t *testing.T) {
 	}
 	if err = svc.ResendVerification(ctx, view.Email); err != nil {
 		t.Fatal(err)
+	}
+	if err = db.Table("background_jobs").Where("kind=?", authusecase.VerificationJobKind).Count(&count).Error; err != nil || count != 2 {
+		t.Fatal("verification resend not queued after two minutes", count, err)
 	}
 	if err = svc.VerifyEmail(ctx, token); !errors.Is(err, apperrors.ErrInvalidInput) {
 		t.Fatal("rotated token accepted", err)

@@ -10,6 +10,7 @@ import {
   SuccessMark,
 } from "../components/ui";
 import { passwordLength, utf8Bytes } from "../utils";
+import { useResendCooldown } from "../useResendCooldown";
 import "./auth-pages.css";
 
 /** Одноразовая ссылка остаётся только в памяти и не попадает в URL запросов. */
@@ -20,13 +21,18 @@ export function ResetPasswordPage() {
   const [token, setToken] = useState(
     () => new URLSearchParams(location.hash.slice(1)).get("token") || "",
   );
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() =>
+    typeof location.state?.email === "string" ? location.state.email : "",
+  );
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [complete, setComplete] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const cooldown = useResendCooldown(
+    "meetspace.password-recovery.resend-until",
+  );
   const pending = useRef(false);
   const mounted = useRef(true);
   const controller = useRef<AbortController | null>(null);
@@ -47,6 +53,7 @@ export function ResetPasswordPage() {
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending.current || !policy.recoveryAllowed) return;
+    if (!token && cooldown.isActive()) return;
     setError("");
     if (token) {
       const size = passwordLength(password);
@@ -78,7 +85,10 @@ export function ResetPasswordPage() {
           setToken("");
           setPassword("");
           setConfirmation("");
-        } else setSent(true);
+        } else {
+          setSent(true);
+          cooldown.start();
+        }
       }
     } catch (cause) {
       if (mounted.current && !request.signal.aborted)
@@ -123,12 +133,15 @@ export function ResetPasswordPage() {
           {sent && (
             <p role="status">
               Если аккаунт существует, на указанный email придёт ссылка для
-              восстановления пароля. Ссылка действует 1 час. Повторная отправка
-              доступна не чаще раза в минуту.
+              восстановления пароля. Ссылка действует 1 час.
             </p>
           )}
           {!complete && (
-            <form onSubmit={submit} noValidate>
+            <form
+              className="auth-password-reset-form"
+              onSubmit={submit}
+              noValidate
+            >
               {token ? (
                 <>
                   <label className="field" htmlFor="reset-password">
@@ -175,7 +188,12 @@ export function ResetPasswordPage() {
               <button
                 type="submit"
                 className="button button-primary full-width"
-                disabled={busy}
+                disabled={busy || (!token && cooldown.remainingSeconds > 0)}
+                aria-describedby={
+                  !token && cooldown.remainingSeconds > 0
+                    ? "password-recovery-countdown"
+                    : undefined
+                }
               >
                 {busy
                   ? "Подождите…"
@@ -183,10 +201,20 @@ export function ResetPasswordPage() {
                     ? "Сохранить новый пароль"
                     : "Отправить ссылку"}
               </button>
+              {!token && cooldown.remainingSeconds > 0 && (
+                <p
+                  id="password-recovery-countdown"
+                  className="auth-resend-countdown"
+                  role="timer"
+                  aria-live="off"
+                >
+                  Повторная отправка через <span>{cooldown.time}</span>
+                </p>
+              )}
             </form>
           )}
           {token && !complete && (
-            <p>
+            <p className="auth-password-reset-secondary">
               <button
                 type="button"
                 className="text-button"

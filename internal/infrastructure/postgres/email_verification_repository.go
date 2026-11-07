@@ -56,7 +56,7 @@ func (r *EmailVerificationRepository) Resend(ctx context.Context, user users.Use
 			return nil
 		}
 		var recent bool
-		if err := tx.Raw(`SELECT EXISTS(SELECT 1 FROM email_verifications WHERE user_id=?::uuid AND created_at>clock_timestamp()-INTERVAL '1 minute')`, user.ID).Scan(&recent).Error; err != nil {
+		if err := tx.Raw(`SELECT EXISTS(SELECT 1 FROM email_verifications WHERE user_id=?::uuid AND created_at>clock_timestamp()-INTERVAL '2 minutes')`, user.ID).Scan(&recent).Error; err != nil {
 			return err
 		}
 		if recent {

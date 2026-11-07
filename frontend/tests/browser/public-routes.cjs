@@ -12,6 +12,7 @@ const [
   mode = "check",
 ] = process.argv.slice(2);
 const root = path.resolve(directory);
+const marketingOnly = process.env.VITE_MARKETING_ONLY === "true";
 const paths = [
   "/",
   "/welcome",
@@ -37,6 +38,17 @@ const paths = [
     try {
       const pathname = new URL(req.url, "http://localhost").pathname;
       if (pathname.startsWith("/api/")) {
+        if (pathname === "/api/v1/auth/providers") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          return res.end(
+            JSON.stringify({
+              mode: "local",
+              registrationEnabled: true,
+              passwordRecoveryEnabled: true,
+              ldap: { enabled: false, label: "Корпоративный вход" },
+            }),
+          );
+        }
         res.writeHead(401, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ message: "unauthorized" }));
       }
@@ -79,6 +91,11 @@ const paths = [
       });
       await page.goto(origin + pathname);
       await page.locator("h1").first().waitFor();
+      if (pathname === "/" && !marketingOnly) {
+        await page.waitForURL(origin + "/login");
+        await page.getByRole("heading", { name: "Вход в MeetSpace" }).waitFor();
+        assert.equal(await page.locator(".landing").count(), 0);
+      }
       await page.waitForLoadState("networkidle");
       const content = await page.evaluate(() => ({
         heading: document.querySelector("h1").textContent,
@@ -121,6 +138,23 @@ const paths = [
           false,
           "Documentation body must not load on /login",
         );
+    }
+    if (!marketingOnly) {
+      await page.evaluate(() => {
+        history.pushState({}, "", "/");
+        dispatchEvent(new PopStateEvent("popstate"));
+      });
+      await page.waitForURL(origin + "/login");
+      await page.getByRole("heading", { name: "Вход в MeetSpace" }).waitFor();
+      assert.equal(await page.locator(".landing").count(), 0);
+      const destination = "/personal/example-conversation?filter=group#pinned";
+      await page.goto(origin + destination);
+      await page.waitForURL(
+        (url) =>
+          url.pathname === "/login" &&
+          url.searchParams.get("next") === destination,
+      );
+      await page.getByRole("heading", { name: "Вход в MeetSpace" }).waitFor();
     }
     await page.evaluate(() => {
       history.pushState({}, "", "/docs/features");

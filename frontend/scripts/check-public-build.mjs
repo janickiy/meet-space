@@ -53,9 +53,10 @@ const appRoutes = new Set([
   "/meetings/new",
   "/personal",
 ]);
+const publicRoutes = routes.filter((route) => marketingOnly || route !== "/");
 const documents = new Map(
   await Promise.all(
-    routes.map(async (route) => [
+    publicRoutes.map(async (route) => [
       route,
       await readFile(
         resolve(root, `dist${route === "/" ? "" : route}/index.html`),
@@ -216,6 +217,17 @@ assert.match(privateShell, /noindex, nofollow/);
 assert.ok(!privateShell.includes('rel="canonical"'));
 assert.ok(!privateShell.includes("hero-title"));
 assert.ok(!privateShell.includes("data-prerender-path"));
+if (!marketingOnly) {
+  const applicationRoot = await readFile(
+    resolve(root, "dist/index.html"),
+    "utf8",
+  );
+  assert.equal(
+    applicationRoot,
+    privateShell,
+    "Application root must use the neutral SPA shell without a landing flash",
+  );
+}
 const sitemap = await readFile(resolve(root, "dist/sitemap.xml"), "utf8");
 assert.equal((sitemap.match(/<url>/g) || []).length, canonicalRoutes.length);
 assert.ok(!sitemap.includes("/login"));
