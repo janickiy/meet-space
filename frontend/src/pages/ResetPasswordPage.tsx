@@ -1,6 +1,7 @@
+import { AuthPolicyPage, useAuthPolicy } from "../components/AuthPolicy";
 import { useEffect, useRef, useState } from "react";
 import type { SubmitEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { api, errorMessage } from "../api";
 import {
   Brand,
@@ -13,6 +14,7 @@ import "./auth-pages.css";
 
 /** Одноразовая ссылка остаётся только в памяти и не попадает в URL запросов. */
 export function ResetPasswordPage() {
+  const policy = useAuthPolicy();
   const location = useLocation();
   const navigate = useNavigate();
   const [token, setToken] = useState(
@@ -44,7 +46,7 @@ export function ResetPasswordPage() {
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending.current) return;
+    if (pending.current || !policy.recoveryAllowed) return;
     setError("");
     if (token) {
       const size = passwordLength(password);
@@ -87,6 +89,8 @@ export function ResetPasswordPage() {
     }
   }
 
+  if (!policy.ready) return <AuthPolicyPage policy={policy} />;
+  if (!policy.recoveryAllowed) return <Navigate to="/login" replace />;
   return (
     <div className="auth-page auth-business-page auth-business-success">
       <header className="auth-business-header">

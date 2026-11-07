@@ -22,6 +22,9 @@ export interface User {
 }
 
 export interface AuthProviders {
+  mode: "local" | "ldap";
+  registrationEnabled: boolean;
+  passwordRecoveryEnabled: boolean;
   ldap: { enabled: boolean; label: string };
 }
 

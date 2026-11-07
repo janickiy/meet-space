@@ -67,6 +67,9 @@ func recoverySMTPReady(v platformsettings.Values) bool {
 // PasswordRecovery queues a durable email without disclosing whether a normal
 // account exists. Blocked accounts keep their explicitly requested 403 response.
 func (s *Service) PasswordRecovery(ctx context.Context, email string) error {
+	if err := s.requireLocalAuthentication(ctx); err != nil {
+		return err
+	}
 	email = users.NormalizeEmail(email)
 	if err := users.ValidateEmail(email); err != nil {
 		return err
@@ -108,6 +111,9 @@ func (s *Service) PasswordRecovery(ctx context.Context, email string) error {
 	return s.recovery.repo.Request(ctx, user, value)
 }
 func (s *Service) ResetPassword(ctx context.Context, token, password string) error {
+	if err := s.requireLocalAuthentication(ctx); err != nil {
+		return err
+	}
 	if s.recovery == nil || s.recovery.repo == nil {
 		return apperrors.ErrUnavailable
 	}
@@ -124,6 +130,9 @@ func (s *Service) ResetPassword(ctx context.Context, token, password string) err
 	}
 	hash, err := s.hashPassword(ctx, password)
 	if err != nil {
+		return err
+	}
+	if err := s.requireLocalAuthentication(ctx); err != nil {
 		return err
 	}
 	digest := sha256.Sum256([]byte(token))
@@ -150,7 +159,7 @@ func (s PasswordRecoverySender) Handle(ctx context.Context, job jobs.Job) error 
 	if err != nil {
 		return err
 	}
-	if !recoverySMTPReady(values) {
+	if values.LDAPEnabled || !recoverySMTPReady(values) {
 		return jobs.ErrSkip
 	}
 	if job.Kind == PasswordChangedJobKind {

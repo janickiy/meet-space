@@ -131,3 +131,76 @@ func TestParseEntryPreservesImmutableIDsAndDisabledAD(t *testing.T) {
 		t.Fatal("missing ID accepted", err)
 	}
 }
+
+type emailConnectionProbe struct {
+	results     []*ldap.SearchResult
+	requests    []*ldap.SearchRequest
+	binds       []string
+	userBindErr error
+}
+
+func (p *emailConnectionProbe) Bind(dn, password string) error {
+	p.binds = append(p.binds, dn)
+	if len(p.binds) > 1 {
+		return p.userBindErr
+	}
+	return nil
+}
+func (p *emailConnectionProbe) Search(request *ldap.SearchRequest) (*ldap.SearchResult, error) {
+	p.requests = append(p.requests, request)
+	if len(p.requests) > len(p.results) {
+		return nil, errors.New("unexpected search")
+	}
+	return p.results[len(p.requests)-1], nil
+}
+
+func TestEmailAuthenticationKeepsLoginIdentityAndChecksMembership(t *testing.T) {
+	cfg := directory.Config{Mode: directory.ModeGeneric, UserFilter: "(objectClass=person)", LoginAttribute: "uid", EmailAttribute: "mail", IDAttribute: "entryUUID", NameAttribute: "cn", UsersDN: "ou=people,dc=example,dc=test", GroupMembershipAttribute: "memberOf", GroupDN: "cn=allowed,ou=groups,dc=example,dc=test", BindDN: "cn=service,dc=example,dc=test"}
+	raw := ldap.NewEntry("uid=employee,ou=people,dc=example,dc=test", map[string][]string{
+		"entryUUID": {"123e4567-e89b-12d3-a456-426614174000"}, "uid": {"employee"}, "mail": {"employee@example.test"}, "cn": {"Employee"},
+	})
+	other := ldap.NewEntry("uid=other,ou=people,dc=example,dc=test", nil)
+	for _, test := range []struct {
+		name                   string
+		first, allowed         []*ldap.Entry
+		bindErr, errorExpected error
+		searches, binds        int
+	}{
+		{"allowed", []*ldap.Entry{raw}, []*ldap.Entry{raw}, nil, nil, 2, 2},
+		{"missing", nil, nil, nil, directory.ErrInvalidCredentials, 1, 1},
+		{"duplicate email", []*ldap.Entry{raw, other}, nil, nil, directory.ErrIncompleteScan, 1, 1},
+		{"outside group", []*ldap.Entry{raw}, nil, nil, directory.ErrNotAllowed, 2, 1},
+		{"membership changed", []*ldap.Entry{raw}, []*ldap.Entry{other}, nil, directory.ErrNotAllowed, 2, 1},
+		{"wrong password", []*ldap.Entry{raw}, []*ldap.Entry{raw}, ldap.NewError(ldap.LDAPResultInvalidCredentials, errors.New("invalid")), directory.ErrInvalidCredentials, 2, 2},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			conn := &emailConnectionProbe{results: []*ldap.SearchResult{{Entries: test.first}, {Entries: test.allowed}}, userBindErr: test.bindErr}
+			entry, err := authenticateConnection(conn, cfg, cfg.EmailAttribute, "employee@example.test", "password")
+			if !errors.Is(err, test.errorExpected) || len(conn.requests) != test.searches || len(conn.binds) != test.binds {
+				t.Fatalf("err=%v searches=%d binds=%d", err, len(conn.requests), len(conn.binds))
+			}
+			if test.errorExpected == nil && (entry.Login != "employee" || entry.Email != "employee@example.test" || entry.ExternalID != "123e4567-e89b-12d3-a456-426614174000") {
+				t.Fatal("email lookup rewrote the stable directory identity")
+			}
+			for i, request := range conn.requests {
+				if request.SizeLimit != 2 || !strings.Contains(request.Filter, "(mail=employee@example.test)") || strings.Contains(request.Filter, "(uid=") {
+					t.Fatalf("wrong email lookup: %s", request.Filter)
+				}
+				if i == 1 && !strings.Contains(request.Filter, "(memberOf=cn=allowed,ou=groups,dc=example,dc=test)") {
+					t.Fatal("email lookup skipped configured group restriction")
+				}
+			}
+		})
+	}
+}
+
+func TestEmailFilterEscapesMetacharacters(t *testing.T) {
+	cfg := directory.Config{UserFilter: "(objectClass=person)", EmailAttribute: "mail", LoginAttribute: "uid"}
+	filter := identityFilter(cfg, cfg.EmailAttribute, "person*)(mail=*)@example.test", false)
+	if strings.Contains(filter, "(mail=*)") || !strings.Contains(filter, `\2a`) {
+		t.Fatalf("email input escaped incorrectly: %s", filter)
+	}
+	if _, err := ldap.CompileFilter(filter); err != nil {
+		t.Fatal(err)
+	}
+}

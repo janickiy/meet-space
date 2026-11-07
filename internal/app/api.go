@@ -158,7 +158,7 @@ func RunAPI() error {
 	}
 	authService.WithSessions(postgresinfra.NewAuthSessionRepository(db))
 	directoryService := newDirectoryService(db, settings)
-	authService.WithLDAP(directoryService)
+	authService.WithLDAP(directoryService).WithAuthenticationPolicy(settings)
 	verificationCipher, err := security.NewProviderTokens(cfg.StageSeven.EncryptionKey)
 	if err != nil {
 		return err

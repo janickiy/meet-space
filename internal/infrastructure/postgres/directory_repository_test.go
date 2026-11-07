@@ -21,6 +21,7 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
 	"github.com/janickiy/meet-space/internal/domain/directory"
 	"github.com/janickiy/meet-space/internal/domain/jobs"
+	"github.com/janickiy/meet-space/internal/domain/settings"
 	"github.com/janickiy/meet-space/internal/domain/users"
 	"github.com/janickiy/meet-space/internal/infrastructure/security"
 	authusecase "github.com/janickiy/meet-space/internal/usecase/auth"
@@ -249,7 +250,8 @@ func TestLDAPAuthLocalBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.WithSessions(NewAuthSessionRepository(db)).WithLDAP(ldapAuditProvider{user})
+	policy := &verificationPolicy{values: settings.Values{LDAPEnabled: true}}
+	auth.WithSessions(NewAuthSessionRepository(db)).WithLDAP(ldapAuditProvider{user}).WithAuthenticationPolicy(policy)
 	login, err := auth.LDAPLogin(ctx, users.LDAPLoginRequest{Login: entry.Login, Password: "synthetic-password"})
 	if err != nil {
 		t.Fatal(err)
@@ -271,13 +273,15 @@ func TestLDAPAuthLocalBoundary(t *testing.T) {
 	if err := db.Exec("UPDATE users SET password_hash='synthetic-not-a-login-hash' WHERE id=?", user.ID).Error; err != nil {
 		t.Fatal(err)
 	}
+	policy.values.LDAPEnabled = false
 	if _, err := auth.Login(ctx, users.LoginRequest{Email: entry.Email, Password: "synthetic-password"}); !errors.Is(err, apperrors.ErrUnauthorized) {
 		t.Fatalf("LDAP local-password bypass: %v", err)
 	}
+	policy.values.LDAPEnabled = true
 	recovery := NewPasswordRecoveryRepository(db)
 	value := authusecase.PasswordRecovery{ID: uuid.NewString(), TokenHash: strings.Repeat("a", 64), TokenCiphertext: "synthetic", ExpiresAt: time.Now().Add(time.Hour)}
-	if err := recovery.Request(ctx, user, value); err != nil {
-		t.Fatal(err)
+	if err := recovery.Request(ctx, user, value); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatal("password recovery allowed in LDAP-only mode", err)
 	}
 	var count int64
 	if err := db.Table("password_recoveries").Count(&count).Error; err != nil || count != 0 {

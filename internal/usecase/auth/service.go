@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	platformsettings "github.com/janickiy/meet-space/internal/domain/settings"
 	"github.com/janickiy/meet-space/internal/domain/users"
 )
 
@@ -137,6 +138,7 @@ type Service struct {
 	verification *verificationOptions
 	recovery     *passwordRecoveryOptions
 	ldap         LDAPAuthenticator
+	authPolicy   platformsettings.Reader
 }
 
 // NewService создаёт сервис с зависимостями и ограничениями, необходимыми для аутентификации
@@ -171,6 +173,9 @@ func NewService(repository userRepository, passwords passwordHasher, tokens toke
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (users.View, error) {
+	if err := s.requireLocalAuthentication(ctx); err != nil {
+		return users.View{}, err
+	}
 	request, err := users.NormalizeRegister(request)
 	if err != nil {
 		return users.View{}, err
@@ -191,6 +196,9 @@ func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (
 	}
 	required, err := s.verificationEnabled(ctx)
 	if err != nil {
+		return users.View{}, err
+	}
+	if err := s.requireLocalAuthentication(ctx); err != nil {
 		return users.View{}, err
 	}
 	user := users.User{ID: uuid.NewString(), Email: request.Email, PasswordHash: hash, DisplayName: request.DisplayName, EmailVerificationRequired: required}
@@ -222,6 +230,13 @@ func (s *Service) Register(ctx context.Context, request users.RegisterRequest) (
 //     передачи данных или сохранения.
 func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.LoginResponse, error) {
 	request.Email = users.NormalizeEmail(request.Email)
+	ldapOnly, err := s.ldapOnly(ctx)
+	if err != nil {
+		return users.LoginResponse{}, err
+	}
+	if ldapOnly {
+		return s.ldapEmailLogin(ctx, request)
+	}
 	// В старых учетных записях пароли могут быть короче восьми символов, поскольку по старому
 	// правилу учитывались байты.  Применять новый минимальный размер пароля только при
 	// регистрации; не отклонять пароли, которые в остальном соответствуют требованиям.
@@ -275,6 +290,9 @@ func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 		return users.View{}, apperrors.ErrAccountBlocked
 	}
 	if err != nil {
+		return users.View{}, err
+	}
+	if err := s.requireAccountMode(ctx, user); err != nil {
 		return users.View{}, err
 	}
 	if err := s.enforceEmailVerification(ctx, user); err != nil {

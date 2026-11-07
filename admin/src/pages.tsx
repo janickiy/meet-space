@@ -1639,15 +1639,19 @@ function SettingsEditor({ data }: { data: Settings }) {
                     {item.key in drafts && !isSecretSetting(item) && (
                       <p className="setting-help">
                         Сохранено:{" "}
-                        {typeof item.value === "boolean"
+                        {item.key === "ldapEnabled"
                           ? item.value
-                            ? "Включено"
-                            : "Выключено"
-                          : item.key === "ldapCA"
+                            ? "Только LDAP"
+                            : "Локальные аккаунты"
+                          : typeof item.value === "boolean"
                             ? item.value
-                              ? "Сертификат задан"
-                              : "Системные центры сертификации"
-                            : `${settingInput(item) || "не задано"}${item.key === "attachmentMaxBytes" ? " MiB" : ""}`}
+                              ? "Включено"
+                              : "Выключено"
+                            : item.key === "ldapCA"
+                              ? item.value
+                                ? "Сертификат задан"
+                                : "Системные центры сертификации"
+                              : `${settingInput(item) || "не задано"}${item.key === "attachmentMaxBytes" ? " MiB" : ""}`}
                       </p>
                     )}
                   </div>
@@ -1659,7 +1663,13 @@ function SettingsEditor({ data }: { data: Settings }) {
                       </Badge>
                     ) : typeof item.value === "boolean" ? (
                       <Badge kind={item.value ? "good" : "neutral"}>
-                        {item.value ? "Включено" : "Выключено"}
+                        {item.key === "ldapEnabled"
+                          ? item.value
+                            ? "Только LDAP"
+                            : "Локальные аккаунты"
+                          : item.value
+                            ? "Включено"
+                            : "Выключено"}
                       </Badge>
                     ) : (
                       <span>
@@ -1746,6 +1756,17 @@ function SettingField({
     "aria-invalid": invalid,
     disabled,
   };
+  if (item.key === "ldapEnabled")
+    return (
+      <select
+        {...common}
+        value={value === true ? "true" : "false"}
+        onChange={(event) => change(event.target.value === "true")}
+      >
+        <option value="false">Локальные аккаунты</option>
+        <option value="true">Только LDAP</option>
+      </select>
+    );
   if (item.type === "boolean")
     return (
       <button

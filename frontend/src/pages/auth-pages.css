@@ -65,8 +65,9 @@
 .auth-business-story-copy {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   flex: 1;
-  padding: 28px 32px;
+  padding: 36px 40px;
 }
 .auth-story-kicker {
   display: flex;
@@ -83,22 +84,25 @@
   color: #def1b7;
 }
 .auth-business-story h2 {
-  margin: 16px 0 14px;
-  font-size: calc(clamp(26px, 2.4vw, 34px) * var(--text-scale));
+  margin: 20px 0 18px;
+  font-size: calc(clamp(30px, 2.5vw, 38px) * var(--text-scale));
   font-weight: 600;
   line-height: 1.2;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
   overflow-wrap: anywhere;
 }
 .auth-business-story h2 span {
+  display: block;
   color: #def1b7;
 }
 .auth-story-description {
-  max-width: 500px;
+  max-width: 49ch;
   margin: 0;
-  color: #d2c8d9;
-  font-size: var(--text-sm);
-  line-height: 1.7;
+  color: #ded5e4;
+  font-size: calc(clamp(15px, 1.1vw, 16px) * var(--text-scale));
+  line-height: 1.65;
+  text-wrap: pretty;
 }
 .auth-story-features {
   display: flex;
@@ -410,7 +414,7 @@
     padding: 28px;
   }
   .auth-business-story-copy {
-    padding: 24px;
+    padding: 28px;
   }
 }
 @media (max-width: 1023px) {

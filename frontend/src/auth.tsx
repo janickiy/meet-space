@@ -31,11 +31,7 @@ interface Auth {
   expired: boolean;
   blocked: boolean;
   startupError: boolean;
-  login: (
-    email: string,
-    password: string,
-    provider?: "local" | "ldap",
-  ) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   switchAccount: (id: string) => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
   updateProfile: (displayName: string) => Promise<User>;
@@ -448,11 +444,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   }
 
-  async function login(
-    email: string,
-    password: string,
-    provider: "local" | "ldap" = "local",
-  ) {
+  async function login(email: string, password: string) {
     const expected = ++generation.current;
     identityController.current?.abort();
     const controller = new AbortController();
@@ -460,9 +452,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     renewalController.current?.abort();
     renewal.current = null;
     try {
-      const result = await (provider === "ldap"
-        ? api.ldapLogin(email, password, controller.signal)
-        : api.login(email, password, controller.signal));
+      const result = await api.login(email, password, controller.signal);
       if (await acceptSession(result, expected))
         announceAccount(result.user.id);
     } finally {

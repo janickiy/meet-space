@@ -11,6 +11,7 @@ package authapp
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/janickiy/meet-space/internal/app/httpresponse"
@@ -118,11 +119,14 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 	c.Header("Cache-Control", "no-store")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32*1024)
 	var request users.LoginRequest
 	if !httpresponse.BindJSON(c, &request, false) {
 		return
 	}
-	response, err := h.service.Login(c.Request.Context(), request)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	response, err := h.service.Login(ctx, request)
 	if err != nil {
 		httpresponse.Fail(c, err)
 		return

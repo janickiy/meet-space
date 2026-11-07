@@ -52,6 +52,13 @@ const USER = {
           contentType: "application/json",
           body: JSON.stringify(data),
         });
+      if (endpoint === "/auth/providers")
+        return send({
+          mode: "local",
+          registrationEnabled: true,
+          passwordRecoveryEnabled: true,
+          ldap: { enabled: false, label: "Корпоративный вход" },
+        });
       if (endpoint === "/auth/refresh")
         return send({ message: "unauthorized" }, 401);
       if (endpoint === "/auth/password-recovery") {

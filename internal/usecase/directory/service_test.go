@@ -169,3 +169,36 @@ func TestDisabledDirectoryRetainsLocalOnlyOperation(t *testing.T) {
 		t.Fatal("disabled LDAP performed work")
 	}
 }
+
+type emailClientProbe struct {
+	clientStub
+	cfg   domain.Config
+	email string
+}
+
+func (c *emailClientProbe) AuthenticateEmail(_ context.Context, cfg domain.Config, email, password string) (domain.Entry, error) {
+	c.cfg, c.email = cfg, email
+	return domain.Entry{ExternalID: "stable-id", Login: "employee", Email: email}, c.err
+}
+
+func TestEmailLoginPreservesDirectoryIdentityConfiguration(t *testing.T) {
+	cfg := domain.Config{Enabled: true, Revision: 7, TimeoutSeconds: 5, LoginAttribute: "sAMAccountName", EmailAttribute: "mail"}
+	client, accounts := &emailClientProbe{}, &accountsStub{}
+	service := New(settingsStub{cfg}, client, accounts, &queueStub{})
+	if _, err := service.AuthenticateEmail(context.Background(), "employee@example.invalid", "password"); err != nil {
+		t.Fatal(err)
+	}
+	if client.cfg.LoginAttribute != "sAMAccountName" || client.cfg.EmailAttribute != "mail" || client.email != "employee@example.invalid" || client.called || !accounts.called {
+		t.Fatal("email login rewrote LDAP identity or used legacy lookup")
+	}
+}
+
+func TestEmailLoginFailureDoesNotCreateDirectoryAccount(t *testing.T) {
+	for _, cause := range []error{domain.ErrInvalidCredentials, domain.ErrNotAllowed, domain.ErrUnavailable, domain.ErrIncompleteScan} {
+		client, accounts := &emailClientProbe{clientStub: clientStub{err: cause}}, &accountsStub{}
+		service := New(settingsStub{domain.Config{Enabled: true, TimeoutSeconds: 5}}, client, accounts, &queueStub{})
+		if _, err := service.AuthenticateEmail(context.Background(), "employee@example.invalid", "password"); err == nil || accounts.called {
+			t.Fatalf("failed email login reached account persistence: %v", err)
+		}
+	}
+}

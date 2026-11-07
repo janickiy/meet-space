@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Plus, Trash2, UserRound } from "lucide-react";
@@ -8,8 +8,7 @@ import { useAuth } from "../auth";
 import { passwordLength, utf8Bytes } from "../utils";
 import { UserAvatar } from "./UserAvatar";
 import { Button, ErrorNotice, Loading } from "./ui";
-import { LoginProviderChoice, useLoginProviders } from "./LoginProviderChoice";
-import type { LoginProvider } from "./LoginProviderChoice";
+import { AuthPolicyStatus, useAuthPolicy } from "./AuthPolicy";
 import "./account-management.css";
 
 export function AccountManagement() {
@@ -23,9 +22,8 @@ export function AccountManagement() {
   const [mode, setMode] = useState<"login" | "register" | "delete" | null>(
     null,
   );
-  const [provider, setProvider] = useState<LoginProvider>("local");
-  const providers = useLoginProviders(mode === "login");
-  const corporate = mode === "login" && provider === "ldap";
+  const policy = useAuthPolicy();
+  const corporate = mode === "login" && policy.directoryOnly;
   const managed = auth.user?.authSource === "ldap";
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -41,7 +39,14 @@ export function AccountManagement() {
     auth.user && !items.some((item) => item.id === auth.user!.id)
       ? [auth.user, ...items]
       : items;
+  useEffect(() => {
+    if (mode === "register" && policy.ready && !policy.registrationAllowed) {
+      setMode("login");
+      setPassword("");
+    }
+  }, [mode, policy.ready, policy.registrationAllowed]);
   function choose(next: typeof mode) {
+    if (next === "register" && !policy.registrationAllowed) return;
     setMode(next);
     setPassword("");
     setError(undefined);
@@ -64,6 +69,8 @@ export function AccountManagement() {
     event.preventDefault();
     setError(undefined);
     setValidation("");
+    if (mode !== "delete" && !policy.ready) return;
+    if (mode === "register" && !policy.registrationAllowed) return;
     if (
       corporate &&
       (!email.trim() ||
@@ -72,7 +79,7 @@ export function AccountManagement() {
         utf8Bytes(password) > 4096 ||
         password.includes("\0"))
     ) {
-      setValidation("Укажите корректный корпоративный логин и пароль.");
+      setValidation("Укажите корректный email и пароль.");
       return;
     }
     if (
@@ -88,7 +95,7 @@ export function AccountManagement() {
       if (mode === "delete") await auth.deleteAccount(password);
       else {
         if (mode === "register") await api.register(email, password, name);
-        await auth.login(email.trim(), password, corporate ? "ldap" : "local");
+        await auth.login(email.trim(), password);
       }
       setPassword("");
       navigate("/app/settings#accounts", { replace: true });
@@ -163,139 +170,134 @@ export function AccountManagement() {
           )}
         </div>
       )}
-      {mode && (
-        <form
-          className="account-management-form"
-          onSubmit={(event) => void submit(event)}
-        >
-          <h3>
-            {mode === "delete"
-              ? "Удалить аккаунт с сервера"
-              : mode === "register"
-                ? "Создать новый аккаунт"
-                : "Войти в другой аккаунт"}
-          </h3>
-          {mode !== "delete" && (
-            <>
-              <div className="account-add-modes">
-                <Button
-                  variant="secondary"
-                  disabled={busy || mode === "login"}
-                  onClick={() => choose("login")}
-                >
-                  <UserRound size={16} aria-hidden="true" /> Войти
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={busy || mode === "register"}
-                  onClick={() => choose("register")}
-                >
-                  Создать аккаунт
-                </Button>
-              </div>
-              {mode === "login" &&
-                (providers.data?.ldap?.enabled || corporate) && (
-                  <LoginProviderChoice
-                    value={provider}
-                    disabled={busy}
-                    change={(value) => {
-                      setProvider(value);
-                      setPassword("");
-                      setValidation("");
-                      setError(undefined);
-                    }}
-                  />
+      {mode && mode !== "delete" && !policy.ready && (
+        <AuthPolicyStatus policy={policy} />
+      )}
+      {mode &&
+        (mode === "delete" ||
+          (policy.ready &&
+            (mode !== "register" || policy.registrationAllowed))) && (
+          <form
+            className="account-management-form"
+            onSubmit={(event) => void submit(event)}
+          >
+            <h3>
+              {mode === "delete"
+                ? "Удалить аккаунт с сервера"
+                : mode === "register"
+                  ? "Создать новый аккаунт"
+                  : "Войти в другой аккаунт"}
+            </h3>
+            {mode !== "delete" && (
+              <>
+                {policy.registrationAllowed && (
+                  <div className="account-add-modes">
+                    <Button
+                      variant="secondary"
+                      disabled={busy || mode === "login"}
+                      onClick={() => choose("login")}
+                    >
+                      <UserRound size={16} aria-hidden="true" /> Войти
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={busy || mode === "register"}
+                      onClick={() => choose("register")}
+                    >
+                      Создать аккаунт
+                    </Button>
+                  </div>
                 )}
-              {mode === "register" && (
+                {mode === "register" && (
+                  <label className="field">
+                    <span>Имя</span>
+                    <input
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      maxLength={100}
+                      autoComplete="name"
+                      disabled={busy}
+                    />
+                  </label>
+                )}
                 <label className="field">
-                  <span>Имя</span>
+                  <span>Email</span>
                   <input
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    maxLength={100}
-                    autoComplete="name"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                    maxLength={254}
+                    autoComplete="username"
                     disabled={busy}
                   />
                 </label>
-              )}
-              <label className="field">
-                <span>{corporate ? "Корпоративный логин" : "Email"}</span>
-                <input
-                  type={corporate ? "text" : "email"}
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                  maxLength={254}
-                  autoComplete="username"
-                  disabled={busy}
-                />
-              </label>
-            </>
-          )}
-          {mode === "delete" && (
-            <>
-              <p>
-                Аккаунт <strong>{auth.user?.email}</strong> будет удалён. Данные
-                входа и личные настройки будут очищены, все сессии завершены.
-                Общая история встреч и переписки останется с именем «Удалённый
-                аккаунт».
-              </p>
-              <p className="field-hint">
-                Перед удалением передайте владение группами или удалите их,
-                завершите или отмените созданные встречи и выйдите из звонков.
-              </p>
-            </>
-          )}
-          <label className="field">
-            <span>
-              {mode === "delete" ? "Пароль текущего аккаунта" : "Пароль"}
-            </span>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              maxLength={corporate ? 4096 : 128}
-              autoComplete={
-                mode === "register" ? "new-password" : "current-password"
-              }
-              disabled={busy}
-            />
-          </label>
-          {mode === "delete" && (
-            <label className="account-delete-confirm">
+              </>
+            )}
+            {mode === "delete" && (
+              <>
+                <p>
+                  Аккаунт <strong>{auth.user?.email}</strong> будет удалён.
+                  Данные входа и личные настройки будут очищены, все сессии
+                  завершены. Общая история встреч и переписки останется с именем
+                  «Удалённый аккаунт».
+                </p>
+                <p className="field-hint">
+                  Перед удалением передайте владение группами или удалите их,
+                  завершите или отмените созданные встречи и выйдите из звонков.
+                </p>
+              </>
+            )}
+            <label className="field">
+              <span>
+                {mode === "delete" ? "Пароль текущего аккаунта" : "Пароль"}
+              </span>
               <input
-                type="checkbox"
-                checked={confirmed}
-                onChange={(event) => setConfirmed(event.target.checked)}
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                maxLength={corporate ? 4096 : 128}
+                autoComplete={
+                  mode === "register" ? "new-password" : "current-password"
+                }
                 disabled={busy}
-              />{" "}
-              Я понимаю, что удаление нельзя отменить
+              />
             </label>
-          )}
-          <div className="account-management-actions">
-            <Button
-              variant={mode === "delete" ? "danger" : "primary"}
-              type="submit"
-              busy={busy}
-              disabled={mode === "delete" && !confirmed}
-            >
-              {mode === "delete"
-                ? "Удалить аккаунт навсегда"
-                : mode === "register"
-                  ? "Создать и войти"
-                  : "Войти и добавить"}
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={busy}
-              onClick={() => choose(null)}
-            >
-              Отмена
-            </Button>
-          </div>
-        </form>
-      )}
+            {mode === "delete" && (
+              <label className="account-delete-confirm">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(event) => setConfirmed(event.target.checked)}
+                  disabled={busy}
+                />{" "}
+                Я понимаю, что удаление нельзя отменить
+              </label>
+            )}
+            <div className="account-management-actions">
+              <Button
+                variant={mode === "delete" ? "danger" : "primary"}
+                type="submit"
+                busy={busy}
+                disabled={mode === "delete" && !confirmed}
+              >
+                {mode === "delete"
+                  ? "Удалить аккаунт навсегда"
+                  : mode === "register"
+                    ? "Создать и войти"
+                    : "Войти и добавить"}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={busy}
+                onClick={() => choose(null)}
+              >
+                Отмена
+              </Button>
+            </div>
+          </form>
+        )}
       {managed && (
         <p className="field-hint">
           Учётной записью управляет ваша организация. Для удаления обратитесь к

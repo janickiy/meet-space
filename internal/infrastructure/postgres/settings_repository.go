@@ -47,6 +47,16 @@ func (r *SettingsRepository) Save(ctx context.Context, input settings.SaveInput,
 		if row.Revision != input.ExpectedRevision {
 			return apperrors.New(apperrors.ErrConflict, "Настройки уже изменены. Обновите страницу и повторите изменения.")
 		}
+		var previous, next struct {
+			LDAPEnabled bool `json:"ldapEnabled"`
+		}
+		if err := json.Unmarshal(row.Values, &previous); err != nil {
+			return err
+		}
+		if err := json.Unmarshal(input.Overrides, &next); err != nil {
+			return err
+		}
+		modeChanged := previous.LDAPEnabled != next.LDAPEnabled
 		if err := tx.Model(&row).Updates(map[string]any{
 			"revision": row.Revision + 1, "values": gorm.Expr("?::jsonb", string(input.Overrides)),
 			"smtp_password_ciphertext": input.SMTPPasswordCiphertext, "updated_at": gorm.Expr("clock_timestamp()"),
@@ -54,15 +64,15 @@ func (r *SettingsRepository) Save(ctx context.Context, input settings.SaveInput,
 		}).Error; err != nil {
 			return err
 		}
-		if ldapSecurityChanged(input.Fields) {
+		if modeChanged || ldapSecurityChanged(input.Fields) {
 			// Смена источника или правил доступа немедленно аннулирует прежние SID.
-			if err := tx.Exec(`UPDATE users SET auth_version=auth_version+1, auth_invalid_before=clock_timestamp(), updated_at=clock_timestamp() WHERE auth_source='ldap' AND deleted_at IS NULL`).Error; err != nil {
+			if err := tx.Exec(`UPDATE users SET auth_version=auth_version+1, auth_invalid_before=clock_timestamp(), updated_at=clock_timestamp() WHERE (auth_source='ldap' OR (? AND auth_source='local')) AND guest_conference_id IS NULL AND deleted_at IS NULL`, modeChanged).Error; err != nil {
 				return err
 			}
-			if err := tx.Exec(`UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE user_id IN (SELECT id FROM users WHERE auth_source='ldap')`).Error; err != nil {
+			if err := tx.Exec(`UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE user_id IN (SELECT id FROM users WHERE (auth_source='ldap' OR (? AND auth_source='local')) AND guest_conference_id IS NULL)`, modeChanged).Error; err != nil {
 				return err
 			}
-			if err := tx.Exec(`UPDATE auth_legacy_tokens SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE user_id IN (SELECT id FROM users WHERE auth_source='ldap')`).Error; err != nil {
+			if err := tx.Exec(`UPDATE auth_legacy_tokens SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE user_id IN (SELECT id FROM users WHERE (auth_source='ldap' OR (? AND auth_source='local')) AND guest_conference_id IS NULL)`, modeChanged).Error; err != nil {
 				return err
 			}
 		}

@@ -48,7 +48,14 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (r *UserRepository) Create(ctx context.Context, user users.User) (users.User, error) {
-	err := r.db.WithContext(ctx).Create(&user).Error
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if user.GuestConferenceID == nil && !user.IsLDAP() {
+			if err := requireLocalAuthentication(tx); err != nil {
+				return err
+			}
+		}
+		return tx.Create(&user).Error
+	})
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "users_email_key" {
 		return users.User{}, apperrors.New(apperrors.ErrConflict, "email is already registered")

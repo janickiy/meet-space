@@ -144,6 +144,32 @@ const item = (key, type, value, extra = {}) => ({
     await page.getByText("Изменения сохранены.", { exact: true }).waitFor();
     assert.equal(calls[0].body.changes.ldapMode, "generic");
     assert.equal(calls[0].body.changes.ldapBindPassword, undefined);
+    const modeField = page.getByLabel("ldapEnabled", { exact: true });
+    assert.deepEqual(await modeField.locator("option").allTextContents(), [
+      "Локальные аккаунты",
+      "Только LDAP",
+    ]);
+    assert.equal(await modeField.inputValue(), "true");
+    await modeField.selectOption("false");
+    await page.getByText("Сохранено: Только LDAP", { exact: true }).waitFor();
+    await page
+      .getByRole("button", { name: "Сохранить изменения", exact: true })
+      .click();
+    await page.waitForFunction(() =>
+      document.body.textContent.includes("Все изменения сохранены"),
+    );
+    assert.equal(calls.at(-1).body.changes.ldapEnabled, false);
+    await modeField.selectOption("true");
+    await page
+      .getByText("Сохранено: Локальные аккаунты", { exact: true })
+      .waitFor();
+    await page
+      .getByRole("button", { name: "Сохранить изменения", exact: true })
+      .click();
+    await page.waitForFunction(() =>
+      document.body.textContent.includes("Все изменения сохранены"),
+    );
+    assert.equal(calls.at(-1).body.changes.ldapEnabled, true);
     await testButton.click();
     await page.getByText(/Проверено записей: 3/).waitFor();
     await page

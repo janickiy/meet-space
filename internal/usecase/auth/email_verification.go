@@ -89,6 +89,9 @@ func (s *Service) newVerification(userID string) (Verification, error) {
 	return value, err
 }
 func (s *Service) VerifyEmail(ctx context.Context, token string) error {
+	if err := s.requireLocalAuthentication(ctx); err != nil {
+		return err
+	}
 	if s.verification == nil {
 		return apperrors.ErrUnavailable
 	}
@@ -100,6 +103,9 @@ func (s *Service) VerifyEmail(ctx context.Context, token string) error {
 	return s.verification.repo.Consume(ctx, hex.EncodeToString(digest[:]))
 }
 func (s *Service) ResendVerification(ctx context.Context, email string) error {
+	if err := s.requireLocalAuthentication(ctx); err != nil {
+		return err
+	}
 	if s.verification == nil {
 		return apperrors.ErrUnavailable
 	}
@@ -141,7 +147,7 @@ func (s VerificationSender) Handle(ctx context.Context, job jobs.Job) error {
 	if err != nil {
 		return err
 	}
-	if !values.EmailVerificationRequired || !values.SMTPEnabled {
+	if values.LDAPEnabled || !values.EmailVerificationRequired || !values.SMTPEnabled {
 		return jobs.ErrSkip
 	}
 	delivery, err := s.Repo.Delivery(ctx, job)

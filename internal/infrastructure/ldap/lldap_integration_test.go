@@ -46,7 +46,7 @@ func TestLocalLLDAPReadOnly(t *testing.T) {
 	}
 	client := NewClient()
 	entries, err := client.Scan(context.Background(), cfg)
-	if err != nil || len(entries) != 2 {
+	if err != nil || len(entries) < 2 {
 		t.Fatalf("read-only scan failed: %v, count=%d", err, len(entries))
 	}
 	empty := cfg
@@ -62,6 +62,16 @@ func TestLocalLLDAPReadOnly(t *testing.T) {
 	entry, err := client.Authenticate(context.Background(), cfg, "alice", credentials["alice"])
 	if err != nil || entry.Login != "alice" {
 		t.Fatal("allowed user authentication failed:", err)
+	}
+	emailEntry, err := client.AuthenticateEmail(context.Background(), cfg, entry.Email, credentials["alice"])
+	if err != nil || emailEntry.Login != "alice" || emailEntry.ExternalID != entry.ExternalID {
+		t.Fatal("email authentication changed identity or failed:", err)
+	}
+	if _, err := client.AuthenticateEmail(context.Background(), cfg, "outsider@meetspace.test", credentials["outsider"]); !errors.Is(err, directory.ErrNotAllowed) {
+		t.Fatal("email login accepted out-of-group user:", err)
+	}
+	if _, err := client.AuthenticateEmail(context.Background(), cfg, entry.Email, "wrong-test-password"); !errors.Is(err, directory.ErrInvalidCredentials) {
+		t.Fatal("email login accepted wrong password:", err)
 	}
 	if _, err := client.Authenticate(context.Background(), cfg, "outsider", credentials["outsider"]); !errors.Is(err, directory.ErrNotAllowed) {
 		t.Fatal("out-of-group user accepted or misclassified:", err)

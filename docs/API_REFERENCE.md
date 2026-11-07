@@ -1555,9 +1555,18 @@
 
 ## Аккаунты и конференции
 
+### `GET /api/v1/auth/providers`
+
+Публичная политика авторизации, `Cache-Control: no-store`.
+
+- **Ответ:** 200: `mode` (`local` или `ldap`), `registrationEnabled`, `passwordRecoveryEnabled`, `ldap: {enabled, label}`.
+- **Ошибки:** 503, если настройки временно недоступны. Клиент не должен разрешать регистрацию или восстановление до успешного получения политики.
+
+Источники: [internal/app/auth/ldap.go](../internal/app/auth/ldap.go).
+
 ### `POST /api/v1/auth/register`
 
-Регистрация учетной записи.
+Регистрация локальной учётной записи. В режиме «Только LDAP» недоступна.
 
 - **Доступ:** Публичный; same-origin
 
@@ -1565,13 +1574,16 @@
 
 - **Ответ:** 201: status, user
 
-- **Ошибки:** 409 email занят; 422 — недопустимые поля запроса; 403 origin; 415 Content-Type
+- **Ошибки:** 409 email занят; 422 — недопустимые поля запроса; 403 origin или режим «Только LDAP»; 415 Content-Type
 
 Источники: [internal/transport/http/platform_routes.go:22](../internal/transport/http/platform_routes.go#L22), [internal/app/auth/handler.go:86](../internal/app/auth/handler.go#L86).
 
 ### `POST /api/v1/auth/login`
 
-Вход и сохранение браузерного сеанса.
+Вход и сохранение браузерного сеанса. Источник проверки выбирает сервер по режиму
+из админки: локальный пароль либо LDAP. В LDAP ищется единственная запись по
+настроенному атрибуту email, затем проверяются группа доступа и пароль каталога.
+Перехода к локальной проверке при ошибке LDAP нет.
 
 - **Доступ:** Публичный; same-origin
 
@@ -1579,7 +1591,7 @@
 
 - **Ответ:** 200: status, accessToken, tokenType, expiresIn, user; Set-Cookie
 
-- **Ошибки:** 401 неверные данные; 409 лимит 5 аккаунтов в браузере; 403 origin; 415 Content-Type
+- **Ошибки:** 401 неверные данные; 409 лимит 5 аккаунтов в браузере; 403 origin; 415 Content-Type; 503 недоступность каталога или настроек
 
 Источники: [internal/transport/http/platform_routes.go:23](../internal/transport/http/platform_routes.go#L23), [internal/app/auth/handler.go:107](../internal/app/auth/handler.go#L107).
 

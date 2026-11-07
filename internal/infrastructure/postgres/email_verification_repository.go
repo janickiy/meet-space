@@ -28,6 +28,9 @@ func queueVerification(tx *gorm.DB, v authusecase.Verification) error {
 }
 func (r *EmailVerificationRepository) CreatePending(ctx context.Context, user users.User, v authusecase.Verification) (users.User, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := requireLocalAuthentication(tx); err != nil {
+			return err
+		}
 		if err := tx.Create(&user).Error; err != nil {
 			return err
 		}
@@ -41,6 +44,9 @@ func (r *EmailVerificationRepository) CreatePending(ctx context.Context, user us
 }
 func (r *EmailVerificationRepository) Resend(ctx context.Context, user users.User, v authusecase.Verification) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := requireLocalAuthentication(tx); err != nil {
+			return err
+		}
 		var eligible bool
 		result := tx.Raw(`SELECT email_verification_required AND email_verified_at IS NULL AND NOT is_blocked AS eligible FROM users WHERE id=?::uuid AND deleted_at IS NULL AND auth_source='local' AND guest_conference_id IS NULL FOR UPDATE`, user.ID).Scan(&eligible)
 		if result.Error != nil {
@@ -62,6 +68,9 @@ func (r *EmailVerificationRepository) Resend(ctx context.Context, user users.Use
 func (r *EmailVerificationRepository) Consume(ctx context.Context, hash string) error {
 	invalid := apperrors.New(apperrors.ErrInvalidInput, "invalid or expired verification link")
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := requireLocalAuthentication(tx); err != nil {
+			return err
+		}
 		// Match resend's users -> verification lock order.
 		var userID string
 		found := tx.Raw(`SELECT user_id FROM email_verifications WHERE token_hash=?`, hash).Scan(&userID)
@@ -113,7 +122,7 @@ func (r *EmailVerificationRepository) Delivery(ctx context.Context, job jobs.Job
 	result := r.db.WithContext(ctx).Raw(`SELECT v.id,v.user_id,v.token_hash,v.token_ciphertext,v.expires_at,u.email FROM email_verifications v JOIN users u ON u.id=v.user_id
  JOIN background_jobs j ON j.entity_id=v.id AND j.user_id=u.id
  WHERE v.id=?::uuid AND j.id=?::uuid AND j.state='processing' AND j.lease_token=?::uuid AND j.lease_until>clock_timestamp()
- AND v.consumed_at IS NULL AND v.expires_at>clock_timestamp() AND u.email_verified_at IS NULL AND u.email_verification_required AND NOT u.is_blocked`, job.EntityID, job.ID, job.LeaseToken).Scan(&value)
+ AND v.consumed_at IS NULL AND v.expires_at>clock_timestamp() AND u.email_verified_at IS NULL AND u.email_verification_required AND NOT u.is_blocked AND `+localAuthenticationModeSQL, job.EntityID, job.ID, job.LeaseToken).Scan(&value)
 	if result.Error != nil {
 		return value, result.Error
 	}

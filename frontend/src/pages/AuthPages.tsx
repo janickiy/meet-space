@@ -23,10 +23,10 @@ import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "../brand";
 import { Copyright } from "../components/Copyright";
 import { AuthTeamVisual } from "../components/AuthTeamVisual";
 import {
-  LoginProviderChoice,
-  useLoginProviders,
-} from "../components/LoginProviderChoice";
-import type { LoginProvider } from "../components/LoginProviderChoice";
+  AuthPolicyPage,
+  AuthPolicyStatus,
+  useAuthPolicy,
+} from "../components/AuthPolicy";
 import "./auth-pages.css";
 
 /**
@@ -48,16 +48,24 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [provider, setProvider] = useState<LoginProvider>("local");
-  const providers = useLoginProviders(!register);
-  const corporate = !register && provider === "ldap";
+  const policy = useAuthPolicy();
+  const corporate = !register && policy.directoryOnly;
   const [recovery, setRecovery] = useState("");
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const recoveryController = useRef<AbortController | null>(null);
   useEffect(() => () => recoveryController.current?.abort(), []);
   const [verificationNeeded, setVerificationNeeded] = useState(false);
   const submitted = useRef(false);
+  useEffect(() => {
+    if (!policy.recoveryAllowed) {
+      recoveryController.current?.abort();
+      setRecovery("");
+      setRecoveryBusy(false);
+      setVerificationNeeded(false);
+    }
+  }, [policy.recoveryAllowed]);
   async function recoverPassword() {
+    if (!policy.recoveryAllowed) return;
     recoveryController.current?.abort();
     setRecovery("");
     if (
@@ -88,6 +96,9 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   // Автоматический вход не должен прерывать переход на страницу успешной регистрации.
   if (auth.user && !auth.loading && !submitted.current)
     return <Navigate to={next} replace />;
+  if (register && !policy.ready) return <AuthPolicyPage policy={policy} />;
+  if (register && !policy.registrationAllowed)
+    return <Navigate to={`/login${nextQuery}`} replace />;
   /**
    * submit проверяет поля формы, отправляет изменение и показывает результат либо ошибку.
    *
@@ -98,19 +109,14 @@ export function AuthPage({ register = false }: { register?: boolean }) {
    */
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!policy.ready || (register && !policy.registrationAllowed)) return;
     setError("");
     setVerificationNeeded(false);
     if (
-      corporate
-        ? !email.trim() || utf8Bytes(email.trim()) > 254
-        : !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
-          utf8Bytes(email.trim()) > 254
+      !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
+      utf8Bytes(email.trim()) > 254
     ) {
-      setError(
-        corporate
-          ? "Введите корректный корпоративный логин."
-          : "Введите корректный email.",
-      );
+      setError("Введите корректный email.");
       return;
     }
     const size = passwordLength(password);
@@ -155,7 +161,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
         setPassword("");
         navigate(`/register/success${nextQuery}`, { replace: true });
       } else {
-        await auth.login(email.trim(), password, corporate ? "ldap" : "local");
+        await auth.login(email.trim(), password);
         setPassword("");
         navigate(next, { replace: true });
       }
@@ -191,13 +197,11 @@ export function AuthPage({ register = false }: { register?: boolean }) {
               <Video size={16} aria-hidden="true" /> НА СВЯЗИ С КОМАНДОЙ
             </span>
             <h2>
-              Рабочие встречи.
-              <br />
-              <span>Настоящее общение.</span>
+              Единое пространство <span>для встреч и общения.</span>
             </h2>
             <p className="auth-story-description">
-              Обсуждайте проекты с коллегами, проводите видеовстречи и
-              продолжайте работу в командных чатах.
+              Проводите видеоконференции, общайтесь с коллегами, обсуждайте
+              проекты и работайте вместе в одном пространстве.
             </p>
             <ul className="auth-story-features">
               <li>
@@ -218,20 +222,22 @@ export function AuthPage({ register = false }: { register?: boolean }) {
           tabIndex={-1}
           aria-labelledby="auth-heading-title"
         >
-          <nav className="auth-mode-switch" aria-label="Вход и регистрация">
-            <Link
-              to={`/login${nextQuery}`}
-              aria-current={!register ? "page" : undefined}
-            >
-              Вход
-            </Link>
-            <Link
-              to={`/register${nextQuery}`}
-              aria-current={register ? "page" : undefined}
-            >
-              Создать аккаунт
-            </Link>
-          </nav>
+          {policy.registrationAllowed && (
+            <nav className="auth-mode-switch" aria-label="Вход и регистрация">
+              <Link
+                to={`/login${nextQuery}`}
+                aria-current={!register ? "page" : undefined}
+              >
+                Вход
+              </Link>
+              <Link
+                to={`/register${nextQuery}`}
+                aria-current={register ? "page" : undefined}
+              >
+                Создать аккаунт
+              </Link>
+            </nav>
+          )}
           <div className="auth-heading">
             <h1 id="auth-heading-title">
               {register ? "Создайте аккаунт" : `Вход в ${PRODUCT_NAME}`}
@@ -250,7 +256,8 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                   ? "Сессия завершилась. Войдите снова, чтобы продолжить."
                   : null)}
           </ErrorNotice>
-          {verificationNeeded && (
+          {!policy.ready && <AuthPolicyStatus policy={policy} />}
+          {verificationNeeded && policy.registrationAllowed && (
             <p>
               <Link to="/verify-email" state={{ email: email.trim() }}>
                 Отправить письмо подтверждения повторно
@@ -258,30 +265,13 @@ export function AuthPage({ register = false }: { register?: boolean }) {
             </p>
           )}
           <form onSubmit={submit} noValidate>
-            {!register && (providers.data?.ldap?.enabled || corporate) && (
-              <LoginProviderChoice
-                value={provider}
-                disabled={busy}
-                change={(value) => {
-                  setProvider(value);
-                  setPassword("");
-                  setError("");
-                  setVerificationNeeded(false);
-                  recoveryController.current?.abort();
-                  setRecovery("");
-                  setRecoveryBusy(false);
-                }}
-              />
-            )}
             <label className="field" htmlFor="email">
-              {corporate ? "Корпоративный логин" : "Email"}
+              Email
               <input
                 id="email"
-                type={corporate ? "text" : "email"}
-                autoComplete={corporate ? "username" : "email"}
-                placeholder={
-                  corporate ? "Логин в каталоге организации" : "name@company.ru"
-                }
+                type="email"
+                autoComplete="username"
+                placeholder="name@company.ru"
                 required
                 value={email}
                 onChange={
@@ -299,7 +289,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                     setRecoveryBusy(false);
                   }
                 }
-                disabled={busy}
+                disabled={busy || !policy.ready}
               />
             </label>
             <label className="field" htmlFor="password">
@@ -320,7 +310,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                    * @returns вычисленное значение: setPassword(event.target.value).
                    */ (event) => setPassword(event.target.value)
                 }
-                disabled={busy}
+                disabled={busy || !policy.ready}
               />
             </label>
             <div className="auth-form-options">
@@ -346,7 +336,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                          * @returns вычисленное значение: setName(event.target.value).
                          */ (event) => setName(event.target.value)
                       }
-                      disabled={busy}
+                      disabled={busy || !policy.ready}
                     />
                   </label>
                 </>
@@ -355,7 +345,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                   Используйте пароль организации. Для его восстановления
                   обратитесь к администратору.
                 </p>
-              ) : (
+              ) : policy.recoveryAllowed ? (
                 <div className="recovery">
                   <button
                     type="button"
@@ -371,25 +361,32 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                     </p>
                   )}
                 </div>
-              )}
+              ) : null}
             </div>
-            <Button type="submit" busy={busy} className="full-width">
+            <Button
+              type="submit"
+              busy={busy}
+              disabled={!policy.ready}
+              className="full-width"
+            >
               {register ? "Зарегистрироваться" : "Войти"}
               <ArrowRight size={17} aria-hidden="true" />
             </Button>
           </form>
-          <p className="auth-switch">
-            {register ? (
-              <>
-                Уже есть аккаунт? <Link to={`/login${nextQuery}`}>Войти</Link>
-              </>
-            ) : (
-              <>
-                Нет аккаунта?{" "}
-                <Link to={`/register${nextQuery}`}>Создать аккаунт</Link>
-              </>
-            )}
-          </p>
+          {policy.registrationAllowed && (
+            <p className="auth-switch">
+              {register ? (
+                <>
+                  Уже есть аккаунт? <Link to={`/login${nextQuery}`}>Войти</Link>
+                </>
+              ) : (
+                <>
+                  Нет аккаунта?{" "}
+                  <Link to={`/register${nextQuery}`}>Создать аккаунт</Link>
+                </>
+              )}
+            </p>
+          )}
           <div className="auth-invitation-note">
             <LinkIcon size={17} aria-hidden="true" />
             <p>Присоединиться к встрече по приглашению можно без аккаунта.</p>
@@ -411,8 +408,11 @@ export function AuthPage({ register = false }: { register?: boolean }) {
  */
 export function RegistrationSuccess() {
   const { user } = useAuth();
+  const policy = useAuthPolicy();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
+  if (!policy.ready) return <AuthPolicyPage policy={policy} />;
+  if (!policy.registrationAllowed) return <Navigate to="/login" replace />;
   return (
     <div className="auth-page auth-business-page auth-business-success">
       <header className="auth-business-header">

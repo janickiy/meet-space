@@ -45,7 +45,11 @@ func (h *Handler) Providers(c *gin.Context) {
 			return
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"ldap": gin.H{"enabled": enabled, "label": "Корпоративный вход"}})
+	mode := "local"
+	if enabled {
+		mode = "ldap"
+	}
+	c.JSON(http.StatusOK, gin.H{"mode": mode, "registrationEnabled": !enabled, "passwordRecoveryEnabled": !enabled, "ldap": gin.H{"enabled": enabled, "label": "Корпоративный вход"}})
 }
 
 func (h *Handler) LDAPLogin(c *gin.Context) {

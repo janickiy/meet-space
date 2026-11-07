@@ -71,9 +71,34 @@ func TestLocalLDAPEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, settings, _, actor, _ := settingsFixture(t)
 	ctx := context.Background()
-	service := directoryusecase.New(settings, ldapinfra.NewClient(), NewDirectoryRepository(db), NewDirectorySyncRepository(db))
+	ldapClient := ldapinfra.NewClient()
+	// Этот тест меняет членство в каталоге. Допускаем только исходную тестовую группу:
+	// расширенный стенд с другими пользователями остаётся полностью нетронутым.
+	pristine, err := ldapClient.Scan(ctx, directory.Config{
+		Mode: directory.ModeGeneric, ServerURL: "ldaps://127.0.0.1:6360",
+		BaseDN: "dc=meetspace,dc=test", UsersDN: "ou=people,dc=meetspace,dc=test",
+		BindDN: "uid=svc-meetspace,ou=people,dc=meetspace,dc=test", BindPassword: credentials["svc-meetspace"],
+		UserFilter: "(objectClass=person)", LoginAttribute: "uid", IDAttribute: "entryUUID", EmailAttribute: "mail", NameAttribute: "cn",
+		GroupDN: "cn=meetspace-users,ou=groups,dc=meetspace,dc=test", GroupMembershipAttribute: "memberOf",
+		CA: string(ca), SyncIntervalMinutes: 60, TimeoutSeconds: 10,
+	})
+	if err != nil {
+		t.Fatal("read local LDAP precondition:", err)
+	}
+	allowed := map[string]bool{}
+	for _, entry := range pristine {
+		allowed[entry.Login] = true
+	}
+	if len(pristine) != 2 || !allowed["alice"] || !allowed["bob"] {
+		t.Skip("LDAP mutation test requires pristine meetspace-users group containing only alice and bob")
+	}
+	db, settings, _, actor, _ := settingsFixture(t)
+	local, err := NewUserRepository(db).Create(ctx, users.User{ID: uuid.NewString(), Email: "local-ldap-e2e@example.invalid", PasswordHash: "synthetic-not-a-login-hash"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := directoryusecase.New(settings, ldapClient, NewDirectoryRepository(db), NewDirectorySyncRepository(db))
 	adminRepo := NewAdminRepository(db)
 	token := strings.Repeat("A", 43)
 	if err := adminRepo.CreateSession(ctx, admin.Session{ID: uuid.NewString(), AdministratorID: actor.AdministratorID, TokenHash: adminusecase.HashToken(token), CreatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}, "synthetic", actor); err != nil {
@@ -172,7 +197,7 @@ func TestLocalLDAPEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.WithSessions(NewAuthSessionRepository(db)).WithLDAP(service)
+	auth.WithSessions(NewAuthSessionRepository(db)).WithLDAP(service).WithAuthenticationPolicy(settings)
 	handler := authapp.NewHandler(auth).WithSessionCookies("https://meet-ldap.invalid", true).WithLDAPProviders(service)
 	public := gin.New()
 	public.GET("/api/v1/auth/providers", handler.Providers)
@@ -195,11 +220,11 @@ func TestLocalLDAPEndToEnd(t *testing.T) {
 		public.ServeHTTP(res, req)
 		return res
 	}
-	login := func(name, password string, expected int) (users.LoginResponse, []*http.Cookie) {
+	login := func(email, password string, expected int) (users.LoginResponse, []*http.Cookie) {
 		t.Helper()
-		res := request("POST", "/api/v1/auth/ldap/login", users.LDAPLoginRequest{Login: name, Password: password}, "", nil)
+		res := request("POST", "/api/v1/auth/login", users.LoginRequest{Email: email, Password: password}, "", nil)
 		if res.Code != expected {
-			t.Fatalf("LDAP login %s: HTTP %d, expected %d", name, res.Code, expected)
+			t.Fatalf("email login %s: HTTP %d, expected %d", email, res.Code, expected)
 		}
 		var response users.LoginResponse
 		if expected == 200 {
@@ -218,15 +243,21 @@ func TestLocalLDAPEndToEnd(t *testing.T) {
 		}
 		return response, res.Result().Cookies()
 	}
-	login("alice", "wrong-password", 401)
-	login("outsider", credentials["outsider"], 401)
-	alice, aliceCookies := login("alice", credentials["alice"], 200)
-	bob, bobCookies := login("bob", credentials["bob"], 200)
+	login("alice@meetspace.test", "wrong-password", 401)
+	login("outsider@meetspace.test", credentials["outsider"], 401)
+	alice, aliceCookies := login("alice@meetspace.test", credentials["alice"], 200)
+	bob, bobCookies := login("bob@meetspace.test", credentials["bob"], 200)
 	if request("GET", "/api/v1/auth/me", nil, bob.AccessToken, nil).Code != 200 || request("POST", "/api/v1/auth/refresh", map[string]any{}, "", bobCookies).Code != 200 {
 		t.Fatal("LDAP SID cannot use /me or refresh")
 	}
-	if request("POST", "/api/v1/auth/login", users.LoginRequest{Email: alice.User.Email, Password: credentials["alice"]}, "", nil).Code != 401 {
-		t.Fatal("LDAP user accepted by local password route")
+	if request("POST", "/api/v1/auth/login", users.LoginRequest{Email: "alice", Password: credentials["alice"]}, "", nil).Code != 401 {
+		t.Fatal("unified email form accepted a bare LDAP username")
+	}
+	if request("POST", "/api/v1/auth/ldap/login", users.LDAPLoginRequest{Login: "alice", Password: credentials["alice"]}, "", nil).Code != 200 {
+		t.Fatal("legacy LDAP endpoint lost username compatibility in LDAP mode")
+	}
+	if request("POST", "/api/v1/auth/login", users.LoginRequest{Email: local.Email, Password: "synthetic-password"}, "", nil).Code != 401 {
+		t.Fatal("LDAP-only mode accepted an existing local account")
 	}
 
 	setMembership := localLLDAPGroupMembership(t, credentials["admin"])
@@ -243,7 +274,7 @@ func TestLocalLDAPEndToEnd(t *testing.T) {
 	if request("GET", "/api/v1/auth/me", nil, alice.AccessToken, nil).Code != 200 {
 		t.Fatal("sync revoked unaffected user")
 	}
-	login("bob", credentials["bob"], 401)
+	login("bob@meetspace.test", credentials["bob"], 401)
 	setMembership("alice", false)
 	syncNow(1, 0, false)
 	if !denied(request("GET", "/api/v1/auth/me", nil, alice.AccessToken, nil).Code) {
@@ -252,26 +283,21 @@ func TestLocalLDAPEndToEnd(t *testing.T) {
 	setMembership("alice", true)
 	setMembership("bob", true)
 	syncNow(1, 2, false)
-	restored, _ := login("bob", credentials["bob"], 200)
+	restored, _ := login("bob@meetspace.test", credentials["bob"], 200)
 	if restored.User.ID != bob.User.ID {
 		t.Fatal("rejoined user lost original MeetSpace ID")
 	}
 	if request("POST", "/api/v1/auth/refresh", map[string]any{}, "", aliceCookies).Code != 401 {
 		t.Fatal("rejoining resurrected old SID")
 	}
-	local := users.User{ID: uuid.NewString(), Email: "local-ldap-e2e@example.invalid", PasswordHash: "synthetic-not-a-login-hash"}
-	if err := db.Create(&local).Error; err != nil {
-		t.Fatal(err)
-	}
-	localLogin, err := auth.Login(ctx, users.LoginRequest{Email: local.Email, Password: "synthetic-password"})
-	if err != nil {
-		t.Fatal(err)
-	}
 	res := adminRequest("PATCH", "/settings", map[string]any{"revision": 1, "changes": map[string]any{"ldapServerURL": "ldaps://127.0.0.1:6361"}}, true)
 	if res.Code != 200 {
 		t.Fatal("save unavailable endpoint failed")
 	}
 	syncNow(2, 0, true)
+	if request("POST", "/api/v1/auth/login", users.LoginRequest{Email: local.Email, Password: "synthetic-password"}, "", nil).Code != 503 {
+		t.Fatal("LDAP outage fell back to a local account password")
+	}
 	var disabled int64
 	if err := db.Model(&users.User{}).Where("auth_source='ldap' AND ldap_disabled").Count(&disabled).Error; err != nil || disabled != 0 {
 		t.Fatal("directory outage disabled valid profiles")
@@ -280,14 +306,21 @@ func TestLocalLDAPEndToEnd(t *testing.T) {
 	if res.Code != 200 {
 		t.Fatal("disable LDAP failed")
 	}
-	login("alice", credentials["alice"], 401)
+	login("alice@meetspace.test", credentials["alice"], 401)
+	if request("POST", "/api/v1/auth/ldap/login", users.LDAPLoginRequest{Login: "alice", Password: credentials["alice"]}, "", nil).Code != 403 {
+		t.Fatal("legacy LDAP endpoint bypassed local-only mode")
+	}
 	if request("GET", "/api/v1/auth/me", nil, restored.AccessToken, nil).Code != 401 {
 		t.Fatal("disabled LDAP retained authorization")
 	}
-	if request("GET", "/api/v1/auth/me", nil, localLogin.AccessToken, nil).Code != 200 {
-		t.Fatal("LDAP configuration affected local account")
+	localLogin, err := auth.Login(ctx, users.LoginRequest{Email: local.Email, Password: "synthetic-password"})
+	if err != nil || localLogin.User.ID != local.ID {
+		t.Fatal("preserved local account cannot sign in after selecting local mode", err)
 	}
-	t.Log("LDAPS settings, CSRF/revision, import, login/SID, group removal, empty group, stable identity, outage and local fallback passed")
+	if request("GET", "/api/v1/auth/me", nil, localLogin.AccessToken, nil).Code != 200 {
+		t.Fatal("fresh local session cannot use /me in local mode")
+	}
+	t.Log("LDAPS settings, CSRF/revision, import, unified email login/SID, group removal, stable identity, exclusive modes and no local fallback passed")
 }
 
 func localLLDAPGroupMembership(t *testing.T, password string) func(string, bool) {

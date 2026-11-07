@@ -23,6 +23,9 @@ func (s *Service) AuthorizeLegacyAccount(ctx context.Context, userID string) err
 		return apperrors.ErrUnauthorized
 	}
 	if err == nil {
+		if err := s.requireAccountMode(ctx, user); err != nil {
+			return err
+		}
 		return s.enforceEmailVerification(ctx, user)
 	}
 	return err

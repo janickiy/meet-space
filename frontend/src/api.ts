@@ -1,3 +1,4 @@
+import { validateAuthProviders } from "./auth-policy.ts";
 import type {
   PersonalPage,
   PersonalConversation,
@@ -684,7 +685,9 @@ export const api = {
       signal,
     }),
   authProviders: (signal?: AbortSignal) =>
-    request<AuthProviders>("/auth/providers", { public: true, signal }),
+    request<AuthProviders>("/auth/providers", { public: true, signal }).then(
+      validateAuthProviders,
+    ),
   ldapLogin: (login: string, password: string, signal?: AbortSignal) =>
     request<LoginResponse>("/auth/ldap/login", {
       method: "POST",

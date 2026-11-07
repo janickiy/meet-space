@@ -40,6 +40,19 @@ var _ directory.Client = (*Client)(nil)
 
 // Authenticate проверяет пароль только после нахождения ровно одной разрешённой записи.
 func (c *Client) Authenticate(ctx context.Context, cfg directory.Config, login, password string) (directory.Entry, error) {
+	return c.authenticate(ctx, cfg, cfg.LoginAttribute, login, password)
+}
+
+// AuthenticateEmail ищет единственную запись по почте без изменения атрибута логина синхронизации.
+func (c *Client) AuthenticateEmail(ctx context.Context, cfg directory.Config, email, password string) (directory.Entry, error) {
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Address != email || len(email) > 254 || strings.ContainsAny(email, " \t\r\n") {
+		return directory.Entry{}, directory.ErrInvalidCredentials
+	}
+	return c.authenticate(ctx, cfg, cfg.EmailAttribute, email, password)
+}
+
+func (c *Client) authenticate(ctx context.Context, cfg directory.Config, attribute, login, password string) (directory.Entry, error) {
 	if err := directory.Validate(cfg); err != nil {
 		return directory.Entry{}, err
 	}
@@ -51,10 +64,19 @@ func (c *Client) Authenticate(ctx context.Context, cfg directory.Config, login, 
 		return directory.Entry{}, err
 	}
 	defer done()
+	return authenticateConnection(conn, cfg, attribute, login, password)
+}
+
+type authenticationConnection interface {
+	Bind(string, string) error
+	Search(*ldap.SearchRequest) (*ldap.SearchResult, error)
+}
+
+func authenticateConnection(conn authenticationConnection, cfg directory.Config, attribute, login, password string) (directory.Entry, error) {
 	if err := conn.Bind(cfg.BindDN, cfg.BindPassword); err != nil {
 		return directory.Entry{}, unavailable(err)
 	}
-	filter := loginFilter(cfg, login)
+	filter := identityFilter(cfg, attribute, login, false)
 	request := ldap.NewSearchRequest(cfg.UsersDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 2, cfg.TimeoutSeconds, false, filter, attributes(cfg), nil)
 	result, err := conn.Search(request)
 	if err != nil {
@@ -74,7 +96,7 @@ func (c *Client) Authenticate(ctx context.Context, cfg directory.Config, login, 
 	if entry.Disabled {
 		return directory.Entry{}, directory.ErrNotAllowed
 	}
-	member := ldap.NewSearchRequest(cfg.UsersDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 2, cfg.TimeoutSeconds, false, "(&"+cfg.UserFilter+"("+cfg.LoginAttribute+"="+ldap.EscapeFilter(login)+")"+memberFilter(cfg)+")", []string{"1.1"}, nil)
+	member := ldap.NewSearchRequest(cfg.UsersDN, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 2, cfg.TimeoutSeconds, false, identityFilter(cfg, attribute, login, true), []string{"1.1"}, nil)
 	allowed, err := conn.Search(member)
 	if err != nil {
 		return directory.Entry{}, unavailable(err)
@@ -327,7 +349,15 @@ func memberFilter(cfg directory.Config) string {
 }
 
 func loginFilter(cfg directory.Config, login string) string {
-	return "(&" + cfg.UserFilter + "(" + cfg.LoginAttribute + "=" + ldap.EscapeFilter(login) + "))"
+	return identityFilter(cfg, cfg.LoginAttribute, login, false)
+}
+
+func identityFilter(cfg directory.Config, attribute, identifier string, requireMembership bool) string {
+	membership := ""
+	if requireMembership {
+		membership = memberFilter(cfg)
+	}
+	return "(&" + cfg.UserFilter + "(" + attribute + "=" + ldap.EscapeFilter(identifier) + ")" + membership + ")"
 }
 
 func sameDN(a, b string) bool {

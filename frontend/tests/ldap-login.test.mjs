@@ -57,8 +57,68 @@ test("provider discovery is public and receives cancellation without exposing th
     assert.equal(options.headers.has("Authorization"), false);
     assert.equal(options.signal, controller.signal);
     return new Response(
-      JSON.stringify({ ldap: { enabled: true, label: "Корпоративный вход" } }),
+      JSON.stringify({
+        mode: "ldap",
+        registrationEnabled: false,
+        passwordRecoveryEnabled: false,
+        ldap: { enabled: true, label: "Корпоративный вход" },
+      }),
     );
   };
   assert.equal((await api.authProviders(controller.signal)).ldap.enabled, true);
+});
+
+test("unified login sends email and password to the mode-aware endpoint", async () => {
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, "/api/v1/auth/login");
+    assert.equal(options.method, "POST");
+    assert.equal(options.credentials, "same-origin");
+    assert.equal(options.headers.has("Authorization"), false);
+    assert.deepEqual(JSON.parse(options.body), {
+      email: "alice@example.test",
+      password: "directory-password",
+    });
+    return new Response(JSON.stringify({ status: "success" }));
+  };
+  await api.login("alice@example.test", "directory-password");
+  assert.equal(getAccessToken(), "another-account-token");
+});
+
+test("invalid or inconsistent auth policy fails closed", async () => {
+  for (const policy of [
+    {},
+    { ldap: { enabled: true, label: "LDAP" } },
+    {
+      mode: "ldap",
+      registrationEnabled: true,
+      passwordRecoveryEnabled: false,
+      ldap: { enabled: true, label: "LDAP" },
+    },
+    {
+      mode: "ldap",
+      registrationEnabled: false,
+      passwordRecoveryEnabled: true,
+      ldap: { enabled: true, label: "LDAP" },
+    },
+    {
+      mode: "local",
+      registrationEnabled: true,
+      passwordRecoveryEnabled: true,
+      ldap: { enabled: true, label: "LDAP" },
+    },
+  ]) {
+    globalThis.fetch = async () => new Response(JSON.stringify(policy));
+    await assert.rejects(api.authProviders(), /настройки входа/);
+  }
+});
+
+test("local mode permits registration and recovery", async () => {
+  const policy = {
+    mode: "local",
+    registrationEnabled: true,
+    passwordRecoveryEnabled: true,
+    ldap: { enabled: false, label: "Корпоративный вход" },
+  };
+  globalThis.fetch = async () => new Response(JSON.stringify(policy));
+  assert.deepEqual(await api.authProviders(), policy);
 });

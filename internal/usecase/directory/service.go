@@ -59,6 +59,15 @@ func (s *Service) Enabled(ctx context.Context) (bool, error) {
 }
 
 func (s *Service) Authenticate(ctx context.Context, login, password string) (users.User, error) {
+	return s.authenticate(ctx, login, password, false)
+}
+
+// AuthenticateEmail использует почтовый атрибут для входа, сохраняя отдельный LDAP логин профиля.
+func (s *Service) AuthenticateEmail(ctx context.Context, email, password string) (users.User, error) {
+	return s.authenticate(ctx, email, password, true)
+}
+
+func (s *Service) authenticate(ctx context.Context, identifier, password string, byEmail bool) (users.User, error) {
 	cfg, err := s.settings.LDAP(ctx)
 	if err != nil {
 		return users.User{}, publicError(err)
@@ -68,7 +77,18 @@ func (s *Service) Authenticate(ctx context.Context, login, password string) (use
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(cfg.TimeoutSeconds)*time.Second)
 	defer cancel()
-	entry, err := s.client.Authenticate(ctx, cfg, login, password)
+	var entry domain.Entry
+	if byEmail {
+		client, ok := s.client.(interface {
+			AuthenticateEmail(context.Context, domain.Config, string, string) (domain.Entry, error)
+		})
+		if !ok {
+			return users.User{}, apperrors.ErrUnavailable
+		}
+		entry, err = client.AuthenticateEmail(ctx, cfg, identifier, password)
+	} else {
+		entry, err = s.client.Authenticate(ctx, cfg, identifier, password)
+	}
 	if err != nil {
 		return users.User{}, publicError(err)
 	}
