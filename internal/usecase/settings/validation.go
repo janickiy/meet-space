@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	"github.com/janickiy/meet-space/internal/domain/directory"
 	domain "github.com/janickiy/meet-space/internal/domain/settings"
 )
 
@@ -41,6 +42,40 @@ func applyValue(v *domain.Values, key string, raw json.RawMessage) error {
 		target = &v.SMTPTLSMode
 	case "emailVerificationRequired":
 		target = &v.EmailVerificationRequired
+	case "ldapEnabled":
+		target = &v.LDAPEnabled
+	case "ldapMode":
+		target = &v.LDAPMode
+	case "ldapServerURL":
+		target = &v.LDAPServerURL
+	case "ldapBaseDN":
+		target = &v.LDAPBaseDN
+	case "ldapUsersDN":
+		target = &v.LDAPUsersDN
+	case "ldapUserFilter":
+		target = &v.LDAPUserFilter
+	case "ldapLoginAttribute":
+		target = &v.LDAPLoginAttribute
+	case "ldapIDAttribute":
+		target = &v.LDAPIDAttribute
+	case "ldapEmailAttribute":
+		target = &v.LDAPEmailAttribute
+	case "ldapNameAttribute":
+		target = &v.LDAPNameAttribute
+	case "ldapGroupDN":
+		target = &v.LDAPGroupDN
+	case "ldapGroupMembershipAttribute":
+		target = &v.LDAPGroupMembershipAttribute
+	case "ldapNestedGroups":
+		target = &v.LDAPNestedGroups
+	case "ldapBindDN":
+		target = &v.LDAPBindDN
+	case "ldapCA":
+		target = &v.LDAPCA
+	case "ldapSyncIntervalMinutes":
+		target = &v.LDAPSyncIntervalMinutes
+	case "ldapTimeoutSeconds":
+		target = &v.LDAPTimeoutSeconds
 	default:
 		return invalid("Неизвестная или недоступная для изменения настройка")
 	}
@@ -80,6 +115,9 @@ func validateBase(v domain.Values) error {
 	if v.SMTPFrom != "" && !validSender(v.SMTPFrom) {
 		return invalid("Укажите один корректный email отправителя SMTP")
 	}
+	if err := directory.ValidateDraft(ldapConfig(v)); err != nil {
+		return invalid("Некорректные настройки LDAP: " + err.Error())
+	}
 	return nil
 }
 func validate(v domain.Values) error {
@@ -92,7 +130,32 @@ func validate(v domain.Values) error {
 	if v.EmailVerificationRequired && !v.SMTPEnabled {
 		return invalid("Для подтверждения email необходимо включить и настроить SMTP")
 	}
+	if v.LDAPEnabled {
+		if !v.LDAPBindPasswordConfigured {
+			return invalid("Для включения LDAP укажите пароль bind")
+		}
+		if err := directory.Validate(ldapConfig(v)); err != nil {
+			return invalid("Для включения LDAP заполните корректные параметры каталога: " + err.Error())
+		}
+	}
 	return nil
+}
+
+func ldapConfig(v domain.Values) directory.Config {
+	c := directory.Config{
+		Enabled: v.LDAPEnabled, Mode: v.LDAPMode, ServerURL: v.LDAPServerURL,
+		BaseDN: v.LDAPBaseDN, UsersDN: v.LDAPUsersDN, UserFilter: v.LDAPUserFilter,
+		LoginAttribute: v.LDAPLoginAttribute, IDAttribute: v.LDAPIDAttribute,
+		EmailAttribute: v.LDAPEmailAttribute, NameAttribute: v.LDAPNameAttribute,
+		GroupDN: v.LDAPGroupDN, GroupMembershipAttribute: v.LDAPGroupMembershipAttribute,
+		NestedGroups: v.LDAPNestedGroups, BindDN: v.LDAPBindDN, CA: v.LDAPCA,
+		SyncIntervalMinutes: v.LDAPSyncIntervalMinutes, TimeoutSeconds: v.LDAPTimeoutSeconds,
+		Revision: v.Revision,
+	}
+	if v.LDAPBindPasswordConfigured {
+		c.BindPassword = "configured"
+	}
+	return c
 }
 
 // smtpConfigured checks persisted prerequisites without opening a connection or

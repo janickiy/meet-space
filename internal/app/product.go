@@ -19,11 +19,13 @@ import (
 	"time"
 
 	"github.com/janickiy/meet-space/internal/config"
+	"github.com/janickiy/meet-space/internal/domain/directory"
 	pg "github.com/janickiy/meet-space/internal/infrastructure/postgres"
 	"github.com/janickiy/meet-space/internal/infrastructure/providers"
 	"github.com/janickiy/meet-space/internal/infrastructure/security"
 	"github.com/janickiy/meet-space/internal/operations"
 	authusecase "github.com/janickiy/meet-space/internal/usecase/auth"
+	directoryusecase "github.com/janickiy/meet-space/internal/usecase/directory"
 	integrations "github.com/janickiy/meet-space/internal/usecase/integrations"
 	jobrunner "github.com/janickiy/meet-space/internal/usecase/jobs"
 	"gorm.io/gorm"
@@ -35,6 +37,7 @@ type productServices struct {
 	integrations *integrations.Service
 	verification authusecase.VerificationSender
 	recovery     authusecase.PasswordRecoverySender
+	directory    *directoryusecase.Service
 }
 
 // newProductServices создает зависимости уведомлений и внешних интеграций.
@@ -89,7 +92,7 @@ func newProductServices(cfg config.Config, db *gorm.DB) (productServices, error)
 		recoveryCipher = tokenCipher
 	}
 	recovery := authusecase.PasswordRecoverySender{Repo: pg.NewPasswordRecoveryRepository(db), Reader: settings, Cipher: recoveryCipher, Email: channels.Email, PublicURL: c.PublicURL}
-	return productServices{integrations: integrationService, verification: verification, recovery: recovery}, nil
+	return productServices{integrations: integrationService, verification: verification, recovery: recovery, directory: newDirectoryService(db, settings)}, nil
 }
 
 // RunProductWorker запускает продукт-воркер с настроенными зависимостями и передает информацию о сбоях при запуске
@@ -140,6 +143,7 @@ func RunProductWorker() error {
 		deliveryTimeout = s.SMTP.Timeout
 	}
 	runner, err := jobrunner.New(repo, []jobrunner.Pool{
+		{Kind: directory.SyncJobKind, Concurrency: 1, MaxAttempts: 3, Timeout: 2 * time.Minute, Handler: jobrunner.Handler{Handle: services.directory.Handle, Fail: services.directory.Fail}},
 		{Kind: authusecase.PasswordRecoveryJobKind, Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: 20 * time.Second, Handler: jobrunner.Handler{Handle: services.recovery.Handle}},
 		{Kind: authusecase.PasswordChangedJobKind, Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: 20 * time.Second, Handler: jobrunner.Handler{Handle: services.recovery.Handle}},
 		{Kind: authusecase.VerificationJobKind, Concurrency: 1, MaxAttempts: s.MaxAttempts, Timeout: 20 * time.Second, Handler: jobrunner.Handler{Handle: services.verification.Handle}},
@@ -155,6 +159,11 @@ func RunProductWorker() error {
 	ops.ConfigureDrain(runner.BeginDrain, runner.Active)
 	go func() { defer close(workerDone); runner.Run(ctx) }()
 	tickDone := make(chan struct{})
+	directoryDone := make(chan struct{})
+	go func() {
+		defer close(directoryDone)
+		runDirectoryTicks(ctx, services.directory)
+	}()
 	go func() {
 		defer close(tickDone)
 		runProductTicks(ctx, services.integrations, repo, s.PollInterval)
@@ -174,7 +183,7 @@ func RunProductWorker() error {
 	shutdown, cancel := context.WithTimeout(context.Background(), cfg.Operations.ShutdownTimeout)
 	defer cancel()
 	serverErr := server.Shutdown(shutdown)
-	for _, done := range []<-chan struct{}{workerDone, tickDone} {
+	for _, done := range []<-chan struct{}{workerDone, tickDone, directoryDone} {
 		select {
 		case <-done:
 		case <-shutdown.Done():
@@ -206,7 +215,7 @@ func runProductTicks(ctx context.Context, service *integrations.Service, repo *p
 		counts, err := repo.Counts(tickCtx)
 		cancel()
 		if err == nil {
-			for _, kind := range []string{authusecase.VerificationJobKind, authusecase.PasswordRecoveryJobKind, authusecase.PasswordChangedJobKind, "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar"} {
+			for _, kind := range []string{directory.SyncJobKind, authusecase.VerificationJobKind, authusecase.PasswordRecoveryJobKind, authusecase.PasswordChangedJobKind, "integrations.conference", "integrations.event", "integrations.delivery", "integrations.invitation", "integrations.invitation_reminder", "integrations.calendar"} {
 				for _, state := range []string{"queued", "processing", "failed"} {
 					operations.ProductQueue(kind, state, 0)
 				}

@@ -400,12 +400,6 @@ function Login({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (pending.current) return;
-    if (username.includes("@")) {
-      setError(
-        "Введите логин администратора. Email не используется для входа.",
-      );
-      return;
-    }
     setBusy(true);
     setError("");
     const controller = new AbortController();
@@ -490,7 +484,7 @@ function Login({
                 spellCheck={false}
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="admin"
+                placeholder="admin или email"
                 required
                 maxLength={40}
                 disabled={busy}

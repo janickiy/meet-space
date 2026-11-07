@@ -1,0 +1,14 @@
+# Только локальный тестовый LDAP; основной compose не зависит от этого стенда.
+# docker compose -f docker-compose.yml -f docker-compose.ldap-dev.yml up -d
+services:
+  api:
+    networks:
+      ldap-test:
+  product-worker:
+    networks:
+      ldap-test:
+
+networks:
+  ldap-test:
+    external: true
+    name: meetspace-ldap-test

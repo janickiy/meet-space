@@ -17,6 +17,7 @@ import (
 	healthinfra "github.com/janickiy/meet-space/internal/infrastructure/health"
 	postgresinfra "github.com/janickiy/meet-space/internal/infrastructure/postgres"
 	"github.com/janickiy/meet-space/internal/operations"
+	directoryusecase "github.com/janickiy/meet-space/internal/usecase/directory"
 	settingsusecase "github.com/janickiy/meet-space/internal/usecase/settings"
 	"gorm.io/gorm"
 )
@@ -37,6 +38,7 @@ type adminResources struct {
 	storage        adminStorage
 	events         adminEvents
 	settings       *settingsusecase.Service
+	directory      *directoryusecase.Service
 	settingsErr    error
 	staticSettings []admin.Setting
 	checks         map[string]operations.Check
@@ -75,6 +77,9 @@ func newAdminResources(db *gorm.DB, cfg config.Config, rtc config.RealtimeConfig
 		r.settings = settings[0]
 	} else {
 		r.settings, r.settingsErr = runtimeSettingsWithMedia(cfg, media, db)
+	}
+	if r.settingsErr == nil && r.settings != nil {
+		r.directory = newDirectoryService(db, r.settings)
 	}
 	return r
 }

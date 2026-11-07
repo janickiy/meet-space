@@ -9,6 +9,8 @@
 .env.local
 .env.*
 secrets/
+**/secrets/
+tools/ldap-dev/.env
 release-artifacts/
 **/*.key
 **/*.pem

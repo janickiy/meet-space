@@ -52,6 +52,7 @@ import {
   percent,
 } from "./format";
 import { useList } from "./hooks";
+import { DirectoryActions } from "./DirectoryActions";
 import {
   buildSettingsChanges,
   isSecretSetting,
@@ -60,6 +61,7 @@ import {
   settingScale,
   settingsFailureMessage,
   smtpConfigured,
+  ldapPreset,
 } from "./settings";
 import type { SettingsDraft } from "./settings";
 import type {
@@ -1278,6 +1280,7 @@ const settingsGroupNames: Record<string, string> = {
   media: "Медиа",
   network: "Сеть",
   security: "Безопасность",
+  ldap: "LDAP / Active Directory",
 };
 
 export function SettingsPage() {
@@ -1362,12 +1365,20 @@ function SettingsEditor({ data }: { data: Settings }) {
   const mailConfigured = smtpConfigured(base);
   function change(item: Setting, value: string | boolean) {
     const next = { ...draftsRef.current };
-    if (value === settingInput(item)) delete next[item.key];
-    else next[item.key] = value;
+    const changes =
+      item.key === "ldapMode"
+        ? ldapPreset(String(value))
+        : { [item.key]: value };
+    for (const [key, nextValue] of Object.entries(changes)) {
+      const target = base.items.find((entry) => entry.key === key);
+      if (!target?.editable) continue;
+      if (nextValue === settingInput(target)) delete next[key];
+      else next[key] = nextValue;
+    }
     replaceDrafts(next);
     setErrors((previous) => {
       const nextErrors = { ...previous };
-      delete nextErrors[item.key];
+      for (const key of Object.keys(changes)) delete nextErrors[key];
       return nextErrors;
     });
     setFailure("");
@@ -1581,6 +1592,12 @@ function SettingsEditor({ data }: { data: Settings }) {
                   <p id={`setting-description-${item.key}`}>
                     {item.description}
                   </p>
+                  {item.key === "ldapMode" && (
+                    <p>
+                      Выбор типа каталога подставляет стандартные атрибуты и
+                      фильтр пользователей. Их можно изменить ниже.
+                    </p>
+                  )}
                   {item.key === "emailVerificationRequired" &&
                     !mailConfigured && (
                       <p>
@@ -1626,7 +1643,11 @@ function SettingsEditor({ data }: { data: Settings }) {
                           ? item.value
                             ? "Включено"
                             : "Выключено"
-                          : `${settingInput(item) || "не задано"}${item.key === "attachmentMaxBytes" ? " MiB" : ""}`}
+                          : item.key === "ldapCA"
+                            ? item.value
+                              ? "Сертификат задан"
+                              : "Системные центры сертификации"
+                            : `${settingInput(item) || "не задано"}${item.key === "attachmentMaxBytes" ? " MiB" : ""}`}
                       </p>
                     )}
                   </div>
@@ -1691,6 +1712,16 @@ function SettingsEditor({ data }: { data: Settings }) {
           )}
         </form>
       </Panel>
+      {selected === "ldap" && (
+        <DirectoryActions
+          key={base.revision}
+          revision={base.revision}
+          enabled={base.items.some(
+            (item) => item.key === "ldapEnabled" && item.value === true,
+          )}
+          disabled={busy || dirtyCount > 0 || conflict || !editableRevision}
+        />
+      )}
     </>
   );
 }
@@ -1733,22 +1764,41 @@ function SettingField({
     return (
       <select
         {...common}
-        className={item.key === "smtpTLSMode" ? "setting-select-compact" : undefined}
+        className={
+          item.key === "smtpTLSMode" ? "setting-select-compact" : undefined
+        }
         value={String(value)}
         onChange={(event) => change(event.target.value)}
       >
         {item.options.map((option) => (
           <option key={option} value={option}>
-            {option === "tls"
-              ? "TLS"
-              : option === "starttls"
-                ? "STARTTLS"
-                : option}
+            {option === "ad"
+              ? "Active Directory"
+              : option === "generic"
+                ? "LDAP (OpenLDAP / LLDAP)"
+                : option === "tls"
+                  ? "TLS"
+                  : option === "starttls"
+                    ? "STARTTLS"
+                    : option}
           </option>
         ))}
       </select>
     );
   const secret = isSecretSetting(item);
+  if (item.key === "ldapCA")
+    return (
+      <textarea
+        {...common}
+        className="directory-ca"
+        rows={6}
+        value={String(value)}
+        onChange={(event) => change(event.target.value)}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="-----BEGIN CERTIFICATE-----"
+      />
+    );
   return (
     <div
       className={`setting-input-wrap${item.type === "number" ? " is-compact" : ""}${["smtpPort", "recordingRetentionDays", "mediaMaxPeers", "mediaMaxRooms"].includes(item.key) ? " is-narrow" : ""}${item.key === "attachmentMaxBytes" ? " has-unit" : ""}`}
@@ -1771,7 +1821,9 @@ function SettingField({
           secret
             ? item.configured
               ? "Оставьте пустым, чтобы сохранить"
-              : "Введите пароль SMTP"
+              : item.key === "ldapBindPassword"
+                ? "Пароль служебной учётной записи"
+                : "Введите пароль SMTP"
             : item.key === "smtpFrom"
               ? "MeetSpace <team@example.com>"
               : undefined

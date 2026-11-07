@@ -211,7 +211,7 @@ func authorizeDirect(tx *gorm.DB, user, id string, locked bool) error {
 	// Проверка членства в новом заявлении после получения блокировки диалога.  Все групповые
 	// мутации блокируют эту же строку перед изменением активности участников.
 	var count int64
-	if err := tx.Table("conversation_members m").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL AND u.password_hash<>''", id, user).Count(&count).Error; err != nil {
+	if err := tx.Table("conversation_members m").Joins("JOIN users u ON u.id=m.user_id").Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.guest_conference_id IS NULL AND u.deleted_at IS NULL", id, user).Count(&count).Error; err != nil {
 		return err
 	}
 	if count != 1 {

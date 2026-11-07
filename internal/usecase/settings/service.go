@@ -12,10 +12,12 @@ import (
 
 	"github.com/janickiy/meet-space/internal/domain/admin"
 	"github.com/janickiy/meet-space/internal/domain/apperrors"
+	"github.com/janickiy/meet-space/internal/domain/directory"
 	domain "github.com/janickiy/meet-space/internal/domain/settings"
 )
 
 const smtpPasswordBinding = "meetspace:platform-settings:smtp-password:v1"
+const ldapBindPasswordBinding = "meetspace:platform-settings:ldap-bind-password:v1"
 
 type Cipher interface {
 	Encrypt(value, binding string) (string, error)
@@ -31,6 +33,33 @@ type Service struct {
 }
 
 func NewService(repo domain.Repository, defaults domain.Values, defaultSMTPPassword string, cipher Cipher, publicURL ...string) *Service {
+	if defaults.LDAPMode == "" {
+		defaults.LDAPMode = directory.ModeAD
+	}
+	if defaults.LDAPUserFilter == "" {
+		defaults.LDAPUserFilter = "(&(objectClass=user)(!(objectClass=computer)))"
+	}
+	if defaults.LDAPLoginAttribute == "" {
+		defaults.LDAPLoginAttribute = "sAMAccountName"
+	}
+	if defaults.LDAPIDAttribute == "" {
+		defaults.LDAPIDAttribute = "objectGUID"
+	}
+	if defaults.LDAPEmailAttribute == "" {
+		defaults.LDAPEmailAttribute = "mail"
+	}
+	if defaults.LDAPNameAttribute == "" {
+		defaults.LDAPNameAttribute = "displayName"
+	}
+	if defaults.LDAPGroupMembershipAttribute == "" {
+		defaults.LDAPGroupMembershipAttribute = "memberOf"
+	}
+	if defaults.LDAPSyncIntervalMinutes == 0 {
+		defaults.LDAPSyncIntervalMinutes = 60
+	}
+	if defaults.LDAPTimeoutSeconds == 0 {
+		defaults.LDAPTimeoutSeconds = 10
+	}
 	s := &Service{repository: repo, defaults: defaults, defaultSMTPPassword: defaultSMTPPassword, cipher: cipher}
 	if len(publicURL) > 0 {
 		s.publicURL = publicURL[0]
@@ -47,6 +76,15 @@ func (s *Service) Snapshot(ctx context.Context) (domain.Values, error) {
 	}
 	return s.merge(state)
 }
+
+// LDAPEnabled читает только публичный флаг; отсутствие ключа шифрования не ломает выбор входа.
+func (s *Service) LDAPEnabled(ctx context.Context) (bool, error) {
+	values, err := s.Snapshot(ctx)
+	if err != nil {
+		return false, err
+	}
+	return values.LDAPEnabled, nil
+}
 func (s *Service) merge(state domain.State) (domain.Values, error) {
 	values := s.defaults
 	var overrides map[string]json.RawMessage
@@ -54,12 +92,13 @@ func (s *Service) merge(state domain.State) (domain.Values, error) {
 		return domain.Values{}, apperrors.New(apperrors.ErrInternal, "Не удалось прочитать настройки платформы")
 	}
 	for key, raw := range overrides {
-		if key == "smtpPassword" || applyValue(&values, key, raw) != nil {
+		if key == "smtpPassword" || key == "ldapBindPassword" || applyValue(&values, key, raw) != nil {
 			return domain.Values{}, apperrors.New(apperrors.ErrInternal, "Некорректные сохранённые настройки платформы")
 		}
 	}
 	values.Revision = state.Revision
 	values.SMTPPasswordConfigured = state.SMTPPasswordCiphertext != "" || s.defaultSMTPPassword != ""
+	values.LDAPBindPasswordConfigured = state.LDAPBindPasswordCiphertext != ""
 	if err := validateBase(values); err != nil {
 		return domain.Values{}, apperrors.Wrap(apperrors.ErrInternal, err, "Некорректные настройки платформы")
 	}
@@ -93,6 +132,34 @@ func (s *Service) SMTP(ctx context.Context) (domain.SMTPConfig, error) {
 	}
 	return out, nil
 }
+
+// LDAP возвращает конфигурацию только серверному коду; bind пароль расшифровывается с отдельным AAD.
+func (s *Service) LDAP(ctx context.Context) (directory.Config, error) {
+	state, err := s.repository.Load(ctx)
+	if err != nil {
+		return directory.Config{}, err
+	}
+	values, err := s.merge(state)
+	if err != nil {
+		return directory.Config{}, err
+	}
+	config := ldapConfig(values)
+	if state.LDAPBindPasswordCiphertext != "" {
+		if s.cipher == nil {
+			return directory.Config{}, apperrors.New(apperrors.ErrUnavailable, "Для LDAP требуется ключ шифрования PROVIDER_TOKEN_ENCRYPTION_KEY на сервере.")
+		}
+		config.BindPassword, err = s.cipher.Decrypt(state.LDAPBindPasswordCiphertext, ldapBindPasswordBinding)
+		if err != nil {
+			return directory.Config{}, apperrors.New(apperrors.ErrUnavailable, "Не удалось расшифровать пароль LDAP bind. Проверьте ключ шифрования на сервере.")
+		}
+	}
+	if config.Enabled {
+		if err := directory.Validate(config); err != nil {
+			return directory.Config{}, apperrors.Wrap(apperrors.ErrUnavailable, err, "LDAP настроен не полностью")
+		}
+	}
+	return config, nil
+}
 func (s *Service) Admin(ctx context.Context) (admin.Settings, error) {
 	values, err := s.Snapshot(ctx)
 	if err != nil {
@@ -119,6 +186,9 @@ func DecodePatch(data json.RawMessage) (domain.Patch, error) {
 }
 func encryptionUnavailable() error {
 	return apperrors.New(apperrors.ErrInvalidInput, "Для изменения SMTP настройте PROVIDER_TOKEN_ENCRYPTION_KEY на сервере.")
+}
+func ldapEncryptionUnavailable() error {
+	return apperrors.New(apperrors.ErrInvalidInput, "Для изменения пароля LDAP bind настройте PROVIDER_TOKEN_ENCRYPTION_KEY на сервере.")
 }
 func (s *Service) Update(ctx context.Context, input domain.Patch, audit admin.AuditInput) (admin.Settings, error) {
 	if input.Revision < 0 || len(input.Changes) == 0 {
@@ -157,9 +227,13 @@ func (s *Service) Update(ctx context.Context, input domain.Patch, audit admin.Au
 	}
 	fields := make([]string, 0, len(input.Changes))
 	smtpTouched := false
+	ldapTouched := false
 	for key, raw := range input.Changes {
 		if strings.HasPrefix(key, "smtp") {
 			smtpTouched = true
+		}
+		if strings.HasPrefix(key, "ldap") {
+			ldapTouched = true
 		}
 		if key == "smtpPassword" {
 			var password string
@@ -177,6 +251,22 @@ func (s *Service) Update(ctx context.Context, input domain.Patch, audit admin.Au
 				return admin.Settings{}, encryptionUnavailable()
 			}
 			values.SMTPPasswordConfigured = true
+		} else if key == "ldapBindPassword" {
+			var password string
+			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) || json.Unmarshal(raw, &password) != nil || !validPassword(password) {
+				return admin.Settings{}, apperrors.New(apperrors.ErrInvalidInput, "Некорректный пароль LDAP bind: максимум 4096 байт, без нулевого символа")
+			}
+			if password == "" {
+				continue
+			}
+			if s.cipher == nil {
+				return admin.Settings{}, ldapEncryptionUnavailable()
+			}
+			state.LDAPBindPasswordCiphertext, err = s.cipher.Encrypt(password, ldapBindPasswordBinding)
+			if err != nil {
+				return admin.Settings{}, ldapEncryptionUnavailable()
+			}
+			values.LDAPBindPasswordConfigured = true
 		} else {
 			if err = applyValue(&values, key, raw); err != nil {
 				return admin.Settings{}, err
@@ -213,12 +303,22 @@ func (s *Service) Update(ctx context.Context, input domain.Patch, audit admin.Au
 			return admin.Settings{}, apperrors.New(apperrors.ErrInvalidInput, "Не удалось расшифровать пароль SMTP. Укажите пароль заново или восстановите ключ шифрования.")
 		}
 	}
+	if values.LDAPEnabled && ldapTouched {
+		if s.cipher == nil {
+			return admin.Settings{}, ldapEncryptionUnavailable()
+		}
+		if state.LDAPBindPasswordCiphertext != "" {
+			if _, err = s.cipher.Decrypt(state.LDAPBindPasswordCiphertext, ldapBindPasswordBinding); err != nil {
+				return admin.Settings{}, apperrors.New(apperrors.ErrInvalidInput, "Не удалось расшифровать пароль LDAP bind. Укажите пароль заново или восстановите ключ шифрования.")
+			}
+		}
+	}
 	encoded, err := json.Marshal(overrides)
 	if err != nil {
 		return admin.Settings{}, err
 	}
 	sort.Strings(fields)
-	saved, err := s.repository.Save(ctx, domain.SaveInput{ExpectedRevision: input.Revision, Overrides: encoded, SMTPPasswordCiphertext: state.SMTPPasswordCiphertext, Fields: fields}, audit)
+	saved, err := s.repository.Save(ctx, domain.SaveInput{ExpectedRevision: input.Revision, Overrides: encoded, SMTPPasswordCiphertext: state.SMTPPasswordCiphertext, LDAPBindPasswordCiphertext: state.LDAPBindPasswordCiphertext, Fields: fields}, audit)
 	if err != nil {
 		return admin.Settings{}, err
 	}

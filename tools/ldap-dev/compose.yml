@@ -1,0 +1,47 @@
+name: meetspace-ldap-test
+
+services:
+  ldap:
+    image: lldap/lldap:v0.6.3@sha256:2a8454b668c1aba7157e832eab0e242e1e7eb5fb7591d7e7774ba05286511ca8
+    restart: unless-stopped
+    environment:
+      UID: "${LDAP_RUN_UID:?Run python3 setup.py first}"
+      GID: "${LDAP_RUN_GID:?Run python3 setup.py first}"
+      TZ: Europe/Moscow
+      LLDAP_JWT_SECRET: "${LLDAP_JWT_SECRET:?Run python3 setup.py first}"
+      LLDAP_LDAP_USER_DN: admin
+      LLDAP_LDAP_USER_EMAIL: admin@meetspace.test
+      LLDAP_LDAP_USER_PASS: "${LLDAP_ADMIN_PASSWORD:?Run python3 setup.py first}"
+      LLDAP_LDAP_BASE_DN: dc=meetspace,dc=test
+      LLDAP_HTTP_URL: http://localhost:17170
+      LLDAP_LDAPS_OPTIONS__ENABLED: "true"
+      LLDAP_LDAPS_OPTIONS__PORT: "6360"
+      LLDAP_LDAPS_OPTIONS__CERT_FILE: /tls/server.crt
+      LLDAP_LDAPS_OPTIONS__KEY_FILE: /tls/server.key
+    ports:
+      - "127.0.0.1:17170:17170"
+      - "127.0.0.1:3890:3890"
+      - "127.0.0.1:6360:6360"
+    volumes:
+      - ldap-data:/data
+      - ./secrets/tls:/tls:ro
+    networks:
+      - ldap-test
+    healthcheck:
+      test: ["CMD", "/app/lldap", "healthcheck", "--config-file", "/data/lldap_config.toml"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "2"
+
+volumes:
+  ldap-data:
+
+networks:
+  ldap-test:
+    name: meetspace-ldap-test

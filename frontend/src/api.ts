@@ -21,6 +21,7 @@ import type {
   Item,
   Items,
   LoginResponse,
+  AuthProviders,
   Participant,
   PersonalPeerPresence,
   User,
@@ -678,6 +679,16 @@ export const api = {
     request<LoginResponse>("/auth/login", {
       method: "POST",
       body: { email, password },
+      public: true,
+      sessionCookie: true,
+      signal,
+    }),
+  authProviders: (signal?: AbortSignal) =>
+    request<AuthProviders>("/auth/providers", { public: true, signal }),
+  ldapLogin: (login: string, password: string, signal?: AbortSignal) =>
+    request<LoginResponse>("/auth/ldap/login", {
+      method: "POST",
+      body: { login, password },
       public: true,
       sessionCookie: true,
       signal,

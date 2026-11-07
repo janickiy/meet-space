@@ -83,7 +83,7 @@ func (s *AvatarService) account(ctx context.Context, actor string) error {
 	if err != nil {
 		return err
 	}
-	if user.GuestConferenceID != nil || user.PasswordHash == "" {
+	if user.GuestConferenceID != nil || user.DeletedAt != nil {
 		return apperrors.ErrForbidden
 	}
 	return nil

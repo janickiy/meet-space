@@ -1,0 +1,8 @@
+# Local administrative HTTPS only; the main application remains on localhost:5173.
+services:
+  https:
+    environment:
+      ADMIN_TLS_CERT: /etc/nginx/certs/admin-local/server.crt
+      ADMIN_TLS_KEY: /etc/nginx/certs/admin-local/server.key
+    ports: !override
+      - "127.0.0.1:${ADMIN_HTTPS_PORT:-8081}:8081"

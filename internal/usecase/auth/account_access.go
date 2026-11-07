@@ -12,10 +12,14 @@ import (
 // must never resurrect a bearer token that predates the block.
 func (s *Service) AuthorizeLegacyAccount(ctx context.Context, userID string) error {
 	user, err := s.repository.GetByID(ctx, userID)
-	if err == nil && user.IsBlocked {
+	if err == nil && user.AccessBlocked() {
 		return apperrors.ErrAccountBlocked
 	}
 	if errors.Is(err, apperrors.ErrNotFound) || err == nil && user.AuthInvalidBefore != nil {
+		return apperrors.ErrUnauthorized
+	}
+	// Корпоративный вход всегда выдаёт SID; устаревший JWT не должен обходить отключение LDAP.
+	if err == nil && user.IsLDAP() {
 		return apperrors.ErrUnauthorized
 	}
 	if err == nil {

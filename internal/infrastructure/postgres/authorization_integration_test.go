@@ -107,7 +107,7 @@ func auditDatabase(t *testing.T, throughVersion ...int) *gorm.DB {
 // Separate names let independent audit suites run concurrently without sharing
 // schemas. The empty-database check and loopback-only boundary still apply.
 func disposableAuditDatabaseName(path string) bool {
-	return path == "/meetspace_audit" || path == "/audit_backend" || path == "/audit_resources"
+	return path == "/meetspace_audit" || path == "/audit_backend" || path == "/audit_resources" || path == "/meetspace_ldap_audit" || path == "/meetspace_ldap_e2e"
 }
 
 type auditPasswords struct{}

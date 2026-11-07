@@ -5,9 +5,11 @@ import { Check, Plus, Trash2, UserRound } from "lucide-react";
 import { useNavigate } from "react-router";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import { passwordLength } from "../utils";
+import { passwordLength, utf8Bytes } from "../utils";
 import { UserAvatar } from "./UserAvatar";
 import { Button, ErrorNotice, Loading } from "./ui";
+import { LoginProviderChoice, useLoginProviders } from "./LoginProviderChoice";
+import type { LoginProvider } from "./LoginProviderChoice";
 import "./account-management.css";
 
 export function AccountManagement() {
@@ -21,6 +23,10 @@ export function AccountManagement() {
   const [mode, setMode] = useState<"login" | "register" | "delete" | null>(
     null,
   );
+  const [provider, setProvider] = useState<LoginProvider>("local");
+  const providers = useLoginProviders(mode === "login");
+  const corporate = mode === "login" && provider === "ldap";
+  const managed = auth.user?.authSource === "ldap";
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -59,6 +65,17 @@ export function AccountManagement() {
     setError(undefined);
     setValidation("");
     if (
+      corporate &&
+      (!email.trim() ||
+        utf8Bytes(email.trim()) > 254 ||
+        !password ||
+        utf8Bytes(password) > 4096 ||
+        password.includes("\0"))
+    ) {
+      setValidation("Укажите корректный корпоративный логин и пароль.");
+      return;
+    }
+    if (
       mode === "register" &&
       (passwordLength(password) < 8 || passwordLength(password) > 128)
     ) {
@@ -71,7 +88,7 @@ export function AccountManagement() {
       if (mode === "delete") await auth.deleteAccount(password);
       else {
         if (mode === "register") await api.register(email, password, name);
-        await auth.login(email, password);
+        await auth.login(email.trim(), password, corporate ? "ldap" : "local");
       }
       setPassword("");
       navigate("/app/settings#accounts", { replace: true });
@@ -135,13 +152,15 @@ export function AccountManagement() {
           >
             <Plus size={18} aria-hidden="true" /> Добавить аккаунт
           </Button>
-          <Button
-            variant="danger"
-            disabled={busy}
-            onClick={() => choose("delete")}
-          >
-            <Trash2 size={18} aria-hidden="true" /> Удалить текущий аккаунт
-          </Button>
+          {!managed && (
+            <Button
+              variant="danger"
+              disabled={busy}
+              onClick={() => choose("delete")}
+            >
+              <Trash2 size={18} aria-hidden="true" /> Удалить текущий аккаунт
+            </Button>
+          )}
         </div>
       )}
       {mode && (
@@ -174,6 +193,19 @@ export function AccountManagement() {
                   Создать аккаунт
                 </Button>
               </div>
+              {mode === "login" &&
+                (providers.data?.ldap?.enabled || corporate) && (
+                  <LoginProviderChoice
+                    value={provider}
+                    disabled={busy}
+                    change={(value) => {
+                      setProvider(value);
+                      setPassword("");
+                      setValidation("");
+                      setError(undefined);
+                    }}
+                  />
+                )}
               {mode === "register" && (
                 <label className="field">
                   <span>Имя</span>
@@ -187,9 +219,9 @@ export function AccountManagement() {
                 </label>
               )}
               <label className="field">
-                <span>Email</span>
+                <span>{corporate ? "Корпоративный логин" : "Email"}</span>
                 <input
-                  type="email"
+                  type={corporate ? "text" : "email"}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   required
@@ -223,7 +255,7 @@ export function AccountManagement() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              maxLength={128}
+              maxLength={corporate ? 4096 : 128}
               autoComplete={
                 mode === "register" ? "new-password" : "current-password"
               }
@@ -263,6 +295,12 @@ export function AccountManagement() {
             </Button>
           </div>
         </form>
+      )}
+      {managed && (
+        <p className="field-hint">
+          Учётной записью управляет ваша организация. Для удаления обратитесь к
+          администратору.
+        </p>
       )}
     </section>
   );

@@ -75,7 +75,7 @@ func (s *Service) PasswordRecovery(ctx context.Context, email string) error {
 	if lookupErr != nil && !errors.Is(lookupErr, apperrors.ErrNotFound) {
 		return lookupErr
 	}
-	if lookupErr == nil && user.IsBlocked {
+	if lookupErr == nil && user.AccessBlocked() {
 		return apperrors.ErrAccountBlocked
 	}
 	unavailable := apperrors.New(apperrors.ErrUnavailable, "password recovery unavailable")
@@ -102,7 +102,7 @@ func (s *Service) PasswordRecovery(ctx context.Context, email string) error {
 	if err != nil {
 		return unavailable
 	}
-	if lookupErr != nil || user.GuestConferenceID != nil || user.PasswordHash == "" {
+	if lookupErr != nil || user.GuestConferenceID != nil || user.PasswordHash == "" || user.IsLDAP() || user.DeletedAt != nil {
 		return nil
 	}
 	return s.recovery.repo.Request(ctx, user, value)

@@ -38,6 +38,7 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const appearance = useAppearance();
   const guest = Boolean(user?.guestConferenceId);
+  const managed = user?.authSource === "ldap";
   const tabs = [
     ...(!guest
       ? [
@@ -113,6 +114,7 @@ export function SettingsPage() {
    */
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (managed) return;
     const value = name.trim();
     if (
       !value ||
@@ -231,11 +233,14 @@ export function SettingsPage() {
                     setProfileValidation("");
                   }}
                   required
+                  readOnly={managed}
                   aria-describedby="profile-name-hint"
                 />
               </label>
               <p id="profile-name-hint" className="field-hint">
-                От 1 до 100 символов.
+                {managed
+                  ? "Имя обновляется из каталога вашей организации."
+                  : "От 1 до 100 символов."}
               </p>
               <label className="field">
                 <span>Email</span>
@@ -247,20 +252,24 @@ export function SettingsPage() {
                 />
               </label>
               <p id="profile-email-hint" className="field-hint">
-                Адрес используется для входа. Изменение email пока недоступно.
+                {managed
+                  ? "Email обновляется из каталога вашей организации."
+                  : "Адрес используется для входа. Изменение email пока недоступно."}
               </p>
               <ErrorNotice>{profileValidation || null}</ErrorNotice>
               <ErrorNotice error={profileError} />
               {saved && <p role="status">Имя сохранено.</p>}
-              <div className="profile-save-row">
-                <Button
-                  type="submit"
-                  busy={saving}
-                  disabled={name.trim() === (user?.displayName || "")}
-                >
-                  Сохранить имя
-                </Button>
-              </div>
+              {!managed && (
+                <div className="profile-save-row">
+                  <Button
+                    type="submit"
+                    busy={saving}
+                    disabled={name.trim() === (user?.displayName || "")}
+                  >
+                    Сохранить имя
+                  </Button>
+                </div>
+              )}
             </form>
             <p className="profile-created">
               <CalendarDays size={16} aria-hidden="true" /> Регистрация:{" "}

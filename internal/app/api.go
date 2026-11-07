@@ -157,6 +157,8 @@ func RunAPI() error {
 		return err
 	}
 	authService.WithSessions(postgresinfra.NewAuthSessionRepository(db))
+	directoryService := newDirectoryService(db, settings)
+	authService.WithLDAP(directoryService)
 	verificationCipher, err := security.NewProviderTokens(cfg.StageSeven.EncryptionKey)
 	if err != nil {
 		return err
@@ -227,7 +229,7 @@ func RunAPI() error {
 	conferenceService.SetObserver(hub)
 	guestService := &conferenceusecase.GuestService{Repository: postgresinfra.NewGuestRepository(db), Tokens: tokens, Observer: hub}
 	httptransport.RegisterGuestRoutes(router, &conferencesapp.GuestHandler{Service: guestService, Tokens: authService}, rateLimiter)
-	httptransport.RegisterPlatformRoutes(router, authapp.NewHandler(authService).WithSessionCookies(cfg.StageSeven.PublicURL, !cfg.IsLocal()), conferencesapp.NewHandler(conferenceService), httpmiddleware.Authenticate(authService))
+	httptransport.RegisterPlatformRoutes(router, authapp.NewHandler(authService).WithSessionCookies(cfg.StageSeven.PublicURL, !cfg.IsLocal()).WithLDAPProviders(directoryService), conferencesapp.NewHandler(conferenceService), httpmiddleware.Authenticate(authService))
 	httptransport.RegisterControlRoutes(router, conferencesapp.NewControlHandler(controlService), httpmiddleware.Authenticate(authService))
 	httptransport.RegisterConferenceRecordingRoutes(router, recordingsapp.NewHandler(recordingService), httpmiddleware.Authenticate(authService))
 	httptransport.RegisterChatRoutes(router, chatapp.NewHandler(chatService), httpmiddleware.Authenticate(authService), rateLimiter)
@@ -345,6 +347,8 @@ func rateLimitConfig(cfg config.Config) httpmiddleware.RateLimitConfig {
 	rules := []httpmiddleware.Rule{
 		{Method: "GET", Path: path("/conference-invites/:code"), Scope: "invite_lookup_ip", Limit: 60, Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/login"), Scope: "ip", Limit: limit(cfg.RateLimit.AuthLoginIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
+		{Method: "POST", Path: path("/auth/ldap/login"), Scope: "ldap_login_ip", Limit: limit(cfg.RateLimit.AuthLoginIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
+		{Method: "GET", Path: path("/auth/providers"), Scope: "auth_providers_ip", Limit: 60, Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/register"), Scope: "ip", Limit: limit(cfg.RateLimit.AuthRegisterIPRPM), Window: window, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/password-recovery"), Scope: "password_recovery_ip", Limit: 5, Window: time.Minute, Key: httpmiddleware.ClientIPKey},
 		{Method: "POST", Path: path("/auth/reset-password"), Scope: "password_reset_ip", Limit: 5, Window: time.Minute, Key: httpmiddleware.ClientIPKey},

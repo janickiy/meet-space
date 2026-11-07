@@ -24,6 +24,7 @@
 | [Проверки выпуска](operations/RELEASE_CHECKLIST.md) | Последовательность эксплуатационных проверок |
 | [Резервное копирование](operations/backup-restore.md) | БД, S3, конфигурация, рабочие файлы и восстановление |
 | [Администрирование](operations/admin.md) | Доступ к административной сводке |
+| [LDAP и Active Directory](LDAP.md) | Корпоративный вход, защищённое подключение и синхронизация каталога |
 | [Проверки frontend](operations/frontend-release-checks.md) | Сборка и ручная проверка интерфейса |
 | [Отказные сценарии](operations/FAILURE_TESTS.md) | План проверок отказов и восстановления |
 | [GitLab CI](gitlab-ci-variables.md) | Задания и переменные pipeline |

@@ -5,7 +5,27 @@ export type SettingsChanges = Record<string, string | number | boolean>;
 export const mebibyte = 1024 * 1024;
 
 export function isSecretSetting(item: Setting): boolean {
-  return item.secret || item.type === "secret" || item.key === "smtpPassword";
+  return (
+    item.secret ||
+    item.type === "secret" ||
+    ["smtpPassword", "ldapBindPassword"].includes(item.key)
+  );
+}
+
+export function ldapPreset(mode: string): SettingsDraft {
+  const ad = mode === "ad";
+  return {
+    ldapMode: ad ? "ad" : "generic",
+    ldapLoginAttribute: ad ? "sAMAccountName" : "uid",
+    ldapIDAttribute: ad ? "objectGUID" : "entryUUID",
+    ldapEmailAttribute: "mail",
+    ldapNameAttribute: ad ? "displayName" : "cn",
+    ldapGroupMembershipAttribute: "memberOf",
+    ldapNestedGroups: false,
+    ldapUserFilter: ad
+      ? "(&(objectClass=user)(!(objectClass=computer)))"
+      : "(objectClass=person)",
+  };
 }
 
 // Even an erroneous backend response must not put a write-only secret in cache.
@@ -158,6 +178,60 @@ export function buildSettingsChanges(
     )
       errors.smtpPassword = "Пароль содержит недопустимый символ.";
   }
+  if (group === "ldap") {
+    const values = Object.fromEntries(
+      data.items.map((item) => [item.key, item.value]),
+    );
+    Object.assign(values, changes);
+    if (values.ldapEnabled === true) {
+      for (const key of [
+        "ldapServerURL",
+        "ldapBaseDN",
+        "ldapBindDN",
+        "ldapUserFilter",
+        "ldapLoginAttribute",
+        "ldapIDAttribute",
+        "ldapEmailAttribute",
+        "ldapNameAttribute",
+      ]) {
+        if (typeof values[key] !== "string" || !values[key].trim())
+          errors[key] = "Заполните поле, чтобы включить корпоративный вход.";
+      }
+      const password = data.items.find(
+        (item) => item.key === "ldapBindPassword",
+      );
+      if (!password?.configured && !changes.ldapBindPassword)
+        errors.ldapBindPassword = "Укажите пароль служебной учётной записи.";
+    }
+    if (values.ldapServerURL) {
+      try {
+        const url = new URL(String(values.ldapServerURL));
+        if (
+          !["ldaps:", "ldap:"].includes(url.protocol) ||
+          !url.hostname ||
+          url.username ||
+          url.password ||
+          !["", "/"].includes(url.pathname) ||
+          url.search ||
+          url.hash
+        )
+          throw new Error("invalid LDAP URL");
+      } catch {
+        errors.ldapServerURL =
+          "Укажите ldaps://сервер:636 или ldap://сервер:389 с обязательным StartTLS.";
+      }
+    }
+    if (values.ldapMode === "generic" && values.ldapNestedGroups === true)
+      errors.ldapNestedGroups =
+        "Вложенные группы доступны только для Active Directory.";
+    if (
+      typeof changes.ldapBindPassword === "string" &&
+      (new TextEncoder().encode(changes.ldapBindPassword).length > 4096 ||
+        changes.ldapBindPassword.includes("\0"))
+    )
+      errors.ldapBindPassword =
+        "Пароль должен быть не длиннее 4096 байт и не содержать нулевой символ.";
+  }
   return { changes, errors };
 }
 
@@ -170,8 +244,10 @@ export function settingsFailureMessage(
       ? error.message
       : "Не удалось сохранить настройки. Повторите попытку.";
   // API errors should never echo secrets; redact defensively before rendering one.
-  const password = drafts.smtpPassword;
-  if (typeof password === "string" && password)
-    message = message.replaceAll(password, "••••••••");
+  for (const key of ["smtpPassword", "ldapBindPassword"]) {
+    const password = drafts[key];
+    if (typeof password === "string" && password)
+      message = message.replaceAll(password, "••••••••");
+  }
   return message;
 }

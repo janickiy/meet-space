@@ -858,6 +858,7 @@ select {
   margin-right: 8px;
 }
 .page-size select {
+  height: 29px;
   padding: 4px 20px 4px 7px;
   font-size: 10px;
 }

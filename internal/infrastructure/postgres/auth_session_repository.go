@@ -33,7 +33,7 @@ import (
 //     передачи данных или сохранения.
 func (r *AuthSessionRepository) AuthorizeLegacy(ctx context.Context, hash, userID string) error {
 	var enabled bool
-	if err := r.db.WithContext(ctx).Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND password_hash<>'' AND NOT is_blocked AND auth_invalid_before IS NULL)", userID).Scan(&enabled).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND deleted_at IS NULL AND auth_source='local' AND NOT is_blocked AND NOT ldap_disabled AND auth_invalid_before IS NULL)", userID).Scan(&enabled).Error; err != nil {
 		return err
 	}
 	if !enabled {
@@ -100,7 +100,12 @@ func NewAuthSessionRepository(db *gorm.DB) *AuthSessionRepository {
 //     передачи данных или сохранения.
 func (r *AuthSessionRepository) Create(ctx context.Context, session users.AuthSession) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockSessionAccount(tx, session.UserID, session.CreatedAt, false, session.ExpectedPasswordHash); err != nil {
+		if session.ExpectedAuthSource == "ldap" {
+			if err := lockLDAPSettings(tx, session.ExpectedLDAPRevision); err != nil {
+				return err
+			}
+		}
+		if err := lockSessionAccount(tx, session.UserID, session.CreatedAt, false, &session); err != nil {
 			return err
 		}
 		if err := tx.Create(&session).Error; err != nil {
@@ -123,7 +128,7 @@ func (r *AuthSessionRepository) Create(ctx context.Context, session users.AuthSe
 func (r *AuthSessionRepository) GetByHash(ctx context.Context, hash string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").
-		Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>'' AND NOT u.is_blocked AND (u.auth_invalid_before IS NULL OR auth_sessions.created_at > u.auth_invalid_before)").
+		Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.deleted_at IS NULL AND NOT u.is_blocked AND NOT u.ldap_disabled AND (u.auth_source<>'ldap' OR EXISTS(SELECT 1 FROM platform_settings ps WHERE ps.singleton AND COALESCE((ps.values->>'ldapEnabled')::boolean,false))) AND (u.auth_invalid_before IS NULL OR auth_sessions.created_at > u.auth_invalid_before)").
 		Joins("JOIN auth_session_tokens ON auth_session_tokens.session_id = auth_sessions.id").
 		Where("auth_session_tokens.token_hash = ?", hash).Take(&session).Error
 	return session, mapNotFound(err)
@@ -141,7 +146,7 @@ func (r *AuthSessionRepository) GetByHash(ctx context.Context, hash string) (use
 //     передачи данных или сохранения.
 func (r *AuthSessionRepository) GetByID(ctx context.Context, id string) (users.AuthSession, error) {
 	var session users.AuthSession
-	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.password_hash<>'' AND NOT u.is_blocked AND (u.auth_invalid_before IS NULL OR auth_sessions.created_at > u.auth_invalid_before)").Where("auth_sessions.id = ?", id).Take(&session).Error
+	err := r.db.WithContext(ctx).Model(&users.AuthSession{}).Select("auth_sessions.*").Joins("JOIN users u ON u.id=auth_sessions.user_id AND u.deleted_at IS NULL AND NOT u.is_blocked AND NOT u.ldap_disabled AND (u.auth_source<>'ldap' OR EXISTS(SELECT 1 FROM platform_settings ps WHERE ps.singleton AND COALESCE((ps.values->>'ldapEnabled')::boolean,false))) AND (u.auth_invalid_before IS NULL OR auth_sessions.created_at > u.auth_invalid_before)").Where("auth_sessions.id = ?", id).Take(&session).Error
 	return session, mapNotFound(err)
 }
 
@@ -194,7 +199,7 @@ func (r *AuthSessionRepository) RevokeByID(ctx context.Context, id, userID strin
 func (r *AuthSessionRepository) Bootstrap(ctx context.Context, candidate users.AuthSession, legacyHash, preferredID string) (users.AuthSession, error) {
 	var session users.AuthSession
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockSessionAccount(tx, candidate.UserID, candidate.CreatedAt, legacyHash != "", ""); err != nil {
+		if err := lockSessionAccount(tx, candidate.UserID, candidate.CreatedAt, legacyHash != "", nil); err != nil {
 			return err
 		}
 		var legacy authLegacyToken
@@ -238,20 +243,35 @@ func (r *AuthSessionRepository) Bootstrap(ctx context.Context, candidate users.A
 
 // Serialize session creation with administrator blocks, so a concurrent login
 // cannot leave a usable session after the block transaction commits.
-func lockSessionAccount(tx *gorm.DB, id string, created time.Time, legacy bool, expectedPasswordHash string) error {
+func lockSessionAccount(tx *gorm.DB, id string, created time.Time, legacy bool, expected *users.AuthSession) error {
 	var user users.User
-	err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ? AND password_hash <> ''", id).Take(&user).Error
+	err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ? AND deleted_at IS NULL", id).Take(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return apperrors.ErrUnauthorized
 	}
 	if err != nil {
 		return err
 	}
-	if expectedPasswordHash != "" && user.PasswordHash != expectedPasswordHash {
+	if expected != nil && expected.ExpectedPasswordHash != "" && user.PasswordHash != expected.ExpectedPasswordHash {
 		return apperrors.ErrUnauthorized
 	}
-	if user.IsBlocked || user.GuestConferenceID != nil || user.AuthInvalidBefore != nil && (legacy || !created.After(*user.AuthInvalidBefore)) {
+	if user.AccessBlocked() || user.GuestConferenceID != nil || user.AuthInvalidBefore != nil && (legacy || !created.After(*user.AuthInvalidBefore)) {
 		return apperrors.ErrUnauthorized
+	}
+	if expected != nil && expected.ExpectedAuthSource != "" && (user.AuthSource != expected.ExpectedAuthSource || user.AuthVersion != expected.ExpectedAuthVersion) {
+		return apperrors.ErrUnauthorized
+	}
+	if user.IsLDAP() {
+		if legacy || expected != nil && expected.ExpectedAuthSource != "ldap" {
+			return apperrors.ErrUnauthorized
+		}
+		var enabled bool
+		if err := tx.Raw("SELECT COALESCE((values->>'ldapEnabled')::boolean,false) FROM platform_settings WHERE singleton").Scan(&enabled).Error; err != nil {
+			return err
+		}
+		if !enabled {
+			return apperrors.ErrUnauthorized
+		}
 	}
 	return nil
 }

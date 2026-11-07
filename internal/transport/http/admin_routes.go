@@ -67,7 +67,12 @@ func NewAdminRouter(service *adminusecase.Service, cfg config.AdminConfig, resou
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
 		defer cancel()
 		c.Request = c.Request.WithContext(ctx)
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16*1024)
+		maxBody := int64(16 * 1024)
+		if c.Request.Method == "PATCH" && c.Request.URL.Path == domain.CookiePath+"/settings" {
+			// LDAP допускает PEM-цепочку CA до 64 КиБ плюс экранирование JSON.
+			maxBody = 96 * 1024
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBody)
 		// All non-safe requests require a configured browser origin, including login (login CSRF).
 		if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
 			if c.GetHeader("Origin") != cfg.PublicURL {
@@ -91,6 +96,7 @@ func NewAdminRouter(service *adminusecase.Service, cfg config.AdminConfig, resou
 	group.POST("/auth/login", h.login)
 	protected := group.Group("")
 	protected.Use(h.authenticate)
+	h.registerDirectory(protected)
 	protected.GET("/auth/me", func(c *gin.Context) {
 		a, _ := c.Get("administrator")
 		token, _ := c.Cookie(domain.CookieName)

@@ -28,10 +28,10 @@ func (r *PasswordRecoveryRepository) Request(ctx context.Context, user users.Use
 		if err != nil {
 			return err
 		}
-		if current.IsBlocked {
+		if current.AccessBlocked() {
 			return apperrors.ErrAccountBlocked
 		}
-		if current.PasswordHash == "" || current.GuestConferenceID != nil || current.Email != user.Email {
+		if current.IsLDAP() || current.DeletedAt != nil || current.PasswordHash == "" || current.GuestConferenceID != nil || current.Email != user.Email {
 			return nil
 		}
 		var recent bool
@@ -75,10 +75,10 @@ func (r *PasswordRecoveryRepository) Consume(ctx context.Context, hash, password
 		if found.RowsAffected != 1 {
 			return invalid
 		}
-		if user.IsBlocked {
+		if user.AccessBlocked() {
 			return apperrors.ErrAccountBlocked
 		}
-		if user.PasswordHash == "" || user.GuestConferenceID != nil {
+		if user.IsLDAP() || user.DeletedAt != nil || user.PasswordHash == "" || user.GuestConferenceID != nil {
 			return invalid
 		}
 		if err = tx.Exec(`UPDATE password_recoveries SET consumed_at=clock_timestamp(),token_ciphertext='' WHERE id=?::uuid`, resetID).Error; err != nil {
@@ -102,7 +102,7 @@ func (r *PasswordRecoveryRepository) Consume(ctx context.Context, hash, password
 }
 func (r *PasswordRecoveryRepository) Delivery(ctx context.Context, job jobs.Job) (authusecase.PasswordRecoveryDelivery, error) {
 	var value authusecase.PasswordRecoveryDelivery
-	result := r.db.WithContext(ctx).Raw(`SELECT v.id,v.user_id,v.token_hash,v.token_ciphertext,v.expires_at,u.email FROM password_recoveries v JOIN users u ON u.id=v.user_id JOIN background_jobs j ON j.entity_id=v.id AND j.user_id=u.id WHERE v.id=?::uuid AND j.id=?::uuid AND j.kind=? AND j.state='processing' AND j.lease_token=?::uuid AND j.lease_until>clock_timestamp() AND v.consumed_at IS NULL AND v.expires_at>clock_timestamp() AND u.password_hash<>'' AND u.guest_conference_id IS NULL AND NOT u.is_blocked`, job.EntityID, job.ID, authusecase.PasswordRecoveryJobKind, job.LeaseToken).Scan(&value)
+	result := r.db.WithContext(ctx).Raw(`SELECT v.id,v.user_id,v.token_hash,v.token_ciphertext,v.expires_at,u.email FROM password_recoveries v JOIN users u ON u.id=v.user_id JOIN background_jobs j ON j.entity_id=v.id AND j.user_id=u.id WHERE v.id=?::uuid AND j.id=?::uuid AND j.kind=? AND j.state='processing' AND j.lease_token=?::uuid AND j.lease_until>clock_timestamp() AND v.consumed_at IS NULL AND v.expires_at>clock_timestamp() AND u.deleted_at IS NULL AND u.auth_source='local' AND u.guest_conference_id IS NULL AND NOT u.is_blocked`, job.EntityID, job.ID, authusecase.PasswordRecoveryJobKind, job.LeaseToken).Scan(&value)
 	if result.Error != nil {
 		return value, result.Error
 	}
@@ -113,7 +113,7 @@ func (r *PasswordRecoveryRepository) Delivery(ctx context.Context, job jobs.Job)
 }
 func (r *PasswordRecoveryRepository) ChangedDelivery(ctx context.Context, job jobs.Job) (string, error) {
 	var email string
-	result := r.db.WithContext(ctx).Raw(`SELECT u.email FROM users u JOIN background_jobs j ON j.user_id=u.id WHERE j.id=?::uuid AND j.entity_id=?::uuid AND j.kind=? AND j.state='processing' AND j.lease_token=?::uuid AND j.lease_until>clock_timestamp() AND u.password_hash<>'' AND u.guest_conference_id IS NULL`, job.ID, job.EntityID, authusecase.PasswordChangedJobKind, job.LeaseToken).Scan(&email)
+	result := r.db.WithContext(ctx).Raw(`SELECT u.email FROM users u JOIN background_jobs j ON j.user_id=u.id WHERE j.id=?::uuid AND j.entity_id=?::uuid AND j.kind=? AND j.state='processing' AND j.lease_token=?::uuid AND j.lease_until>clock_timestamp() AND u.deleted_at IS NULL AND u.auth_source='local' AND u.guest_conference_id IS NULL`, job.ID, job.EntityID, authusecase.PasswordChangedJobKind, job.LeaseToken).Scan(&email)
 	if result.Error != nil {
 		return "", result.Error
 	}

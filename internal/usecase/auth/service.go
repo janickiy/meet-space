@@ -136,6 +136,7 @@ type Service struct {
 	passwordWork chan struct{}
 	verification *verificationOptions
 	recovery     *passwordRecoveryOptions
+	ldap         LDAPAuthenticator
 }
 
 // NewService создаёт сервис с зависимостями и ограничениями, необходимыми для аутентификации
@@ -233,17 +234,17 @@ func (s *Service) Login(ctx context.Context, request users.LoginRequest) (users.
 		return users.LoginResponse{}, err
 	}
 	hash := user.PasswordHash
-	if missing || user.GuestConferenceID != nil || user.IsBlocked {
+	if missing || user.GuestConferenceID != nil || user.AccessBlocked() || user.IsLDAP() {
 		hash = s.dummyHash
 	}
 	valid, err := s.verifyPassword(ctx, request.Password, hash)
 	if err != nil {
 		return users.LoginResponse{}, err
 	}
-	if !missing && user.GuestConferenceID == nil && user.IsBlocked {
+	if !missing && user.GuestConferenceID == nil && user.AccessBlocked() {
 		return users.LoginResponse{}, apperrors.ErrAccountBlocked
 	}
-	if missing || user.GuestConferenceID != nil || !valid {
+	if missing || user.GuestConferenceID != nil || user.IsLDAP() || !valid {
 		return users.LoginResponse{}, invalidCredentials()
 	}
 	if err := s.enforceEmailVerification(ctx, user); err != nil {
@@ -270,7 +271,7 @@ func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 	if errors.Is(err, apperrors.ErrNotFound) {
 		return users.View{}, apperrors.ErrUnauthorized
 	}
-	if err == nil && user.IsBlocked {
+	if err == nil && user.AccessBlocked() {
 		return users.View{}, apperrors.ErrAccountBlocked
 	}
 	if err != nil {
@@ -295,6 +296,13 @@ func (s *Service) Me(ctx context.Context, userID string) (users.View, error) {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *Service) UpdateProfile(ctx context.Context, userID string, request users.UpdateProfileRequest) (users.View, error) {
+	current, err := s.account(ctx, userID)
+	if err != nil {
+		return users.View{}, err
+	}
+	if current.IsLDAP() {
+		return users.View{}, managedDirectoryAccount()
+	}
 	name, err := users.NormalizeDisplayName(request.DisplayName)
 	if err != nil {
 		return users.View{}, err

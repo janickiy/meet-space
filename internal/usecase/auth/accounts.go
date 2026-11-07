@@ -56,6 +56,9 @@ func (s *Service) DeleteAccount(ctx context.Context, id, password string) error 
 	if err != nil {
 		return err
 	}
+	if user.IsLDAP() {
+		return managedDirectoryAccount()
+	}
 	if password == "" || !utf8.ValidString(password) || utf8.RuneCountInString(password) > users.MaxPasswordCharacters {
 		return apperrors.New(apperrors.ErrInvalidInput, "incorrect account password")
 	}

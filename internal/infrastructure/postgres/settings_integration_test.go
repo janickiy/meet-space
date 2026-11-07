@@ -251,3 +251,46 @@ func TestAuditPlatformSettingsHTTPContract(t *testing.T) {
 		t.Fatal("HTTP settings not effective", err)
 	}
 }
+
+func TestLDAPSettingsChangeRevokesExistingSessions(t *testing.T) {
+	db, svc, ctx, actor, _ := settingsFixture(t)
+	userID, sessionID := uuid.NewString(), uuid.NewString()
+	if err := db.Exec(`INSERT INTO users(id,email,password_hash,auth_source) VALUES(?,?, '', 'ldap')`, userID, "ldap-settings-test@example.invalid").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`INSERT INTO auth_sessions(id,user_id) VALUES(?,?)`, sessionID, userID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`INSERT INTO auth_legacy_tokens(token_hash,user_id) VALUES(?,?)`, strings.Repeat("f", 64), userID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Update(ctx, settingsPatch(t, `{"revision":0,"changes":{"ldapTimeoutSeconds":20}}`), actor); err != nil {
+		t.Fatal(err)
+	}
+	var untouched struct {
+		Version int64
+		Invalid *time.Time
+		Revoked *time.Time
+	}
+	if err := db.Raw(`SELECT u.auth_version AS version,u.auth_invalid_before AS invalid,s.revoked_at AS revoked FROM users u JOIN auth_sessions s ON s.user_id=u.id WHERE u.id=?`, userID).Scan(&untouched).Error; err != nil {
+		t.Fatal(err)
+	}
+	if untouched.Version != 0 || untouched.Invalid != nil || untouched.Revoked != nil {
+		t.Fatal("timeout-only edit unexpectedly invalidated sessions")
+	}
+	if _, err := svc.Update(ctx, settingsPatch(t, `{"revision":1,"changes":{"ldapServerURL":"ldaps://ldap.example.test:636"}}`), actor); err != nil {
+		t.Fatal(err)
+	}
+	var state struct {
+		Version       int64
+		Invalid       *time.Time
+		Revoked       *time.Time
+		LegacyRevoked *time.Time
+	}
+	if err := db.Raw(`SELECT u.auth_version AS version,u.auth_invalid_before AS invalid,s.revoked_at AS revoked,l.revoked_at AS legacy_revoked FROM users u JOIN auth_sessions s ON s.user_id=u.id JOIN auth_legacy_tokens l ON l.user_id=u.id WHERE u.id=?`, userID).Scan(&state).Error; err != nil {
+		t.Fatal(err)
+	}
+	if state.Version != 1 || state.Invalid == nil || state.Revoked == nil || state.LegacyRevoked == nil {
+		t.Fatalf("LDAP settings did not revoke prior sessions: %+v", state)
+	}
+}

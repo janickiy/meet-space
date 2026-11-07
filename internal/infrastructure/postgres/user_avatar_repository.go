@@ -19,7 +19,7 @@ func (r *UserRepository) SaveAvatar(ctx context.Context, actor string, data []by
 	}
 	var user users.User
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id=? AND password_hash<>'' AND guest_conference_id IS NULL", actor).Take(&user).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id=? AND deleted_at IS NULL AND guest_conference_id IS NULL", actor).Take(&user).Error; err != nil {
 			return mapNotFound(err)
 		}
 		var version *string
@@ -47,8 +47,8 @@ func (r *UserRepository) SaveAvatar(ctx context.Context, actor string, data []by
 func (r *UserRepository) ReadAvatar(ctx context.Context, actor, target string) ([]byte, error) {
 	var row struct{ Data []byte }
 	result := r.db.WithContext(ctx).Raw(`SELECT a.data FROM user_avatars a JOIN users u ON u.id=a.user_id
-	 WHERE u.id=? AND u.password_hash<>'' AND u.guest_conference_id IS NULL
-	 AND EXISTS(SELECT 1 FROM users actor WHERE actor.id=? AND actor.password_hash<>'' AND actor.guest_conference_id IS NULL)`, target, actor).Scan(&row)
+	 WHERE u.id=? AND u.deleted_at IS NULL AND u.guest_conference_id IS NULL
+	 AND EXISTS(SELECT 1 FROM users actor WHERE actor.id=? AND actor.deleted_at IS NULL AND actor.guest_conference_id IS NULL)`, target, actor).Scan(&row)
 	if result.Error != nil {
 		return nil, result.Error
 	}

@@ -192,7 +192,7 @@ func (s *Service) WithSessions(repository SessionRepository) *Service {
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (s *Service) signIn(ctx context.Context, user users.User) (users.LoginResponse, error) {
-	if user.IsBlocked {
+	if user.AccessBlocked() {
 		return users.LoginResponse{}, apperrors.ErrAccountBlocked
 	}
 	if err := s.enforceEmailVerification(ctx, user); err != nil {
@@ -210,7 +210,7 @@ func (s *Service) signIn(ctx context.Context, user users.User) (users.LoginRespo
 		return users.LoginResponse{}, err
 	}
 	raw := base64.RawURLEncoding.EncodeToString(secret[:])
-	session := users.AuthSession{ID: uuid.NewString(), UserID: user.ID, TokenHash: sessionHash(raw), CreatedAt: time.Now().UTC(), ExpectedPasswordHash: user.PasswordHash}
+	session := users.AuthSession{ID: uuid.NewString(), UserID: user.ID, TokenHash: sessionHash(raw), CreatedAt: time.Now().UTC(), ExpectedPasswordHash: user.PasswordHash, ExpectedAuthSource: user.AuthSource, ExpectedAuthVersion: user.AuthVersion, ExpectedLDAPRevision: user.LDAPRevision}
 	response, err := s.sessionResponse(user, session, raw)
 	if err != nil {
 		return users.LoginResponse{}, err
@@ -331,7 +331,7 @@ func (s *Service) account(ctx context.Context, id string) (users.User, error) {
 	if errors.Is(err, apperrors.ErrNotFound) {
 		return users.User{}, apperrors.ErrUnauthorized
 	}
-	if err == nil && user.IsBlocked {
+	if err == nil && user.AccessBlocked() {
 		return users.User{}, apperrors.ErrAccountBlocked
 	}
 	if err != nil {
@@ -505,7 +505,7 @@ func (s *Service) AuthorizeSession(ctx context.Context, userID, sessionID string
 	if errors.Is(err, apperrors.ErrNotFound) {
 		// The caller's identity came from a verified bearer or one-use WS ticket.
 		// A blocked account is distinguishable without allowing the revoked session.
-		if user, accountErr := s.repository.GetByID(ctx, userID); accountErr == nil && user.IsBlocked {
+		if user, accountErr := s.repository.GetByID(ctx, userID); accountErr == nil && user.AccessBlocked() {
 			return apperrors.ErrAccountBlocked
 		}
 		return apperrors.ErrUnauthorized

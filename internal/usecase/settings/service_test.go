@@ -28,7 +28,7 @@ func (r *testRepository) Save(_ context.Context, in domain.SaveInput, _ admin.Au
 	}
 	r.saves++
 	r.fields = in.Fields
-	r.state = domain.State{Revision: r.state.Revision + 1, Overrides: in.Overrides, SMTPPasswordCiphertext: in.SMTPPasswordCiphertext}
+	r.state = domain.State{Revision: r.state.Revision + 1, Overrides: in.Overrides, SMTPPasswordCiphertext: in.SMTPPasswordCiphertext, LDAPBindPasswordCiphertext: in.LDAPBindPasswordCiphertext}
 	return r.state, nil
 }
 func testDefaults() domain.Values {

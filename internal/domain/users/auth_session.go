@@ -18,6 +18,9 @@ type AuthSession struct {
 	UserID               string    `gorm:"type:uuid;not null"`
 	TokenHash            string    `gorm:"-"`
 	ExpectedPasswordHash string    `gorm:"-" json:"-"`
+	ExpectedAuthSource   string    `gorm:"-" json:"-"`
+	ExpectedAuthVersion  int64     `gorm:"-" json:"-"`
+	ExpectedLDAPRevision int64     `gorm:"-" json:"-"`
 	CreatedAt            time.Time `gorm:"not null"`
 	RevokedAt            *time.Time
 }

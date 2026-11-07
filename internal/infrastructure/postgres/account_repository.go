@@ -33,10 +33,10 @@ import (
 func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var user users.User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id=? AND password_hash<>'' AND guest_conference_id IS NULL", id).Take(&user).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id=? AND deleted_at IS NULL AND guest_conference_id IS NULL", id).Take(&user).Error; err != nil {
 			return mapNotFound(err)
 		}
-		if user.PasswordHash != verifiedHash {
+		if user.IsLDAP() || user.PasswordHash != verifiedHash {
 			return apperrors.ErrConflict
 		}
 		var blocked bool
@@ -105,6 +105,6 @@ func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash str
 		if err := tx.RollbackTo("account_erasure").Error; err != nil {
 			return err
 		}
-		return tx.Model(&users.User{}).Where("id=?", id).Updates(map[string]any{"email": "deleted." + id + "@invalid", "password_hash": "", "display_name": "Удалённый аккаунт", "is_admin": false, "avatar_version": nil}).Error
+		return tx.Model(&users.User{}).Where("id=?", id).Updates(map[string]any{"email": "deleted." + id + "@invalid", "password_hash": "", "deleted_at": gorm.Expr("clock_timestamp()"), "display_name": "Удалённый аккаунт", "is_admin": false, "avatar_version": nil}).Error
 	})
 }

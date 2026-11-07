@@ -42,7 +42,7 @@ func (r *EmailVerificationRepository) CreatePending(ctx context.Context, user us
 func (r *EmailVerificationRepository) Resend(ctx context.Context, user users.User, v authusecase.Verification) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var eligible bool
-		result := tx.Raw(`SELECT email_verification_required AND email_verified_at IS NULL AND NOT is_blocked AS eligible FROM users WHERE id=?::uuid AND password_hash<>'' AND guest_conference_id IS NULL FOR UPDATE`, user.ID).Scan(&eligible)
+		result := tx.Raw(`SELECT email_verification_required AND email_verified_at IS NULL AND NOT is_blocked AS eligible FROM users WHERE id=?::uuid AND deleted_at IS NULL AND auth_source='local' AND guest_conference_id IS NULL FOR UPDATE`, user.ID).Scan(&eligible)
 		if result.Error != nil {
 			return result.Error
 		}
@@ -72,7 +72,7 @@ func (r *EmailVerificationRepository) Consume(ctx context.Context, hash string) 
 			return invalid
 		}
 		var eligible bool
-		found = tx.Raw(`SELECT NOT is_blocked AND password_hash<>'' AND guest_conference_id IS NULL FROM users WHERE id=?::uuid FOR UPDATE`, userID).Scan(&eligible)
+		found = tx.Raw(`SELECT NOT is_blocked AND deleted_at IS NULL AND auth_source='local' AND guest_conference_id IS NULL FROM users WHERE id=?::uuid FOR UPDATE`, userID).Scan(&eligible)
 		if found.Error != nil {
 			return found.Error
 		}
@@ -98,7 +98,7 @@ func (r *EmailVerificationRepository) Consume(ctx context.Context, hash string) 
 		if result.RowsAffected != 1 {
 			return invalid
 		}
-		result = tx.Exec(`UPDATE users SET email_verified_at=clock_timestamp() WHERE id=?::uuid AND password_hash<>'' AND guest_conference_id IS NULL AND NOT is_blocked`, row.UserID)
+		result = tx.Exec(`UPDATE users SET email_verified_at=clock_timestamp() WHERE id=?::uuid AND deleted_at IS NULL AND auth_source='local' AND guest_conference_id IS NULL AND NOT is_blocked`, row.UserID)
 		if result.Error != nil {
 			return result.Error
 		}

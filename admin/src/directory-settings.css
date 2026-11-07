@@ -1,0 +1,38 @@
+.setting-control textarea.directory-ca {
+  width: 100%;
+  min-height: 144px;
+  padding: 12px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: 12px/1.5 monospace;
+}
+.directory-actions {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.directory-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+}
+.directory-sync-status {
+  display: grid;
+  gap: 12px;
+}
+.directory-sync-status > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.directory-sync-status dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

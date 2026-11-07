@@ -9,6 +9,7 @@
  *   - updatedAt — время последнего сохранённого изменения.
  */
 export interface User {
+  authSource?: "local" | "ldap";
   emailVerificationRequired?: boolean;
   id: string;
   email: string;
@@ -18,6 +19,10 @@ export interface User {
   avatarVersion?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AuthProviders {
+  ldap: { enabled: boolean; label: string };
 }
 
 /** Зарегистрированная учётная запись доступна для поиска приглашений организатора. */

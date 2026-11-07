@@ -688,7 +688,7 @@ Makefile                   Команды разработки и выпуска
 
 ### Документация по функциям
 
-- [Авторизация и сессии](docs/PERSISTENT_AUTH.md), [управление аккаунтами](docs/account-management.md).
+- [Авторизация и сессии](docs/PERSISTENT_AUTH.md), [управление аккаунтами](docs/account-management.md), [LDAP и Active Directory](docs/LDAP.md).
 - [Личные сообщения](docs/PERSONAL_MESSAGES.md), [группы](docs/GROUP_CHATS.md),
   [поиск в переписке](docs/personal-chat-search.md), [папки](docs/PERSONAL_FOLDERS.md).
 - [Настройки аудио и видео](docs/AUDIO_VIDEO_SETTINGS.md), [уведомления и интеграции](docs/content-integrations.md).

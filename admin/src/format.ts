@@ -71,8 +71,8 @@ export function validateAdministrator(
   confirmation: string,
   creating: boolean,
 ): string | null {
-  if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username.trim()))
-    return "Логин: от 3 до 40 латинских букв, цифр, точек, дефисов или подчёркиваний.";
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9.@+_-]{2,39}$/.test(username.trim()))
+    return "Логин: 3–40 символов, начинается с латинской буквы или цифры; допустимы латинские буквы, цифры, . - _ @ +.";
   if (creating && validatePassword(password)) return validatePassword(password);
   if (creating && password !== confirmation) return "Пароли не совпадают.";
   return null;

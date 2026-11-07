@@ -11,19 +11,37 @@ const DefaultRecordingRetentionDays = 7
 
 // Values is safe to expose to runtime consumers. It never contains credentials.
 type Values struct {
-	Revision                  int64  `json:"revision"`
-	AttachmentMaxBytes        int64  `json:"attachmentMaxBytes"`
-	MediaMaxPeers             int    `json:"mediaMaxPeers"`
-	MediaMaxRooms             int    `json:"mediaMaxRooms"`
-	RecordingRetentionDays    int    `json:"recordingRetentionDays"`
-	SMTPEnabled               bool   `json:"smtpEnabled"`
-	SMTPHost                  string `json:"smtpHost"`
-	SMTPPort                  int    `json:"smtpPort"`
-	SMTPUsername              string `json:"smtpUsername"`
-	SMTPFrom                  string `json:"smtpFrom"`
-	SMTPTLSMode               string `json:"smtpTLSMode"`
-	SMTPPasswordConfigured    bool   `json:"smtpPasswordConfigured"`
-	EmailVerificationRequired bool   `json:"emailVerificationRequired"`
+	Revision                     int64  `json:"revision"`
+	AttachmentMaxBytes           int64  `json:"attachmentMaxBytes"`
+	MediaMaxPeers                int    `json:"mediaMaxPeers"`
+	MediaMaxRooms                int    `json:"mediaMaxRooms"`
+	RecordingRetentionDays       int    `json:"recordingRetentionDays"`
+	SMTPEnabled                  bool   `json:"smtpEnabled"`
+	SMTPHost                     string `json:"smtpHost"`
+	SMTPPort                     int    `json:"smtpPort"`
+	SMTPUsername                 string `json:"smtpUsername"`
+	SMTPFrom                     string `json:"smtpFrom"`
+	SMTPTLSMode                  string `json:"smtpTLSMode"`
+	SMTPPasswordConfigured       bool   `json:"smtpPasswordConfigured"`
+	EmailVerificationRequired    bool   `json:"emailVerificationRequired"`
+	LDAPEnabled                  bool   `json:"ldapEnabled"`
+	LDAPMode                     string `json:"ldapMode"`
+	LDAPServerURL                string `json:"ldapServerURL"`
+	LDAPBaseDN                   string `json:"ldapBaseDN"`
+	LDAPUsersDN                  string `json:"ldapUsersDN"`
+	LDAPUserFilter               string `json:"ldapUserFilter"`
+	LDAPLoginAttribute           string `json:"ldapLoginAttribute"`
+	LDAPIDAttribute              string `json:"ldapIDAttribute"`
+	LDAPEmailAttribute           string `json:"ldapEmailAttribute"`
+	LDAPNameAttribute            string `json:"ldapNameAttribute"`
+	LDAPGroupDN                  string `json:"ldapGroupDN"`
+	LDAPGroupMembershipAttribute string `json:"ldapGroupMembershipAttribute"`
+	LDAPNestedGroups             bool   `json:"ldapNestedGroups"`
+	LDAPBindDN                   string `json:"ldapBindDN"`
+	LDAPBindPasswordConfigured   bool   `json:"ldapBindPasswordConfigured"`
+	LDAPCA                       string `json:"ldapCA"`
+	LDAPSyncIntervalMinutes      int    `json:"ldapSyncIntervalMinutes"`
+	LDAPTimeoutSeconds           int    `json:"ldapTimeoutSeconds"`
 }
 
 type Reader interface {
@@ -39,16 +57,18 @@ type SMTPConfig struct {
 }
 
 type State struct {
-	Revision               int64           `json:"-"`
-	Overrides              json.RawMessage `json:"-"`
-	SMTPPasswordCiphertext string          `json:"-"`
+	Revision                   int64           `json:"-"`
+	Overrides                  json.RawMessage `json:"-"`
+	SMTPPasswordCiphertext     string          `json:"-"`
+	LDAPBindPasswordCiphertext string          `json:"-"`
 }
 
 type SaveInput struct {
-	ExpectedRevision       int64
-	Overrides              json.RawMessage
-	SMTPPasswordCiphertext string
-	Fields                 []string
+	ExpectedRevision           int64
+	Overrides                  json.RawMessage
+	SMTPPasswordCiphertext     string `json:"-"`
+	LDAPBindPasswordCiphertext string `json:"-"`
+	Fields                     []string
 }
 
 type Repository interface {

@@ -116,9 +116,9 @@ func (r *AdminRepository) FileSummary(ctx context.Context) (admin.Files, error) 
 func (r *AdminRepository) Dashboard(ctx context.Context) (admin.Dashboard, error) {
 	out := admin.Dashboard{Activity: []admin.ActivityPoint{}, Services: []admin.ServiceHealth{}, CheckedAt: time.Now().UTC()}
 	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) AS total,
-	 count(*) FILTER(WHERE NOT is_blocked) AS active,count(*) FILTER(WHERE is_blocked) AS blocked,
+	 count(*) FILTER(WHERE NOT is_blocked AND NOT ldap_disabled) AS active,count(*) FILTER(WHERE is_blocked OR ldap_disabled) AS blocked,
 	 count(*) FILTER(WHERE created_at>=now()-interval '7 days') AS new
-	 FROM users WHERE guest_conference_id IS NULL AND password_hash<>''`).Scan(&out.Users).Error; err != nil {
+	 FROM users WHERE guest_conference_id IS NULL AND deleted_at IS NULL`).Scan(&out.Users).Error; err != nil {
 		return out, err
 	}
 	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) AS total,count(*) FILTER(WHERE status='active') AS active,

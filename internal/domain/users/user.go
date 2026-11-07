@@ -24,6 +24,11 @@ type User struct {
 	ID                        string     `gorm:"type:uuid;primaryKey" json:"-"`
 	Email                     string     `json:"-"`
 	PasswordHash              string     `gorm:"column:password_hash" json:"-"`
+	AuthSource                string     `gorm:"column:auth_source;default:local" json:"-"`
+	DeletedAt                 *time.Time `gorm:"column:deleted_at" json:"-"`
+	LDAPDisabled              bool       `gorm:"column:ldap_disabled" json:"-"`
+	AuthVersion               int64      `gorm:"column:auth_version" json:"-"`
+	LDAPRevision              int64      `gorm:"-" json:"-"`
 	DisplayName               *string    `gorm:"column:display_name" json:"-"`
 	IsAdmin                   bool       `gorm:"column:is_admin" json:"-"`
 	IsBlocked                 bool       `gorm:"column:is_blocked;->" json:"-"`
@@ -55,6 +60,7 @@ func (User) TableName() string { return "users" }
 type View struct {
 	ID                        string    `json:"id"`
 	Email                     string    `json:"email"`
+	AuthSource                string    `json:"authSource"`
 	DisplayName               *string   `json:"displayName"`
 	IsAdmin                   bool      `json:"isAdmin"`
 	GuestConferenceID         *string   `json:"guestConferenceId,omitempty"`
@@ -73,8 +79,18 @@ func (u User) View() View {
 	if u.GuestConferenceID != nil {
 		email = ""
 	}
-	return View{ID: u.ID, Email: email, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, AvatarVersion: u.AvatarVersion, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt, EmailVerificationRequired: u.EmailVerificationRequired && u.EmailVerifiedAt == nil}
+	source := u.AuthSource
+	if source == "" {
+		source = "local"
+	}
+	return View{ID: u.ID, Email: email, AuthSource: source, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, AvatarVersion: u.AvatarVersion, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt, EmailVerificationRequired: u.EmailVerificationRequired && u.EmailVerifiedAt == nil}
 }
+
+// IsLDAP отличает корпоративную учётную запись от локального пароля и гостя.
+func (u User) IsLDAP() bool { return u.AuthSource == "ldap" }
+
+// AccessBlocked учитывает независимые блокировки администратора и каталога.
+func (u User) AccessBlocked() bool { return u.IsBlocked || u.LDAPDisabled || u.DeletedAt != nil }
 
 // ParticipantName выбирает публичное имя участника, которое используется в представлениях о
 // членстве в конференции.
@@ -127,6 +143,12 @@ func NormalizeDisplayName(value string) (string, error) {
 // LoginRequest содержит введенные учетные данные для входа.
 type LoginRequest struct {
 	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// LDAPLoginRequest принимает доменный логин без автоматического перехода к локальному входу.
+type LDAPLoginRequest struct {
+	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 

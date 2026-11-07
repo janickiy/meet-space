@@ -7,13 +7,13 @@ import (
 )
 
 func TestAdministratorValidation(t *testing.T) {
-	for input, want := range map[string]string{" Admin ": "admin", "Elena.OPS": "elena.ops", "user-123": "user-123"} {
+	for input, want := range map[string]string{" Admin ": "admin", "Elena.OPS": "elena.ops", "user-123": "user-123", " User@Example.com ": "user@example.com", "operator+local@example.com": "operator+local@example.com"} {
 		got, err := NormalizeUsername(input)
 		if err != nil || got != want {
 			t.Fatalf("normalize %q: %q %v", input, got, err)
 		}
 	}
-	for _, v := range []string{"a", "ab", "user@example.com", "админ", strings.Repeat("a", 41), "_admin"} {
+	for _, v := range []string{"a", "ab", "user name@example.com", "user@example.com\nother", "админ", strings.Repeat("a", 41), "_admin", "@admin"} {
 		if _, err := NormalizeUsername(v); err == nil {
 			t.Errorf("accepted invalid username %q", v)
 		}

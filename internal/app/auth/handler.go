@@ -71,6 +71,7 @@ type Service interface {
 // входные данные и формирует ответ.
 type Handler struct {
 	service            Service
+	ldap               ldapAvailability
 	publicOrigin       string
 	secureCookie       bool
 	persistentSessions bool

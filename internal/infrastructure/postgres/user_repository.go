@@ -68,7 +68,7 @@ func (r *UserRepository) Create(ctx context.Context, user users.User) (users.Use
 //     передачи данных или сохранения.
 func (r *UserRepository) GetByID(ctx context.Context, id string) (users.User, error) {
 	var user users.User
-	err := r.db.WithContext(ctx).Where("id = ? AND password_hash<>''", id).Take(&user).Error
+	err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).Take(&user).Error
 	return user, mapNotFound(err)
 }
 
@@ -84,7 +84,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (users.User, er
 //     передачи данных или сохранения.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (users.User, error) {
 	var user users.User
-	err := r.db.WithContext(ctx).Where("email = ? AND password_hash<>''", email).Take(&user).Error
+	err := r.db.WithContext(ctx).Where("email = ? AND deleted_at IS NULL", email).Take(&user).Error
 	return user, mapNotFound(err)
 }
 
@@ -102,7 +102,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (users.Us
 //   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func (r *UserRepository) UpdateDisplayName(ctx context.Context, userID, name string) (users.User, error) {
-	result := r.db.WithContext(ctx).Model(&users.User{}).Where("id = ? AND password_hash<>''", userID).Update("display_name", name)
+	result := r.db.WithContext(ctx).Model(&users.User{}).Where("id = ? AND deleted_at IS NULL AND auth_source='local'", userID).Update("display_name", name)
 	if result.Error != nil {
 		return users.User{}, result.Error
 	}

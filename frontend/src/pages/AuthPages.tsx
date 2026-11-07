@@ -22,6 +22,11 @@ import { passwordLength, safeNext, utf8Bytes } from "../utils";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "../brand";
 import { Copyright } from "../components/Copyright";
 import { AuthTeamVisual } from "../components/AuthTeamVisual";
+import {
+  LoginProviderChoice,
+  useLoginProviders,
+} from "../components/LoginProviderChoice";
+import type { LoginProvider } from "../components/LoginProviderChoice";
 import "./auth-pages.css";
 
 /**
@@ -43,6 +48,9 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [provider, setProvider] = useState<LoginProvider>("local");
+  const providers = useLoginProviders(!register);
+  const corporate = !register && provider === "ldap";
   const [recovery, setRecovery] = useState("");
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const recoveryController = useRef<AbortController | null>(null);
@@ -93,18 +101,32 @@ export function AuthPage({ register = false }: { register?: boolean }) {
     setError("");
     setVerificationNeeded(false);
     if (
-      !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
-      utf8Bytes(email.trim()) > 254
+      corporate
+        ? !email.trim() || utf8Bytes(email.trim()) > 254
+        : !/^[^\s@]+@[^\s@]+$/.test(email.trim()) ||
+          utf8Bytes(email.trim()) > 254
     ) {
-      setError("Введите корректный email.");
+      setError(
+        corporate
+          ? "Введите корректный корпоративный логин."
+          : "Введите корректный email.",
+      );
       return;
     }
     const size = passwordLength(password);
-    if (!password || size > 128 || (register && size < 8)) {
+    if (
+      !password ||
+      (corporate
+        ? utf8Bytes(password) > 4096 || password.includes("\0")
+        : size > 128) ||
+      (register && size < 8)
+    ) {
       setError(
-        register
-          ? "Пароль должен содержать от 8 до 128 символов."
-          : "Введите пароль длиной не более 128 символов.",
+        corporate
+          ? "Введите корректный пароль организации."
+          : register
+            ? "Пароль должен содержать от 8 до 128 символов."
+            : "Введите пароль длиной не более 128 символов.",
       );
       return;
     }
@@ -133,7 +155,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
         setPassword("");
         navigate(`/register/success${nextQuery}`, { replace: true });
       } else {
-        await auth.login(email.trim(), password);
+        await auth.login(email.trim(), password, corporate ? "ldap" : "local");
         setPassword("");
         navigate(next, { replace: true });
       }
@@ -236,13 +258,30 @@ export function AuthPage({ register = false }: { register?: boolean }) {
             </p>
           )}
           <form onSubmit={submit} noValidate>
+            {!register && (providers.data?.ldap?.enabled || corporate) && (
+              <LoginProviderChoice
+                value={provider}
+                disabled={busy}
+                change={(value) => {
+                  setProvider(value);
+                  setPassword("");
+                  setError("");
+                  setVerificationNeeded(false);
+                  recoveryController.current?.abort();
+                  setRecovery("");
+                  setRecoveryBusy(false);
+                }}
+              />
+            )}
             <label className="field" htmlFor="email">
-              Email
+              {corporate ? "Корпоративный логин" : "Email"}
               <input
                 id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="name@company.ru"
+                type={corporate ? "text" : "email"}
+                autoComplete={corporate ? "username" : "email"}
+                placeholder={
+                  corporate ? "Логин в каталоге организации" : "name@company.ru"
+                }
                 required
                 value={email}
                 onChange={
@@ -311,6 +350,11 @@ export function AuthPage({ register = false }: { register?: boolean }) {
                     />
                   </label>
                 </>
+              ) : corporate ? (
+                <p className="field-hint">
+                  Используйте пароль организации. Для его восстановления
+                  обратитесь к администратору.
+                </p>
               ) : (
                 <div className="recovery">
                   <button

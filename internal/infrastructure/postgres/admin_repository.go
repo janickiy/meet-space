@@ -411,7 +411,7 @@ func escapeAdminLike(s string) string {
 func (r *AdminRepository) Users(ctx context.Context, q admin.Query) (admin.Page[admin.UserView], error) {
 	q = q.Normalized()
 	out := admin.NewPage[admin.UserView](q)
-	db := r.db.WithContext(ctx).Table("users").Where("password_hash<>'' AND guest_conference_id IS NULL")
+	db := r.db.WithContext(ctx).Table("users").Where("deleted_at IS NULL AND guest_conference_id IS NULL")
 	if q.Q != "" {
 		like := "%" + escapeAdminLike(q.Q) + "%"
 		predicate := "(display_name ILIKE ? OR email ILIKE ?)"
@@ -425,12 +425,12 @@ func (r *AdminRepository) Users(ctx context.Context, q admin.Query) (admin.Page[
 		db = db.Where(predicate, args...)
 	}
 	if q.Status == "active" || q.Status == "blocked" {
-		db = db.Where("is_blocked=?", q.Status == "blocked")
+		db = db.Where("(is_blocked OR ldap_disabled)=?", q.Status == "blocked")
 	}
 	if err := db.Count(&out.Total).Error; err != nil {
 		return out, err
 	}
-	err := db.Select("id,COALESCE(display_name,'') AS name,NULLIF(email,'') AS email,CASE WHEN is_blocked THEN 'blocked' ELSE 'active' END AS status,created_at").Order(adminOrder(q, map[string]string{"name": "display_name", "email": "email", "createdAt": "created_at", "status": "is_blocked"}, "created_at")).Offset(q.Offset()).Limit(q.PageSize).Scan(&out.Items).Error
+	err := db.Select("id,COALESCE(display_name,'') AS name,NULLIF(email,'') AS email,CASE WHEN is_blocked OR ldap_disabled THEN 'blocked' ELSE 'active' END AS status,created_at").Order(adminOrder(q, map[string]string{"name": "display_name", "email": "email", "createdAt": "created_at", "status": "(is_blocked OR ldap_disabled)"}, "created_at")).Offset(q.Offset()).Limit(q.PageSize).Scan(&out.Items).Error
 	return out, err
 }
 func (r *AdminRepository) SetUserStatus(ctx context.Context, id, status string, audit admin.AuditInput) (admin.UserView, error) {
@@ -440,16 +440,26 @@ func (r *AdminRepository) SetUserStatus(ctx context.Context, id, status string, 
 			return err
 		}
 		var exists string
-		result := tx.Raw("SELECT id FROM users WHERE id=? AND password_hash<>'' AND guest_conference_id IS NULL FOR UPDATE", id).Scan(&exists)
+		result := tx.Raw("SELECT id FROM users WHERE id=? AND deleted_at IS NULL AND guest_conference_id IS NULL FOR UPDATE", id).Scan(&exists)
 		if result.Error != nil {
 			return result.Error
 		}
 		if exists == "" {
 			return apperrors.ErrNotFound
 		}
+		if status == "active" {
+			var directoryDisabled bool
+			if err := tx.Raw("SELECT ldap_disabled FROM users WHERE id=?", id).Scan(&directoryDisabled).Error; err != nil {
+				return err
+			}
+			if directoryDisabled {
+				return apperrors.New(apperrors.ErrConflict, "Доступ пользователя отключён в LDAP. Восстановите его в каталоге и выполните синхронизацию.")
+			}
+		}
 		updates := map[string]any{"is_blocked": status == "blocked"}
 		if status == "blocked" {
 			updates["auth_invalid_before"] = gorm.Expr("clock_timestamp()")
+			updates["auth_version"] = gorm.Expr("auth_version+1")
 		}
 		if err := tx.Table("users").Where("id=?", id).Updates(updates).Error; err != nil {
 			return err
@@ -469,7 +479,7 @@ func (r *AdminRepository) SetUserStatus(ctx context.Context, id, status string, 
 		if err := auditInsert(tx, audit); err != nil {
 			return err
 		}
-		return tx.Table("users").Select("id,COALESCE(display_name,'') AS name,NULLIF(email,'') AS email,CASE WHEN is_blocked THEN 'blocked' ELSE 'active' END AS status,created_at").Where("id=?", id).Scan(&out).Error
+		return tx.Table("users").Select("id,COALESCE(display_name,'') AS name,NULLIF(email,'') AS email,CASE WHEN is_blocked OR ldap_disabled THEN 'blocked' ELSE 'active' END AS status,created_at").Where("id=?", id).Scan(&out).Error
 	})
 	return out, err
 }

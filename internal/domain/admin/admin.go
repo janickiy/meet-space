@@ -152,12 +152,12 @@ func (r *UpdateRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-var usernamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{2,39}$`)
+var usernamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.@+_-]{2,39}$`)
 
 func NormalizeUsername(v string) (string, error) {
 	v = strings.ToLower(strings.TrimSpace(v))
 	if !usernamePattern.MatchString(v) {
-		return "", apperrors.New(apperrors.ErrInvalidInput, "Логин должен содержать 3–40 латинских букв, цифр, точек, дефисов или подчёркиваний")
+		return "", apperrors.New(apperrors.ErrInvalidInput, "Логин должен начинаться с латинской буквы или цифры и содержать 3–40 символов: латинские буквы, цифры, . - _ @ +")
 	}
 	return v, nil
 }

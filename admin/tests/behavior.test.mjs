@@ -38,11 +38,14 @@ test("recording deletion requires a safe terminal state and server permission", 
   }
 });
 
-test("username-only identity and password confirmation are validated", () => {
-  assert.match(
+test("administrator identifiers support email characters and password confirmation", () => {
+  assert.equal(
     validateAdministrator("admin@example.com", "", "", false),
-    /Логин/,
+    null,
   );
+  assert.equal(validateAdministrator("Operator+local@Example.com", "", "", false), null);
+  for (const username of ["_admin", "@admin", "user name@example.com", "a".repeat(41)])
+    assert.match(validateAdministrator(username, "", "", false), /Логин/);
   assert.match(
     validateAdministrator(
       "operator",

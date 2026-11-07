@@ -151,7 +151,7 @@ func (r *PersonalRepository) SetConversationPin(ctx context.Context, user, id, m
 			AND (message.deleted_at IS NOT NULL OR NOT EXISTS (
 				SELECT 1 FROM conversation_members member JOIN users account ON account.id=member.user_id
 				WHERE member.conversation_id=pins.conversation_id AND member.left_at IS NULL AND member.hidden_at IS NULL
-				AND member.history_cleared_through<message.sequence AND account.guest_conference_id IS NULL AND account.password_hash<>''
+				AND member.history_cleared_through<message.sequence AND account.guest_conference_id IS NULL AND account.deleted_at IS NULL
 			))`, id).Error; err != nil {
 			return err
 		}

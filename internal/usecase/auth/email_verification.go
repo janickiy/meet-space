@@ -118,7 +118,7 @@ func (s *Service) ResendVerification(ctx context.Context, email string) error {
 	if err != nil {
 		return err
 	}
-	if user.IsBlocked || user.GuestConferenceID != nil || !user.EmailVerificationRequired || user.EmailVerifiedAt != nil {
+	if user.AccessBlocked() || user.GuestConferenceID != nil || !user.EmailVerificationRequired || user.EmailVerifiedAt != nil {
 		return nil
 	}
 	value, err := s.newVerification(user.ID)
