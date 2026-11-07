@@ -29,7 +29,7 @@ class GuideTemplate(base.DocTemplate):
 
     def __init__(self,*args,**kwargs):
         kwargs["title"]="MeetSpace - техническое руководство"
-        kwargs["subject"]="Архитектура, API, база данных, установка и сопровождение"
+        kwargs["subject"]="Архитектура, API, база данных, административная панель, LDAP и сопровождение"
         super().__init__(*args,**kwargs)
 
     def afterFlowable(self, flowable):
@@ -188,7 +188,7 @@ class GuideRenderer(base.Renderer):
         for i,(number,title,caption) in enumerate([
             ("01","Архитектура","Сервисы, WebRTC и запись"),
             ("02","Справочник","API и структура базы данных"),
-            ("03","Эксплуатация","Установка, проверка, поддержка"),
+            ("03","Эксплуатация","Админка, LDAP и развёртывание"),
         ]):
             y=h-146-i*95
             canvas.setFillColor(colors.white)
@@ -215,9 +215,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source",type=Path,default=DOCS/"MEETSPACE_TECHNICAL_GUIDE_RU.md")
     parser.add_argument("--output",type=Path,default=DOCS/"MEETSPACE_TECHNICAL_GUIDE_RU.pdf")
-    parser.add_argument("--commit",default="a5ea4e525bd653fcd0a19a3e5f4f2896e9d793e5+local")
-    parser.add_argument("--date",default="30 октября 2026 г.")
-    parser.add_argument("--metadata-date",default="2026-10-30")
+    parser.add_argument("--commit",default="f35e115858cffbec4b7fc6fcf0fc8ef80df16c60+local-migrations")
+    parser.add_argument("--date",default="7 ноября 2026 г.")
+    parser.add_argument("--metadata-date",default="2026-11-07")
     parser.add_argument("--font-dir",type=Path)
     args=parser.parse_args()
     stamp=datetime.strptime(args.metadata_date,"%Y-%m-%d").replace(tzinfo=timezone.utc)

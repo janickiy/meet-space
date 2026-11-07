@@ -57,7 +57,7 @@ func TestLDAPAccountMigrationLifecycle(t *testing.T) {
 	if err := db.Exec(`INSERT INTO users(id,email,password_hash) VALUES(?,?,'synthetic'),(?,?,'')`, local, "local@example.invalid", deleted, "deleted@example.invalid").Error; err != nil {
 		t.Fatal(err)
 	}
-	sql, err := os.ReadFile(filepath.Join("..", "..", "..", "database", "migrations", "000048_ldap_accounts.up.sql"))
+	sql, err := os.ReadFile(filepath.Join("..", "..", "..", "database", "migrations", "legacy", "000048_ldap_accounts.up.sql"))
 	if err != nil {
 		t.Fatal(err)
 	}

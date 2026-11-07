@@ -1,0 +1,36 @@
+digraph admin_architecture {
+  graph [rankdir=TB, bgcolor="white", pad=0.18, margin=0, nodesep=0.36, ranksep=0.30, splines=polyline, outputorder=edgesfirst, fontname="Arial", fontsize=20, labelloc=t,
+    label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>Административная панель: отдельный вход и HTTPS-контур</B></TD></TR><TR><TD><FONT POINT-SIZE="14" COLOR="#666666">users / LDAP / users.is_admin не дают доступ к админке</FONT></TD></TR></TABLE>>];
+  node [shape=box, style="rounded,filled", fillcolor="#eef4fa", color="#55738f", fontname="Arial", fontsize=17, margin="0.16,0.12", penwidth=1.3];
+  edge [fontname="Arial", fontsize=15, arrowsize=0.8, penwidth=1.6, color="#2c5d8a", fontcolor="#2c5d8a"];
+
+  admin_browser [label="Браузер администратора\nЛогин и пароль админки", fillcolor="#f3e8f8", color="#7b439a"];
+  public_browser [label="Браузер пользователя\nЛокальный / LDAP-аккаунт"];
+  {rank=same; admin_browser; public_browser;}
+
+  subgraph cluster_proxy {
+    label="Существующий Nginx proxy"; fontsize=17; color="#ded7e4"; style="rounded"; margin=14;
+    admin_https [label="HTTPS :8081\nSPA из admin/", fillcolor="#f3e8f8", color="#7b439a"];
+    public_https [label="HTTPS :443\nПользовательский frontend"];
+    {rank=same; admin_https; public_https;}
+  }
+
+  subgraph cluster_go {
+    label="Один процесс API · Go / Gin"; fontsize=17; color="#ded7e4"; style="rounded"; margin=14;
+    admin_listener [label="Внутренний listener :8082\n/api/v1/admin\nAdmin cookie + Origin + CSRF", fillcolor="#f3e8f8", color="#7b439a"];
+    public_api [label="Пользовательский API\n/api/v1\nBearer + пользовательская SID"];
+    {rank=same; admin_listener; public_api;}
+  }
+
+  pg [shape=cylinder, label="Общая PostgreSQL\nadministrators · administrator_sessions\nadministrator_audit_log\nplatform_settings · error_events", fillcolor="#fff2d4", color="#94630d"];
+  blocked [label="/api/v1/admin → 404\nНа публичном HTTPS-порту", fillcolor="#fff0ef", color="#b65b58", fontcolor="#8e3633", fontsize=16];
+
+  admin_browser -> admin_https [label="HTTPS :8081", color="#7b439a", fontcolor="#7b439a"];
+  public_browser -> public_https [label="HTTPS :443"];
+  admin_https -> admin_listener [label="HTTP :8082 · только proxy", color="#7b439a", fontcolor="#7b439a"];
+  public_https -> public_api [label="HTTP / WS"];
+  public_https -> blocked [label="Admin API", color="#b65b58", fontcolor="#8e3633", style=dashed];
+  admin_listener -> pg [label="SQL · отдельные сущности", color="#94630d", fontcolor="#94630d"];
+  public_api -> pg [label="SQL · данные продукта", color="#94630d", fontcolor="#94630d"];
+  {rank=same; pg; blocked;}
+}

@@ -78,13 +78,13 @@ func RunStartupMigrations(db *gorm.DB, dir string) error {
 	if automatic {
 		return RunMigrations(db, dir)
 	}
-	files, err := migrationFiles(dir)
+	plan, err := loadMigrationPlan(dir)
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	return verifyMigrations(db.WithContext(ctx), files)
+	return verifyMigrationPlan(db.WithContext(ctx), plan)
 }
 
 // verifyMigrations сравнивает реестр примененных миграций с зарегистрированными файлами
@@ -129,7 +129,7 @@ func verifyMigrations(db *gorm.DB, files []migration) error {
 //   - result1: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 //     передачи данных или сохранения.
 func RunMigrations(db *gorm.DB, dir string) error {
-	files, err := migrationFiles(dir)
+	plan, err := loadMigrationPlan(dir)
 	if err != nil {
 		return err
 	}
@@ -148,26 +148,30 @@ func RunMigrations(db *gorm.DB, dir string) error {
 		)`).Error; err != nil {
 			return fmt.Errorf("create migration ledger: %w", err)
 		}
-		for _, file := range files {
-			var checksum string
-			result := tx.Raw("SELECT checksum FROM release_schema_migrations WHERE name = ?", file.name).Scan(&checksum)
-			if result.Error != nil {
-				return result.Error
-			}
-			if result.RowsAffected > 0 {
-				if checksum != file.checksum {
-					return fmt.Errorf("migration %s checksum mismatch", file.name)
-				}
-				continue
-			}
-			started := time.Now()
-			if err := tx.Exec(file.sql).Error; err != nil {
-				return fmt.Errorf("apply migration %s: %w", file.name, err)
-			}
-			if err := tx.Exec("INSERT INTO release_schema_migrations(name,checksum,duration_ms) VALUES (?,?,?)", file.name, file.checksum, time.Since(started).Milliseconds()).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return applyMigrationPlan(tx, plan)
 	})
+}
+
+func applyMigrationFiles(tx *gorm.DB, files []migration) error {
+	for _, file := range files {
+		var checksum string
+		result := tx.Raw("SELECT checksum FROM release_schema_migrations WHERE name = ?", file.name).Scan(&checksum)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected > 0 {
+			if checksum != file.checksum {
+				return fmt.Errorf("migration %s checksum mismatch", file.name)
+			}
+			continue
+		}
+		started := time.Now()
+		if err := tx.Exec(file.sql).Error; err != nil {
+			return fmt.Errorf("apply migration %s: %w", file.name, err)
+		}
+		if err := tx.Exec("INSERT INTO release_schema_migrations(name,checksum,duration_ms) VALUES (?,?,?)", file.name, file.checksum, time.Since(started).Milliseconds()).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

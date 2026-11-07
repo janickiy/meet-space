@@ -341,6 +341,18 @@ class LegacyRetirementTest(unittest.TestCase):
         with mock.patch.object(legacy, 'run', side_effect=self.migration_docker(applied=True, active_service='api')):
             legacy.require_migration_quiescence('meetspace-test')
 
+    def test_fresh_table_baseline_does_not_require_historical_cleanup(self):
+        def run(*args):
+            if args[1] == 'ps':
+                return 'b' * 64 if args[-1].endswith(('=postgres', '=api')) else ''
+            if 'to_regclass' in args[-1]:
+                return 't'
+            if "'000050_table_baseline.up.sql'" in args[-1]:
+                return 't'
+            return 'f'
+        with mock.patch.object(legacy, 'run', side_effect=run):
+            legacy.require_migration_quiescence('meetspace-test')
+
     def test_stopped_applications_allow_pending_cleanup(self):
         with mock.patch.object(legacy, 'run', side_effect=self.migration_docker()):
             legacy.require_migration_quiescence('meetspace-test')

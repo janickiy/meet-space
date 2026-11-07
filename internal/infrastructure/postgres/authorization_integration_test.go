@@ -81,7 +81,7 @@ func auditDatabase(t *testing.T, throughVersion ...int) *gorm.DB {
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	directory := filepath.Join("..", "..", "..", "database", "migrations")
 	if len(throughVersion) > 0 {
-		files, err := migrationFiles(directory)
+		files, err := migrationFiles(filepath.Join(directory, "legacy"))
 		if err != nil {
 			t.Fatal(err)
 		}

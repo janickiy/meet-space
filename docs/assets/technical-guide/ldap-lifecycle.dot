@@ -1,0 +1,37 @@
+digraph ldap_lifecycle {
+  graph [rankdir=TB, bgcolor="white", pad=0.16, margin=0, nodesep=0.26, ranksep=0.40, splines=polyline, outputorder=edgesfirst, fontname="Arial", fontsize=20, labelloc=t,
+    label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD><B>LDAP: вход, полный снимок и отзыв доступа</B></TD></TR><TR><TD><FONT POINT-SIZE="14" COLOR="#666666">Пароль LDAP не сохраняется; обычные API-запросы проверяют локальную SID</FONT></TD></TR></TABLE>>];
+  node [shape=box, style="rounded,filled", fillcolor="#eef4fa", color="#55738f", fontname="Arial", fontsize=17, margin="0.14,0.12", penwidth=1.3];
+  edge [fontname="Arial", fontsize=14, arrowsize=0.8, penwidth=1.5, color="#2c5d8a", fontcolor="#2c5d8a"];
+
+  settings [label="Администратор\nНастройки LDAP\nrevision + шифрование bind", fillcolor="#f3e8f8", color="#7b439a"];
+  directory [shape=cylinder, label="Один каталог LDAP / AD\nLDAPS или обязательный StartTLS\nПроверка CA и hostname", fillcolor="#def1eb", color="#067566"];
+  settings_db [shape=cylinder, label="PostgreSQL\nplatform_settings\nЗашифрованный bind-пароль", fillcolor="#fff2d4", color="#94630d"];
+  {rank=same; settings; directory; settings_db;}
+
+  user [label="Корпоративный вход\nЛогин и пароль LDAP"];
+  auth [label="API: LDAP-аутентификация\nСервисный bind → поиск\nГруппа доступа → user bind"];
+  identity [label="Профиль и локальный сеанс\nusers + ldap_identities\nusers.auth_version\nauth_sessions: SID + revoked_at", fillcolor="#fff2d4", color="#94630d"];
+  {rank=same; user; auth; identity;}
+
+  worker [label="product-worker\ndirectory.sync\nПо расписанию / вручную"];
+  snapshot [label="Полный снимок группы\nВсе страницы или отказ\nДо 10 000 записей", fillcolor="#def1eb", color="#067566"];
+  atomic [label="Одна транзакция PostgreSQL\nСоздать / обновить / отключить\nПри ошибке — без изменений", fillcolor="#fff2d4", color="#94630d"];
+  {rank=same; worker; snapshot; atomic;}
+
+  revoke [label="Отзыв корпоративных SID\nОтключение LDAP / смена security-настроек\nУтрата доступа по успешному снимку\nauth_invalid_before + revoked_at", fillcolor="#fff0ef", color="#b65b58", fontcolor="#8e3633", fontsize=16];
+
+  settings -> settings_db [label="Сохранить через API", color="#7b439a", fontcolor="#7b439a", constraint=false];
+  user -> auth [label="POST /auth/ldap/login", constraint=false];
+  auth -> directory [label="TLS · поиск + проверка пароля", color="#067566", fontcolor="#067566"];
+  auth -> identity [label="Успешная проверка", color="#94630d", fontcolor="#94630d", constraint=false];
+  worker -> snapshot [label="Чтение каталога", color="#067566", fontcolor="#067566", constraint=false];
+  directory -> snapshot [label="TLS · полный снимок", color="#067566", fontcolor="#067566"];
+  snapshot -> atomic [label="Снимок проверен", color="#94630d", fontcolor="#94630d", constraint=false];
+  atomic -> revoke [label="Изменение доступности", color="#b65b58", fontcolor="#8e3633"];
+
+  settings -> user [style=invis, weight=15];
+  user -> worker [style=invis, weight=15];
+  auth -> snapshot [style=invis, weight=12];
+  identity -> atomic [style=invis, weight=15];
+}

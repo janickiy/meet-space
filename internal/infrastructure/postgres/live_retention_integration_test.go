@@ -118,7 +118,7 @@ func TestAuditAttachmentSizeCeilingMigration(t *testing.T) {
 	}
 	migration := func(suffix string) string {
 		t.Helper()
-		raw, err := os.ReadFile(filepath.Join("..", "..", "..", "database", "migrations", "000043_dynamic_attachment_size."+suffix+".sql"))
+		raw, err := os.ReadFile(filepath.Join("..", "..", "..", "database", "migrations", "legacy", "000043_dynamic_attachment_size."+suffix+".sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -100,7 +100,7 @@ func TestAuditAdminSearchIndexMigrationUpgradeAndRollback(t *testing.T) {
 	}
 	countIndexes(2)
 	for _, suffix := range []string{"down", "up"} {
-		content, err := os.ReadFile(filepath.Join(directory, "000040_administrator_search_indexes."+suffix+".sql"))
+		content, err := os.ReadFile(filepath.Join(directory, "legacy", "000040_administrator_search_indexes."+suffix+".sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

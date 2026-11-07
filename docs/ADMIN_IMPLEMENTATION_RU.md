@@ -77,7 +77,7 @@ forwarding-заголовки. Go доверяет им только для на
 | HTTP и запуск | `internal/config/admin.go`, `internal/app/admin.go`, `admin_resources.go`, `internal/transport/http/admin_routes.go`: конфигурация, отдельный router/listener, ресурсы и middleware. |
 | Отзыв пользовательского доступа | Изменения в `internal/usecase/auth/`, `internal/usecase/realtime/`, auth-session repository, HTTP/WebSocket/SSE обработчиках: запрет доступа заблокированным пользователям и отзыв старых сессий. |
 | CLI | `cmd/admin/main.go`: `status`, идемпотентный `bootstrap`, серверный `reset-password`; секреты принимаются только через stdin. |
-| Миграции | `database/migrations/000038_*` и `000039_*`: отдельные административные сущности, признаки блокировки пользователей и индексы. |
+| Миграции | `database/migrations/administrators.sql`, `administrator_*.sql` и `users.sql`: итоговая схема административных сущностей и блокировки пользователей. Исторические версии 38–40 сохранены в `database/migrations/legacy/`. |
 | Контейнеры и сеть | `dockers/api/Dockerfile`, `dockers/production/`, `dockers/https/nginx.conf`, Compose-файлы, `.dockerignore`: CLI в API-образе, SPA в proxy-образе, условный TLS listener и запрет admin API на публичном порту. |
 | Установка и выпуск | `install.sh`, `scripts/install/wizard.py`, installer-тесты, `scripts/release/build.sh`, `package.sh`, `.env*.example`: bootstrap, recovery, проверка HTTPS и сборка proxy для обоих release layouts. |
 | Совместимость пользовательского frontend | `frontend/src/api.ts`, `frontend/src/components/Layout.tsx`, регрессионный тест и platform-status router: перенос прежних операционных агрегатов в `/api/v1/platform/summary`. |

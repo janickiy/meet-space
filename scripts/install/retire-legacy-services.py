@@ -99,7 +99,8 @@ def require_migration_quiescence(project):
         if ledger == 't':
             applied = run('docker', 'exec', container, 'sh', '-ec', query, 'sh',
                           "SELECT EXISTS (SELECT 1 FROM public.release_schema_migrations "
-                          "WHERE name = '000037_remove_speech_features.up.sql')")
+                          "WHERE name IN ('000037_remove_speech_features.up.sql', "
+                          "'000050_table_baseline.up.sql'))")
             if applied == 't':
                 return
             if applied != 'f':
