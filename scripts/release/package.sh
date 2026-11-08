@@ -2,17 +2,19 @@
 # Закрепляет образы digest/ID и архивирует локальную репетицию либо публикует registry-релиз.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
-build= output= mode= security=true infrastructure_manifest= low_memory=false
+build= output= mode= security=true infrastructure_manifest= low_memory=false collect_security_failures=false
 while (($#)); do
   case "$1" in
     --build) build="$2"; shift 2;; --output) output="$2"; shift 2;;
     --mode) mode="$2"; shift 2;; --skip-security-local) security=false; shift;;
     --infrastructure-manifest) infrastructure_manifest="$2"; shift 2;;
     --low-memory) low_memory=true; shift;;
+    --collect-security-failures) collect_security_failures=true; shift;;
     *) fail "Unknown package argument: $1";;
   esac
 done
 [[ "$mode" == registry || "$mode" == archive || "$mode" == local ]] || fail "--mode must be registry, archive or local"
+[[ "$collect_security_failures" == false || "$mode" == archive ]] || fail "--collect-security-failures is allowed only with --mode archive"
 [[ "$build" == /* && -f "$build" && "$output" == /* ]] || fail "Absolute --build and --output paths required"
 [[ "$mode" == local || "$security" == true ]] || fail "A deployable release cannot skip security gates"
 [[ "$mode" == local || "$(jq -r .sourceDirty "$build")" == false ]] || fail "Dirty source cannot be published as a release"
@@ -47,6 +49,7 @@ if [[ -n "$infrastructure_manifest" ]]; then
   manifest="$(jq --arg sha "$(file_sha256 "$infrastructure_manifest")" --arg version "$(jq -r .version "$infrastructure_manifest")" '.infrastructureReused=true | .infrastructureManifestSHA256=$sha | .infrastructureVersion=$version' <<<"$manifest")"
 fi
 references=()
+security_failures=()
 for service in "${RELEASE_SERVICES[@]}"; do
   reuse_infrastructure=false
   built_ref=
@@ -93,7 +96,15 @@ for service in "${RELEASE_SERVICES[@]}"; do
     # Критические и высокие находки блокируют пакет; полный SBOM сохраняется вместе с ним.
     scan_command=(bash "$RELEASE_ROOT/scripts/release/scan-image.sh" "$ref" "$service" "$output")
     if [[ "$low_memory" == true ]]; then scan_command+=(--low-memory); fi
-    "${scan_command[@]}"
+    if "${scan_command[@]}"; then
+      :
+    else
+      scan_status=$?
+      [[ "$collect_security_failures" == true ]] || exit "$scan_status"
+      security_failures+=("$service")
+      printf 'Security scan failed for %s (exit %s); collecting remaining image reports.\n' "$service" "$scan_status" >&2
+      continue
+    fi
     manifest="$(jq --arg service "$service" --arg scan "$(file_sha256 "$output/$service.scan.json")" --arg sbom "$(file_sha256 "$output/$service.sbom.json")" '.securityEvidence[$service]={scanSHA256:$scan,sbomSHA256:$sbom}' <<<"$manifest")"
   fi
   if [[ "$reuse_infrastructure" == true ]]; then
@@ -111,6 +122,9 @@ for service in "${RELEASE_SERVICES[@]}"; do
   references+=("$ref")
   manifest="$(jq --arg service "$service" --arg ref "$immutable" '.images[$service]=$ref' <<<"$manifest")"
 done
+if ((${#security_failures[@]})); then
+  fail "Image security gates failed for: ${security_failures[*]}. No release manifest or image archive was produced."
+fi
 manifest="$(jq --arg mode "$mode" --argjson security "$security" '.artifactMode=$mode | .securityScanned=$security' <<<"$manifest")"
 printf '%s\n' "$manifest" > "$output/release.json"
 if [[ "$mode" == local || "$mode" == archive ]]; then

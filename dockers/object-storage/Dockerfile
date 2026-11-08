@@ -1,7 +1,7 @@
 FROM scratch AS seaweedfs-source
 ADD --checksum=sha256:93199495e93a981451d1fefecb5aa71e12aa1692093eed2338bbfe7f08960bfb https://codeload.github.com/seaweedfs/seaweedfs/tar.gz/refs/tags/4.48 /seaweedfs.tar.gz
 
-# Rebuild the same upstream release with patched Go and HTTP/2 dependencies.
+# Rebuild the same upstream release with patched Go, HTTP/2 and JWK parsing dependencies.
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23@sha256:a07f231c19b03e6106cf442f02a5bcf262147e744d15b7b5e4b6d81d420c70a0 AS build
 ENV GOTOOLCHAIN=local
 ARG GOMAXPROCS
@@ -16,7 +16,7 @@ WORKDIR /src
 ARG TARGETARCH
 RUN --mount=type=cache,id=meetspace-seaweedfs-modules,target=/go/pkg/mod \
     --mount=type=cache,id=meetspace-seaweedfs-build,target=/root/.cache/go-build \
-    go get golang.org/x/net@v0.62.0 \
+    go get golang.org/x/net@v0.62.0 github.com/go-jose/go-jose/v4@v4.1.9 \
     && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
         -ldflags "-s -w -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=530be3e37" \
         -o /out/weed ./weed \

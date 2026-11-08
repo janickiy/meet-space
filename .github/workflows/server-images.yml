@@ -65,6 +65,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ripgrep jq
+      - name: Test release security gates
+        run: python3 -I scripts/release/test_package_security_collection.py
       - name: Build and scan immutable Docker images
         env:
           VERSION: ${{ inputs.version }}
@@ -76,7 +78,7 @@ jobs:
             --registry "meetspace-source-${GITHUB_SHA:0:12}" --layout hardened-shared-host \
             --platform "linux/$ARCH" --output "$RUNNER_TEMP/meetspace-release/build"
           if ! bash scripts/release/package.sh --build "$RUNNER_TEMP/meetspace-release/build/build.json" \
-            --mode archive --output "$RUNNER_TEMP/meetspace-release/package"; then
+            --mode archive --collect-security-failures --output "$RUNNER_TEMP/meetspace-release/package"; then
             for report in "$RUNNER_TEMP/meetspace-release/package/"*.scan.json; do
               [[ -f "$report" ]] || continue
               jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? |
