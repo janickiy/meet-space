@@ -149,6 +149,7 @@ const item = (key, label, type, value, group, extra = {}) => ({
     page.on("pageerror", (error) => report.javascriptErrors.push(error.name));
     await fixture(page, { intercept });
     await page.goto(server.url + "/settings");
+    await page.getByRole("tab", { name: /^Лимиты/ }).click();
     await page.getByLabel("Размер вложения", { exact: true }).waitFor();
     assert.equal(
       await page.getByLabel("Размер вложения", { exact: true }).inputValue(),

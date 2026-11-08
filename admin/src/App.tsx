@@ -387,7 +387,6 @@ function Login({
     [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const [help, setHelp] = useState(false);
   const pending = useRef<AbortController | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
@@ -484,7 +483,7 @@ function Login({
                 spellCheck={false}
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="admin или email"
+                placeholder="логин"
                 required
                 maxLength={40}
                 disabled={busy}
@@ -523,34 +522,8 @@ function Login({
             <br />
             не подходит для входа в эту панель.
           </p>
-          <button
-            className="text-link login-recovery"
-            onClick={() => setHelp(true)}
-          >
-            Нет доступа к аккаунту?
-          </button>
         </div>
       </div>
-      {help && (
-        <Modal
-          title="Восстановление доступа"
-          close={() => setHelp(false)}
-          footer={
-            <button className="button" onClick={() => setHelp(false)}>
-              Понятно
-            </button>
-          }
-        >
-          <p>
-            Обратитесь к администратору сервера MeetSpace. Восстановление
-            первоначального доступа выполняется на сервере.
-          </p>
-          <p>
-            Другой действующий администратор может сбросить ваш пароль в разделе
-            «Администраторы».
-          </p>
-        </Modal>
-      )}
     </div>
   );
 }

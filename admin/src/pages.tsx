@@ -1283,6 +1283,15 @@ const settingsGroupNames: Record<string, string> = {
   ldap: "LDAP / Active Directory",
 };
 
+const settingsGroupOrder: Record<string, number> = {
+  general: 0,
+  mail: 1,
+  smtp: 1,
+  ldap: 2,
+  storage: 3,
+  limits: 4,
+};
+
 export function SettingsPage() {
   const result = useQuery({
     queryKey: ["admin", "settings"],
@@ -1351,9 +1360,11 @@ function SettingsEditor({ data }: { data: Settings }) {
     else adopt(data);
   }, [data]);
 
-  const groups = [
-    ...new Set(base.items.map((item) => item.group || "general")),
-  ].filter((value) => value !== "network");
+  const groups = [...new Set(base.items.map((item) => item.group || "general"))]
+    .filter((value) => value !== "network")
+    .sort(
+      (a, b) => (settingsGroupOrder[a] ?? 5) - (settingsGroupOrder[b] ?? 5),
+    );
   const selected = groups.includes(group) ? group : groups[0];
   const items = base.items.filter(
     (item) => (item.group || "general") === selected,
