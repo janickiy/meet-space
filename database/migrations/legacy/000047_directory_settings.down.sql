@@ -1,1 +1,0 @@
-ALTER TABLE platform_settings DROP COLUMN ldap_bind_password_ciphertext;

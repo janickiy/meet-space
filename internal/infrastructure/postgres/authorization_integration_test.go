@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -79,26 +78,16 @@ func auditDatabase(t *testing.T, throughVersion ...int) *gorm.DB {
 	}
 	sqlDB.SetMaxOpenConns(2)
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	directory := filepath.Join("..", "..", "..", "database", "migrations")
 	if len(throughVersion) > 0 {
-		files, err := migrationFiles(filepath.Join(directory, "legacy"))
-		if err != nil {
-			t.Fatal(err)
+		if len(throughVersion) != 1 || (throughVersion[0] != 0 && throughVersion[0] != 49) {
+			t.Fatal("fixtures support only an empty schema or the complete historical v49 schema")
 		}
-		directory = t.TempDir()
-		for _, file := range files {
-			version, err := strconv.Atoi(strings.SplitN(file.name, "_", 2)[0])
-			if err != nil {
-				t.Fatal(err)
-			}
-			if version <= throughVersion[0] {
-				if err := os.WriteFile(filepath.Join(directory, file.name), []byte(file.sql), 0600); err != nil {
-					t.Fatal(err)
-				}
-			}
+		if throughVersion[0] == 49 {
+			bootstrapHistoricalDatabase(t, db)
 		}
+		return db
 	}
-	if err := RunMigrations(db, directory); err != nil {
+	if err := RunMigrations(db, filepath.Join("..", "..", "..", "database", "migrations")); err != nil {
 		t.Fatal(err)
 	}
 	return db

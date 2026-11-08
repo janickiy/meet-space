@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -12,20 +13,24 @@ import (
 	"gorm.io/gorm"
 )
 
-// The baseline is immutable, just like an applied numbered migration. Its SQL
-// lives in one file per table; subsequent releases still use numbered up files.
+// Version 50 remains an immutable compatibility identity for existing databases.
+// The 53 numbered table files occupy versions 51–103; later files run normally.
 const tableBaselineName = "000050_table_baseline.up.sql"
+const firstTableVersion = 51
 
 type tableMigration struct {
-	name   string
-	phases [3]string
+	name, table, checksum string
+	phases                [3]string
 }
 
 type migrationPlan struct {
-	history, subsequent []migration
-	tables              []tableMigration
-	baselineChecksum    string
+	tables           []tableMigration
+	subsequent       []migration
+	baselineChecksum string
 }
+
+var numberedMigrationName = regexp.MustCompile(`^([0-9]{6})_(.+)\.up\.sql$`)
+var migrationPhases = []string{"structure", "constraints", "references"}
 
 func loadMigrationPlan(dir string) (migrationPlan, error) {
 	var plan migrationPlan
@@ -34,63 +39,70 @@ func loadMigrationPlan(dir string) (migrationPlan, error) {
 		return plan, err
 	}
 	hash := sha256.New()
+	versions := make(map[int]bool)
+	lastTableVersion := firstTableVersion + len(historicalTableNames) - 1
 	for _, path := range paths {
 		name := filepath.Base(path)
-		if strings.HasSuffix(name, ".up.sql") || strings.HasSuffix(name, ".down.sql") {
+		if strings.HasSuffix(name, ".down.sql") {
 			continue
 		}
+		match := numberedMigrationName.FindStringSubmatch(name)
+		if match == nil {
+			return plan, fmt.Errorf("migration %s must use NNNNNN_description.up.sql naming", name)
+		}
+		version, _ := strconv.Atoi(match[1])
+		if version < firstTableVersion || versions[version] {
+			return plan, fmt.Errorf("migration %s has a reserved or duplicate version", name)
+		}
+		versions[version] = true
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			return plan, fmt.Errorf("read table migration %s: %w", name, err)
+			return plan, fmt.Errorf("read migration %s: %w", name, err)
 		}
-		file, err := parseTableMigration(name, string(raw))
-		if err != nil {
+		if strings.TrimSpace(string(raw)) == "" {
+			return plan, fmt.Errorf("migration %s is empty", name)
+		}
+		if err := validateMigrationSQL(name, string(raw)); err != nil {
 			return plan, err
 		}
-		plan.tables = append(plan.tables, file)
-		_, _ = hash.Write([]byte(name + "\x00"))
-		_, _ = hash.Write(raw)
+		if strings.Contains(string(raw), "-- migrate:upgrade") {
+			return plan, fmt.Errorf("migration %s: future upgrades belong in separate numbered files", name)
+		}
+		if version <= lastTableVersion {
+			expected := historicalTableNames[version-firstTableVersion]
+			if match[2] != expected {
+				return plan, fmt.Errorf("migration %s must define table %s at version %06d", name, expected, version)
+			}
+			file, err := parseTableMigration(name, string(raw))
+			if err != nil {
+				return plan, err
+			}
+			file.table = expected
+			sum := sha256.Sum256(raw)
+			file.checksum = fmt.Sprintf("%x", sum[:])
+			plan.tables = append(plan.tables, file)
+			// Keep the exact old aggregate despite renaming the physical files.
+			_, _ = hash.Write([]byte(expected + ".sql\x00"))
+			_, _ = hash.Write(raw)
+		} else {
+			sum := sha256.Sum256(raw)
+			plan.subsequent = append(plan.subsequent, migration{name, fmt.Sprintf("%x", sum[:]), string(raw)})
+		}
 	}
-	if len(plan.tables) == 0 {
-		plan.subsequent, err = migrationFiles(dir)
-		return plan, err
+	if len(plan.tables) != len(historicalTableNames) {
+		return plan, fmt.Errorf("table baseline needs all %d numbered table files (%06d–%06d)", len(historicalTableNames), firstTableVersion, lastTableVersion)
 	}
 	plan.baselineChecksum = fmt.Sprintf("%x", hash.Sum(nil))
-	plan.history, err = migrationFiles(filepath.Join(dir, "legacy"))
-	if err != nil {
-		return plan, fmt.Errorf("historical migrations unavailable: %w", err)
-	}
-	if len(plan.history) != 49 {
-		return plan, fmt.Errorf("table baseline needs the complete historical chain 1 through 49")
-	}
-	for index, file := range plan.history {
-		if !strings.HasPrefix(file.name, fmt.Sprintf("%06d_", index+1)) {
-			return plan, fmt.Errorf("historical migration %d is missing or duplicated", index+1)
-		}
-	}
-	paths, err = filepath.Glob(filepath.Join(dir, "*.up.sql"))
-	if err != nil {
-		return plan, err
-	}
-	if len(paths) > 0 {
-		plan.subsequent, err = migrationFiles(dir)
-		if err != nil {
-			return plan, err
-		}
-		for _, file := range plan.subsequent {
-			version, err := strconv.Atoi(strings.SplitN(file.name, "_", 2)[0])
-			if err != nil || version <= 50 {
-				return plan, fmt.Errorf("migration %s must follow table baseline version 50", file.name)
-			}
-		}
-	}
 	return plan, nil
 }
 
 func parseTableMigration(name, sql string) (tableMigration, error) {
 	file := tableMigration{name: name}
+	if match := numberedMigrationName.FindStringSubmatch(name); match != nil {
+		file.table = match[2]
+	}
 	previous := 0
-	for index, phase := range []string{"structure", "constraints", "references"} {
+	for index, phase := range migrationPhases {
 		marker := "-- migrate:" + phase + "\n"
 		if strings.Count(sql, marker) != 1 {
 			return file, fmt.Errorf("table migration %s needs exactly one %s phase", name, phase)
@@ -123,76 +135,126 @@ func appliedMigrationChecksums(db *gorm.DB) (map[string]string, error) {
 	return applied, nil
 }
 
-func validateHistoricalChecksums(applied map[string]string, history []migration) error {
-	for _, file := range history {
-		if checksum, exists := applied[file.name]; exists && checksum != file.checksum {
-			return fmt.Errorf("migration %s checksum mismatch", file.name)
+func registeredTableCount(applied map[string]string, plan migrationPlan) int {
+	count := 0
+	for _, file := range plan.tables {
+		if _, ok := applied[file.name]; ok {
+			count++
 		}
+	}
+	return count
+}
+
+func validateAppliedPlan(applied map[string]string, plan migrationPlan) error {
+	if plan.baselineChecksum != historicalTableBaselineChecksum {
+		return fmt.Errorf("migration %s checksum mismatch; preserve applied table files and add a new numbered migration", tableBaselineName)
+	}
+	known := map[string]string{tableBaselineName: plan.baselineChecksum}
+	for _, file := range plan.tables {
+		known[file.name] = file.checksum
+	}
+	for _, file := range plan.subsequent {
+		known[file.name] = file.checksum
+	}
+	historical := 0
+	for name, checksum := range applied {
+		if _, ok := historicalMigrationChecksums[name]; ok {
+			historical++
+			continue
+		}
+		want, ok := known[name]
+		if !ok {
+			return fmt.Errorf("unknown migration %s; refusing to upgrade or run older code", name)
+		}
+		if checksum != want {
+			return fmt.Errorf("migration %s checksum mismatch", name)
+		}
+	}
+	_, baseline := applied[tableBaselineName]
+	if err := validateHistoricalLedger(applied, historical > 0 || (!baseline && len(applied) > 0)); err != nil {
+		return err
+	}
+	registered := registeredTableCount(applied, plan)
+	if registered != 0 && registered != len(plan.tables) {
+		return fmt.Errorf("incomplete table baseline registration; refusing to alter the database")
+	}
+	if registered > 0 && !baseline {
+		return fmt.Errorf("table baseline marker is missing")
+	}
+	missing := registered != len(plan.tables)
+	for _, file := range plan.subsequent {
+		_, exists := applied[file.name]
+		if exists && missing {
+			return fmt.Errorf("migration %s is applied after a missing earlier version", file.name)
+		}
+		missing = missing || !exists
 	}
 	return nil
 }
 
 func verifyMigrationPlan(db *gorm.DB, plan migrationPlan) error {
-	if len(plan.tables) == 0 {
-		return verifyMigrations(db, plan.subsequent)
-	}
 	applied, err := appliedMigrationChecksums(db)
 	if err != nil {
 		return err
 	}
-	if err := validateHistoricalChecksums(applied, plan.history); err != nil {
+	if err := validateAppliedPlan(applied, plan); err != nil {
 		return err
 	}
-	if checksum, exists := applied[tableBaselineName]; !exists {
+	if _, exists := applied[tableBaselineName]; !exists {
 		return fmt.Errorf("table baseline is pending; run explicit migration job")
-	} else if checksum != plan.baselineChecksum {
-		return fmt.Errorf("migration %s checksum mismatch", tableBaselineName)
 	}
-	if len(plan.subsequent) > 0 {
-		return verifyMigrations(db, plan.subsequent)
+	if registeredTableCount(applied, plan) != len(plan.tables) {
+		return fmt.Errorf("table baseline registration is pending; run explicit migration job")
 	}
-	return nil
+	return verifyMigrations(db, plan.subsequent)
 }
 
 func applyMigrationPlan(tx *gorm.DB, plan migrationPlan) error {
-	if len(plan.tables) == 0 {
-		return applyMigrationFiles(tx, plan.subsequent)
-	}
 	applied, err := appliedMigrationChecksums(tx)
 	if err != nil {
 		return err
 	}
-	if err := validateHistoricalChecksums(applied, plan.history); err != nil {
+	if err := validateAppliedPlan(applied, plan); err != nil {
 		return err
 	}
-	if checksum, exists := applied[tableBaselineName]; exists {
-		if checksum != plan.baselineChecksum {
-			return fmt.Errorf("migration %s checksum mismatch", tableBaselineName)
-		}
-	} else {
+	if registeredTableCount(applied, plan) == 0 {
 		started := time.Now()
 		if len(applied) > 0 {
-			// Existing installations finish the immutable historical chain first.
-			// Their tables are never recreated or populated from the baseline.
-			if err := applyMigrationFiles(tx, plan.history); err != nil {
+			// Adopt only verified complete schemas; no historical DDL or seeds replay.
+			names := make([]string, 0, len(plan.tables))
+			for _, table := range plan.tables {
+				names = append(names, table.table)
+			}
+			if err := validateHistoricalSchema(tx, names); err != nil {
 				return err
 			}
 		} else {
-			// All tables/sequence defaults precede keys/indexes, then foreign keys
-			// and triggers. This also supports cycles between chats and messages.
+			for _, table := range plan.tables {
+				if tx.Migrator().HasTable(table.table) {
+					return fmt.Errorf("unversioned existing table %s; refusing to recreate data", table.table)
+				}
+			}
+			// Bootstrap needs phases across all files because some FKs are cyclic.
 			for phase := 0; phase < 3; phase++ {
 				for _, table := range plan.tables {
 					if strings.TrimSpace(table.phases[phase]) == "" {
 						continue
 					}
 					if err := tx.Exec(table.phases[phase]).Error; err != nil {
-						return fmt.Errorf("apply table migration %s phase %d: %w", table.name, phase+1, err)
+						return fmt.Errorf("apply table migration %s phase %s: %w", table.name, migrationPhases[phase], err)
 					}
 				}
 			}
 		}
-		if err := tx.Exec("INSERT INTO release_schema_migrations(name,checksum,duration_ms) VALUES (?,?,?)", tableBaselineName, plan.baselineChecksum, time.Since(started).Milliseconds()).Error; err != nil {
-			return err
+		if _, exists := applied[tableBaselineName]; !exists {
+			if err := tx.Exec("INSERT INTO release_schema_migrations(name,checksum,duration_ms) VALUES (?,?,?)", tableBaselineName, plan.baselineChecksum, time.Since(started).Milliseconds()).Error; err != nil {
+				return err
+			}
+		}
+		for _, table := range plan.tables {
+			if err := tx.Exec("INSERT INTO release_schema_migrations(name,checksum,duration_ms) VALUES (?,?,0)", table.name, table.checksum).Error; err != nil {
+				return err
+			}
 		}
 	}
 	return applyMigrationFiles(tx, plan.subsequent)

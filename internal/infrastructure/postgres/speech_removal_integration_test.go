@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -72,89 +73,47 @@ func TestAuditSpeechRemovalFreshInstall(t *testing.T) {
 	}
 }
 
-func TestAuditSpeechRemovalUpgradePreservesRecordingAndSearch(t *testing.T) {
-	db := auditDatabase(t, 36)
+// This is deliberately a trait fixture, not a replay of the removed SQL chain:
+// a populated database with an incomplete old ledger and obsolete speech data
+// must be rejected before either its supported or deprecated data is changed.
+func TestAuditSpeechHistoryRejectedWithoutDeletingOldData(t *testing.T) {
+	db := auditDatabase(t, 49)
 	exec := func(sql string, args ...any) {
 		t.Helper()
 		if err := db.Exec(sql, args...).Error; err != nil {
 			t.Fatal(err)
 		}
 	}
-	user, other, meeting, participant, recording, transcript, session := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
+	user, other, meeting, recording, transcript := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
 	exec("INSERT INTO users(id,email,password_hash) VALUES(?,?,'synthetic'),(?,?,'synthetic')", user, user+"@example.invalid", other, other+"@example.invalid")
 	exec("INSERT INTO conferences(id,owner_id,title,invite_code,status,started_at) VALUES(?,?,'Searchable planning meeting',?,'active',now())", meeting, user, strings.Repeat("m", 32))
-	exec("INSERT INTO conference_participants(id,conference_id,user_id,display_name,role,status,admission_state,joined_at) VALUES(?,?,?,'Owner','owner','joined','admitted',now())", participant, meeting, user)
+	exec("INSERT INTO conference_participants(id,conference_id,user_id,display_name,role,status,admission_state,joined_at) VALUES(?,?,?,'Owner','owner','joined','admitted',now())", uuid.NewString(), meeting, user)
 	exec("INSERT INTO record(uuid,conference_id,platform_conference_id,mode,source_type,transport_type,status,quality_mode) VALUES(?,?,?,'composite','conference','webrtc','ready','auto')", recording, meeting, meeting)
-	exec("INSERT INTO transcripts(id,conference_id,recording_id,status) VALUES(?,?,?,'queued')", transcript, meeting, recording)
-	segment := uuid.NewString()
-	exec("INSERT INTO transcript_segments(id,transcript_id,ordinal,start_ms,end_ms,text) VALUES(?,?,0,0,100,'Synthetic speech')", segment, transcript)
-	exec("INSERT INTO meeting_summaries(conference_id,transcript_id,transcript_generation,status) VALUES(?,?,1,'ready')", meeting, transcript)
-	exec("INSERT INTO content_search_indexes(transcript_id,model_key,generation,state,model,model_version,dimensions) VALUES(?,? ,1,'ready','synthetic','1',1)", transcript, strings.Repeat("a", 64))
-	exec("UPDATE transcripts SET status='ready' WHERE id=?", transcript)
-	exec("INSERT INTO live_transcription_sessions(id,conference_id,origin,canonical_recording_id) VALUES(?,?,now(),?)", session, meeting, recording)
-	exec("INSERT INTO live_caption_segments(id,session_id,conference_id,participant_id,generation,track_instance_id,utterance_id,sequence,revision,start_ms,end_ms,text,language) VALUES(?,?,?,?,1,?,'synthetic',0,0,0,100,'Synthetic caption','en')", uuid.NewString(), session, meeting, participant, uuid.NewString())
-	exec("INSERT INTO participant_analytics(participant_id,conference_id) VALUES(?,?)", participant, meeting)
-	exec("INSERT INTO conference_analytics(conference_id) VALUES(?)", meeting)
-	exec("INSERT INTO notification_preferences(user_id,summary) VALUES(?,true)", user)
-	for _, kind := range []string{"transcript.ready", "summary.ready", "processing.failed", "recording.ready"} {
-		exec("INSERT INTO notifications(id,user_id,type,payload,dedup_key) VALUES(?,?,?,jsonb_build_object('conferenceId',?::text),?)", uuid.NewString(), user, kind, meeting, "audit:"+kind)
+	exec("CREATE TABLE transcripts(id uuid PRIMARY KEY,conference_id uuid REFERENCES conferences(id),text text NOT NULL)")
+	exec("INSERT INTO transcripts(id,conference_id,text) VALUES(?,?,'Preserve obsolete speech data')", transcript, meeting)
+	exec("INSERT INTO background_jobs(kind,entity_id,conference_id,dedup_key) VALUES('content.transcribe',?,?,'incomplete-history-speech-job')", recording, meeting)
+	exec("DELETE FROM release_schema_migrations WHERE name >= '000037_'")
+	before, ledger := migrationDataSnapshot(t, db), migrationLedgerSnapshot(t, db)
+	t.Setenv("AUTO_MIGRATE", "false")
+	for _, run := range []func(*gorm.DB, string) error{RunMigrations, RunStartupMigrations} {
+		if err := run(db, copyTableMigrations(t)); err == nil {
+			t.Fatal("incomplete historical database was silently adopted")
+		}
 	}
-	// Include delivery records whose FK prevents deleting the corresponding queued jobs first.
-	exec("INSERT INTO integration_deliveries(job_id,user_id,channel,status) SELECT id,user_id,payload->>'channel','delivered' FROM background_jobs WHERE kind='integrations.delivery'")
-	for _, kind := range []string{"content.transcribe", "content.summarize", "content.embed", "analytics.aggregate", "integrations.calendar"} {
-		exec("INSERT INTO background_jobs(kind,entity_id,conference_id,dedup_key) VALUES(?,?,?,?)", kind, recording, meeting, "audit:"+kind)
+	if !reflect.DeepEqual(before, migrationDataSnapshot(t, db)) || !reflect.DeepEqual(ledger, migrationLedgerSnapshot(t, db)) {
+		t.Fatal("rejected migration changed recordings, jobs, settings or the old ledger")
 	}
-	for _, event := range []string{"transcript.ready", "summary.ready", "transcript.failed", "summary.failed", "processing.failed"} {
-		exec("INSERT INTO background_jobs(kind,entity_id,conference_id,payload,dedup_key) VALUES('integrations.event',?,?,jsonb_build_object('event',?::text),?)", transcript, meeting, event, "audit:speech-event:"+event)
-	}
-	var vectorTables bool
-	if err := db.Raw("SELECT to_regclass('content_embeddings') IS NOT NULL").Scan(&vectorTables).Error; err != nil {
-		t.Fatal(err)
-	}
-	if vectorTables {
-		exec("INSERT INTO embedding_cache(model_key,content_hash,embedding) VALUES(?,?,'[0.1]'::vector)", strings.Repeat("a", 64), strings.Repeat("b", 64))
-		exec("INSERT INTO content_embeddings(id,transcript_id,conference_id,recording_id,generation,ordinal,segment_id,start_ms,end_ms,text,model_key,content_hash,embedding) VALUES(?,?,?,?,1,0,?,0,100,'Synthetic',?,?,'[0.1]'::vector)", uuid.NewString(), transcript, meeting, recording, segment, strings.Repeat("a", 64), strings.Repeat("b", 64))
-	}
-	if err := RunMigrations(db, filepath.Join("..", "..", "..", "database", "migrations")); err != nil {
-		t.Fatal(err)
-	}
-	assertSpeechSchemaRemoved(t, db)
-	var count int64
-	if err := db.Table("record").Where("uuid=?", recording).Count(&count).Error; err != nil || count != 1 {
-		t.Fatalf("recording lost: %d %v", count, err)
-	}
-	if err := db.Table("background_jobs").Where("dedup_key='audit:integrations.calendar'").Count(&count).Error; err != nil || count != 1 {
-		t.Fatalf("integration job lost: %d %v", count, err)
-	}
-	if err := db.Table("notifications").Where("type='recording.ready'").Count(&count).Error; err != nil || count != 1 {
-		t.Fatalf("recording notification lost: %d %v", count, err)
-	}
-	if err := db.Table("integration_deliveries").Count(&count).Error; err != nil || count != 2 {
-		t.Fatalf("ordinary deliveries lost or obsolete deliveries remain: %d %v", count, err)
-	}
-	exec("UPDATE record SET status='finalizing' WHERE uuid=?", recording)
-	exec("UPDATE record SET status='ready' WHERE uuid=?", recording)
-	if err := db.Table("background_jobs").Where("kind IN ('content.transcribe','content.summarize','content.embed','analytics.aggregate') OR payload->>'event' IN ('transcript.ready','summary.ready','transcript.failed','summary.failed','processing.failed')").Count(&count).Error; err != nil || count != 0 {
-		t.Fatalf("speech jobs remain/recreated: %d %v", count, err)
+	var preserved string
+	if err := db.Raw("SELECT text FROM transcripts WHERE id=? AND conference_id=?", transcript, meeting).Scan(&preserved).Error; err != nil || preserved != "Preserve obsolete speech data" {
+		t.Fatalf("obsolete user data was deleted by the rejected upgrade: %q %v", preserved, err)
 	}
 	repo := NewConferenceSearchRepository(db)
 	page, err := repo.Search(context.Background(), user, domain.Query{Query: "planning", Limit: 20})
 	if err != nil || page.Total != 1 || len(page.Items) != 1 || page.Items[0].ConferenceID != meeting {
-		t.Fatalf("ordinary search: %+v %v", page, err)
+		t.Fatalf("ordinary search after rejected update: %+v %v", page, err)
 	}
 	page, err = repo.Search(context.Background(), other, domain.Query{Query: "planning", Limit: 20})
 	if err != nil || page.Total != 0 {
 		t.Fatalf("unauthorized search: %+v %v", page, err)
-	}
-	for _, kind := range []string{"transcript.ready", "summary.ready", "processing.failed"} {
-		if err := db.Exec("INSERT INTO notifications(id,user_id,type,payload,dedup_key) VALUES(?,?,?,jsonb_build_object('conferenceId',?::text),?)", uuid.NewString(), user, kind, meeting, "rejected:"+kind).Error; err == nil {
-			t.Errorf("obsolete notification %s accepted", kind)
-		}
-	}
-	if vectorTables {
-		var present bool
-		if err := db.Raw("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='vector')").Scan(&present).Error; err != nil || !present {
-			t.Fatalf("shared vector extension dropped: %v", err)
-		}
 	}
 }

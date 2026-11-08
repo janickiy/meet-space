@@ -11,8 +11,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -51,18 +49,13 @@ func ldapAuditSession(user users.User) users.AuthSession {
 	return users.AuthSession{ID: uuid.NewString(), UserID: user.ID, TokenHash: strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", ""), CreatedAt: time.Now().UTC(), ExpectedAuthSource: "ldap", ExpectedAuthVersion: user.AuthVersion, ExpectedLDAPRevision: 1}
 }
 
-// Миграция отличает старые удалённые записи от корпоративных пользователей без локального пароля.
-func TestLDAPAccountMigrationLifecycle(t *testing.T) {
-	db := auditDatabase(t, 47)
+// A deleted local account and an active LDAP identity both may have no local
+// password; deleted_at, rather than an empty password, controls visibility.
+func TestLDAPAccountLifecycleDistinguishesDeletedLocalAndLDAP(t *testing.T) {
+	db := auditDatabase(t)
 	local, deleted := uuid.NewString(), uuid.NewString()
-	if err := db.Exec(`INSERT INTO users(id,email,password_hash) VALUES(?,?,'synthetic'),(?,?,'')`, local, "local@example.invalid", deleted, "deleted@example.invalid").Error; err != nil {
-		t.Fatal(err)
-	}
-	sql, err := os.ReadFile(filepath.Join("..", "..", "..", "database", "migrations", "legacy", "000048_ldap_accounts.up.sql"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = db.Exec(string(sql)).Error; err != nil {
+	if err := db.Exec(`INSERT INTO users(id,email,password_hash,deleted_at)
+	 VALUES(?,?,'synthetic',NULL),(?,?,'',clock_timestamp())`, local, "local@example.invalid", deleted, "deleted@example.invalid").Error; err != nil {
 		t.Fatal(err)
 	}
 	repo := NewUserRepository(db)

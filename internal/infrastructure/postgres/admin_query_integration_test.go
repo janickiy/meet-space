@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -81,36 +79,29 @@ func TestAuditAdminConferencePageUsesRecordingIndex(t *testing.T) {
 	}
 }
 
-func TestAuditAdminSearchIndexMigrationUpgradeAndRollback(t *testing.T) {
-	db := auditDatabase(t, 39)
-	directory := filepath.Join("..", "..", "..", "database", "migrations")
+func TestAuditAdminSearchIndexesAndPredicates(t *testing.T) {
+	db := auditDatabase(t)
 	for attempt := 0; attempt < 2; attempt++ {
-		if err := RunMigrations(db, directory); err != nil {
-			t.Fatalf("upgrade/rerun %d: %v", attempt, err)
+		if err := RunMigrations(db, tableMigrationDirectory()); err != nil {
+			t.Fatalf("idempotent migration %d: %v", attempt, err)
 		}
 	}
-	countIndexes := func(want int64) {
-		t.Helper()
-		var count int64
-		if err := db.Raw(`SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
-		 WHERE c.relnamespace=current_schema()::regnamespace AND i.indisvalid
-		 AND c.relname IN ('admin_users_search_trgm','admin_audit_search_trgm')`).Scan(&count).Error; err != nil || count != want {
-			t.Fatalf("valid search indexes: got %d want %d err=%v", count, want, err)
-		}
+	var indexes []struct{ Name, Definition string }
+	if err := db.Raw(`SELECT c.relname AS name,pg_get_indexdef(i.indexrelid) AS definition
+	 FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
+	 WHERE c.relnamespace=current_schema()::regnamespace AND i.indisvalid
+	 AND c.relname IN ('admin_users_search_trgm','admin_audit_search_trgm') ORDER BY c.relname`).Scan(&indexes).Error; err != nil {
+		t.Fatal(err)
 	}
-	countIndexes(2)
-	for _, suffix := range []string{"down", "up"} {
-		content, err := os.ReadFile(filepath.Join(directory, "legacy", "000040_administrator_search_indexes."+suffix+".sql"))
-		if err != nil {
-			t.Fatal(err)
+	if len(indexes) != 2 {
+		t.Fatalf("valid search indexes: got %d want 2", len(indexes))
+	}
+	for _, index := range indexes {
+		if !strings.Contains(index.Definition, "USING gin") || !strings.Contains(index.Definition, "gin_trgm_ops") {
+			t.Fatalf("search index lost trigram support: %+v", index)
 		}
-		if err := db.Exec(string(content)).Error; err != nil {
-			t.Fatalf("%s migration: %v", suffix, err)
-		}
-		if suffix == "down" {
-			countIndexes(0)
-		} else {
-			countIndexes(2)
+		if index.Name == "admin_users_search_trgm" && (!strings.Contains(index.Definition, "guest_conference_id IS NULL") || !strings.Contains(index.Definition, "deleted_at IS NULL")) {
+			t.Fatalf("user search index includes guest or deleted accounts: %s", index.Definition)
 		}
 	}
 }

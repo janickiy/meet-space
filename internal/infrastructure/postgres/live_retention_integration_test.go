@@ -8,8 +8,7 @@ import (
 	"github.com/janickiy/meet-space/internal/domain/records"
 	"github.com/janickiy/meet-space/internal/domain/settings"
 	"gorm.io/gorm"
-	"os"
-	"path/filepath"
+	"reflect"
 	"sort"
 	"testing"
 )
@@ -116,28 +115,25 @@ func TestAuditAttachmentSizeCeilingMigration(t *testing.T) {
 			t.Fatalf("%s accepted above absolute ceiling", table)
 		}
 	}
-	migration := func(suffix string) string {
-		t.Helper()
-		raw, err := os.ReadFile(filepath.Join("..", "..", "..", "database", "migrations", "legacy", "000043_dynamic_attachment_size."+suffix+".sql"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return string(raw)
+	// A future change must fail atomically rather than discard existing large
+	// attachment metadata to satisfy a narrower constraint.
+	dir := copyTableMigrations(t)
+	query := ""
+	for _, table := range []string{"chat_attachments", "conversation_attachments"} {
+		query += "ALTER TABLE " + table + " DROP CONSTRAINT " + table + "_size_check; ALTER TABLE " + table + " ADD CONSTRAINT " + table + "_size_check CHECK(size BETWEEN 1 AND 10485760);\n"
 	}
-	if err := db.Exec(migration("down")).Error; err == nil {
-		t.Fatal("rollback allowed loss of large attachment metadata")
+	writeNumberedMigration(t, dir, 104, "tighten_attachments", query)
+	before, ledger := migrationDataSnapshot(t, db), migrationLedgerSnapshot(t, db)
+	if err := RunMigrations(db, dir); err == nil {
+		t.Fatal("migration narrowed the safety ceiling despite existing larger metadata")
+	}
+	if !reflect.DeepEqual(before, migrationDataSnapshot(t, db)) || !reflect.DeepEqual(ledger, migrationLedgerSnapshot(t, db)) {
+		t.Fatal("failed constraint change altered attachments, other data, sequences or the ledger")
 	}
 	for _, table := range []string{"chat_attachments", "conversation_attachments"} {
-		var size int64
-		if err := db.Table(table).Select("size").Scan(&size).Error; err != nil || size != 104857600 {
-			t.Fatal("failed rollback altered existing metadata", size, err)
+		// Validation failure must restore the original 100MiB constraint too.
+		if err := db.Exec("UPDATE " + table + " SET size=104857601").Error; err == nil {
+			t.Fatalf("failed upgrade removed the %s safety constraint", table)
 		}
-		exec("UPDATE " + table + " SET size=1024")
 	}
-	exec(migration("down"))
-	if err := db.Exec("UPDATE chat_attachments SET size=10485761").Error; err == nil {
-		t.Fatal("down did not restore old ceiling")
-	}
-	exec(migration("up"))
-	exec("UPDATE chat_attachments SET size=10485761")
 }

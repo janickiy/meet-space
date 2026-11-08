@@ -136,6 +136,9 @@ func RunMigrations(db *gorm.DB, dir string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SET LOCAL standard_conforming_strings = on").Error; err != nil {
+			return err
+		}
 		if err := tx.Exec("SET LOCAL lock_timeout = '15s'").Error; err != nil {
 			return err
 		}
@@ -153,6 +156,11 @@ func RunMigrations(db *gorm.DB, dir string) error {
 }
 
 func applyMigrationFiles(tx *gorm.DB, files []migration) error {
+	for _, file := range files {
+		if err := validateMigrationSQL(file.name, file.sql); err != nil {
+			return err
+		}
+	}
 	for _, file := range files {
 		var checksum string
 		result := tx.Raw("SELECT checksum FROM release_schema_migrations WHERE name = ?", file.name).Scan(&checksum)
