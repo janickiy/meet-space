@@ -1,0 +1,10 @@
+FROM rabbitmq:4.2.9-management@sha256:4e1c1636957aa13c2dbeb8c92606891ac0c396999bb4d7c3a7e3ba38430df7fa AS runtime
+# Keep RabbitMQ and its upstream entrypoint/configuration; patch Ubuntu packages.
+# CVE-2026-109518 is fixed in noble's apt and libapt-pkg6.0t64 2.8.4ubuntu0.1.
+# Disable download retries until the vulnerable APT client itself is upgraded.
+RUN apt-get -o Acquire::Retries=0 update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 upgrade -y --no-install-recommends \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt)" ge 2.8.4ubuntu0.1 \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libapt-pkg6.0t64)" ge 2.8.4ubuntu0.1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*

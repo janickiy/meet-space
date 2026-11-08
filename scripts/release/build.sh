@@ -48,7 +48,7 @@ if [[ "$layout" == hardened-shared-host ]]; then
   metadata="$(jq '.objectStorageProvider="seaweedfs" | .omittedComponents=[{name:"grafana",reason:"upstream bundled plugins have unresolved HIGH findings; Prometheus remains enabled"}]' <<<"$metadata")"
 fi
 build_services=(api media-worker record-worker product-worker frontend minio proxy)
-if [[ "$layout" == hardened-shared-host ]]; then build_services+=(coturn postgres redis prometheus); fi
+if [[ "$layout" == hardened-shared-host ]]; then build_services+=(coturn postgres redis rabbitmq prometheus); fi
 build_command=(docker build)
 if [[ -n "$builder" ]]; then build_command=(docker buildx build --builder "$builder" --load); fi
 if [[ -n "$platform" ]]; then build_command+=(--platform "$platform"); fi
@@ -146,7 +146,7 @@ for service in "${build_services[@]}"; do
       coturn) dockerfile="$RELEASE_ROOT/dockers/turn/Dockerfile";;
       proxy) dockerfile="$RELEASE_ROOT/dockers/production/Dockerfile";;
       prometheus) dockerfile="$RELEASE_ROOT/dockers/observability/Dockerfile.release";;
-      postgres|redis) dockerfile="$RELEASE_ROOT/dockers/$service/Dockerfile.release";;
+      postgres|redis|rabbitmq) dockerfile="$RELEASE_ROOT/dockers/$service/Dockerfile.release";;
     esac
   fi
   ref="$registry/$service:$version"
