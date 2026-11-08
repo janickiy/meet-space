@@ -16,7 +16,7 @@ WORKDIR /src
 ARG TARGETARCH
 RUN --mount=type=cache,id=meetspace-seaweedfs-modules,target=/go/pkg/mod \
     --mount=type=cache,id=meetspace-seaweedfs-build,target=/root/.cache/go-build \
-    go get golang.org/x/net@v0.60.0 \
+    go get golang.org/x/net@v0.62.0 \
     && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath \
         -ldflags "-s -w -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=530be3e37" \
         -o /out/weed ./weed \

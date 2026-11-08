@@ -22,7 +22,7 @@ RUN tar -xzf /tmp/prometheus-ui.tar.gz -C web/ui \
     && test -s web/ui/static/mantine-ui/index.html.gz \
     && test -s web/ui/static/react-app/index.html.gz
 RUN --mount=type=cache,id=meetspace-prometheus-go127-modules-${TARGETARCH},target=/go/pkg/mod,sharing=locked \
-    go get golang.org/x/net@v0.60.0 \
+    go get golang.org/x/net@v0.62.0 \
     && go mod download \
     && go mod verify
 
@@ -53,7 +53,7 @@ LABEL org.opencontainers.image.title="Prometheus" \
       org.opencontainers.image.source="https://github.com/prometheus/prometheus" \
       org.opencontainers.image.licenses="Apache-2.0" \
       io.meetspace.upstream.version="3.15.0" \
-      io.meetspace.security.patch="Go 1.27.3; golang.org/x/net v0.60.0"
+      io.meetspace.security.patch="Go 1.27.3; golang.org/x/net v0.62.0"
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 WORKDIR /prometheus
 USER nobody
