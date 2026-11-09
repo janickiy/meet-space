@@ -194,71 +194,73 @@ export function CreateConference({ onClose }: { onClose?: () => void }) {
       className="meeting-design-modal meeting-create-modal"
     >
       <form onSubmit={submit} noValidate>
-        <label className="field" htmlFor="conference-title">
-          Название встречи
-          <input
-            id="conference-title"
-            data-autofocus
-            placeholder="Например, обсуждение проекта"
-            value={title}
-            maxLength={200}
-            onChange={(event) => setTitle(event.target.value)}
-            disabled={mutation.isPending}
-          />
-        </label>
-        <div className="meeting-create-options">
-          <label className="meeting-option-row">
-            <span className="meeting-option-icon">
-              <CalendarDays size={21} aria-hidden="true" />
-            </span>
-            <span className="meeting-option-copy">
-              <strong>Запланировать встречу</strong>
-              <small>Выберите дату и время заранее</small>
-            </span>
+        <div className="meeting-create-body">
+          <label className="field" htmlFor="conference-title">
+            Название встречи
             <input
-              className="meeting-switch"
-              type="checkbox"
-              checked={planned}
-              onChange={(event) => setPlanned(event.target.checked)}
+              id="conference-title"
+              data-autofocus
+              placeholder="Например, обсуждение проекта"
+              value={title}
+              maxLength={200}
+              onChange={(event) => setTitle(event.target.value)}
               disabled={mutation.isPending}
             />
           </label>
-          {planned && (
-            <ScheduleFields
-              value={scheduledAt}
-              onChange={setScheduledAt}
-              duration={duration}
-              onDuration={setDuration}
-              disabled={mutation.isPending}
-            />
-          )}
-          <label className="meeting-option-row">
-            <span className="meeting-option-icon">
-              <DoorOpen size={21} aria-hidden="true" />
+          <div className="meeting-create-options">
+            <label className="meeting-option-row">
+              <span className="meeting-option-icon">
+                <CalendarDays size={21} aria-hidden="true" />
+              </span>
+              <span className="meeting-option-copy">
+                <strong>Запланировать встречу</strong>
+                <small>Выберите дату и время заранее</small>
+              </span>
+              <input
+                className="meeting-switch"
+                type="checkbox"
+                checked={planned}
+                onChange={(event) => setPlanned(event.target.checked)}
+                disabled={mutation.isPending}
+              />
+            </label>
+            {planned && (
+              <ScheduleFields
+                value={scheduledAt}
+                onChange={setScheduledAt}
+                duration={duration}
+                onDuration={setDuration}
+                disabled={mutation.isPending}
+              />
+            )}
+            <label className="meeting-option-row">
+              <span className="meeting-option-icon">
+                <DoorOpen size={21} aria-hidden="true" />
+              </span>
+              <span className="meeting-option-copy">
+                <strong>Зал ожидания</strong>
+                <small>Для участников без допуска</small>
+              </span>
+              <input
+                className="meeting-switch"
+                type="checkbox"
+                checked={waitingRoom}
+                onChange={(event) => setWaitingRoom(event.target.checked)}
+                disabled={mutation.isPending}
+              />
+            </label>
+            <p className="field-hint meeting-waiting-policy">
+              Участники с действующей ссылкой-приглашением входят без ожидания.
+            </p>
+          </div>
+          <p className="meeting-inline-note">
+            <Info size={18} aria-hidden="true" />
+            <span>
+              Встречу запускает организатор. Запись можно включить после начала
+              встречи.
             </span>
-            <span className="meeting-option-copy">
-              <strong>Зал ожидания</strong>
-              <small>Для участников без допуска</small>
-            </span>
-            <input
-              className="meeting-switch"
-              type="checkbox"
-              checked={waitingRoom}
-              onChange={(event) => setWaitingRoom(event.target.checked)}
-              disabled={mutation.isPending}
-            />
-          </label>
-          <p className="field-hint meeting-waiting-policy">
-            Участники с действующей ссылкой-приглашением входят без ожидания.
           </p>
         </div>
-        <p className="meeting-inline-note">
-          <Info size={18} aria-hidden="true" />
-          <span>
-            Встречу запускает организатор. Запись можно включить после начала
-            встречи.
-          </span>
-        </p>
         <ErrorNotice error={mutation.error}>{validation || null}</ErrorNotice>
         <footer className="meeting-dialog-footer">
           <Button

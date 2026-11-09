@@ -43,6 +43,32 @@
   font-size: calc(15px * var(--text-scale));
   line-height: 1.6;
 }
+.modal.meeting-design-modal.meeting-create-modal {
+  --meeting-create-inset: 32px;
+  display: flex;
+  flex-direction: column;
+  padding-inline: 0;
+  overflow: hidden;
+}
+.meeting-create-modal > h2 {
+  margin-inline: var(--meeting-create-inset)
+    calc(var(--meeting-create-inset) + 40px);
+  margin-bottom: 20px;
+}
+.meeting-create-modal > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.meeting-create-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px var(--meeting-create-inset) 0;
+  scroll-padding-block: 8px;
+}
+.meeting-create-body .field > input {
+  margin-top: 0;
+}
 .meeting-create-options {
   border-block: 1px solid var(--border);
   padding: 4px 0;
@@ -126,10 +152,19 @@
   font-size: calc(12px * var(--text-scale));
 }
 .meeting-create-options .schedule-fields {
-  padding: 0 0 16px 52px;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 16px;
+}
+.meeting-create-options .schedule-fields .field {
+  margin: 0;
+}
+.meeting-create-options .schedule-fields .field:last-child {
+  margin-top: 4px;
 }
 .meeting-create-options .schedule-fields .field-hint {
-  margin: -12px 0 20px;
+  margin: 0;
 }
 .meeting-inline-note {
   display: flex;
@@ -166,6 +201,15 @@
 }
 .meeting-dialog-footer > .button-primary {
   flex: 1;
+}
+.meeting-create-modal .meeting-dialog-footer {
+  position: static;
+  flex: none;
+  margin: 0;
+  padding-inline: var(--meeting-create-inset);
+}
+.meeting-create-modal form > .error-notice {
+  margin: 0 var(--meeting-create-inset) 12px;
 }
 /* Keep the confirmation, invitation and actions in normal document flow. */
 .modal.meeting-share-modal {
@@ -277,9 +321,14 @@
   .meeting-option-icon {
     display: none;
   }
-  .meeting-create-options .schedule-fields,
   .meeting-design-modal .meeting-waiting-policy {
     padding-left: 0;
+  }
+  .modal-backdrop:has(.meeting-create-modal) {
+    padding: 0;
+  }
+  .modal.meeting-design-modal.meeting-create-modal {
+    --meeting-create-inset: 16px;
   }
   .meeting-dialog-footer {
     margin-inline: -16px;
