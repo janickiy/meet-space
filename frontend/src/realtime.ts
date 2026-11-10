@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./api";
+import { applyParticipantMediaUpdate } from "./presence";
 import type { RealtimeEvent, RealtimeState } from "./types";
 
 /**
@@ -303,6 +304,11 @@ export function useRealtime(
                 });
               if (e.type.startsWith("chat.")) {
                 refreshChat(e.type !== "chat.read.updated");
+              }
+              if (e.type === "participant.media.updated") {
+                setState((current) =>
+                  applyParticipantMediaUpdate(current, e.data),
+                );
               }
               if (
                 [

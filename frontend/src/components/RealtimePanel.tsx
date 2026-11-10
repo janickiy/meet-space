@@ -391,17 +391,23 @@ export function RealtimePanel({
   const busy =
     media.view.controlBusy || !media.view.mediaPeerId || connectionProblem;
   const roster = onlineParticipants(participants, live.state?.participants);
-  const onlineIds = new Set(roster.map((person) => person.id));
+  const onlineRoster = new Map(roster.map((person) => [person.id, person]));
   const localStream =
-    preferences.showSelf && onlineIds.has(membership.id)
+    preferences.showSelf && onlineRoster.has(membership.id)
       ? media.view.localStream
       : null;
-  const localScreen = onlineIds.has(membership.id)
+  const localScreen = onlineRoster.has(membership.id)
     ? media.view.localScreen
     : null;
-  const visibleRemoteStreams = media.view.remoteStreams.filter((remote) =>
-    onlineIds.has(remote.participantId),
-  );
+  const visibleRemoteStreams = media.view.remoteStreams.flatMap((remote) => {
+    const person = onlineRoster.get(remote.participantId);
+    if (!person) return [];
+    const microphoneEnabled =
+      !remote.screen &&
+      !person.microphoneBlocked &&
+      (person.microphoneEnabled ?? remote.kinds.includes("audio"));
+    return [{ ...remote, person, microphoneEnabled }];
+  });
   const present = roster;
   const remoteParticipants = new Set(
     visibleRemoteStreams
@@ -435,19 +441,12 @@ export function RealtimePanel({
       },
       ...visibleRemoteStreams
         .filter((remote) => !remote.screen)
-        .map((remote) => {
-          const person = roster.find(
-            (person) => person.id === remote.participantId,
-          );
-          return {
-            id: remote.id,
-            participantId: remote.participantId,
-            stream: remote.stream,
-            enabled:
-              !person?.microphoneBlocked &&
-              (person?.microphoneEnabled ?? remote.kinds.includes("audio")),
-          };
-        }),
+        .map((remote) => ({
+          id: remote.id,
+          participantId: remote.participantId,
+          stream: remote.stream,
+          enabled: remote.microphoneEnabled,
+        })),
     ],
     media.running && !connectionProblem,
   );
@@ -455,7 +454,7 @@ export function RealtimePanel({
     media.view.microphoneEnabled &&
     !membership.microphoneBlocked &&
     !connectionProblem &&
-    onlineIds.has(membership.id)
+    onlineRoster.has(membership.id)
       ? (speaking.get(membership.id) ?? 0)
       : 0;
   useEffect(() => {
@@ -551,7 +550,7 @@ export function RealtimePanel({
           </p>
           <div className="realtime-people">
             {live.state.participants
-              .filter((person) => onlineIds.has(person.id))
+              .filter((person) => onlineRoster.has(person.id))
               .map(
                 /**
                  * Обработчик map преобразует текущий элемент в данные или представление результирующего списка.
@@ -829,28 +828,12 @@ export function RealtimePanel({
                   }
                   sinkId={preferences.audioOutputId}
                   volume={preferences.speakerVolume}
-                  microphoneEnabled={
-                    roster.find((person) => person.id === remote.participantId)
-                      ?.microphoneEnabled ?? remote.kinds.includes("audio")
-                  }
-                  role={
-                    roster.find((person) => person.id === remote.participantId)
-                      ?.role
-                  }
+                  microphoneEnabled={remote.microphoneEnabled}
+                  role={remote.person.role}
                   reconnecting={connectionProblem}
                   name={
                     (remote.screen ? "Экран · " : "") +
-                    (roster.find(
-                      /**
-                       * Обработчик find проверяет, соответствует ли текущий элемент условию выборки или поиска.
-                       *
-                       * @args
-                       *   - p — сведения об участнике конференции.
-                       *
-                       * @returns true, если проверяемый элемент удовлетворяет условию; false в противном случае.
-                       */
-                      (p) => p.id === remote.participantId,
-                    )?.displayName || "Участник")
+                    (remote.person.displayName || "Участник")
                   }
                 />
               ),
@@ -865,7 +848,7 @@ export function RealtimePanel({
                 microphoneEnabled={
                   person.id === membership.id
                     ? media.view.microphoneEnabled
-                    : person.microphoneEnabled
+                    : person.microphoneEnabled && !person.microphoneBlocked
                 }
                 role={person.role}
                 reconnecting={connectionProblem}
