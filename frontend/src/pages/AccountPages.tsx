@@ -220,7 +220,7 @@ export function SettingsPage() {
                 className="profile-initials"
               />
             </div>
-            <ProfileAvatarEditor />
+            <ProfileAvatarEditor key={user?.id} />
             <form onSubmit={(event) => void saveProfile(event)}>
               <label className="field">
                 <span>Имя для встреч</span>

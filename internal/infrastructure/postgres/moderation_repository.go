@@ -53,7 +53,7 @@ func (r *ConferenceRepository) Moderate(ctx context.Context, conferenceID, userI
 			if err != nil {
 				return membershipError(err)
 			}
-			if err = tx.Where("id = ? AND conference_id = ?", participantID, conferenceID).Take(&target).Error; err != nil {
+			if err = conferenceParticipantView(tx).Where("p.id = ? AND p.conference_id = ?", participantID, conferenceID).Take(&target).Error; err != nil {
 				return mapNotFound(err)
 			}
 			if !conferences.CanModerate(actor, target, request.Action) {
@@ -130,7 +130,7 @@ func (r *ConferenceRepository) Moderate(ctx context.Context, conferenceID, userI
 			if err = tx.Exec("INSERT INTO conference_moderation_audit(conference_id, actor_id, participant_id, action, blocked, role) VALUES(?,?,?,?,?,?)", conferenceID, actor.ID, target.ID, request.Action, request.Blocked, nullRole(request.Role)).Error; err != nil {
 				return err
 			}
-			return tx.Where("id = ?", participantID).Take(&target).Error
+			return conferenceParticipantView(tx).Where("p.id = ?", participantID).Take(&target).Error
 		})
 	return target, err
 }
@@ -216,7 +216,10 @@ func (r *ConferenceRepository) UpdateMediaState(ctx context.Context, conferenceI
 			if err = tx.Table("participant_sessions").Where("connection_id = ?", connectionID.String()).Updates(map[string]any{"media_sequence": state.Sequence, "microphone_enabled": state.MicrophoneEnabled, "camera_enabled": state.CameraEnabled, "screen_sharing": state.ScreenSharing}).Error; err != nil {
 				return err
 			}
-			_, err = aggregateParticipantMedia(tx, &participant)
+			changed, err := aggregateParticipantMedia(tx, &participant)
+			if err == nil && changed {
+				participant, err = findMembership(tx, conferenceID, userID)
+			}
 			return err
 		})
 	return participant, err
@@ -292,11 +295,15 @@ func (r *ConferenceRepository) ClearDisconnectedMedia(ctx context.Context, confe
 			if _, err := findMediaRoom(tx, conferenceID, true); err != nil {
 				return err
 			}
-			if err := tx.Where("id = ? AND conference_id = ?", participantID, conferenceID).Take(&p).Error; err != nil {
+			lookup := conferenceParticipantView(tx).Where("p.id = ? AND p.conference_id = ?", participantID, conferenceID)
+			if err := lookup.Take(&p).Error; err != nil {
 				return mapNotFound(err)
 			}
 			var err error
 			changed, err = aggregateParticipantMedia(tx, &p)
+			if err == nil && changed {
+				err = lookup.Take(&p).Error
+			}
 			return err
 		})
 	return p, changed, err

@@ -81,7 +81,7 @@ func (r *ConferenceRepository) DecideAdmission(ctx context.Context, conferenceID
 			if err = tx.Model(&target).Updates(updates).Error; err != nil {
 				return err
 			}
-			return tx.Where("id = ?", target.ID).Take(&target).Error
+			return conferenceParticipantView(tx).Where("p.id = ?", target.ID).Take(&target).Error
 		})
 	return target, err
 }
@@ -150,11 +150,11 @@ func (r *ConferenceRepository) ParticipantsVisible(ctx context.Context, id, user
 	if !actor.CanReadHistory() {
 		return rows, apperrors.ErrForbidden
 	}
-	q := r.db.WithContext(ctx).Where("conference_id = ?", id)
+	q := conferenceParticipantView(r.db.WithContext(ctx)).Where("p.conference_id = ?", id)
 	if actor.Role != conferences.Owner && actor.Role != conferences.CoHost {
-		q = q.Where("admission_state = 'admitted'")
+		q = q.Where("p.admission_state = 'admitted'")
 	}
-	err = q.Order("created_at ASC, id ASC").Limit(limit).Offset(offset).Find(&rows).Error
+	err = q.Order("p.created_at ASC, p.id ASC").Limit(limit).Offset(offset).Find(&rows).Error
 	return rows, err
 }
 
@@ -268,15 +268,15 @@ func (r *ConferenceRepository) History(ctx context.Context, conferenceID, userID
 				seconds := max(int64(c.FinishedAt.Sub(*c.StartedAt).Seconds()), 0)
 				result.DurationSec = &seconds
 			}
-			q := tx.Model(&conferences.Participant{}).Where("conference_id = ?", conferenceID)
+			q := conferenceParticipantView(tx).Where("p.conference_id = ?", conferenceID)
 			if actor.Role != conferences.Owner && actor.Role != conferences.CoHost {
-				q = q.Where("admission_state = 'admitted'")
+				q = q.Where("p.admission_state = 'admitted'")
 			}
 			if err = q.Count(&result.ParticipantCount).Error; err != nil {
 				return err
 			}
 			rows := []conferences.Participant{}
-			if err = q.Order("created_at ASC, id ASC").Limit(100).Find(&rows).Error; err != nil {
+			if err = q.Order("p.created_at ASC, p.id ASC").Limit(100).Find(&rows).Error; err != nil {
 				return err
 			}
 			result.Participants = make([]conferences.ParticipantView, 0, len(rows))

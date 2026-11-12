@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { avatarSourceError, prepareAvatar } from "../src/avatarImage.ts";
+import {
+  DEFAULT_AVATAR_CROP,
+  avatarCropBounds,
+  avatarSourceError,
+  encodeAvatar,
+  prepareAvatar,
+} from "../src/avatarImage.ts";
 
 const bitmap = globalThis.createImageBitmap;
 const documentValue = globalThis.document;
@@ -77,4 +83,59 @@ test("avatar preparation crops phone photos to a small metadata-free JPEG", asyn
   assert.deepEqual(args.slice(1), [500, 0, 3000, 3000, 0, 0, 512, 512]);
   assert.equal(file.type, "image/jpeg");
   assert.equal(closed, 1);
+});
+
+test("profile avatar crop moves the photo and stays inside both source dimensions", () => {
+  assert.deepEqual(avatarCropBounds(800, 1200, DEFAULT_AVATAR_CROP), {
+    x: 0,
+    y: 200,
+    size: 800,
+  });
+  assert.deepEqual(
+    avatarCropBounds(800, 1200, { zoom: 200, x: 100, y: -100 }),
+    {
+      x: 0,
+      y: 800,
+      size: 400,
+    },
+  );
+  assert.deepEqual(
+    avatarCropBounds(800, 1200, { zoom: 200, x: -120, y: 120 }),
+    {
+      x: 400,
+      y: 0,
+      size: 400,
+    },
+  );
+});
+
+test("profile avatar export draws the selected crop and keeps the editor bitmap open", async () => {
+  const image = {
+    width: 1200,
+    height: 900,
+    close() {
+      assert.fail("The editor still owns this bitmap");
+    },
+  };
+  let drawn;
+  globalThis.document = {
+    createElement: () => ({
+      getContext: () => ({
+        fillRect() {},
+        drawImage(...args) {
+          drawn = args;
+        },
+      }),
+      toBlob(callback, type) {
+        callback(new Blob(["synthetic-jpeg"], { type }));
+      },
+    }),
+  };
+  const file = await encodeAvatar(
+    image,
+    { zoom: 300, x: 50, y: -100 },
+    new AbortController().signal,
+  );
+  assert.deepEqual(drawn, [image, 225, 600, 300, 300, 0, 0, 300, 300]);
+  assert.equal(file.type, "image/jpeg");
 });

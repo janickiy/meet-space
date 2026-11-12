@@ -139,7 +139,9 @@ func (r *ChatRepository) messageQuery(tx *gorm.DB) *gorm.DB {
 	if r.direct {
 		return r.messages(tx).Select("conversation_messages.*, COALESCE(NULLIF(u.display_name,''),'Пользователь') AS sender_name").Joins("JOIN users u ON u.id=conversation_messages.sender_user_id")
 	}
-	return r.messages(tx).Select("chat_messages.*, p.display_name AS sender_name").Joins(r.sql("JOIN conference_participants p ON p.conference_id=chat_messages.conference_id AND p.user_id=chat_messages.sender_user_id"))
+	return r.messages(tx).Select("chat_messages.*, " + conferenceParticipantName + " AS sender_name").
+		Joins("JOIN conference_participants p ON p.conference_id=chat_messages.conference_id AND p.user_id=chat_messages.sender_user_id").
+		Joins(conferenceParticipantProfileJoin)
 }
 
 // loadMessage загружает сообщение вместе с сопутствующими метаданными, необходимыми вызывающей

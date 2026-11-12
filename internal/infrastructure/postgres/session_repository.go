@@ -245,7 +245,7 @@ func (r *SessionRepository) Roster(ctx context.Context, conferenceID string) (co
 		return "", nil, err
 	}
 	rows := []conferences.Participant{}
-	err = r.db.WithContext(ctx).Table("conference_participants p").Select(`p.*, EXISTS (
+	err = conferenceParticipantView(r.db.WithContext(ctx)).Select(conferenceParticipantFields+`, EXISTS (
 		SELECT 1 FROM conference_chat_preferences cp
 		WHERE cp.conference_id=p.conference_id AND cp.user_id=p.user_id AND cp.left_at IS NOT NULL
 	) AS chat_left`).Where("p.conference_id = ?", conferenceID).Order("p.created_at, p.id").Scan(&rows).Error

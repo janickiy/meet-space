@@ -1,0 +1,223 @@
+.modal-backdrop:has(> .avatar-crop-dialog) {
+  padding: 16px;
+}
+
+.modal.avatar-crop-dialog {
+  --avatar-crop-gap: 24px;
+  display: flex;
+  flex-direction: column;
+  width: min(710px, 100%);
+  max-width: 710px;
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+}
+
+.modal.avatar-crop-dialog > h2 {
+  flex: none;
+  margin: 0 44px 20px 0;
+  line-height: 1.4;
+}
+
+.avatar-crop-dialog .modal-close {
+  top: 14px;
+  right: 14px;
+  width: 44px;
+  height: 44px;
+}
+
+.avatar-crop-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--avatar-crop-gap);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  margin: -4px;
+}
+
+.avatar-crop-preview,
+.avatar-crop-controls {
+  min-width: 0;
+}
+
+.avatar-crop-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--radius-xl);
+  background: var(--surface-soft);
+}
+
+.avatar-crop-stage > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-crop-stage:has(> canvas)::after {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgb(255 255 255 / 95%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 160px rgb(0 0 0 / 42%);
+  pointer-events: none;
+  content: "";
+}
+
+.avatar-crop-stage.is-pannable {
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.avatar-crop-stage.is-pannable:active {
+  cursor: grabbing;
+}
+
+.avatar-crop-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.avatar-crop-hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.avatar-crop-controls,
+.avatar-crop-tools {
+  display: grid;
+  gap: 10px;
+}
+
+.avatar-crop-slider {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--text-base);
+}
+
+.avatar-crop-slider-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.avatar-crop-slider-label > output {
+  min-width: 48px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--link);
+  background: var(--primary-soft);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.avatar-crop-slider input[type="range"] {
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--primary);
+}
+
+.avatar-crop-slider input[type="range"]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+.avatar-crop-replace.button {
+  border: 1px dashed var(--primary);
+  color: var(--link);
+  background: var(--primary-soft);
+}
+
+.avatar-crop-replace.button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-soft), var(--primary) 12%);
+}
+
+.avatar-crop-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  flex: none;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.avatar-crop-dialog > .avatar-crop-footer {
+  margin-inline-start: calc((100% + var(--avatar-crop-gap)) / 2);
+}
+
+.avatar-crop-dialog :is(.avatar-crop-tools, .avatar-crop-footer) > .button {
+  min-width: 0;
+  padding-inline: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.avatar-crop-error {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 679px) {
+  .modal-backdrop:has(> .avatar-crop-dialog) {
+    padding: 12px;
+  }
+
+  .modal.avatar-crop-dialog {
+    --avatar-crop-gap: 16px;
+    max-width: 440px;
+    max-height: calc(100dvh - 24px);
+    padding: 16px;
+  }
+
+  .modal.avatar-crop-dialog > h2 {
+    margin-bottom: 16px;
+  }
+
+  .avatar-crop-dialog .modal-close {
+    top: 7px;
+    right: 7px;
+  }
+
+  .avatar-crop-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .avatar-crop-stage {
+    max-width: 260px;
+    margin-inline: auto;
+  }
+
+  .avatar-crop-hint {
+    text-align: center;
+  }
+
+  .avatar-crop-dialog > .avatar-crop-footer {
+    margin-inline-start: 0;
+  }
+}

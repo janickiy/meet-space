@@ -157,8 +157,8 @@ func (r *ConferenceRepository) Membership(ctx context.Context, id, userID string
 //     передачи данных или сохранения.
 func (r *ConferenceRepository) Participants(ctx context.Context, id string, limit, offset int) ([]conferences.Participant, error) {
 	items := []conferences.Participant{}
-	err := r.db.WithContext(ctx).Where("conference_id = ?", id).
-		Order("created_at ASC, id").Limit(limit).Offset(offset).Find(&items).Error
+	err := conferenceParticipantView(r.db.WithContext(ctx)).Where("p.conference_id = ?", id).
+		Order("p.created_at ASC, p.id").Limit(limit).Offset(offset).Find(&items).Error
 	return items, err
 }
 
@@ -402,8 +402,25 @@ func findMediaRoom(db *gorm.DB, id string, locked bool) (conferences.Conference,
 //     передачи данных или сохранения.
 func findMembership(db *gorm.DB, id, userID string) (conferences.Participant, error) {
 	var participant conferences.Participant
-	err := db.Where("conference_id = ? AND user_id = ?", id, userID).Take(&participant).Error
+	err := conferenceParticipantView(db).Where("p.conference_id = ? AND p.user_id = ?", id, userID).Take(&participant).Error
 	return participant, mapNotFound(err)
+}
+
+const conferenceParticipantProfileJoin = `LEFT JOIN users profile ON profile.id = p.user_id
+	AND profile.guest_conference_id IS NULL AND profile.deleted_at IS NULL`
+
+const conferenceParticipantName = "COALESCE(NULLIF(profile.display_name, ''), p.display_name)"
+
+// A rename must make the public participant newer than any cached presence snapshot.
+const conferenceParticipantFields = `p.id, p.conference_id, p.user_id, ` + conferenceParticipantName + ` AS display_name,
+	p.role, p.status, p.joined_at, p.left_at, p.created_at,
+	GREATEST(p.updated_at, profile.updated_at) AS updated_at,
+	p.microphone_enabled, p.camera_enabled, p.screen_sharing, p.microphone_blocked,
+	p.camera_blocked, p.screen_blocked, p.media_policy_version, p.admission_state,
+	p.admission_decided_at, p.admission_version`
+
+func conferenceParticipantView(db *gorm.DB) *gorm.DB {
+	return db.Table("conference_participants p").Joins(conferenceParticipantProfileJoin).Select(conferenceParticipantFields)
 }
 
 // WithSettings installs the shared retention policy reader before serving requests.
