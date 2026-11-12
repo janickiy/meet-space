@@ -21,6 +21,7 @@ import { ConferenceChatActions } from "../components/ConferenceChatActions";
 import { MeetingSkeleton } from "../components/MeetingSkeleton";
 import { NewDirectChatModal } from "../components/NewDirectChatModal";
 import { CurrentDateTime } from "../components/CurrentDateTime";
+import { FilterSelect } from "../components/FilterSelect";
 import type { Conference, ConferenceFilters } from "../types";
 import { localDayEnd, localSchedule } from "../collaboration";
 import {
@@ -303,38 +304,32 @@ function ConferenceDashboard() {
             role="group"
             aria-label="Период и сортировка встреч"
           >
-            <label className="dashboard-period-filter">
-              <CalendarDays size={16} aria-hidden="true" />
-              <select
-                aria-label="Период встреч"
-                value={period}
-                onChange={(event) =>
-                  selectPeriod(event.target.value as ConferencePeriod)
-                }
-              >
-                <option value="all">Все время</option>
-                <option value="7">Последние 7 дней</option>
-                <option value="30">Последние 30 дней</option>
-                <option value="90">Последние 90 дней</option>
-                {period === "custom" && (
-                  <option value="custom" disabled>
-                    Свой период
-                  </option>
-                )}
-              </select>
-            </label>
-            <select
-              aria-label="Сортировка встреч"
+            <FilterSelect
+              label="Период встреч"
+              icon={<CalendarDays size={16} />}
+              value={period}
+              onChange={(value) => selectPeriod(value as ConferencePeriod)}
+              options={[
+                { value: "all", label: "Все время" },
+                { value: "7", label: "Последние 7 дней" },
+                { value: "30", label: "Последние 30 дней" },
+                { value: "90", label: "Последние 90 дней" },
+                ...(period === "custom"
+                  ? [{ value: "custom", label: "Свой период", disabled: true }]
+                  : []),
+              ]}
+            />
+            <FilterSelect
+              label="Сортировка встреч"
               value={sort}
-              onChange={(event) =>
-                setSort(
-                  event.target.value as NonNullable<ConferenceFilters["sort"]>,
-                )
+              onChange={(value) =>
+                setSort(value as NonNullable<ConferenceFilters["sort"]>)
               }
-            >
-              <option value="newest">Сначала новые</option>
-              <option value="oldest">Сначала старые</option>
-            </select>
+              options={[
+                { value: "newest", label: "Сначала новые" },
+                { value: "oldest", label: "Сначала старые" },
+              ]}
+            />
           </div>
           <div className="dashboard-list-caption">
             <span>

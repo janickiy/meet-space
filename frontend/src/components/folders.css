@@ -70,6 +70,10 @@
 .item-action-menu > .item-action-danger {
   color: var(--danger);
 }
+.item-action-separator {
+  border-top: 1px solid var(--border);
+  margin: 4px;
+}
 .folder-checkboxes {
   list-style: none;
   padding: 0;

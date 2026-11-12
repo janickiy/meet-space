@@ -1,0 +1,61 @@
+.filter-select {
+  position: relative;
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.4;
+  transition:
+    border-color 120ms,
+    background-color 120ms;
+}
+.filter-select-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: max(42px, 2.75em);
+  padding: 8px 12px;
+  pointer-events: none;
+}
+.filter-select-content > svg {
+  flex: none;
+  color: var(--muted);
+}
+.filter-select-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-select > select.filter-select-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.filter-select[data-disabled="false"]:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-soft);
+}
+.filter-select:has(select:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.filter-select[data-disabled="true"] {
+  opacity: 0.55;
+}
+.filter-select > select.filter-select-input:disabled {
+  cursor: not-allowed;
+}

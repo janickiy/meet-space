@@ -129,7 +129,8 @@ afterEach(() => {
   originals.clear();
 });
 
-test("настройки без уровней получают 85/85/100%; изменения изолированы по аккаунту", () => {
+test("при первом запуске и без сохранённого уровня микрофон получает 80%; изменения изолированы по аккаунту", () => {
+  assert.equal(readDevicePreferences("bob").microphoneVolume, 0.8);
   localStorage.setItem(
     "meet.devices.v1:alice",
     JSON.stringify({ noiseSuppression: false }),
@@ -137,7 +138,7 @@ test("настройки без уровней получают 85/85/100%; из
   const legacy = readDevicePreferences("alice");
   assert.deepEqual(
     [legacy.microphoneVolume, legacy.speakerVolume, legacy.signalVolume],
-    [0.85, 0.85, 1],
+    [0.8, 0.85, 1],
   );
   const updates = [];
   const unsubscribe = subscribeDevicePreferences("alice", (value) =>
@@ -191,7 +192,7 @@ test("повреждённые уровни не попадают в AudioParam 
     }),
   );
   const preferences = readDevicePreferences("alice");
-  assert.equal(preferences.microphoneVolume, 0.85);
+  assert.equal(preferences.microphoneVolume, 0.8);
   assert.equal(preferences.speakerVolume, 0);
   assert.equal(preferences.signalVolume, 1);
   saveDevicePreferences("alice", {
@@ -199,15 +200,15 @@ test("повреждённые уровни не попадают в AudioParam 
     microphoneVolume: NaN,
     speakerVolume: Infinity,
   });
-  assert.equal(readDevicePreferences("alice").microphoneVolume, 0.85);
+  assert.equal(readDevicePreferences("alice").microphoneVolume, 0.8);
   assert.equal(readDevicePreferences("alice").speakerVolume, 0.85);
 });
 
 test("уровень микрофона меняется на существующей дорожке и освобождает захват при закрытии", async () => {
   const input = new Track();
-  const gain = new MicrophoneGain(0.85);
+  const gain = new MicrophoneGain();
   const output = await gain.attach(input);
-  assert.equal(contexts[0].gain.gain.value, 0.85);
+  assert.equal(contexts[0].gain.gain.value, 0.8);
   gain.setVolume(0);
   assert.equal(contexts[0].gain.gain.value, 0);
   gain.setVolume(0.61);

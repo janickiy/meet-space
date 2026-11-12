@@ -184,40 +184,12 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   max-width: 100%;
   min-width: 0;
   width: 100%;
   margin: 0 0 18px;
-}
-.recordings-filters label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 12px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  min-width: 0;
-}
-.recordings-filters label > svg {
-  flex: none;
-}
-.recordings-filters label select {
-  border: 0;
-  padding-left: 0;
-  background: transparent;
-}
-.recordings-filters > select {
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted);
-}
-.recordings-filters select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 .recordings-list {
   display: grid;
@@ -621,14 +593,7 @@
     gap: 14px;
   }
   .recordings-filters {
-    width: 100%;
-  }
-  .recordings-filters > label,
-  .recordings-filters > select {
-    flex: 1 1 calc(180px * var(--text-scale));
-  }
-  .recordings-filters label select {
-    width: 100%;
+    justify-content: flex-start;
   }
   .recording-detail-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -689,17 +654,6 @@
   .recordings-thumbnail-duration {
     font-size: calc(12px * var(--text-scale));
     padding: 3px 6px;
-  }
-  .recordings-filters {
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .recordings-filters select {
-    font-size: calc(12px * var(--text-scale));
-    padding-right: 5px;
-  }
-  .recordings-filters label {
-    padding-left: 8px;
   }
   .recordings-menu-trigger {
     width: 44px;
@@ -821,19 +775,6 @@ html[data-large-text="true"] .recording-detail-sidebar {
 }
 .recordings-thumbnail-tracks-art b:nth-child(even) {
   height: 6px;
-}
-.recordings-retention {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 18px 0 0;
-  color: var(--muted);
-  font-size: calc(12px * var(--text-scale));
-  line-height: 1.6;
-}
-.recordings-retention svg {
-  flex-shrink: 0;
-  margin-top: 2px;
 }
 .recording-detail-audio {
   min-height: 368px;

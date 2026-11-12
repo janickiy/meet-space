@@ -5,7 +5,6 @@ import {
   CalendarDays,
   Clapperboard,
   FileArchive,
-  Info,
   Play,
   Search,
   Users,
@@ -21,6 +20,7 @@ import type {
   ConferenceRecording,
 } from "../types";
 import { Button, ErrorNotice, Loading } from "../components/ui";
+import { FilterSelect } from "../components/FilterSelect";
 import { RecordingActions } from "../components/RecordingActions";
 import { DeleteRecordingDialog } from "../components/DeleteRecordingDialog";
 import {
@@ -398,29 +398,29 @@ export function RecordingsPage() {
         role="group"
         aria-label="Период и сортировка записей"
       >
-        <label>
-          <CalendarDays size={16} aria-hidden="true" />
-          <select
-            aria-label="Период записей"
-            value={period}
-            disabled={!selected || conference.isError}
-            onChange={(event) => setPeriod(event.target.value)}
-          >
-            <option value="all">Все время</option>
-            <option value="7">Последние 7 дней</option>
-            <option value="30">Последние 30 дней</option>
-            <option value="90">Последние 90 дней</option>
-          </select>
-        </label>
-        <select
-          aria-label="Сортировка загруженных записей"
+        <FilterSelect
+          label="Период записей"
+          icon={<CalendarDays size={16} />}
+          value={period}
+          disabled={!selected || conference.isError}
+          onChange={setPeriod}
+          options={[
+            { value: "all", label: "Все время" },
+            { value: "7", label: "Последние 7 дней" },
+            { value: "30", label: "Последние 30 дней" },
+            { value: "90", label: "Последние 90 дней" },
+          ]}
+        />
+        <FilterSelect
+          label="Сортировка загруженных записей"
           value={sort}
           disabled={!selected || conference.isError}
-          onChange={(event) => setSort(event.target.value)}
-        >
-          <option value="newest">Сначала новые</option>
-          <option value="oldest">Сначала старые</option>
-        </select>
+          onChange={setSort}
+          options={[
+            { value: "newest", label: "Сначала новые" },
+            { value: "oldest", label: "Сначала старые" },
+          ]}
+        />
       </div>
       {!conferenceId && conferences.isPending && <Loading />}
       {!conferenceId && conferences.isSuccess && !loadedConferences.length && (
@@ -544,13 +544,6 @@ export function RecordingsPage() {
           )}
         </section>
       )}
-      <p className="recordings-retention">
-        <Info size={16} aria-hidden="true" />
-        <span>
-          Срок хранения записей определяется настройками сервера. Ссылка на файл
-          временная; ссылка на страницу не открывает доступ посторонним.
-        </span>
-      </p>
     </div>
   );
 }

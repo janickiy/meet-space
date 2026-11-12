@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useId,
   useLayoutEffect,
@@ -17,16 +18,23 @@ export interface ItemAction {
   disabled?: boolean;
   danger?: boolean;
   pressed?: boolean;
+  separatorBefore?: boolean;
 }
 /** Открывает доступное с клавиатуры меню действий и возвращает фокус к его кнопке. */
 export function ItemActions({
   label,
   actions,
   triggerIcon,
+  triggerLabel,
+  placement = "auto",
+  disabled = false,
 }: {
   label: string;
   actions: ItemAction[];
   triggerIcon?: ReactNode;
+  triggerLabel?: string;
+  placement?: "auto" | "top";
+  disabled?: boolean;
 }) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null),
@@ -53,6 +61,7 @@ export function ItemActions({
           ),
         ),
         top:
+          placement !== "top" &&
           anchor.bottom + 8 + popup.height <= window.innerHeight - 16
             ? anchor.bottom + 8
             : Math.max(16, anchor.top - popup.height - 8),
@@ -65,7 +74,7 @@ export function ItemActions({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open]);
+  }, [open, placement]);
   useLayoutEffect(() => {
     if (!open || !position || focused.current) return;
     menu.current
@@ -82,6 +91,7 @@ export function ItemActions({
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
   function key(event: KeyboardEvent<HTMLDivElement>) {
+    if (disabled) return;
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
@@ -122,13 +132,15 @@ export function ItemActions({
       <button
         ref={trigger}
         type="button"
-        className="icon-button"
+        className={triggerLabel ? "button button-outline" : "icon-button"}
+        disabled={disabled}
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => setOpen(!open)}
       >
+        {triggerLabel}
         {triggerIcon || <MoreHorizontal size={20} aria-hidden="true" />}
       </button>
       {open && (
@@ -141,25 +153,29 @@ export function ItemActions({
           style={position || { visibility: "hidden" }}
         >
           {actions.map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              role={
-                action.pressed === undefined ? "menuitem" : "menuitemcheckbox"
-              }
-              tabIndex={-1}
-              disabled={action.disabled}
-              aria-checked={action.pressed}
-              className={action.danger ? "item-action-danger" : undefined}
-              onClick={() => {
-                setOpen(false);
-                trigger.current?.focus();
-                action.run();
-              }}
-            >
-              {action.icon}
-              {action.label}
-            </button>
+            <Fragment key={action.label}>
+              {action.separatorBefore && (
+                <div className="item-action-separator" role="separator" />
+              )}
+              <button
+                type="button"
+                role={
+                  action.pressed === undefined ? "menuitem" : "menuitemcheckbox"
+                }
+                tabIndex={-1}
+                disabled={action.disabled}
+                aria-checked={action.pressed}
+                className={action.danger ? "item-action-danger" : undefined}
+                onClick={() => {
+                  setOpen(false);
+                  trigger.current?.focus();
+                  action.run();
+                }}
+              >
+                {action.icon}
+                {action.label}
+              </button>
+            </Fragment>
           ))}
         </div>
       )}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth";
+import { api } from "../api";
 import { AvatarCropDialog } from "./AvatarCropDialog";
 import { UserAvatar } from "./UserAvatar";
 import { Button, ErrorNotice } from "./ui";
@@ -88,8 +89,11 @@ export function ProfileAvatarEditor() {
       {saved && <p role="status">{saved}</p>}
       {editing && (
         <AvatarCropDialog
-          userId={user.id}
-          hasAvatar={!!user.avatarVersion}
+          loadPhoto={
+            user.avatarVersion
+              ? (signal) => api.userAvatar(user.id, signal)
+              : undefined
+          }
           onSave={updateAvatar}
           onSaved={() => {
             setSaved("Фото профиля сохранено.");

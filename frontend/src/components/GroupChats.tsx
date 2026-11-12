@@ -92,11 +92,13 @@ export function ConversationAvatar({
 }
 
 function AvatarFileField({
+  group,
   file,
   onChange,
   disabled,
   onPreparing,
 }: {
+  group?: GroupConversation;
   file?: File;
   onChange: (file?: File) => void;
   disabled: boolean;
@@ -107,7 +109,14 @@ function AvatarFileField({
       file={file}
       onChange={onChange}
       disabled={disabled}
-      label="Выбрать аватар группы"
+      label="Редактировать аватар группы"
+      title="Фото группы"
+      fallback={group && <ConversationAvatar conversation={group} large />}
+      loadPhoto={
+        group?.avatarVersion
+          ? (signal) => loadGroupAvatar(group.id, signal)
+          : undefined
+      }
       onPreparing={onPreparing}
     />
   );
@@ -856,24 +865,39 @@ export function GroupInfoModal({
           </>
         )}
         {view === "info" && (
-          <div className="group-danger-actions">
-            {owner && (
-              <Button variant="outline" onClick={() => setView("transfer")}>
-                <ShieldCheck size={18} />
-                Передать владение
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setView("leave")}>
+          <footer className="group-footer-actions">
+            <Button
+              variant="outline"
+              className="group-leave-action"
+              disabled={mutation.isPending}
+              onClick={() => setView("leave")}
+            >
               <LogOut size={18} />
               Выйти из группы
             </Button>
             {owner && (
-              <Button variant="danger" onClick={() => setView("delete")}>
-                <Trash2 size={18} />
-                Удалить группу
-              </Button>
+              <ItemActions
+                label="Ещё: действия группы"
+                triggerLabel="Ещё"
+                placement="top"
+                disabled={mutation.isPending}
+                actions={[
+                  {
+                    label: "Передать владение",
+                    icon: <ShieldCheck size={18} />,
+                    run: () => setView("transfer"),
+                  },
+                  {
+                    label: "Удалить группу",
+                    icon: <Trash2 size={18} />,
+                    danger: true,
+                    separatorBefore: true,
+                    run: () => setView("delete"),
+                  },
+                ]}
+              />
             )}
-          </div>
+          </footer>
         )}
         {view === "add" && (
           <>
@@ -934,6 +958,7 @@ export function GroupInfoModal({
             }}
           >
             <AvatarFileField
+              group={current}
               file={file}
               onChange={setFile}
               disabled={mutation.isPending}
@@ -944,7 +969,12 @@ export function GroupInfoModal({
                 type="button"
                 variant="outline"
                 disabled={mutation.isPending}
-                onClick={() => run(() => api.deleteGroupAvatar(group.id))}
+                onClick={() =>
+                  run(async () => {
+                    await api.deleteGroupAvatar(group.id);
+                    setFile(undefined);
+                  })
+                }
               >
                 Удалить аватар группы
               </Button>

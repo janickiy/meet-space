@@ -1,6 +1,6 @@
 /** Начальные уровни микрофона, динамика и сигналов; значения от 0 до 1. */
 export const DEFAULT_AUDIO_VOLUMES = {
-  microphoneVolume: 0.85,
+  microphoneVolume: 0.8,
   speakerVolume: 0.85,
   signalVolume: 1,
 } as const;

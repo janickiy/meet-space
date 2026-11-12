@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import { Check, ImagePlus, Upload } from "lucide-react";
-import { api } from "../api";
 import {
   avatarCropBounds,
   decodeAvatar,
@@ -32,16 +31,16 @@ function positionPercent(value: number) {
   return Math.round(Math.min(100, Math.max(-100, value)));
 }
 
-/** Edits a draft crop locally and uploads only the final square photo. */
+/** Edits a draft locally and passes only the final square photo to its owner. */
 export function AvatarCropDialog({
-  userId,
-  hasAvatar,
+  title = "Фото профиля",
+  loadPhoto,
   onSave,
   onSaved,
   onClose,
 }: {
-  userId: string;
-  hasAvatar: boolean;
+  title?: string;
+  loadPhoto?: (signal: AbortSignal) => Blob | Promise<Blob>;
   onSave: (file: File, signal: AbortSignal) => Promise<unknown>;
   onSaved: () => void;
   onClose: () => void;
@@ -54,10 +53,12 @@ export function AvatarCropDialog({
   const pan = useRef<Pan | null>(null);
   const [image, setImage] = useState<ImageBitmap>();
   const [crop, setCrop] = useState<AvatarCrop>(DEFAULT_AVATAR_CROP);
-  const [loadSavedPhoto] = useState(hasAvatar);
-  const [loading, setLoading] = useState(loadSavedPhoto);
+  // Each opening owns its draft; parent refreshes must not reset an active crop.
+  const [initialPhoto] = useState(() => loadPhoto);
+  const [loading, setLoading] = useState(!!initialPhoto);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>();
+  const [imageError, setImageError] = useState("");
 
   const load = useCallback(
     async (read: (signal: AbortSignal) => Blob | Promise<Blob>) => {
@@ -67,8 +68,21 @@ export function AvatarCropDialog({
       const { signal } = controller;
       setLoading(true);
       setError(undefined);
+      setImageError("");
       try {
-        const next = await decodeAvatar(await read(signal), signal);
+        const source = await read(signal);
+        let next: ImageBitmap;
+        try {
+          next = await decodeAvatar(source, signal);
+        } catch (error) {
+          if (!signal.aborted)
+            setImageError(
+              error instanceof Error && error.name === "Error"
+                ? error.message
+                : "Не удалось открыть изображение. Выберите другое фото.",
+            );
+          return;
+        }
         if (signal.aborted) {
           next.close();
           return;
@@ -89,13 +103,13 @@ export function AvatarCropDialog({
     [],
   );
   useEffect(() => {
-    if (loadSavedPhoto) void load((signal) => api.userAvatar(userId, signal));
+    if (initialPhoto) void load(initialPhoto);
     return () => {
       pending.current?.abort();
       bitmap.current?.close();
       bitmap.current = null;
     };
-  }, [load, loadSavedPhoto, userId]);
+  }, [load, initialPhoto]);
 
   const bounds = image && avatarCropBounds(image.width, image.height, crop);
   const travelX = image && bounds ? image.width - bounds.size : 0;
@@ -149,6 +163,7 @@ export function AvatarCropDialog({
     const { signal } = controller;
     setSaving(true);
     setError(undefined);
+    setImageError("");
     try {
       const file = await encodeAvatar(image, crop, signal);
       await onSave(file, signal);
@@ -165,7 +180,7 @@ export function AvatarCropDialog({
 
   return (
     <Modal
-      title="Фото профиля"
+      title={title}
       className="avatar-crop-dialog"
       onClose={() => {
         if (!saving) onClose();
@@ -198,7 +213,7 @@ export function AvatarCropDialog({
                 width={previewSize}
                 height={previewSize}
                 role="img"
-                aria-label="Предпросмотр фото профиля"
+                aria-label={`Предпросмотр: ${title.toLocaleLowerCase("ru")}`}
               />
             ) : (
               <div className="avatar-crop-empty">
@@ -282,9 +297,9 @@ export function AvatarCropDialog({
               }}
             />
           </div>
-          {error !== undefined && (
+          {(error !== undefined || imageError) && (
             <div className="avatar-crop-error">
-              <ErrorNotice error={error} />
+              <ErrorNotice error={error}>{imageError || null}</ErrorNotice>
             </div>
           )}
         </div>

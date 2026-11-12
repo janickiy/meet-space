@@ -208,12 +208,24 @@
 .group-member-avatar .avatar {
   border-radius: 8px;
 }
-.group-danger-actions {
+.group-footer-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding-top: 20px;
   border-top: 1px solid var(--border);
+}
+.group-footer-actions > .group-leave-action {
+  min-width: 0;
+  padding-inline: 0;
+  border-color: transparent;
+  background: transparent;
+  white-space: normal;
+  text-align: left;
+}
+.group-footer-actions > .group-leave-action svg {
+  flex-shrink: 0;
 }
 .group-avatar-field {
   margin-bottom: 12px;
