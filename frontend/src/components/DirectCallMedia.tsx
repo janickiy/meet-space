@@ -9,6 +9,7 @@ import {
   VideoOff,
 } from "lucide-react";
 import type { DirectCall } from "../types";
+import { useAuth } from "../auth";
 import { useRealtime } from "../realtime";
 import { useMedia } from "../useMedia";
 import {
@@ -18,9 +19,9 @@ import {
 } from "../prejoinDevices";
 import { useSpeakingParticipants } from "../useSpeakingParticipants";
 import { meetingShortcut } from "../conferenceShortcuts";
-import { initials } from "../utils";
 import { MediaTile } from "./RealtimePanel";
 import { useAccountSettings } from "./AccountSettingsContext";
+import { UserAvatar } from "./UserAvatar";
 import { Button, ErrorNotice } from "./ui";
 
 /**
@@ -46,6 +47,7 @@ export function DirectCallMedia({
   onEnd: () => void;
   pending: boolean;
 }) {
+  const { user } = useAuth();
   const live = useRealtime(call.conferenceId!, true, clientId);
   const media = useMedia(live, call.conferenceId!, {});
   const openSettings = useAccountSettings();
@@ -200,6 +202,8 @@ export function DirectCallMedia({
               <MediaTile
                 stream={media.view.localStream || undefined}
                 name={self.displayName}
+                avatarUserId={self.id}
+                avatarVersion={user?.avatarVersion}
                 local
                 video={media.view.cameraEnabled}
                 microphoneEnabled={media.view.microphoneEnabled}
@@ -234,6 +238,7 @@ export function DirectCallMedia({
                 key={stream.id}
                 stream={stream.stream}
                 name={peer.displayName}
+                avatarUserId={peer.id}
                 video={
                   stream.kinds.includes("video") &&
                   !preferences.hideParticipantVideo
@@ -251,13 +256,11 @@ export function DirectCallMedia({
             ))}
             {!remote.length && !showingScreen && (
               <div className="direct-call-person">
-                <div className="direct-call-avatar">
-                  {peer.avatarUrl ? (
-                    <img src={peer.avatarUrl} alt="" />
-                  ) : (
-                    initials(peer.displayName)
-                  )}
-                </div>
+                <UserAvatar
+                  id={peer.id}
+                  name={peer.displayName}
+                  className="direct-call-avatar"
+                />
                 <h3>{peer.displayName}</h3>
                 <p role="status">
                   {peerPresence?.online

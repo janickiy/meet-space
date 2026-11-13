@@ -20,9 +20,9 @@ import {
   type DevicePreferences,
 } from "../prejoinDevices";
 import { useCallPreview } from "../useCallPreview";
-import { initials } from "../utils";
 import { DirectCallMedia } from "./DirectCallMedia";
 import { MediaTile } from "./RealtimePanel";
+import { UserAvatar } from "./UserAvatar";
 import { Button, ErrorNotice, Modal } from "./ui";
 import toneURL from "../assets/device-tone.wav";
 import "./direct-calls.css";
@@ -466,6 +466,7 @@ function CallRinging({
   onAccept: () => void;
   onEnd: () => void;
 }) {
+  const { user } = useAuth();
   const peer = incoming ? call.caller : call.callee;
   const self = incoming ? call.callee : call.caller;
   const [preferences] = useState(() => readDevicePreferences(userId));
@@ -597,6 +598,8 @@ function CallRinging({
             <div className="direct-call-self">
               <MediaTile
                 name={self.displayName}
+                avatarUserId={self.id}
+                avatarVersion={user?.avatarVersion}
                 local
                 stream={preview}
                 video={!!camera.stream}
@@ -605,13 +608,11 @@ function CallRinging({
             </div>
           )}
           <div className="direct-call-person">
-            <div className="direct-call-avatar">
-              {peer.avatarUrl ? (
-                <img src={peer.avatarUrl} alt="" />
-              ) : (
-                initials(peer.displayName)
-              )}
-            </div>
+            <UserAvatar
+              id={peer.id}
+              name={peer.displayName}
+              className="direct-call-avatar"
+            />
             <h3>{peer.displayName}</h3>
             <p role="status" aria-live="polite">
               {label}

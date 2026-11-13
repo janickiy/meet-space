@@ -472,8 +472,8 @@ export interface DirectCallHistory {
 export interface DirectCall extends DirectCallHistory {
   conversationId: string;
   conferenceId?: string | null;
-  caller: { id: string; displayName: string; avatarUrl?: string };
-  callee: { id: string; displayName: string; avatarUrl?: string };
+  caller: { id: string; displayName: string };
+  callee: { id: string; displayName: string };
   callerClientId: string;
   acceptedByClientId?: string | null;
   expiresAt: string;

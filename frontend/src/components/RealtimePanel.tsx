@@ -35,6 +35,7 @@ import { meetingShortcut } from "../conferenceShortcuts";
 import { initials } from "../utils";
 import { useSpeakingParticipants } from "../useSpeakingParticipants";
 import { onlineParticipants } from "../presence";
+import { UserAvatar } from "./UserAvatar";
 
 /**
  * MediaTile воспроизводит существующий поток и показывает состояние участника.
@@ -43,7 +44,8 @@ import { onlineParticipants } from "../presence";
  * подсветку. Смена потока снимает
  * только DOM-привязку, не останавливая общие дорожки WebRTC.
  * @args stream — поток; name — подпись и инициалы; local — собственная плитка
- * без воспроизведения звука; video — показывать видео вместо инициалов;
+ * без воспроизведения звука; video — показывать видео вместо аватара;
+ * avatarUserId и avatarVersion — профиль для фото в плитке без видео;
  * screen — демонстрация экрана; sinkId — устройство воспроизведения;
  * microphoneEnabled — состояние микрофона; audioLevel — уровень звука от 0 до 1;
  * role — роль участника; reconnecting — восстанавливается ли медиасвязь;
@@ -53,6 +55,8 @@ import { onlineParticipants } from "../presence";
 export const MediaTile = memo(function MediaTile({
   stream,
   name,
+  avatarUserId,
+  avatarVersion,
   local = false,
   video = true,
   screen = false,
@@ -66,6 +70,8 @@ export const MediaTile = memo(function MediaTile({
 }: {
   stream?: MediaStream;
   name: string;
+  avatarUserId?: string;
+  avatarVersion?: string | null;
   local?: boolean;
   video?: boolean;
   screen?: boolean;
@@ -195,9 +201,18 @@ export const MediaTile = memo(function MediaTile({
         ) : (
           <>
             <div className="media-audio-symbol" aria-label="Камера выключена">
-              <span className="participant-tile-initials">
-                {initials(name)}
-              </span>
+              {avatarUserId && !screen ? (
+                <UserAvatar
+                  id={avatarUserId}
+                  name={name}
+                  version={avatarVersion}
+                  className="participant-tile-initials"
+                />
+              ) : (
+                <span className="participant-tile-initials">
+                  {initials(name)}
+                </span>
+              )}
             </div>
             {stream && (
               <audio
