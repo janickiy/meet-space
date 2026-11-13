@@ -403,6 +403,16 @@ async function privateBlob(
     await response.body?.cancel();
     throw new ApiError(502, "Некорректное изображение.");
   }
+  return readPrivateBlob(response, signal, maxBytes, version, mime);
+}
+
+async function readPrivateBlob(
+  response: Response,
+  signal: AbortSignal | undefined,
+  maxBytes: number,
+  version: number,
+  mime: string,
+): Promise<Blob> {
   const reader = response.body?.getReader();
   if (!reader) throw new ApiError(502, "Файл недоступен.");
   const parts: Uint8Array<ArrayBuffer>[] = [];
@@ -1632,10 +1642,37 @@ export const statusLabels: Record<ConferenceStatus, string> = {
 
 // Обе области используют одни и те же контракты и уровень аутентификации запросов/повторных
 // попыток.
+type AttachmentPreview = Pick<
+  ChatAttachment,
+  "id" | "mimeType" | "size" | "status"
+>;
+
+export function canPreviewChatAttachment(
+  file: Pick<AttachmentPreview, "mimeType" | "size" | "status">,
+) {
+  return (
+    file.status === "attached" &&
+    file.size > 0 &&
+    file.size <= 10 * 1024 * 1024 &&
+    ["image/jpeg", "image/png", "image/webp"].includes(file.mimeType)
+  );
+}
+
 export function createChatAPI(namespace: "conferences" | "conversations") {
   const base = (id: string) => `/${namespace}/${encodeURIComponent(id)}`;
   const history = (id: string) =>
     namespace === "conversations" ? base(id) : `${base(id)}/chat`;
+  const attachmentPath = (id: string, attachmentId: string) =>
+    `${base(id)}/attachments/${encodeURIComponent(attachmentId)}`;
+  const attachmentDownload = (
+    id: string,
+    attachmentId: string,
+    signal?: AbortSignal,
+  ) =>
+    request<{ url: string; expiresAt: string; authenticated?: boolean }>(
+      `${attachmentPath(id, attachmentId)}/download`,
+      { signal },
+    );
   return {
     searchMessages: (
       id: string,
@@ -1675,10 +1712,10 @@ export function createChatAPI(namespace: "conferences" | "conversations") {
         `${base(id)}/messages/${encodeURIComponent(messageId)}`,
         { method: "PATCH", body: { text } },
       ),
-    deleteMessage: (id: string, messageId: string) =>
+    deleteMessage: (id: string, messageId: string, signal?: AbortSignal) =>
       request<Item<ChatMessage>>(
         `${base(id)}/messages/${encodeURIComponent(messageId)}`,
-        { method: "DELETE" },
+        { method: "DELETE", signal },
       ),
     chatRead: (id: string, signal?: AbortSignal) =>
       request<Item<ChatReadState>>(`${base(id)}/chat/read`, { signal }),
@@ -1710,17 +1747,62 @@ export function createChatAPI(namespace: "conferences" | "conversations") {
         `${base(id)}/attachments/${encodeURIComponent(attachmentId)}/finalize`,
         { method: "POST", body: {} },
       ),
-    attachmentDownload: (id: string, attachmentId: string) =>
-      request<{ url: string; expiresAt: string; authenticated?: boolean }>(
-        `${base(id)}/attachments/${encodeURIComponent(attachmentId)}/download`,
-      ),
+    attachmentDownload,
+    attachmentPreview: async (
+      id: string,
+      file: AttachmentPreview,
+      authenticated: boolean,
+      signal: AbortSignal,
+    ) => {
+      if (!canPreviewChatAttachment(file))
+        throw new ApiError(422, "Предпросмотр этого файла недоступен.");
+      const version = identityVersion;
+      let response: Response;
+      if (authenticated) {
+        response = await binaryRequest(
+          `${attachmentPath(id, file.id)}/content`,
+          { signal },
+        );
+      } else {
+        const { url, authenticated } = await attachmentDownload(
+          id,
+          file.id,
+          signal,
+        );
+        const target = new URL(url, window.location.origin);
+        if (
+          authenticated ||
+          target.origin !== window.location.origin ||
+          !["http:", "https:"].includes(target.protocol) ||
+          target.username ||
+          target.password
+        )
+          throw new Error("Preview storage must be on the application origin");
+        response = await fetch(target, {
+          credentials: "omit",
+          redirect: "error",
+          signal,
+        });
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw new ApiError(response.status, "Фото недоступно.");
+        }
+      }
+      return readPrivateBlob(
+        response,
+        signal,
+        file.size,
+        version,
+        file.mimeType,
+      );
+    },
     attachmentContent: (
       id: string,
       attachmentId: string,
       signal?: AbortSignal,
     ) =>
       privateBlob(
-        `${base(id)}/attachments/${encodeURIComponent(attachmentId)}/content`,
+        `${attachmentPath(id, attachmentId)}/content`,
         signal,
         100 * 1024 * 1024,
       ),

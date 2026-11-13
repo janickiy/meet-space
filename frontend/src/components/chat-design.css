@@ -78,6 +78,58 @@
 .chat-panel .chat-file-icon > svg {
   margin: 0;
 }
+.chat-panel .chat-attachment .chat-file-icon.chat-file-preview {
+  flex-basis: 48px;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+}
+.chat-file-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.chat-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 64px), 1fr));
+  width: 272px;
+  max-width: 100%;
+  gap: 8px;
+  margin: 6px 0;
+}
+.chat-photo-grid:not(:has(> :nth-child(3))) {
+  width: 184px;
+}
+.chat-photo-tile {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 0;
+}
+.chat-panel .chat-photo-tile .chat-file-icon.chat-file-preview {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.chat-photo-tile > .chat-file-download {
+  position: absolute;
+  inset-inline-end: 4px;
+  inset-block-end: 4px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgb(25 20 32 / 85%) 15px,
+    transparent 16px
+  );
+  color: #fff;
+}
+.chat-photo-tile > .chat-file-download:hover {
+  background: radial-gradient(circle, #191420 15px, transparent 16px);
+  color: #fff;
+}
 .chat-file-copy {
   min-width: 0;
   flex: 1;

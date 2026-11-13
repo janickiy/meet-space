@@ -49,12 +49,12 @@ function pause(ms: number, signal: AbortSignal) {
 
 /** Без байтового кэша: каждый подключенный аватар имеет собственный приватный объект URL и освобождает его. */
 export async function loadGroupAvatar(id: string, signal: AbortSignal) {
-  return loadPrivateAvatar(() => api.groupAvatar(id, signal), signal);
+  return loadPrivateImage(() => api.groupAvatar(id, signal), signal);
 }
 
-/** Share the bounded authenticated image queue across group and user photos. */
-export async function loadPrivateAvatar(
-  load: () => Promise<Blob>,
+/** Share the bounded queue across avatars and attachment previews. */
+export async function loadPrivateImage<T>(
+  load: () => Promise<T>,
   signal: AbortSignal,
 ) {
   for (let attempt = 0; ; attempt++) {

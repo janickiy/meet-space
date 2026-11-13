@@ -1,0 +1,63 @@
+.chat-panel .chat-composer[hidden] {
+  display: none;
+}
+.chat-panel.chat-selecting .chat-message-selectable {
+  cursor: pointer;
+}
+.chat-panel.chat-selecting .chat-message-selected .chat-message-bubble {
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.chat-panel .chat-message-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  flex: 0 0 36px;
+  height: 44px;
+  cursor: pointer;
+}
+.chat-panel .chat-message-checkbox {
+  appearance: auto;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: inherit;
+}
+.chat-panel .chat-selection-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.chat-selection-toolbar > span {
+  flex: 1;
+  white-space: nowrap;
+  font-size: calc(14px * var(--text-scale));
+}
+.chat-selection-toolbar > .icon-button {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+.chat-selection-toolbar .chat-selection-delete {
+  margin-inline-start: auto;
+}
+.chat-selection-notice {
+  padding: 8px 16px;
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(13px * var(--text-scale));
+}
+.chat-selection-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}

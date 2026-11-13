@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth";
 import { api, ApiError } from "../api";
 import { initials } from "../utils";
-import { loadPrivateAvatar } from "../groupAvatarLoader";
+import { loadPrivateImage } from "../groupAvatarLoader";
 import "./avatar.css";
 
 /** Render an authenticated profile photo with a fallback and owned object URL. */
@@ -25,7 +25,7 @@ export function UserAvatar({
     enabled: !!id && !!user && !user.guestConferenceId,
     queryFn: async ({ signal }) => {
       try {
-        return await loadPrivateAvatar(
+        return await loadPrivateImage(
           () => api.userAvatar(id!, signal),
           signal,
         );

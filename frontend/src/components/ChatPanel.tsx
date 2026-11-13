@@ -8,8 +8,8 @@ import {
 } from "@tanstack/react-query";
 import {
   Check,
+  CheckSquare,
   Download,
-  FileText,
   MessageCircle,
   Paperclip,
   Pencil,
@@ -21,10 +21,17 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { api, ApiError, errorMessage, type ChatTransport } from "../api";
+import {
+  api,
+  ApiError,
+  canPreviewChatAttachment,
+  errorMessage,
+  type ChatTransport,
+} from "../api";
 import { useAuth } from "../auth";
 import { useAppearance } from "../appearance";
 import { mergeChatPages, formatBytes } from "../collaboration";
+import { deleteChatMessages } from "../chatDeletion";
 import {
   chatDayKey,
   chatDayLabel,
@@ -39,6 +46,7 @@ import type {
   Participant,
 } from "../types";
 import { AttachmentUploader } from "./AttachmentUploader";
+import { ChatFileIcon } from "./ChatFileIcon";
 import { EmojiPicker } from "./EmojiPicker";
 import { ItemActions, type ItemAction } from "./ItemActions";
 import { Button, ErrorNotice, Modal } from "./ui";
@@ -49,6 +57,7 @@ import { PersonalChatPins, usePersonalChatPins } from "./PersonalChatPins";
 import "./chat-design.css";
 import "./personal-messenger.css";
 import "./conference-messenger.css";
+import "./chat-selection.css";
 
 function isAccessDenied(error: unknown) {
   return error instanceof ApiError && [403, 404].includes(error.status);
@@ -133,6 +142,17 @@ export function MessageThread({
   const [reply, setReply] = useState<ChatMessage | null>(null);
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
+  const [selectingMessages, setSelectingMessages] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(
+    new Set(),
+  );
+  const [confirmSelection, setConfirmSelection] = useState(false);
+  const [selectionNotice, setSelectionNotice] = useState("");
+  const [selectionError, setSelectionError] = useState("");
+  const [deleteProgress, setDeleteProgress] = useState({ done: 0, total: 0 });
+  const bulkController = useRef<AbortController | null>(null);
+  const selectionToolbar = useRef<HTMLDivElement>(null);
+  const wasSelectingMessages = useRef(false);
   const [editText, setEditText] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
@@ -231,6 +251,73 @@ export function MessageThread({
   const messages = historyUnavailable
     ? []
     : mergeChatPages(query.data?.pages || []);
+  const canDeleteMessage = (message: ChatMessage) =>
+    !readOnly &&
+    !historyUnavailable &&
+    !message.deletedAt &&
+    !message.call &&
+    (message.senderId === user?.id || mayModerate);
+  const selectedIds = messages
+    .filter(
+      (message) =>
+        selectedMessages.has(message.id) && canDeleteMessage(message),
+    )
+    .map((message) => message.id);
+
+  useEffect(() => {
+    setSelectedMessages(new Set());
+    setSelectingMessages(false);
+    setConfirmSelection(false);
+    setSelectionNotice("");
+    setSelectionError("");
+    return () => {
+      bulkController.current?.abort();
+      bulkController.current = null;
+    };
+  }, [scopeId, user?.id, readOnly, historyUnavailable, mayModerate]);
+
+  useEffect(() => {
+    if (selectingMessages) selectionToolbar.current?.focus();
+    else if (wasSelectingMessages.current && visible) composer.current?.focus();
+    wasSelectingMessages.current = selectingMessages;
+  }, [selectingMessages, visible]);
+
+  // Refetches may remove a selected message or revoke permission to delete it.
+  useEffect(() => {
+    const allowed = new Set(
+      mergeChatPages(query.data?.pages || [])
+        .filter(
+          (message) =>
+            !message.deletedAt &&
+            !message.call &&
+            (message.senderId === user?.id || mayModerate),
+        )
+        .map((message) => message.id),
+    );
+    setSelectedMessages((current) => {
+      const next = new Set([...current].filter((id) => allowed.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [query.data, mayModerate, user?.id]);
+
+  const toggleMessage = (message: ChatMessage) => {
+    if (!canDeleteMessage(message) || bulkController.current) return;
+    setSelectedMessages((current) => {
+      const next = new Set(current);
+      if (next.has(message.id)) next.delete(message.id);
+      else next.add(message.id);
+      return next;
+    });
+    setSelectionError("");
+  };
+  const cancelSelection = () => {
+    if (bulkController.current) return;
+    setSelectingMessages(false);
+    setSelectedMessages(new Set());
+    setConfirmSelection(false);
+    setSelectionError("");
+    composer.current?.focus();
+  };
   useEffect(() => {
     if (!historyUnavailable) return;
     downloadController.current?.abort();
@@ -328,6 +415,69 @@ export function MessageThread({
       invalidateChangedMessage();
     },
     onError: invalidateChangedMessage,
+  });
+  const removeSelected = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const controller = new AbortController();
+      bulkController.current = controller;
+      setDeleteProgress({ done: 0, total: ids.length });
+      const result = await deleteChatMessages(
+        ids,
+        (id, signal) => transport.deleteMessage(scopeId, id, signal),
+        controller.signal,
+        (id, { item }) => {
+          client.setQueriesData<InfiniteData<ChatPage>>(
+            { queryKey: [historyKey, scopeId, user?.id] },
+            (current) =>
+              current
+                ? {
+                    ...current,
+                    pages: current.pages.map((page) => ({
+                      ...page,
+                      items: page.items.map((message) =>
+                        message.id === id ? item : message,
+                      ),
+                    })),
+                  }
+                : current,
+          );
+          if (!controller.signal.aborted) {
+            setReply((current) => (current?.id === id ? null : current));
+            setDownload(null);
+            setDeleteProgress((progress) => ({
+              ...progress,
+              done: progress.done + 1,
+            }));
+            setSelectedMessages((current) => {
+              const next = new Set(current);
+              next.delete(id);
+              return next;
+            });
+          }
+        },
+      );
+      invalidateChangedMessage();
+      if (!personal)
+        void client.invalidateQueries({
+          queryKey: ["conference-chat-pins", scopeId],
+        });
+      if (mounted.current && !controller.signal.aborted) {
+        bulkController.current = null;
+        setConfirmSelection(false);
+        setSelectionNotice(`Удалено сообщений: ${result.deleted.length}.`);
+        if (result.remaining.length) {
+          setSelectionError(
+            `Не удалено сообщений: ${result.remaining.length}. ${errorMessage(result.error)} Оставшиеся сообщения выделены — можно повторить удаление.`,
+          );
+          selectionToolbar.current?.focus();
+        } else {
+          setSelectedMessages(new Set());
+          setSelectingMessages(false);
+          setSelectionError("");
+        }
+      }
+    },
+    retry: false,
   });
   const bookmark = useMutation({
     mutationFn: (value: { messageId: string; important: boolean }) =>
@@ -670,6 +820,45 @@ export function MessageThread({
     }
   };
 
+  const attachmentIcon = (file: ChatAttachment, tile = false) => (
+    <ChatFileIcon
+      key={`${user?.id}:${scopeId}:${file.id}`}
+      file={file}
+      scopeId={scopeId}
+      transport={transport}
+      authenticated={requireAuthenticatedDownloads}
+      visible={visible && !!user}
+      tile={tile}
+    />
+  );
+
+  const attachmentDownload = (file: ChatAttachment, tile = false) =>
+    download?.id === file.id ? (
+      <a
+        className="icon-button chat-file-download"
+        href={download.url}
+        target="_blank"
+        rel="noreferrer"
+        download={file.filename}
+        aria-label={tile ? `Скачать ${file.filename}` : "Скачать файл"}
+        title={file.filename}
+      >
+        <Download size={18} aria-hidden="true" />
+      </a>
+    ) : (
+      <button
+        type="button"
+        className="icon-button chat-file-download"
+        aria-label={
+          tile ? `Получить ссылку на ${file.filename}` : "Получить ссылку"
+        }
+        title="Получить ссылку на скачивание"
+        onClick={() => void prepareDownload(file)}
+      >
+        <Download size={18} aria-hidden="true" />
+      </button>
+    );
+
   const unread =
     read.data?.item.unreadCount ?? query.data?.pages[0]?.unreadCount ?? 0;
   const olderMessagesButton = query.hasNextPage && (
@@ -749,8 +938,20 @@ export function MessageThread({
   if (accessDenied) return <ErrorNotice error={query.error || read.error} />;
   return (
     <section
-      className={`content-card chat-panel ${personal ? "personal-thread" : "conference-thread"}`}
+      className={`content-card chat-panel ${personal ? "personal-thread" : "conference-thread"}${selectingMessages ? " chat-selecting" : ""}`}
       aria-label={personal ? "Личная переписка" : "Чат конференции"}
+      onKeyDown={(event) => {
+        if (
+          event.key === "Escape" &&
+          selectingMessages &&
+          !confirmSelection &&
+          !removeSelected.isPending
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          cancelSelection();
+        }
+      }}
     >
       <div className="section-heading chat-panel-heading" hidden={personal}>
         <h2>
@@ -853,7 +1054,18 @@ export function MessageThread({
             )}
             {messages.map((message, index) => {
               const own = message.senderId === user?.id;
+              const selectable = canDeleteMessage(message);
+              const selected = selectedMessages.has(message.id) && selectable;
               const pinned = personal && pinnedIds.has(message.id);
+              const photos = message.attachments.filter(
+                canPreviewChatAttachment,
+              );
+              const photoGrid = photos.length > 1;
+              const files = photoGrid
+                ? message.attachments.filter(
+                    (file) => !canPreviewChatAttachment(file),
+                  )
+                : message.attachments;
               const inlineMeta =
                 personal &&
                 !message.call &&
@@ -871,10 +1083,22 @@ export function MessageThread({
                       </div>
                     )}
                   <article
-                    className={`chat-message ${own ? "chat-message-own" : ""} ${pinned ? "chat-message-pinned" : ""} ${message.id === focused ? "chat-message-focused" : ""}`}
+                    className={`chat-message ${own ? "chat-message-own" : ""} ${pinned ? "chat-message-pinned" : ""} ${message.id === focused ? "chat-message-focused" : ""}${selectingMessages && selectable ? " chat-message-selectable" : ""}${selectingMessages && selected ? " chat-message-selected" : ""}`}
                     data-testid={`chat-message-${message.id}`}
                     tabIndex={message.id === focused ? -1 : undefined}
                     aria-current={message.id === focused ? "true" : undefined}
+                    onClickCapture={(event) => {
+                      if (
+                        !selectingMessages ||
+                        (event.target as Element).closest(
+                          ".chat-message-picker",
+                        )
+                      )
+                        return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      toggleMessage(message);
+                    }}
                   >
                     {personal ? (
                       <UserAvatar
@@ -963,12 +1187,28 @@ export function MessageThread({
                               : message.text}
                           </p>
                         )}
+                        {!message.deletedAt && photoGrid && (
+                          <div
+                            className="chat-photo-grid"
+                            role="group"
+                            aria-label="Фотографии во вложениях"
+                          >
+                            {photos.map((file) => (
+                              <div
+                                className="chat-photo-tile"
+                                key={file.id}
+                                title={file.filename}
+                              >
+                                {attachmentIcon(file, true)}
+                                {attachmentDownload(file, true)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {!message.deletedAt &&
-                          message.attachments.map((file) => (
+                          files.map((file) => (
                             <div className="chat-attachment" key={file.id}>
-                              <span className="chat-file-icon">
-                                <FileText size={24} aria-hidden="true" />
-                              </span>
+                              {attachmentIcon(file)}
                               <span className="chat-file-copy">
                                 <strong>{file.filename}</strong>
                                 <small>
@@ -979,29 +1219,7 @@ export function MessageThread({
                                   · {formatBytes(file.size)}
                                 </small>
                               </span>
-                              {download?.id === file.id ? (
-                                <a
-                                  className="icon-button chat-file-download"
-                                  href={download.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  download
-                                  aria-label="Скачать файл"
-                                  title={file.filename}
-                                >
-                                  <Download size={18} aria-hidden="true" />
-                                </a>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="icon-button chat-file-download"
-                                  aria-label="Получить ссылку"
-                                  title="Получить ссылку на скачивание"
-                                  onClick={() => void prepareDownload(file)}
-                                >
-                                  <Download size={18} aria-hidden="true" />
-                                </button>
-                              )}
+                              {attachmentDownload(file)}
                             </div>
                           ))}
                         <footer className="chat-message-footer">
@@ -1029,7 +1247,20 @@ export function MessageThread({
                         </footer>
                       </div>
                     </div>
-                    {!message.deletedAt &&
+                    {selectingMessages && selectable && (
+                      <label className="chat-message-picker">
+                        <input
+                          className="chat-message-checkbox"
+                          type="checkbox"
+                          checked={selected}
+                          disabled={removeSelected.isPending}
+                          aria-label={`Выбрать сообщение: ${message.senderName}, ${chatTime(message.createdAt)}`}
+                          onChange={() => toggleMessage(message)}
+                        />
+                      </label>
+                    )}
+                    {!selectingMessages &&
+                      !message.deletedAt &&
                       !message.call &&
                       (!readOnly || mayBookmark) && (
                         <div className="chat-message-tools">
@@ -1037,6 +1268,22 @@ export function MessageThread({
                             label={`Действия с сообщением: ${message.senderName}, ${chatTime(message.createdAt)}`}
                             actions={
                               [
+                                ...(selectable
+                                  ? [
+                                      {
+                                        label: "Выбрать",
+                                        icon: <CheckSquare size={16} />,
+                                        run: () => {
+                                          setSelectedMessages(
+                                            new Set([message.id]),
+                                          );
+                                          setSelectingMessages(true);
+                                          setSelectionNotice("");
+                                          setSelectionError("");
+                                        },
+                                      },
+                                    ]
+                                  : []),
                                 ...(personal && !readOnly
                                   ? [
                                       {
@@ -1155,9 +1402,46 @@ export function MessageThread({
           </Button>
         )}
         <ErrorNotice error={downloadError || null} />
+        {selectionNotice && (
+          <p className="chat-selection-notice" role="status">
+            {selectionNotice}
+          </p>
+        )}
+        <ErrorNotice>{selectionError || null}</ErrorNotice>
+        {selectingMessages && !readOnly && (
+          <div
+            className="chat-selection-toolbar"
+            ref={selectionToolbar}
+            tabIndex={-1}
+            role="group"
+            aria-label="Выбранные сообщения"
+          >
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="Отменить выбор"
+              title="Отменить выбор"
+              disabled={removeSelected.isPending}
+              onClick={cancelSelection}
+            >
+              <X size={20} />
+            </button>
+            <span role="status">Выбрано: {selectedIds.length}</span>
+            <Button
+              variant="danger"
+              className="chat-selection-delete"
+              disabled={!selectedIds.length || removeSelected.isPending}
+              onClick={() => setConfirmSelection(true)}
+            >
+              <Trash2 size={18} />
+              Удалить выбранные
+            </Button>
+          </div>
+        )}
         {!readOnly && (
           <form
             className="chat-composer"
+            hidden={selectingMessages}
             onSubmit={(event) => {
               event.preventDefault();
               sendDraft();
@@ -1259,6 +1543,60 @@ export function MessageThread({
           </form>
         )}
       </div>
+      {confirmSelection && selectingMessages && (
+        <Modal
+          title="Удалить выбранные сообщения?"
+          onClose={() => {
+            if (!removeSelected.isPending) setConfirmSelection(false);
+          }}
+          returnFocus={() =>
+            selectionToolbar.current?.querySelector<HTMLButtonElement>(
+              ".chat-selection-delete",
+            ) || composer.current
+          }
+        >
+          <p className="modal-description">
+            Выбрано сообщений:{" "}
+            {removeSelected.isPending
+              ? deleteProgress.total
+              : selectedIds.length}
+            . Текст и вложения станут недоступны всем участникам. В чате
+            останутся отметки об удалении. Отменить удаление нельзя.
+          </p>
+          {removeSelected.isPending && (
+            <p role="status">
+              Удалено: {deleteProgress.done} из {deleteProgress.total}
+            </p>
+          )}
+          <div className="chat-selection-confirm-actions">
+            <Button
+              variant="outline"
+              disabled={removeSelected.isPending}
+              onClick={() => setConfirmSelection(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="danger"
+              busy={removeSelected.isPending}
+              disabled={!selectedIds.length}
+              onClick={() => {
+                if (
+                  !readOnly &&
+                  selectedIds.length &&
+                  !removeSelected.isPending &&
+                  !bulkController.current
+                ) {
+                  setSelectionError("");
+                  removeSelected.mutate(selectedIds);
+                }
+              }}
+            >
+              Удалить для всех
+            </Button>
+          </div>
+        </Modal>
+      )}
       {editing && (
         <Modal
           title="Изменить сообщение"
