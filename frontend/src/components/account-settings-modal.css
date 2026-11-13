@@ -131,9 +131,6 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
-.account-dialog-panel .profile-section-heading {
-  align-items: start;
-}
 .account-dialog-panel .profile-created {
   align-items: start;
   overflow-wrap: anywhere;
@@ -238,24 +235,15 @@
 .account-settings-section-heading {
   margin-bottom: 24px;
 }
-.account-settings-section-heading h2,
-.account-dialog-panel .profile-section-heading h2 {
+.account-settings-section-heading h2 {
   margin: 0 0 8px;
   font-size: calc(20px * var(--text-scale));
 }
-.account-settings-section-heading p,
-.account-dialog-panel .profile-section-heading p {
+.account-settings-section-heading p {
   margin: 0;
   font-size: calc(13px * var(--text-scale));
   line-height: 1.5;
   color: var(--muted);
-}
-.account-dialog-panel .profile-initials {
-  border-radius: 14px;
-  border: 0;
-  width: 64px;
-  height: 64px;
-  background: var(--primary-soft);
 }
 .account-dialog-panel .profile-save-row {
   justify-content: flex-start;

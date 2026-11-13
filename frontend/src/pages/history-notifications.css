@@ -70,29 +70,6 @@
 .settings-section-content .account-card {
   padding: 28px;
 }
-.profile-section-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 22px;
-  align-items: center;
-}
-.profile-section-heading h2 {
-  margin: 0 0 8px;
-}
-.profile-initials {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--surface-soft);
-  border: 1px solid var(--border);
-  color: var(--primary);
-  font-size: calc(25px * var(--text-scale));
-  font-weight: 600;
-}
 .account-card .field > span {
   display: flex;
   align-items: center;
@@ -330,11 +307,6 @@
 @media (max-width: 520px) {
   .settings-section-content .account-card {
     padding: 20px;
-  }
-  .profile-initials {
-    width: 50px;
-    height: 50px;
-    font-size: calc(22px * var(--text-scale));
   }
 }
 

@@ -16,7 +16,6 @@ import {
 import { useAuth } from "../auth";
 import { AccountManagement } from "../components/AccountManagement";
 import { ProfileAvatarEditor } from "../components/ProfileAvatarEditor";
-import { UserAvatar } from "../components/UserAvatar";
 import { PRODUCT_NAME } from "../brand";
 import { formatDate } from "../utils";
 import { Button, ErrorNotice } from "../components/ui";
@@ -208,17 +207,9 @@ export function SettingsPage() {
             id="profile-settings"
             aria-labelledby="profile-heading"
           >
-            <div className="profile-section-heading">
-              <div>
-                <h2 id="profile-heading">Ваш профиль</h2>
-                <p className="field-hint">Как вас видят участники встречи.</p>
-              </div>
-              <UserAvatar
-                id={user?.id}
-                name={user?.displayName || user?.email || "?"}
-                version={user?.avatarVersion}
-                className="profile-initials"
-              />
+            <div className="account-settings-section-heading">
+              <h2 id="profile-heading">Ваш профиль</h2>
+              <p>Как вас видят участники встречи.</p>
             </div>
             <ProfileAvatarEditor key={user?.id} />
             <form onSubmit={(event) => void saveProfile(event)}>

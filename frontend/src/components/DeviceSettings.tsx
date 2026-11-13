@@ -513,7 +513,17 @@ export function AudioSettings() {
             onChange={(id) => update({ notificationOutputId: id })}
             disabled={!outputSupported}
           />
+          <SpeakerTest
+            sinkId={preferences.notificationOutputId}
+            label="сигналы"
+            volume={preferences.signalVolume}
+          />
         </div>
+        <VolumeControl
+          label="Громкость сигналов"
+          value={preferences.signalVolume}
+          onChange={(signalVolume) => update({ signalVolume })}
+        />
         {canChooseOutput && (
           <button
             type="button"
@@ -523,16 +533,6 @@ export function AudioSettings() {
             Выбрать другое устройство
           </button>
         )}
-        <VolumeControl
-          label="Громкость сигналов"
-          value={preferences.signalVolume}
-          onChange={(signalVolume) => update({ signalVolume })}
-        />
-        <SpeakerTest
-          sinkId={preferences.notificationOutputId}
-          label="сигналы"
-          volume={preferences.signalVolume}
-        />
       </section>
       <p className="device-saved-hint">
         Настройки сохраняются автоматически в этом браузере.
