@@ -143,7 +143,10 @@ export function ConferenceChatInfoModal({
     profileBusy ||
     leave.isPending ||
     notifications.isPending;
-  const link = safeRecordingUrl(info?.inviteUrl);
+  const inviteUrl = safeRecordingUrl(info?.inviteUrl);
+  const link = inviteUrl?.startsWith("/")
+    ? `${window.location.origin}${inviteUrl}`
+    : inviteUrl;
 
   return (
     <Modal

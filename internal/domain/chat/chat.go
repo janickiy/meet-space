@@ -37,26 +37,33 @@ const (
 // Message сохраняет порядок сообщений в чате, их ревизию, автора и информацию о повторных
 // попытках отправки.  Его внутренний отпечаток запроса не передаётся в JSON.
 type Message struct {
-	ID                 string        `json:"id" gorm:"type:uuid;primaryKey"`
-	Sequence           int64         `json:"sequence,string" gorm:"autoIncrement"`
-	ConferenceID       string        `json:"conferenceId,omitempty"`
-	ConversationID     string        `json:"conversationId,omitempty"`
-	SenderID           string        `json:"senderId" gorm:"column:sender_user_id"`
-	SenderName         string        `json:"senderName" gorm:"->;-:migration"`
-	ClientRequestID    string        `json:"clientRequestId"`
-	RequestFingerprint string        `json:"-"`
-	Text               string        `json:"text"`
-	ReplyTo            *string       `json:"replyTo" gorm:"column:reply_to_id"`
-	ReplyPreview       *ReplyPreview `json:"replyPreview,omitempty" gorm:"-"`
-	Version            int64         `json:"version"`
-	CreatedAt          time.Time     `json:"createdAt"`
-	UpdatedAt          time.Time     `json:"updatedAt"`
-	DeletedAt          *time.Time    `json:"deletedAt"`
-	Attachments        []Attachment  `json:"attachments" gorm:"-"`
-	Important          bool          `json:"important,omitempty" gorm:"-"`
-	Pinned             bool          `json:"pinned,omitempty" gorm:"-"`
-	CallID             *string       `json:"-" gorm:"->;-:migration"`
-	Call               *CallHistory  `json:"call,omitempty" gorm:"-"`
+	ID                  string         `json:"id" gorm:"type:uuid;primaryKey"`
+	Sequence            int64          `json:"sequence,string" gorm:"autoIncrement"`
+	ConferenceID        string         `json:"conferenceId,omitempty"`
+	ConversationID      string         `json:"conversationId,omitempty"`
+	SenderID            string         `json:"senderId" gorm:"column:sender_user_id"`
+	SenderName          string         `json:"senderName" gorm:"->;-:migration"`
+	ClientRequestID     string         `json:"clientRequestId"`
+	RequestFingerprint  string         `json:"-"`
+	Text                string         `json:"text"`
+	ReplyTo             *string        `json:"replyTo" gorm:"column:reply_to_id"`
+	ReplyPreview        *ReplyPreview  `json:"replyPreview,omitempty" gorm:"-"`
+	Version             int64          `json:"version"`
+	CreatedAt           time.Time      `json:"createdAt"`
+	UpdatedAt           time.Time      `json:"updatedAt"`
+	DeletedAt           *time.Time     `json:"deletedAt"`
+	Attachments         []Attachment   `json:"attachments" gorm:"-"`
+	Important           bool           `json:"important,omitempty" gorm:"-"`
+	Pinned              bool           `json:"pinned,omitempty" gorm:"-"`
+	CallID              *string        `json:"-" gorm:"->;-:migration"`
+	Call                *CallHistory   `json:"call,omitempty" gorm:"-"`
+	ForwardedSenderName *string        `json:"-"`
+	ForwardedFrom       *ForwardedFrom `json:"forwardedFrom,omitempty" gorm:"-"`
+}
+
+// ForwardedFrom is a name snapshot, without private source-chat identifiers.
+type ForwardedFrom struct {
+	SenderName string `json:"senderName"`
 }
 
 // CallHistory отображает достоверное состояние вызова, не раскрывая данные о комнате или

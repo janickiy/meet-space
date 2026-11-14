@@ -63,6 +63,18 @@ func (c *Client) PutAttachment(ctx context.Context, key string, reader io.Reader
 	return err
 }
 
+// CopyAttachment creates an independent private object, retaining the original
+// MIME and checksum metadata for the normal finalization checks.
+func (c *Client) CopyAttachment(ctx context.Context, source, destination string) error {
+	if !attachmentKey(source) || !attachmentKey(destination) || source == destination {
+		return fmt.Errorf("invalid attachment copy keys")
+	}
+	_, err := c.minio.CopyObject(ctx,
+		minio.CopyDestOptions{Bucket: c.bucket, Object: destination},
+		minio.CopySrcOptions{Bucket: c.bucket, Object: source})
+	return err
+}
+
 // StatAttachment считывает фактический размер объекта и метаданные перед завершением загрузки.
 //
 // @Parameters:

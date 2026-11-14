@@ -228,11 +228,15 @@ func (r *ChatRepository) decorateMessages(tx *gorm.DB, items []chat.Message, cut
 	}
 	for i := range items {
 		if items[i].DeletedAt == nil {
+			if items[i].ForwardedSenderName != nil {
+				items[i].ForwardedFrom = &chat.ForwardedFrom{SenderName: *items[i].ForwardedSenderName}
+			}
 			if files := byMessage[items[i].ID]; files != nil {
 				items[i].Attachments = files
 			}
 		} else {
 			items[i].Text = ""
+			items[i].ForwardedFrom = nil
 		}
 		if items[i].ReplyTo != nil {
 			if reply, ok := replies[*items[i].ReplyTo]; ok {
@@ -509,6 +513,9 @@ func (r *ChatRepository) Edit(ctx context.Context, userID, conferenceID, id, tex
 		}
 		if message.CallID != nil {
 			return apperrors.New(apperrors.ErrForbidden, "call history cannot be edited")
+		}
+		if message.ForwardedSenderName != nil {
+			return apperrors.New(apperrors.ErrForbidden, "forwarded messages cannot be edited")
 		}
 		if message.DeletedAt != nil {
 			return apperrors.New(apperrors.ErrConflict, "message was deleted")

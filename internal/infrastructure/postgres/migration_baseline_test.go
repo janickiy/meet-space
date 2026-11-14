@@ -157,6 +157,17 @@ func seedMigrationData(t *testing.T, db *gorm.DB) {
 func TestAuditTableBaselineMatchesHistoricalSchema(t *testing.T) {
 	db := auditDatabase(t, 0)
 	dir := copyTableMigrations(t)
+	// This test compares the frozen baseline only; later numbered upgrades
+	// intentionally change its catalog and have separate preservation checks.
+	plan, err := loadMigrationPlan(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, upgrade := range plan.subsequent {
+		if err := os.Remove(filepath.Join(dir, upgrade.name)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := RunMigrations(db, dir); err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +246,7 @@ func TestAuditTableBaselineUpgradePreservesDataAndHistory(t *testing.T) {
 			if len(rows) < len(history) || !reflect.DeepEqual(history, rows[:len(history)]) {
 				t.Fatal("historical names, checksums, applied_at or duration changed")
 			}
-			if len(rows) != 103 {
+			if len(rows) != 103+migrationUpgradeCount(t, dir) {
 				t.Fatalf("adoption should append sentinel plus 53 table entries, got %d", len(rows))
 			}
 			// An already adopted old installation must retain all checksum guards.
@@ -331,7 +342,7 @@ func TestAuditTableBaselineOld50RegistersTableFilesWithoutDDL(t *testing.T) {
 					}
 				}
 				after := migrationLedgerSnapshot(t, db)
-				if len(after) != len(ledger)+53 || !reflect.DeepEqual(ledger, after[:len(ledger)]) {
+				if len(after) != len(ledger)+53+migrationUpgradeCount(t, dir) || !reflect.DeepEqual(ledger, after[:len(ledger)]) {
 					t.Fatal("old50 registration changed existing rows or did not append exactly 53 table entries")
 				}
 				if !reflect.DeepEqual(before, migrationDataSnapshot(t, db)) {
@@ -381,9 +392,9 @@ func TestTableBaselineFilesAndPhases(t *testing.T) {
 			t.Errorf("%s must define exactly its named table", table.name)
 		}
 	}
-	writeNumberedMigration(t, dir, 104, "добавить_поле", "ALTER TABLE users ADD COLUMN migration_probe TEXT;")
+	writeNumberedMigration(t, dir, 104+len(plan.subsequent), "добавить_поле", "ALTER TABLE users ADD COLUMN migration_probe TEXT;")
 	changed, err := loadMigrationPlan(dir)
-	if err != nil || changed.baselineChecksum != plan.baselineChecksum || len(changed.subsequent) != 1 {
+	if err != nil || changed.baselineChecksum != plan.baselineChecksum || len(changed.subsequent) != len(plan.subsequent)+1 {
 		t.Fatalf("adding an upgrade changed the existing baseline50 checksum or was ignored: %v", err)
 	}
 	path := filepath.Join(dir, plan.tables[0].name)
@@ -433,7 +444,7 @@ func TestAuditTableBaselineFutureMigrationsAndGuards(t *testing.T) {
 	if err := os.WriteFile(table, original, 0600); err != nil {
 		t.Fatal(err)
 	}
-	appliedName := writeNumberedMigration(t, dir, 104, "cross_table_probe", `ALTER TABLE users ADD COLUMN migration_parent UUID UNIQUE;
+	appliedName := writeNumberedMigration(t, dir, 104+len(plan.subsequent), "cross_table_probe", `ALTER TABLE users ADD COLUMN migration_parent UUID UNIQUE;
 ALTER TABLE administrators ADD COLUMN migration_user UUID REFERENCES users(migration_parent);
 CREATE FUNCTION migration_increment(input_value integer) RETURNS integer
 LANGUAGE plpgsql AS $migration$
@@ -462,7 +473,7 @@ $migration$;`)
 		t.Fatalf("numbered upgrade must create exactly one version entry: %d %v", count, err)
 	}
 	before, ledger := migrationDataSnapshot(t, db), migrationLedgerSnapshot(t, db)
-	writeNumberedMigration(t, dir, 105, "failure", "ALTER TABLE users ADD COLUMN migration_rollback_probe INTEGER; CREATE TABLE migration_rollback_probe(id INTEGER); SELECT 1/0;")
+	writeNumberedMigration(t, dir, 105+len(plan.subsequent), "failure", "ALTER TABLE users ADD COLUMN migration_rollback_probe INTEGER; CREATE TABLE migration_rollback_probe(id INTEGER); SELECT 1/0;")
 	if err := RunMigrations(db, dir); err == nil {
 		t.Fatal("invalid numbered upgrade accepted")
 	}
@@ -493,7 +504,7 @@ func TestAuditTableBaselineRejectsTransactionEscapeWithoutDataLoss(t *testing.T)
 	db := auditDatabase(t)
 	seedMigrationData(t, db)
 	dir := copyTableMigrations(t)
-	writeNumberedMigration(t, dir, 104, "transaction_escape", `ALTER TABLE users ADD COLUMN migration_escape_probe TEXT;
+	writeNumberedMigration(t, dir, 104+migrationUpgradeCount(t, dir), "transaction_escape", `ALTER TABLE users ADD COLUMN migration_escape_probe TEXT;
 /* A migration must not commit the first ALTER before the following failure. */
 CoMmIt;
 SELECT 1/0;`)
@@ -537,6 +548,7 @@ func TestAuditTableBaselineConcurrentMigrationsPreserveData(t *testing.T) {
 					t.Fatalf("parallel migration failed: %v", err)
 				}
 			}
+			wantLedger += migrationUpgradeCount(t, dir)
 			if rows := migrationLedgerSnapshot(t, db); len(rows) != wantLedger {
 				t.Fatalf("parallel migration duplicated or lost registrations: %d expected %d", len(rows), wantLedger)
 			}
@@ -545,4 +557,13 @@ func TestAuditTableBaselineConcurrentMigrationsPreserveData(t *testing.T) {
 			}
 		})
 	}
+}
+
+func migrationUpgradeCount(t *testing.T, dir string) int {
+	t.Helper()
+	plan, err := loadMigrationPlan(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(plan.subsequent)
 }

@@ -280,7 +280,10 @@ function FolderDetail({ id }: { id: string }) {
         ).values(),
       );
   return (
-    <section className="folders-page" aria-label="Содержимое папки">
+    <section
+      className="folders-page folder-detail"
+      aria-label="Содержимое папки"
+    >
       <Link to="/folders" className="folder-back">
         <ArrowLeft size={18} aria-hidden="true" />
         Все папки

@@ -16,6 +16,7 @@ import {
   Pin,
   PinOff,
   Reply,
+  Forward,
   SendHorizontal,
   Star,
   Trash2,
@@ -48,6 +49,7 @@ import type {
 import { AttachmentUploader } from "./AttachmentUploader";
 import { ChatFileIcon } from "./ChatFileIcon";
 import { EmojiPicker } from "./EmojiPicker";
+import { ForwardMessagesDialog } from "./ForwardMessagesDialog";
 import { ItemActions, type ItemAction } from "./ItemActions";
 import { Button, ErrorNotice, Modal } from "./ui";
 import { MessagingSkeleton } from "./MessagingSkeleton";
@@ -135,6 +137,7 @@ export function MessageThread({
   const { user } = useAuth();
   const { textSize } = useAppearance();
   const mayBookmark = !personal && !!user && !user.guestConferenceId;
+  const mayForward = !!user && !user.guestConferenceId;
   const focused = focusMessageId || undefined;
   const client = useQueryClient();
   const [open, setOpen] = useState(true);
@@ -142,6 +145,9 @@ export function MessageThread({
   const [reply, setReply] = useState<ChatMessage | null>(null);
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
+  const [forwardingMessages, setForwardingMessages] = useState<
+    ChatMessage[] | null
+  >(null);
   const [selectingMessages, setSelectingMessages] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(
     new Set(),
@@ -257,12 +263,17 @@ export function MessageThread({
     !message.deletedAt &&
     !message.call &&
     (message.senderId === user?.id || mayModerate);
-  const selectedIds = messages
-    .filter(
-      (message) =>
-        selectedMessages.has(message.id) && canDeleteMessage(message),
-    )
-    .map((message) => message.id);
+  const canSelectMessage = (message: ChatMessage) =>
+    !historyUnavailable &&
+    !message.deletedAt &&
+    !message.call &&
+    (mayForward || canDeleteMessage(message));
+  const selectedItems = messages.filter(
+    (message) => selectedMessages.has(message.id) && canSelectMessage(message),
+  );
+  const selectedIds = selectedItems.map((message) => message.id);
+  const canDeleteSelection =
+    selectedItems.length > 0 && selectedItems.every(canDeleteMessage);
 
   useEffect(() => {
     setSelectedMessages(new Set());
@@ -270,6 +281,7 @@ export function MessageThread({
     setConfirmSelection(false);
     setSelectionNotice("");
     setSelectionError("");
+    setForwardingMessages(null);
     return () => {
       bulkController.current?.abort();
       bulkController.current = null;
@@ -290,7 +302,8 @@ export function MessageThread({
           (message) =>
             !message.deletedAt &&
             !message.call &&
-            (message.senderId === user?.id || mayModerate),
+            (mayForward ||
+              (!readOnly && (message.senderId === user?.id || mayModerate))),
         )
         .map((message) => message.id),
     );
@@ -298,10 +311,10 @@ export function MessageThread({
       const next = new Set([...current].filter((id) => allowed.has(id)));
       return next.size === current.size ? current : next;
     });
-  }, [query.data, mayModerate, user?.id]);
+  }, [query.data, mayModerate, mayForward, readOnly, user?.id]);
 
   const toggleMessage = (message: ChatMessage) => {
-    if (!canDeleteMessage(message) || bulkController.current) return;
+    if (!canSelectMessage(message) || bulkController.current) return;
     setSelectedMessages((current) => {
       const next = new Set(current);
       if (next.has(message.id)) next.delete(message.id);
@@ -945,6 +958,7 @@ export function MessageThread({
           event.key === "Escape" &&
           selectingMessages &&
           !confirmSelection &&
+          !forwardingMessages &&
           !removeSelected.isPending
         ) {
           event.preventDefault();
@@ -1054,7 +1068,7 @@ export function MessageThread({
             )}
             {messages.map((message, index) => {
               const own = message.senderId === user?.id;
-              const selectable = canDeleteMessage(message);
+              const selectable = canSelectMessage(message);
               const selected = selectedMessages.has(message.id) && selectable;
               const pinned = personal && pinnedIds.has(message.id);
               const photos = message.attachments.filter(
@@ -1069,6 +1083,7 @@ export function MessageThread({
               const inlineMeta =
                 personal &&
                 !message.call &&
+                !message.forwardedFrom &&
                 !message.replyPreview &&
                 message.attachments.length === 0 &&
                 !/[\r\n]/.test(message.text);
@@ -1136,6 +1151,14 @@ export function MessageThread({
                       <div
                         className={`chat-message-bubble${inlineMeta ? " chat-message-bubble-text" : ""}`}
                       >
+                        {!message.deletedAt && message.forwardedFrom && (
+                          <div className="chat-forwarded-from">
+                            <Forward size={14} aria-hidden="true" />
+                            <span>
+                              Переслано от {message.forwardedFrom.senderName}
+                            </span>
+                          </div>
+                        )}
                         {message.replyPreview && (
                           <blockquote>
                             {personal && onFocusMessage ? (
@@ -1257,12 +1280,18 @@ export function MessageThread({
                           aria-label={`Выбрать сообщение: ${message.senderName}, ${chatTime(message.createdAt)}`}
                           onChange={() => toggleMessage(message)}
                         />
+                        <span
+                          className="chat-message-checkmark"
+                          aria-hidden="true"
+                        >
+                          <Check size={15} />
+                        </span>
                       </label>
                     )}
                     {!selectingMessages &&
                       !message.deletedAt &&
                       !message.call &&
-                      (!readOnly || mayBookmark) && (
+                      (!readOnly || mayBookmark || mayForward) && (
                         <div className="chat-message-tools">
                           <ItemActions
                             label={`Действия с сообщением: ${message.senderName}, ${chatTime(message.createdAt)}`}
@@ -1281,6 +1310,16 @@ export function MessageThread({
                                           setSelectionNotice("");
                                           setSelectionError("");
                                         },
+                                      },
+                                    ]
+                                  : []),
+                                ...(mayForward
+                                  ? [
+                                      {
+                                        label: "Переслать",
+                                        icon: <Forward size={16} />,
+                                        run: () =>
+                                          setForwardingMessages([message]),
                                       },
                                     ]
                                   : []),
@@ -1346,7 +1385,7 @@ export function MessageThread({
                                       },
                                     ]
                                   : []),
-                                ...(!readOnly && own
+                                ...(!readOnly && own && !message.forwardedFrom
                                   ? [
                                       {
                                         label: "Изменить",
@@ -1408,7 +1447,7 @@ export function MessageThread({
           </p>
         )}
         <ErrorNotice>{selectionError || null}</ErrorNotice>
-        {selectingMessages && !readOnly && (
+        {selectingMessages && !historyUnavailable && (
           <div
             className="chat-selection-toolbar"
             ref={selectionToolbar}
@@ -1427,15 +1466,46 @@ export function MessageThread({
               <X size={20} />
             </button>
             <span role="status">Выбрано: {selectedIds.length}</span>
-            <Button
-              variant="danger"
-              className="chat-selection-delete"
-              disabled={!selectedIds.length || removeSelected.isPending}
-              onClick={() => setConfirmSelection(true)}
-            >
-              <Trash2 size={18} />
-              Удалить выбранные
-            </Button>
+            <div className="chat-selection-actions">
+              {mayForward && (
+                <Button
+                  variant="outline"
+                  disabled={
+                    !selectedIds.length ||
+                    selectedIds.length > 30 ||
+                    removeSelected.isPending
+                  }
+                  onClick={() => setForwardingMessages(selectedItems)}
+                  title={
+                    selectedIds.length > 30
+                      ? "За один раз можно переслать до 30 сообщений"
+                      : undefined
+                  }
+                >
+                  <Forward size={18} />
+                  Переслать
+                </Button>
+              )}
+              <Button
+                variant="danger"
+                className="chat-selection-delete"
+                disabled={!canDeleteSelection || removeSelected.isPending}
+                title={
+                  !canDeleteSelection && selectedItems.length
+                    ? "Среди выбранных есть сообщения, которые вы не можете удалить"
+                    : undefined
+                }
+                onClick={() => setConfirmSelection(true)}
+              >
+                <Trash2 size={18} />
+                Удалить выбранные
+              </Button>
+            </div>
+            {selectedIds.length > 30 && mayForward && (
+              <small className="chat-selection-limit">
+                За один раз можно переслать до 30 сообщений.
+              </small>
+            )}
           </div>
         )}
         {!readOnly && (
@@ -1543,6 +1613,36 @@ export function MessageThread({
           </form>
         )}
       </div>
+      {forwardingMessages && (
+        <ForwardMessagesDialog
+          key={`${scopeId}:${user?.id}`}
+          sourceType={personal ? "conversation" : "conference"}
+          sourceId={scopeId}
+          messages={forwardingMessages}
+          onClose={() => setForwardingMessages(null)}
+          onForwarded={(target, count) => {
+            setForwardingMessages(null);
+            setSelectedMessages(new Set());
+            setSelectingMessages(false);
+            setSelectionError("");
+            setSelectionNotice(
+              `Переслано сообщений: ${count}. Получатель: ${target.type === "group" ? target.name : target.peer.displayName}.`,
+            );
+            void client.invalidateQueries({
+              queryKey: ["personal-chat", target.id, user?.id],
+            });
+            void client.invalidateQueries({
+              queryKey: ["personal-chat-read", target.id, user?.id],
+            });
+            void client.invalidateQueries({
+              queryKey: ["personal-list", user?.id],
+            });
+            void client.invalidateQueries({
+              queryKey: ["personal-summary", user?.id],
+            });
+          }}
+        />
+      )}
       {confirmSelection && selectingMessages && (
         <Modal
           title="Удалить выбранные сообщения?"
@@ -1579,11 +1679,11 @@ export function MessageThread({
             <Button
               variant="danger"
               busy={removeSelected.isPending}
-              disabled={!selectedIds.length}
+              disabled={!canDeleteSelection}
               onClick={() => {
                 if (
                   !readOnly &&
-                  selectedIds.length &&
+                  canDeleteSelection &&
                   !removeSelected.isPending &&
                   !bulkController.current
                 ) {

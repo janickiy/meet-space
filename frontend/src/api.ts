@@ -1190,6 +1190,20 @@ export const api = {
       `/conversations/${encodeURIComponent(id)}`,
       { signal },
     ),
+  forwardMessages: (
+    id: string,
+    body: {
+      sourceType: "conversation" | "conference";
+      sourceId: string;
+      messageIds: string[];
+      clientRequestId: string;
+    },
+    signal?: AbortSignal,
+  ) =>
+    request<{ items: ChatMessage[] }>(
+      `/conversations/${encodeURIComponent(id)}/messages/forward`,
+      { method: "POST", body, signal },
+    ),
   personalChatPins: (id: string, signal?: AbortSignal) =>
     request<CursorItems<ChatMessage>>(
       `/conversations/${encodeURIComponent(id)}/pins?limit=50`,

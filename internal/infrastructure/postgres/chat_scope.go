@@ -59,7 +59,7 @@ func (r *ChatRepository) messages(tx *gorm.DB) *gorm.DB {
 	}
 	// CallID относится только к conversation_messages; SELECTs, основанный на модели, не должен
 	// проецировать его из chat_messages, в котором нет такого столбца.
-	return tx.Model(&chat.Message{}).Omit("ConversationID", "SenderName", "CallID")
+	return tx.Model(&chat.Message{}).Omit("ConversationID", "SenderName", "CallID", "ForwardedSenderName")
 }
 
 // attachments возвращает отношение вложений для области видимости диалога в репозитории.

@@ -4,27 +4,65 @@
 .chat-panel.chat-selecting .chat-message-selectable {
   cursor: pointer;
 }
-.chat-panel.chat-selecting .chat-message-selected .chat-message-bubble {
-  box-shadow: 0 0 0 2px var(--primary);
+.chat-panel.chat-selecting .chat-messages .chat-message {
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-height: 44px;
+  padding-inline-end: 52px;
 }
 .chat-panel .chat-message-picker {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: center;
-  flex: 0 0 36px;
+  width: 44px;
   height: 44px;
   cursor: pointer;
 }
 .chat-panel .chat-message-checkbox {
-  appearance: auto;
-  width: 20px;
-  height: 20px;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
   min-height: 0;
   padding: 0;
   margin: 0;
-  accent-color: var(--primary);
   cursor: inherit;
+}
+.chat-message-checkmark {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: white;
+  pointer-events: none;
+}
+.chat-message-checkmark svg {
+  opacity: 0;
+  stroke-width: 3;
+}
+.chat-message-checkbox:checked + .chat-message-checkmark {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.chat-message-checkbox:checked + .chat-message-checkmark svg {
+  opacity: 1;
+}
+.chat-message-checkbox:focus-visible + .chat-message-checkmark {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.chat-message-checkbox:disabled + .chat-message-checkmark {
+  opacity: 0.55;
 }
 .chat-panel .chat-selection-toolbar {
   display: flex;
@@ -46,8 +84,32 @@
   min-width: 44px;
   min-height: 44px;
 }
-.chat-selection-toolbar .chat-selection-delete {
+.chat-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-inline-start: auto;
+}
+.chat-selection-actions > .button {
+  flex: 1;
+}
+.chat-selection-limit {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+.chat-forwarded-from {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: calc(12px * var(--text-scale));
+  color: var(--primary);
+}
+.chat-forwarded-from svg {
+  flex-shrink: 0;
+}
+.chat-forwarded-from span {
+  overflow-wrap: anywhere;
 }
 .chat-selection-notice {
   padding: 8px 16px;

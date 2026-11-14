@@ -453,6 +453,8 @@ export interface ChatMessage {
   pinned?: boolean;
   /** Серверная запись истории звонка; направление определяется текущим пользователем. */
   call?: DirectCallHistory;
+  /** Серверная подпись автора пересланного сообщения без приватной ссылки на источник. */
+  forwardedFrom?: { senderName: string };
 }
 
 export type DirectCallStatus =

@@ -67,6 +67,21 @@ var historicalMigrationChecksums = map[string][]string{
 const historicalTableBaselineChecksum = "caca72cd986fa95e71234aeec341fe2ed90963ec410c38fe7a4f8c8afe0cdd7d"
 const historicalSchemaChecksum = "4d89a246529aa8d002a95edd282538d76da791aca682f80f505b7c6902dd0585"
 
+// PostgreSQL 16 dump/restore reparses 37 varchar[] -> text[] coercions as
+// element-wise casts in 27 constraints and 9 indexes. Both reviewed whole
+// catalogs contain the same 1099 definitions; every other byte and integrity
+// flag must still match. Never normalize arbitrary expressions to admit drift.
+const historicalRestoredSchemaChecksum = "01e128490741780f961c3b182d1a8137461c125c27425e779a594167f71c3d61"
+
+func allowedHistoricalSchemaChecksum(checksum string) bool {
+	switch checksum {
+	case historicalSchemaChecksum, historicalRestoredSchemaChecksum:
+		return true
+	default:
+		return false
+	}
+}
+
 var historicalTableNames = []string{
 	"administrator_audit_log",
 	"administrator_login_limits",
@@ -232,7 +247,7 @@ func validateHistoricalSchema(db *gorm.DB, tableNames []string) error {
 		return err
 	}
 	actual := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(definitions, "\n")+"\n")))
-	if actual != historicalSchemaChecksum {
+	if !allowedHistoricalSchemaChecksum(actual) {
 		return fmt.Errorf("historical database schema differs from version 49; no migration history was adopted")
 	}
 	return nil

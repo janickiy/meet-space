@@ -59,6 +59,7 @@ func registerMessageRoutes(router gin.IRouter, handler *chatapp.Handler, authent
 		limit                 int
 	}{
 		{"GET", "/messages", "chat_read", 120}, {"POST", "/messages", "chat_send", 60}, {"PATCH", "/messages/:messageId", "chat_edit", 30}, {"DELETE", "/messages/:messageId", "chat_delete", 30},
+		{"POST", "/messages/forward", "chat_forward", 10},
 		{"GET", "/chat/read", "chat_read_state", 120}, {"PUT", "/chat/read", "chat_mark_read", 30},
 		{"POST", "/attachments/init", "chat_upload_init", 10}, {"PUT", "/attachments/:attachmentId/content", "chat_upload", 10}, {"POST", "/attachments/:attachmentId/finalize", "chat_upload_finalize", 20}, {"GET", "/attachments/:attachmentId/download", "chat_download", 60},
 	} {
@@ -76,6 +77,9 @@ func registerMessageRoutes(router gin.IRouter, handler *chatapp.Handler, authent
 	routes := router.Group(APIV1Prefix+"/"+namespace, handlers...)
 	routes.GET("/:id/messages", handler.List)
 	routes.POST("/:id/messages", handler.Send)
+	if namespace == "conversations" {
+		routes.POST("/:id/messages/forward", handler.Forward)
+	}
 	routes.PATCH("/:id/messages/:messageId", handler.Edit)
 	routes.DELETE("/:id/messages/:messageId", handler.Delete)
 	routes.GET("/:id/chat/read", handler.ReadState)

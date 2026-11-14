@@ -19,6 +19,13 @@
 .folders-heading p {
   margin: 0;
 }
+.folder-detail .folders-heading h1 {
+  font-size: calc(22px * var(--text-scale));
+}
+.folder-detail .folders-heading p,
+.folder-detail .folder-empty p {
+  font-size: calc(14px * var(--text-scale));
+}
 .folders-heading .eyebrow {
   margin-bottom: 8px;
 }
@@ -188,6 +195,9 @@
 .folder-empty h2 {
   font-size: calc(20px * var(--text-scale));
   color: var(--text);
+}
+.folder-detail .folder-empty h2 {
+  font-size: calc(18px * var(--text-scale));
 }
 .folder-empty p {
   margin-bottom: 0;
