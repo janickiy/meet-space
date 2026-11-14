@@ -1,14 +1,12 @@
 import { QRCodeSVG } from "qrcode.react";
-import { inviteLink } from "../utils";
 import { CopyLink } from "./ui";
 import "./meeting-invitation-link.css";
 
 /**
  * Показывает ссылку приглашения и QR-код с тем же адресом.
- * @param inviteCode Код приглашения, ссылка на которое строится для текущего домена.
+ * @param link Полный адрес приглашения.
  */
-export function MeetingInvitationLink({ inviteCode }: { inviteCode: string }) {
-  const link = inviteLink(inviteCode);
+export function MeetingInvitationLink({ link }: { link: string }) {
   return (
     <div className="meeting-share-invitation">
       <section

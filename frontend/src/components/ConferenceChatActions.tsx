@@ -180,6 +180,7 @@ function ConferenceChatMenu({
     },
   });
   const enabled = info.data?.item.notificationsEnabled;
+  const canInvite = info.isSuccess && info.data.item.canInvite === true;
   const menu = useRef<HTMLDivElement>(null);
   const focused = useRef(false);
   const [position, setPosition] = useState<{
@@ -212,7 +213,7 @@ function ConferenceChatMenu({
       window.removeEventListener("resize", placeMenu);
       window.removeEventListener("scroll", placeMenu, true);
     };
-  }, [anchor, info.error, info.isFetching, notifications.error]);
+  }, [anchor, canInvite, info.error, info.isFetching, notifications.error]);
   useLayoutEffect(() => {
     if (!position || focused.current) return;
     menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
@@ -261,15 +262,17 @@ function ConferenceChatMenu({
             )}
             {enabled ? "Выключить уведомления" : "Включить уведомления"}
           </button>
-          <button
-            role="menuitem"
-            tabIndex={-1}
-            type="button"
-            onClick={() => onSelect("invite")}
-          >
-            <UserPlus size={19} aria-hidden="true" />
-            Добавить участников
-          </button>
+          {canInvite && (
+            <button
+              role="menuitem"
+              tabIndex={-1}
+              type="button"
+              onClick={() => onSelect("invite")}
+            >
+              <UserPlus size={19} aria-hidden="true" />
+              Добавить участников
+            </button>
+          )}
           <button
             role="menuitem"
             tabIndex={-1}

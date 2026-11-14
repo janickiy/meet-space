@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import type { Conference } from "../types";
-import { inviteCode } from "../utils";
+import { inviteCode, inviteLink } from "../utils";
 import { Button, ErrorNotice, Modal, SuccessMark } from "./ui";
 import { ScheduleFields } from "./ScheduleFields";
 import { localSchedule, toLocalInput } from "../collaboration";
@@ -60,7 +60,7 @@ export function ShareConference({
             </p>
           </div>
         </div>
-        <MeetingInvitationLink inviteCode={conference.inviteCode} />
+        <MeetingInvitationLink link={inviteLink(conference.inviteCode)} />
         <div className="meeting-share-actions">
           <Link
             className="button button-primary"

@@ -44,6 +44,7 @@ import type {
 import { formatDate, initials } from "../utils";
 import { ConferenceInviteContent } from "./ConferenceInvitations";
 import { DirectCallButton } from "./DirectCallButton";
+import { MeetingInvitationQRCode } from "./MeetingInvitationLink";
 import { Button, CopyLink, ErrorNotice, Loading, Modal } from "./ui";
 import "./conference-chat-info.css";
 
@@ -294,6 +295,7 @@ export function ConferenceChatInfoModal({
           {info.canInvite ? (
             <ConferenceInviteContent
               conference={{ ...conference, title: info.title }}
+              link={link}
               canInvite
               onBusyChange={setInvitationBusy}
             />
@@ -302,7 +304,14 @@ export function ConferenceChatInfoModal({
               <p className="modal-description">
                 Участников добавляет организатор или соорганизатор встречи.
               </p>
-              {link && <CopyLink value={link} />}
+              {link && (
+                <div className="meeting-share-invitation">
+                  <div className="meeting-share-link-section">
+                    <CopyLink value={link} />
+                  </div>
+                  <MeetingInvitationQRCode link={link} />
+                </div>
+              )}
             </>
           )}
         </>

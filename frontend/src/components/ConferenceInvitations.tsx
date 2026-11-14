@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Info, Mail, Search, Users, Video, X } from "lucide-react";
 import { api } from "../api";
 import type { Conference, InvitationUser } from "../types";
+import { inviteLink } from "../utils";
 import { Button, ErrorNotice, Modal } from "./ui";
 import { MeetingInvitationLink } from "./MeetingInvitationLink";
 import "./conference-invitations.css";
@@ -13,24 +14,29 @@ const maxRecipients = 20;
 /**
  * Share a meeting link and open a separate recipient dialog when requested.
  * @param conference The meeting to share with participants.
+ * @param link The invitation address returned for this chat, when available.
  * @param canInvite Whether the current user may send invitations through the server.
  * @param onBusyChange Notify the parent while an invitation request is in progress.
  */
 export function ConferenceInviteContent({
   conference,
+  link,
   canInvite,
   onBusyChange,
 }: {
   conference: Conference;
+  link?: string;
   canInvite: boolean;
   onBusyChange?: (busy: boolean) => void;
 }) {
   const [inviting, setInviting] = useState(false);
+  const shareLink =
+    link || (conference.inviteCode ? inviteLink(conference.inviteCode) : "");
   return (
     <>
       <div className="conference-invitations">
         <p className="conference-invitation-title">{conference.title}</p>
-        <MeetingInvitationLink inviteCode={conference.inviteCode} />
+        {shareLink && <MeetingInvitationLink link={shareLink} />}
         {canInvite && (
           <div className="conference-invite-actions">
             <Button
