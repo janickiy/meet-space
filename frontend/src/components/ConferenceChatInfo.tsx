@@ -19,6 +19,7 @@ import {
   ArrowLeft,
   Bell,
   Download,
+  Link2,
   LogOut,
   MessageCircle,
   Paperclip,
@@ -51,6 +52,7 @@ import "./conference-chat-info.css";
 export type ConferenceChatView =
   | "info"
   | "invite"
+  | "share"
   | "leave"
   | "search"
   | "participants"
@@ -60,6 +62,7 @@ export type ConferenceChatView =
 const titles: Record<ConferenceChatView, string> = {
   info: "Информация о чате",
   invite: "Добавить участников",
+  share: "Поделиться ссылкой",
   leave: "Покинуть чат",
   search: "Найти в чате",
   participants: "Участники",
@@ -99,6 +102,7 @@ export function ConferenceChatInfoModal({
   const info = query.data?.item;
   const past = ["finished", "cancelled"].includes(conference.status);
   const canEdit = info?.canEdit === true && user?.id === conference.ownerId;
+  const canInvite = !past && query.isSuccess && info?.canInvite === true;
   const notifications = useMutation({
     mutationFn: (enabled: boolean) =>
       api.setConferenceChatNotifications(conference.id, enabled),
@@ -148,11 +152,17 @@ export function ConferenceChatInfoModal({
   const link = inviteUrl?.startsWith("/")
     ? `${window.location.origin}${inviteUrl}`
     : inviteUrl;
+  const shareLink = !past && query.isSuccess ? link : undefined;
+  const showBack =
+    view !== "info" && !(view === "invite" && initialView === "invite");
+  const chatModalClass = selectedMember
+    ? "conference-chat-info-modal conference-chat-profile-modal"
+    : "conference-chat-info-modal";
 
   return (
     <Modal
       title={selectedMember ? "О пользователе" : titles[view]}
-      className={`conference-chat-info-modal${selectedMember ? " conference-chat-profile-modal" : ""}`}
+      className={view === "invite" ? "conference-invite-modal" : chatModalClass}
       returnFocus={returnFocus}
       onClose={() => {
         if (!busy) {
@@ -161,7 +171,7 @@ export function ConferenceChatInfoModal({
         }
       }}
     >
-      {view !== "info" && (
+      {showBack && (
         <Button
           variant="outline"
           className="conference-chat-info-back"
@@ -269,7 +279,7 @@ export function ConferenceChatInfoModal({
                 Название и описание
               </button>
             )}
-            {!past && (
+            {canInvite && (
               <button
                 type="button"
                 className="conference-chat-info-action"
@@ -277,6 +287,16 @@ export function ConferenceChatInfoModal({
               >
                 <UserPlus size={23} aria-hidden="true" />
                 Добавить участников
+              </button>
+            )}
+            {info.canInvite === false && shareLink && (
+              <button
+                type="button"
+                className="conference-chat-info-action"
+                onClick={() => setView("share")}
+              >
+                <Link2 size={23} aria-hidden="true" />
+                Поделиться ссылкой
               </button>
             )}
             <button
@@ -290,32 +310,31 @@ export function ConferenceChatInfoModal({
           </div>
         </>
       )}
-      {info && view === "invite" && (
-        <>
-          {info.canInvite ? (
-            <ConferenceInviteContent
-              conference={{ ...conference, title: info.title }}
-              link={link}
-              canInvite
-              onBusyChange={setInvitationBusy}
-            />
-          ) : (
-            <>
-              <p className="modal-description">
-                Участников добавляет организатор или соорганизатор встречи.
-              </p>
-              {link && (
-                <div className="meeting-share-invitation">
-                  <div className="meeting-share-link-section">
-                    <CopyLink value={link} />
-                  </div>
-                  <MeetingInvitationQRCode link={link} />
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
+      {info &&
+        view === "invite" &&
+        (canInvite ? (
+          <ConferenceInviteContent
+            conference={{ ...conference, title: info.title }}
+            link={link}
+            canInvite
+            onBusyChange={setInvitationBusy}
+          />
+        ) : (
+          <p className="modal-description">
+            Приглашение участников недоступно.
+          </p>
+        ))}
+      {view === "share" &&
+        (shareLink ? (
+          <div className="meeting-share-invitation">
+            <div className="meeting-share-link-section">
+              <CopyLink value={shareLink} />
+            </div>
+            <MeetingInvitationQRCode link={shareLink} />
+          </div>
+        ) : (
+          <p className="modal-description">Ссылка недоступна.</p>
+        ))}
       {info && view === "leave" && (
         <div className="conference-chat-info-panel">
           <p className="modal-description">
