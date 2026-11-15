@@ -1,42 +1,73 @@
 name: Publish prebuilt server images
 
 on:
+  push:
+    tags:
+      - 'v*-prebuilt.*'
   workflow_dispatch:
     inputs:
       version:
         description: Immutable server release version
         required: true
-        default: v0.4.0-prebuilt.20261023.2
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: server-images-${{ inputs.version }}
+  group: server-images-${{ inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   prepare:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.created && !github.event.deleted) }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Validate version and create draft
+        id: release
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || github.ref_name }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          [[ "$GITHUB_REF" == refs/heads/main ]]
-          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo 'Enter a release version such as v0.6.4-prebuilt.20261115.2.' >&2
+            exit 1
+          fi
+          commit=$(git rev-parse 'HEAD^{commit}')
+          tag_ref="refs/tags/$VERSION"
+          release_target=(--target "$commit")
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            if [[ "$GITHUB_REF" != "$tag_ref" ]] || ! git merge-base --is-ancestor "$commit" refs/remotes/origin/main; then
+              echo 'The release tag must point to a commit from main.' >&2
+              exit 1
+            fi
+            release_target=(--verify-tag)
+          elif [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo 'Run this workflow manually from main.' >&2
+            exit 1
+          elif git show-ref --verify --quiet "$tag_ref"; then
+            if [[ "$(git rev-parse "$tag_ref^{commit}")" != "$commit" ]]; then
+              echo 'The existing tag points to a different commit.' >&2
+              exit 1
+            fi
+            release_target=(--verify-tag)
+          fi
           if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo 'This release already exists; choose a new immutable version.' >&2
             exit 1
           fi
-          gh release create "$VERSION" --target "$GITHUB_SHA" --draft --prerelease \
-            --title "MeetSpace server $VERSION" --notes "Docker images built from $GITHUB_SHA in GitHub Actions."
+          gh release create "$VERSION" "${release_target[@]}" --draft --prerelease --repo "$GITHUB_REPOSITORY" \
+            --title "MeetSpace server $VERSION" --notes "Docker images built from $commit in GitHub Actions."
+          printf 'version=%s\ncommit=%s\n' "$VERSION" "$commit" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
@@ -55,6 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ needs.prepare.outputs.commit }}
           persist-credentials: false
       - name: Free disposable runner space
         run: |
@@ -69,13 +101,14 @@ jobs:
         run: python3 -I scripts/release/test_package_security_collection.py
       - name: Build and scan immutable Docker images
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT: ${{ needs.prepare.outputs.commit }}
           ARCH: ${{ matrix.arch }}
           TRIVY_IMAGE: aquasec/trivy@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
         run: |
           mkdir -p "$RUNNER_TEMP/meetspace-release"
-          bash scripts/release/build.sh --version "$VERSION" --commit "$GITHUB_SHA" \
-            --registry "meetspace-source-${GITHUB_SHA:0:12}" --layout hardened-shared-host \
+          bash scripts/release/build.sh --version "$VERSION" --commit "$COMMIT" \
+            --registry "meetspace-source-${COMMIT:0:12}" --layout hardened-shared-host \
             --platform "linux/$ARCH" --output "$RUNNER_TEMP/meetspace-release/build"
           if ! bash scripts/release/package.sh --build "$RUNNER_TEMP/meetspace-release/build/build.json" \
             --mode archive --collect-security-failures --output "$RUNNER_TEMP/meetspace-release/package"; then
@@ -90,7 +123,7 @@ jobs:
             --output "$RUNNER_TEMP/meetspace-release/output"
       - name: Upload verified architecture bundle
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "$VERSION" "$RUNNER_TEMP/meetspace-release/output/"*.tar.gz \
@@ -98,22 +131,35 @@ jobs:
             "$RUNNER_TEMP/meetspace-release/output/"prebuilt-*.json --repo "$GITHUB_REPOSITORY"
 
   publish:
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ needs.prepare.outputs.commit }}
           persist-credentials: false
       - name: Publish only after both architectures pass
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT: ${{ needs.prepare.outputs.commit }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          tag_ref="refs/tags/$VERSION"
+          if git ls-remote --exit-code origin "$tag_ref" >/dev/null; then
+            git fetch --no-tags origin "$tag_ref" || exit 1
+            if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$COMMIT" ]]; then
+              echo 'The release tag points to a different commit after the build.' >&2
+              exit 1
+            fi
+          elif [[ "$?" != 2 || "$GITHUB_EVENT_NAME" == push ]]; then
+            echo 'Could not verify the release tag.' >&2
+            exit 1
+          fi
           mkdir "$RUNNER_TEMP/release-index"
           gh release download "$VERSION" --pattern 'prebuilt-*.json' \
             --dir "$RUNNER_TEMP/release-index" --repo "$GITHUB_REPOSITORY"
-          python3 -I scripts/release/prebuilt-index.py "$RUNNER_TEMP/release-index" "$VERSION" "$GITHUB_SHA"
+          python3 -I scripts/release/prebuilt-index.py "$RUNNER_TEMP/release-index" "$VERSION" "$COMMIT"
           gh release upload "$VERSION" "$RUNNER_TEMP/release-index/prebuilt.json" --repo "$GITHUB_REPOSITORY"
           gh release edit "$VERSION" --draft=false --repo "$GITHUB_REPOSITORY"
