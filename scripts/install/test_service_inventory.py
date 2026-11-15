@@ -92,12 +92,14 @@ class ServiceInventoryTest(unittest.TestCase):
     def test_monitoring_is_idempotent_and_keeps_operator_mounts(self):
         path = self.root / 'config/compose.json'
         path.write_text(json.dumps({'services': {'api': {'labels': {'fixture': 'keep'}},
-                                                'prometheus': {'volumes': ['metrics-data:/prometheus']}}}))
+                                                'prometheus': {'volumes': ['metrics-data:/prometheus']},
+                                                'live-worker': {'profiles': ['live']}}}))
         for _ in range(2):
             wizard.configure_monitoring(self.root)
         overlay = json.loads(path.read_text())
         self.assertEqual(overlay['services']['api']['labels'], {'fixture': 'keep'})
         self.assertEqual(len(overlay['services']['prometheus']['volumes']), 2)
+        self.assertNotIn('live-worker', overlay['services'])
         config = json.loads((self.root / 'config/prometheus.json').read_text())
         targets = {host for item in config['scrape_configs'][0]['static_configs'] for host in item['targets']}
         self.assertEqual(targets, {'api:8085', 'media-worker:8091', 'record-worker:8090', 'product-worker:8092'})

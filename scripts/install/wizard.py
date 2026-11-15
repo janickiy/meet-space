@@ -68,6 +68,9 @@ def configure_monitoring(root):
     overlay_path = root / 'config/compose.json'
     overlay = json.loads(overlay_path.read_text())
     services = overlay.setdefault('services', {})
+    # Old wizards could add this profile placeholder to a bundle without the service.
+    if services.get('live-worker') == {'profiles': ['live']}:
+        del services['live-worker']
     # Generate a separate Prometheus configuration: never patch immutable bundle files.
     targets = [{'targets': [f'{name}:{port}'], 'labels': {'service': label}}
                for name, port, label in (('api', 8085, 'api'), ('media-worker', 8091, 'media-worker'),

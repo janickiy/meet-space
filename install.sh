@@ -22,11 +22,16 @@ source_git() {
     -c protocol.allow=never -c protocol.https.allow=always "$@"
 }
 
-# main selects prebuilt images by default and delegates to the interactive wizard.
-# Arguments: --mode images|source, --release latest|TAG, --ref REF, and --build-mode MODE.
+# main selects prebuilt images by default or resumes with the current verified wizard.
+# Arguments: --resume PATH, or --mode images|source, --release latest|TAG, --ref REF, and --build-mode MODE.
 main() (
   local ref="$DEFAULT_REF" release="$DEFAULT_RELEASE" mode=images explicit_mode=false
   local source_option=false build_mode=auto scratch= architecture= commit= dependency missing=false
+  local resume_root= wizard=
+  if [[ "${1:-}" == --resume ]]; then
+    (($# == 2)) && [[ "$2" == /* ]] || fail 'Продолжение установки: sudo bash install.sh --resume /opt/meetspace'
+    resume_root="$2"; shift 2
+  fi
   while (($#)); do
     case "$1" in
       --help|-h)
@@ -34,6 +39,7 @@ main() (
           'По умолчанию: последний опубликованный релиз с готовыми Docker-образами для этого сервера.' \
           'Запуск: sudo bash install.sh [--mode images|source] [--release latest|VERSION]' \
           'Сборка на сервере: sudo bash install.sh --mode source [--ref REF] [--build-mode auto|low-memory|standard]' \
+          'Продолжение установки: sudo bash install.sh --resume /opt/meetspace' \
           'Исходники: https://github.com/janickiy/meet-space' \
           'Коммит инструментов закрепляется при публикации; версия образов выбирается при запуске.' \
           'Сборка актуального main: sudo bash install.sh --mode source --ref main' \
@@ -72,6 +78,7 @@ main() (
     || fail 'Режим сборки: auto, low-memory или standard.'
   [[ "$ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ && "$ref" != *..* && "$ref" != */ && "$ref" != *//* ]] \
     || fail 'Укажите имя ветки, тега или полный SHA коммита без специальных символов.'
+  if [[ -n "$resume_root" ]]; then mode=resume; fi
   [[ $(uname -s) == Linux ]] || fail 'Установщик предназначен для Linux-сервера.'
   [[ $(id -u) == 0 ]] || fail 'Запустите: sudo bash install.sh'
   [[ -r /dev/tty && -w /dev/tty ]] || fail 'Нужен интерактивный терминал (SSH с терминалом).'
@@ -93,7 +100,9 @@ main() (
   fi
   source_git check-ref-format "refs/heads/$ref" >/dev/null || fail 'Некорректное имя ветки или тега.'
   printf '\n[2/7] Установщик из GitHub\nРепозиторий: %s\nКоммит/ветка: %s\nПлатформа: %s\n' "$REPOSITORY_URL" "$ref" "$architecture"
-  if [[ "$mode" == images ]]; then
+  if [[ "$mode" == resume ]]; then
+    printf 'Мастер продолжит сохранённую установку в %s.\n' "$resume_root"
+  elif [[ "$mode" == images ]]; then
     if [[ "$release" == latest ]]; then
       printf 'Будет выбран последний совместимый релиз с готовыми образами из GitHub Releases.\n'
     else
@@ -104,7 +113,7 @@ main() (
   else
     ask 'Скачать исходники и запустить сборку на этом сервере? [да/нет]'
   fi
-  [[ "$REPLY" == да || "$REPLY" == yes || "$REPLY" == y ]] || fail 'Установка отменена.'
+  [[ "$mode" == resume || "$REPLY" == да || "$REPLY" == yes || "$REPLY" == y ]] || fail 'Установка отменена.'
   scratch=$(mktemp -d /var/tmp/meetspace-install.XXXXXXXX)
   # The build helper makes an independent checkout and retains it on failure.
   # Only this invocation's temporary download is removed by the bootstrapper.
@@ -127,6 +136,12 @@ main() (
      && -f "$scratch/source/cmd/record-worker/main.go" ]] \
     || fail 'Выбранный коммит ещё использует прежний состав служб. Укажите через --ref опубликованный проверенный коммит с record-worker; старый установщик не запускался.'
   printf '\nПолучен коммит: %s\n' "$commit"
+  if [[ "$mode" == resume ]]; then
+    wizard="$scratch/source/scripts/install/wizard.py"
+    [[ -f "$wizard" && ! -L "$wizard" ]] || fail 'В выбранной версии нет мастера установки.'
+    python3 -I "$wizard" --resume "$resume_root"
+    return
+  fi
   if [[ "$mode" == images ]]; then
     [[ -f "$scratch/source/scripts/install/from-images.py" && ! -L "$scratch/source/scripts/install/from-images.py" ]] \
       || fail 'В выбранной версии нет установщика готовых образов.'
