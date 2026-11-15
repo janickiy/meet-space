@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*-prebuilt.*'
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -15,12 +17,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: server-images-${{ inputs.version || github.ref_name }}
+  group: >-
+    server-images-${{
+      inputs.version ||
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v') &&
+        format('{0}-prebuilt.release-{1}', github.event.release.tag_name, github.event.release.id)) ||
+      (github.event_name == 'release' &&
+        format('v{0}-prebuilt.release-{1}', github.event.release.tag_name, github.event.release.id)) ||
+      github.ref_name
+    }}
   cancel-in-progress: false
 
 jobs:
   prepare:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.created && !github.event.deleted) }}
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && github.event.created && !github.event.deleted) ||
+        (github.event_name == 'release' && !contains(github.event.release.tag_name, '-prebuilt.'))
+      }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -35,25 +50,37 @@ jobs:
       - name: Validate version and create draft
         id: release
         env:
-          VERSION: ${{ inputs.version || github.ref_name }}
+          VERSION: ${{ inputs.version || github.event.release.tag_name || github.ref_name }}
+          SOURCE_RELEASE_ID: ${{ github.event.release.id }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+          version_pattern='[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?'
+          source_ref="refs/tags/$VERSION"
+          if [[ "$GITHUB_EVENT_NAME" == release ]]; then
+            if [[ ! "$VERSION" =~ ^v?$version_pattern$ || ! "$SOURCE_RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+              echo 'The published release needs a version tag such as 0.6.5 or v0.6.5 and a valid release ID.' >&2
+              exit 1
+            fi
+            VERSION="v${VERSION#v}-prebuilt.release-$SOURCE_RELEASE_ID"
+          fi
+          if [[ ! "$VERSION" =~ ^v$version_pattern$ ]]; then
             echo 'Enter a release version such as v0.6.4-prebuilt.20261115.2.' >&2
             exit 1
           fi
           commit=$(git rev-parse 'HEAD^{commit}')
           tag_ref="refs/tags/$VERSION"
           release_target=(--target "$commit")
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            if [[ "$GITHUB_REF" != "$tag_ref" ]] || ! git merge-base --is-ancestor "$commit" refs/remotes/origin/main; then
-              echo 'The release tag must point to a commit from main.' >&2
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+              echo 'Run this workflow manually from main.' >&2
               exit 1
             fi
-            release_target=(--verify-tag)
-          elif [[ "$GITHUB_REF" != refs/heads/main ]]; then
-            echo 'Run this workflow manually from main.' >&2
+          elif [[ "$GITHUB_REF" != "$source_ref" ]] || ! git merge-base --is-ancestor "$commit" refs/remotes/origin/main; then
+            echo 'The release tag must point to a commit from main.' >&2
             exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            release_target=(--verify-tag)
           elif git show-ref --verify --quiet "$tag_ref"; then
             if [[ "$(git rev-parse "$tag_ref^{commit}")" != "$commit" ]]; then
               echo 'The existing tag points to a different commit.' >&2
@@ -146,13 +173,20 @@ jobs:
           COMMIT: ${{ needs.prepare.outputs.commit }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          verify_tag_commit() {
+            git fetch --no-tags origin "$1" || return 1
+            if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$COMMIT" ]]; then
+              printf 'Tag %s points to a different commit after the build.\n' "$1" >&2
+              return 1
+            fi
+          }
+
+          if [[ "$GITHUB_EVENT_NAME" == release ]]; then
+            verify_tag_commit "$GITHUB_REF" || exit 1
+          fi
           tag_ref="refs/tags/$VERSION"
           if git ls-remote --exit-code origin "$tag_ref" >/dev/null; then
-            git fetch --no-tags origin "$tag_ref" || exit 1
-            if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$COMMIT" ]]; then
-              echo 'The release tag points to a different commit after the build.' >&2
-              exit 1
-            fi
+            verify_tag_commit "$tag_ref" || exit 1
           elif [[ "$?" != 2 || "$GITHUB_EVENT_NAME" == push ]]; then
             echo 'Could not verify the release tag.' >&2
             exit 1
