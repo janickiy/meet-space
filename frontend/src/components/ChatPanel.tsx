@@ -263,11 +263,7 @@ export function MessageThread({
     !message.deletedAt &&
     !message.call &&
     (message.senderId === user?.id || mayModerate);
-  const canSelectMessage = (message: ChatMessage) =>
-    !historyUnavailable &&
-    !message.deletedAt &&
-    !message.call &&
-    (mayForward || canDeleteMessage(message));
+  const canSelectMessage = canDeleteMessage;
   const selectedItems = messages.filter(
     (message) => selectedMessages.has(message.id) && canSelectMessage(message),
   );
@@ -302,8 +298,8 @@ export function MessageThread({
           (message) =>
             !message.deletedAt &&
             !message.call &&
-            (mayForward ||
-              (!readOnly && (message.senderId === user?.id || mayModerate))),
+            !readOnly &&
+            (message.senderId === user?.id || mayModerate),
         )
         .map((message) => message.id),
     );
@@ -311,7 +307,7 @@ export function MessageThread({
       const next = new Set([...current].filter((id) => allowed.has(id)));
       return next.size === current.size ? current : next;
     });
-  }, [query.data, mayModerate, mayForward, readOnly, user?.id]);
+  }, [query.data, mayModerate, readOnly, user?.id]);
 
   const toggleMessage = (message: ChatMessage) => {
     if (!canSelectMessage(message) || bulkController.current) return;
@@ -1466,46 +1462,16 @@ export function MessageThread({
               <X size={20} />
             </button>
             <span role="status">Выбрано: {selectedIds.length}</span>
-            <div className="chat-selection-actions">
-              {mayForward && (
-                <Button
-                  variant="outline"
-                  disabled={
-                    !selectedIds.length ||
-                    selectedIds.length > 30 ||
-                    removeSelected.isPending
-                  }
-                  onClick={() => setForwardingMessages(selectedItems)}
-                  title={
-                    selectedIds.length > 30
-                      ? "За один раз можно переслать до 30 сообщений"
-                      : undefined
-                  }
-                >
-                  <Forward size={18} />
-                  Переслать
-                </Button>
-              )}
-              <Button
-                variant="danger"
-                className="chat-selection-delete"
-                disabled={!canDeleteSelection || removeSelected.isPending}
-                title={
-                  !canDeleteSelection && selectedItems.length
-                    ? "Среди выбранных есть сообщения, которые вы не можете удалить"
-                    : undefined
-                }
-                onClick={() => setConfirmSelection(true)}
-              >
-                <Trash2 size={18} />
-                Удалить выбранные
-              </Button>
-            </div>
-            {selectedIds.length > 30 && mayForward && (
-              <small className="chat-selection-limit">
-                За один раз можно переслать до 30 сообщений.
-              </small>
-            )}
+            <Button
+              variant="danger"
+              className="chat-selection-delete"
+              aria-label="Удалить выбранные сообщения"
+              disabled={!canDeleteSelection || removeSelected.isPending}
+              onClick={() => setConfirmSelection(true)}
+            >
+              <Trash2 size={16} />
+              Удалить
+            </Button>
           </div>
         )}
         {!readOnly && (
