@@ -27,6 +27,11 @@ export function revokePersonalConversation(
   userId: string,
 ) {
   purgePersonalConversationSearch(client, id, userId);
+  for (const query of client
+    .getQueryCache()
+    .findAll({ queryKey: ["personal-profile", id, userId] }))
+    query.reset();
+  client.removeQueries({ queryKey: ["personal-profile", id, userId] });
   void client.cancelQueries({ queryKey: ["personal-list", userId] });
   void client.cancelQueries({ queryKey: ["personal-summary", userId] });
   const cached = client.getQueriesData<InfiniteData<PersonalPage>>({
@@ -287,6 +292,11 @@ export function usePersonalRealtime(userId?: string) {
           void client.invalidateQueries({ queryKey: ["personal-chat"] });
           void client.invalidateQueries({ queryKey: ["personal-chat-read"] });
           void client.resetQueries({ queryKey: ["personal-chat-pins"] });
+          for (const prefix of ["personal-materials", "personal-profile"])
+            void client.resetQueries({
+              queryKey: [prefix],
+              predicate: (query) => query.queryKey[2] === userId,
+            });
           // Повторное подключение может быть выполнено после пропущенных событий удаления или
           // выхода из группы; сначала удалите устаревшие фрагменты.
           void client.resetQueries({
@@ -426,6 +436,18 @@ export function usePersonalRealtime(userId?: string) {
             return;
           }
           refresh();
+          if (event.type.startsWith("conversation.member."))
+            void client.resetQueries({
+              queryKey: ["personal-profile", id, userId],
+            });
+          if (["message.updated", "message.deleted"].includes(event.type))
+            void client.resetQueries({
+              queryKey: ["personal-materials", id, userId],
+            });
+          else if (event.type === "message.created")
+            void client.invalidateQueries({
+              queryKey: ["personal-materials", id, userId],
+            });
           if (event.type.startsWith("conversation.member."))
             void client.invalidateQueries({ queryKey: ["group-members", id] });
           void client.invalidateQueries({ queryKey: ["personal-chat", id] });

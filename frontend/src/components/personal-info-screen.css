@@ -1,0 +1,155 @@
+.personal-info-screen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface-soft);
+}
+.personal-info-topbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+  padding: 12px 20px;
+  min-height: 72px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.personal-info-topbar h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: calc(16px * var(--text-scale));
+  line-height: 1.4;
+}
+.personal-info-topbar h2:focus {
+  outline: none;
+}
+.personal-info-topbar h2:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--primary);
+  text-underline-offset: 5px;
+}
+.personal-info-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  flex: 1;
+  min-height: 0;
+}
+.personal-info-body {
+  width: min(100%, 760px);
+  min-width: 0;
+  margin-inline: auto;
+  padding: 28px 24px 32px;
+}
+.conversation-profile-hero {
+  text-align: center;
+}
+.conversation-profile-hero .conversation-profile-avatar {
+  display: grid;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  margin: 0 auto 16px;
+  font-size: calc(36px * var(--text-scale));
+}
+.conversation-profile-hero h3 {
+  margin: 0 0 8px;
+  font-size: calc(22px * var(--text-scale));
+  overflow-wrap: anywhere;
+}
+.conversation-profile-hero p,
+.conversation-profile-hero small {
+  font-size: calc(13px * var(--text-scale));
+}
+.conversation-profile-hero .personal-peer-status-online {
+  color: var(--success);
+}
+.conversation-profile-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0;
+}
+.conversation-profile-actions .button {
+  flex: 1 1 120px;
+  max-width: 220px;
+  flex-direction: column;
+  min-height: 76px;
+  gap: 8px;
+  border: 0;
+  border-radius: 14px;
+  color: var(--primary);
+  background: var(--surface);
+  font-size: calc(13px * var(--text-scale));
+}
+.conversation-profile-actions .button:hover {
+  background: var(--primary-soft);
+}
+.conversation-profile-details {
+  padding: 4px 20px;
+  margin: 0 0 24px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+.conversation-profile-details > div {
+  padding: 16px 0;
+}
+.conversation-profile-details > div + div {
+  border-top: 1px solid var(--border);
+}
+.conversation-profile-details dt {
+  margin-bottom: 6px;
+  font-size: calc(12px * var(--text-scale));
+  color: var(--muted);
+}
+.conversation-profile-details dd {
+  margin: 0;
+  font-size: calc(14px * var(--text-scale));
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.conversation-profile-details a {
+  color: var(--primary);
+}
+.conversation-profile-bio {
+  white-space: pre-wrap;
+}
+.personal-info-materials-heading {
+  margin: 24px 0 16px;
+  font-size: calc(15px * var(--text-scale));
+  overflow-wrap: anywhere;
+}
+.personal-chat-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.personal-chat-view[hidden] {
+  display: none;
+}
+@media (max-width: 767px) {
+  .personal-info-topbar {
+    padding: 8px 12px;
+    min-height: 64px;
+    gap: 8px;
+  }
+  .personal-info-topbar h2 {
+    font-size: calc(14px * var(--text-scale));
+  }
+  .personal-info-body {
+    padding: 24px 12px;
+  }
+  .conversation-profile-details {
+    padding-inline: 16px;
+  }
+  .conversation-profile-actions {
+    gap: 8px;
+  }
+}

@@ -31,6 +31,7 @@ import { FolderNameForm } from "./FolderModals";
 import { ItemActions } from "./ItemActions";
 import { DirectConversationActions } from "./DirectConversationActions";
 import { GroupInfoModal } from "./GroupChats";
+import { personalInfoLink } from "../personalInfoNavigation";
 import "./folders.css";
 
 /** Каждый флажок — это идемпотентная запись при сопоставлении; папки никогда не предоставляют доступ. */
@@ -291,7 +292,7 @@ function FolderConversationActions({
       if (folderAccessDenied(error)) {
         revokePersonalConversation(client, conversation.id, user.id);
         if (location.pathname === `/personal/${conversation.id}`)
-          navigate(`/personal${location.search}`, { replace: true });
+          navigate(personalInfoLink("", location.search), { replace: true });
       }
     },
     onSettled: () => {
@@ -305,16 +306,23 @@ function FolderConversationActions({
       <ItemActions
         label={`Действия с перепиской: ${conversation.name}`}
         actions={[
-          ...(onGroupInfo
-            ? [
-                {
-                  label: "Информация",
-                  icon: <Info size={19} aria-hidden="true" />,
-                  disabled: busy,
-                  run: onGroupInfo,
-                },
-              ]
-            : []),
+          {
+            label: "Информация",
+            icon: <Info size={19} aria-hidden="true" />,
+            disabled: busy,
+            run:
+              onGroupInfo ||
+              (() =>
+                navigate(
+                  personalInfoLink(
+                    conversation.id,
+                    location.pathname === `/personal/${conversation.id}`
+                      ? location.search
+                      : "",
+                    true,
+                  ),
+                )),
+          },
           {
             label: muted ? "Включить уведомления" : "Без уведомлений",
             icon: muted ? (

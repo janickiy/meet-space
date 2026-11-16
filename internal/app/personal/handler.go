@@ -23,6 +23,7 @@ import (
 
 type Repository interface {
 	GroupRepository
+	InfoRepository
 	// Account проверяет, является ли действующая учетная запись зарегистрированной, а не гостевой.
 	//
 	// @Parameters:

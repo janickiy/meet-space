@@ -16,12 +16,11 @@ import {
   updateDirectConversation,
 } from "../directConversations";
 import { revokePersonalConversation } from "../personalRealtime";
-import { usePersonalPeerPresence } from "../usePersonalPeerPresence";
+import { personalInfoLink } from "../personalInfoNavigation";
 import type { DirectConversation } from "../types";
 import { FolderPicker } from "./FolderPicker";
 import { ItemActions } from "./ItemActions";
 import { Button, ErrorNotice, Modal } from "./ui";
-import { UserInfoModal } from "./UserInfoModal";
 
 /**
  * Фиксирует автора, диалог и поколение интерфейса на момент подтверждения действия.
@@ -36,43 +35,6 @@ interface DirectConversationOperation {
   scope: object;
   notificationsEnabled: boolean;
   controller: AbortController;
-}
-
-/**
- * Показывает доступные публичные сведения собеседника в стандартном диалоге.
- * Присутствие читается отдельным защищённым запросом; ошибки и неизвестные ответы не считаются офлайн.
- *
- * @args conversation — личный диалог; onClose — закрытие окна; returnFocus — элемент открытия.
- * @return Стандартное модальное окно с публичным именем, идентификатором и подтверждённым статусом.
- */
-export function DirectUserInfoModal({
-  conversation,
-  onClose,
-  returnFocus,
-}: {
-  conversation: DirectConversation;
-  onClose: () => void;
-  returnFocus?: () => HTMLElement | null;
-}) {
-  const { user } = useAuth();
-  const client = useQueryClient();
-  const presence = usePersonalPeerPresence(conversation);
-  const denied = presence.denied;
-  useEffect(() => {
-    if (!denied || !user) return;
-    revokePersonalConversation(client, conversation.id, user.id);
-    onClose();
-  }, [denied, client, conversation.id, user, onClose]);
-  return (
-    <UserInfoModal
-      person={conversation.peer}
-      subtitle="Участник вашей переписки"
-      online={presence.online}
-      presencePending={presence.isPending}
-      onClose={onClose}
-      returnFocus={returnFocus}
-    />
-  );
 }
 
 /**
@@ -99,9 +61,9 @@ export function DirectConversationActions({
   const scope = useMemo(() => ({}), [user?.id, conversation.id]);
   const activeScope = useRef(scope);
   activeScope.current = scope;
-  const [dialog, setDialog] = useState<
-    "info" | "folder" | "clear" | "hide" | null
-  >(null);
+  const [dialog, setDialog] = useState<"folder" | "clear" | "hide" | null>(
+    null,
+  );
   const mutationKey = ["personal-actions", conversation.id, user?.id];
   const otherBusy = useIsMutating({ mutationKey }) > 0;
   useEffect(() => {
@@ -175,7 +137,7 @@ export function DirectConversationActions({
         resetDirectConversationHistory(client, id, actorId);
         revokePersonalConversation(client, id, actorId);
         if (location.pathname === `/personal/${id}`)
-          navigate(`/personal${location.search}`, { replace: true });
+          navigate(personalInfoLink("", location.search), { replace: true });
       } else if (response.item?.id === id && response.item.type === "direct") {
         const knownCutoff = directConversationHistoryCutoff(
           client,
@@ -215,7 +177,7 @@ export function DirectConversationActions({
           pending.actorId,
         );
         if (location.pathname === `/personal/${pending.conversationId}`)
-          navigate(`/personal${location.search}`, { replace: true });
+          navigate(personalInfoLink("", location.search), { replace: true });
       }
     },
     onSettled: (_data, _error, pending) => {
@@ -269,7 +231,16 @@ export function DirectConversationActions({
             label: "Информация",
             icon: <Info size={19} aria-hidden="true" />,
             disabled: busy,
-            run: () => open("info"),
+            run: () =>
+              navigate(
+                personalInfoLink(
+                  conversation.id,
+                  location.pathname === `/personal/${conversation.id}`
+                    ? location.search
+                    : "",
+                  true,
+                ),
+              ),
           },
           {
             label: muted ? "Включить уведомления" : "Без уведомлений",
@@ -307,13 +278,6 @@ export function DirectConversationActions({
         <span className="sr-only" role="status">
           Сохраняем настройки переписки…
         </span>
-      )}
-      {dialog === "info" && (
-        <DirectUserInfoModal
-          conversation={conversation}
-          onClose={close}
-          returnFocus={returnFocus}
-        />
       )}
       {dialog === "folder" && (
         <FolderPicker

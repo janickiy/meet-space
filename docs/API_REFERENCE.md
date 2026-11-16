@@ -1307,6 +1307,31 @@
 
 Источники: [internal/transport/http/personal_routes.go:46](../internal/transport/http/personal_routes.go#L46), [internal/app/personal/peer_presence_handler.go:18](../internal/app/personal/peer_presence_handler.go#L18).
 
+### `GET /api/v1/conversations/:id/profiles/:userId`
+
+Профиль пользователя в общей личной переписке или группе.
+
+- **Доступ:** Зарегистрированный активный аккаунт; вызывающий и целевой пользователь — действующие участники указанной переписки. Скрытая для вызывающего или удалённая переписка недоступна.
+- **Запрос:** `id` и `userId` — UUID.
+- **Ответ:** 200: `status`, `item: {id, displayName, email, bio}`. Пустое `bio` передаётся пустой строкой. Каталог поиска пользователей и краткие карточки переписок не получают email и bio.
+- **Ошибки:** 422 неверный UUID; 403 нет доступа; 404 целевой пользователь неактивен или не состоит в переписке.
+- **Кэширование:** `private, no-store`; `X-Content-Type-Options: nosniff`.
+
+Источники: [info_handler.go](../internal/app/personal/info_handler.go), [personal_info_repository.go](../internal/infrastructure/postgres/personal_info_repository.go).
+
+### `GET /api/v1/conversations/:id/materials`
+
+Материалы доступной пользователю истории личной переписки или группы.
+
+- **Доступ:** Зарегистрированный активный участник доступной переписки.
+- **Запрос:** `kind=media|file|link`, `before` — непрозрачный курсор продолжения, `limit` — 1–100, по умолчанию 50. `image` принимается как синоним `media`.
+- **Ответ:** 200: `status`, `items: [{message, attachment?, url?}]`, `nextCursor`. `media` содержит изображения и видео, `file` — остальные вложения, `link` — HTTP(S)-ссылки из текста сообщений. Курсор привязан к переписке и типу материалов; несколько вложений или ссылок одного сообщения можно получить отдельными страницами.
+- **Видимость:** Удалённые сообщения, неготовые вложения и сообщения до личной границы очистки истории исключены. Чтение материалов не меняет отметку прочтения чата.
+- **Ошибки:** 422 неверный UUID, тип, лимит или курсор; 403 нет доступа.
+- **Кэширование:** `private, no-store`; `X-Content-Type-Options: nosniff`.
+
+Источники: [info_handler.go](../internal/app/personal/info_handler.go), [personal_info_repository.go](../internal/infrastructure/postgres/personal_info_repository.go).
+
 ### `PATCH /api/v1/conversations/:id/preferences`
 
 Личная настройка уведомлений.

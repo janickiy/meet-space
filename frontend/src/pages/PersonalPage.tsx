@@ -27,7 +27,8 @@ import { api, ApiError, personalChatAPI } from "../api";
 import { useAuth } from "../auth";
 import { chatTime } from "../chatPresentation";
 import { ConversationActions } from "../components/FolderPicker";
-import { DirectUserInfoModal } from "../components/DirectConversationActions";
+import { PersonalInfoScreen } from "../components/PersonalInfoScreen";
+import { personalInfoLink } from "../personalInfoNavigation";
 import { DirectCallButton } from "../components/DirectCallButton";
 import { PersonalPeerStatus } from "../components/PersonalPeerStatus";
 import { PersonalPeerPresenceProvider } from "../usePersonalPeerPresence";
@@ -38,11 +39,7 @@ import { NewDirectChatModal } from "../components/NewDirectChatModal";
 import { UnreadMessageCount } from "../components/UnreadMessageCount";
 import { Button, ErrorNotice } from "../components/ui";
 import { MessagingSkeleton } from "../components/MessagingSkeleton";
-import {
-  ConversationAvatar,
-  GroupCreateModal,
-  GroupInfoModal,
-} from "../components/GroupChats";
+import { ConversationAvatar, GroupCreateModal } from "../components/GroupChats";
 import type { ConversationFilters, PersonalConversation } from "../types";
 import { revokePersonalConversation } from "../personalRealtime";
 import "./personal.css";
@@ -60,14 +57,21 @@ export function PersonalPage() {
     : "all";
   const [creating, setCreating] = useState(false);
   const [newDirect, setNewDirect] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
+  const infoOpen = params.get("view") === "info";
+  const profileId = params.get("profile") || undefined;
+  const openInfo = () => navigate(personalInfoLink(id!, location.search, true));
+  const closeInfo = () => {
+    navigate(personalInfoLink(id!, location.search));
+    requestAnimationFrame(() =>
+      (userInfoTrigger.current || infoTrigger.current)?.focus(),
+    );
+  };
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageFocus, setMessageFocus] = useState<{
     id: string;
     request: number;
   }>();
   const messageSearchTrigger = useRef<HTMLButtonElement>(null);
-  const [userInfoOpen, setUserInfoOpen] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const infoTrigger = useRef<HTMLButtonElement>(null);
   const userInfoTrigger = useRef<HTMLButtonElement>(null);
@@ -135,11 +139,9 @@ export function PersonalPage() {
   const revoke = useCallback(() => {
     if (!id || !user) return;
     revokePersonalConversation(client, id, user.id);
-    setInfoOpen(false);
-    setUserInfoOpen(false);
     setMessageSearchOpen(false);
     setMessageFocus(undefined);
-    navigate(`/personal${location.search}`, { replace: true });
+    navigate(personalInfoLink("", location.search), { replace: true });
   }, [client, id, user, navigate, location.search]);
   const paramSearch = params.get("search") || "";
   const [search, setSearch] = useState(paramSearch);
@@ -197,8 +199,6 @@ export function PersonalPage() {
     if (inaccessible && detail.data?.item.type === "group") revoke();
   }, [inaccessible, detail.data, revoke]);
   useEffect(() => {
-    setInfoOpen(false);
-    setUserInfoOpen(false);
     setMessageSearchOpen(false);
     setMessageFocus(undefined);
   }, [
@@ -285,7 +285,7 @@ export function PersonalPage() {
             {conversations.map((c) => (
               <NavLink
                 key={c.id}
-                to={`/personal/${c.id}${location.search}`}
+                to={personalInfoLink(c.id, location.search)}
                 className={({ isActive }) =>
                   `personal-conversation ${isActive ? "selected" : ""}`
                 }
@@ -362,113 +362,145 @@ export function PersonalPage() {
             </div>
           ) : (
             <>
-              <header className="personal-header">
-                <Link
-                  className="personal-back"
-                  to={`/personal${location.search}`}
-                  aria-label="Назад к перепискам"
-                >
-                  <ArrowLeft />
-                </Link>
-                {selected?.type === "direct" ? (
-                  <button
-                    ref={userInfoTrigger}
-                    type="button"
-                    className="personal-peer-button"
-                    aria-label={`Информация о пользователе: ${selected.peer.displayName}`}
-                    onClick={() => setUserInfoOpen(true)}
+              <div
+                className="personal-chat-view"
+                hidden={infoOpen && !!selected}
+              >
+                <header className="personal-header">
+                  <Link
+                    className="personal-back"
+                    to={personalInfoLink("", location.search)}
+                    aria-label="Назад к перепискам"
                   >
-                    <ConversationAvatar conversation={selected} />
-                    <span className="personal-header-copy">
-                      <strong>{selected.peer.displayName}</strong>
-                      <PersonalPeerStatus
-                        conversation={selected}
-                        onAccessDenied={revoke}
-                      />
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    ref={infoTrigger}
-                    type="button"
-                    className="personal-peer-button"
-                    aria-label="Информация о группе"
-                    disabled={!selected}
-                    onClick={() => setInfoOpen(true)}
-                  >
-                    {selected && <ConversationAvatar conversation={selected} />}
-                    <span className="personal-header-copy">
-                      <strong>
-                        {selected ? conversationName(selected) : "Переписка"}
-                      </strong>
-                      {selected?.type === "group" && (
-                        <small>{selected.memberCount} участн.</small>
+                    <ArrowLeft />
+                  </Link>
+                  {selected?.type === "direct" ? (
+                    <button
+                      ref={userInfoTrigger}
+                      type="button"
+                      className="personal-peer-button"
+                      aria-label={`Информация о пользователе: ${selected.peer.displayName}`}
+                      onClick={openInfo}
+                    >
+                      <ConversationAvatar conversation={selected} />
+                      <span className="personal-header-copy">
+                        <strong>{selected.peer.displayName}</strong>
+                        <PersonalPeerStatus
+                          conversation={selected}
+                          onAccessDenied={revoke}
+                        />
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      ref={infoTrigger}
+                      type="button"
+                      className="personal-peer-button"
+                      aria-label="Информация о группе"
+                      disabled={!selected}
+                      onClick={openInfo}
+                    >
+                      {selected && (
+                        <ConversationAvatar conversation={selected} />
                       )}
-                    </span>
-                  </button>
+                      <span className="personal-header-copy">
+                        <strong>
+                          {selected ? conversationName(selected) : "Переписка"}
+                        </strong>
+                        {selected?.type === "group" && (
+                          <small>{selected.memberCount} участн.</small>
+                        )}
+                      </span>
+                    </button>
+                  )}
+                  {selected?.type === "direct" && (
+                    <DirectCallButton
+                      userId={selected.peer.id}
+                      name={selected.peer.displayName}
+                    />
+                  )}
+                  {selected && (
+                    <button
+                      ref={messageSearchTrigger}
+                      type="button"
+                      className="icon-button"
+                      aria-label="Найти в чате"
+                      title="Найти в чате"
+                      onClick={() => setMessageSearchOpen(true)}
+                    >
+                      <Search size={20} aria-hidden="true" />
+                    </button>
+                  )}
+                  {selected && (
+                    <ConversationActions
+                      conversation={selected}
+                      onGroupInfo={openInfo}
+                    />
+                  )}
+                </header>
+                {connection.data === "reconnecting" && (
+                  <div className="personal-reconnect" role="status">
+                    <RefreshCw size={16} aria-hidden="true" />
+                    Переподключаемся… Сообщения обновятся автоматически.
+                  </div>
                 )}
-                {selected?.type === "direct" && (
-                  <DirectCallButton
-                    userId={selected.peer.id}
-                    name={selected.peer.displayName}
-                  />
+                <ErrorNotice error={detail.error} />
+                {detail.isPending ? (
+                  <MessagingSkeleton rows={4} />
+                ) : (
+                  selected && (
+                    <MessageThread
+                      key={`${id}:${selected.type === "direct" ? selected.historyClearedThrough || 0 : 0}:${threadVersion.data}`}
+                      scopeId={id}
+                      transport={personalChatAPI}
+                      personal
+                      visible={!messageSearchOpen && !infoOpen}
+                      focusMessageId={messageFocus?.id}
+                      focusRequest={messageFocus?.request}
+                      onLatest={() => setMessageFocus(undefined)}
+                      onFocusMessage={(messageId) =>
+                        setMessageFocus((old) => ({
+                          id: messageId,
+                          request: (old?.request || 0) + 1,
+                        }))
+                      }
+                      composerPlaceholder={
+                        selected.type === "group"
+                          ? "Напишите в группу…"
+                          : "Напишите сообщение…"
+                      }
+                      requireAuthenticatedDownloads={selected.type === "group"}
+                      onAccessDenied={
+                        selected.type === "group" ? revoke : undefined
+                      }
+                    />
+                  )
                 )}
-                {selected && (
-                  <button
-                    ref={messageSearchTrigger}
-                    type="button"
-                    className="icon-button"
-                    aria-label="Найти в чате"
-                    title="Найти в чате"
-                    onClick={() => setMessageSearchOpen(true)}
-                  >
-                    <Search size={20} aria-hidden="true" />
-                  </button>
-                )}
-                {selected && (
-                  <ConversationActions
-                    conversation={selected}
-                    onGroupInfo={() => setInfoOpen(true)}
-                  />
-                )}
-              </header>
-              {connection.data === "reconnecting" && (
-                <div className="personal-reconnect" role="status">
-                  <RefreshCw size={16} aria-hidden="true" />
-                  Переподключаемся… Сообщения обновятся автоматически.
-                </div>
-              )}
-              <ErrorNotice error={detail.error} />
-              {detail.isPending ? (
-                <MessagingSkeleton rows={4} />
-              ) : (
-                selected && (
-                  <MessageThread
-                    key={`${id}:${selected.type === "direct" ? selected.historyClearedThrough || 0 : 0}:${threadVersion.data}`}
-                    scopeId={id}
-                    transport={personalChatAPI}
-                    personal
-                    visible={!messageSearchOpen}
-                    focusMessageId={messageFocus?.id}
-                    focusRequest={messageFocus?.request}
-                    onLatest={() => setMessageFocus(undefined)}
-                    onFocusMessage={(messageId) =>
-                      setMessageFocus((old) => ({
-                        id: messageId,
-                        request: (old?.request || 0) + 1,
-                      }))
-                    }
-                    composerPlaceholder={
-                      selected.type === "group"
-                        ? "Напишите в группу…"
-                        : "Напишите сообщение…"
-                    }
-                    requireAuthenticatedDownloads={selected.type === "group"}
-                    onAccessDenied={
-                      selected.type === "group" ? revoke : undefined
-                    }
-                  />
-                )
+              </div>
+              {infoOpen && selected && (
+                <PersonalInfoScreen
+                  key={`${user?.id}:${id}:${profileId || ""}:${threadVersion.data}`}
+                  conversation={selected}
+                  profileId={selected.type === "group" ? profileId : undefined}
+                  onBack={() => {
+                    if (selected.type === "group" && profileId) openInfo();
+                    else closeInfo();
+                  }}
+                  onChat={closeInfo}
+                  onProfile={(personId) =>
+                    navigate(
+                      personalInfoLink(id!, location.search, true, personId),
+                    )
+                  }
+                  onMessage={(messageId) => {
+                    setMessageFocus((old) => ({
+                      id: messageId,
+                      request: (old?.request || 0) + 1,
+                    }));
+                    closeInfo();
+                  }}
+                  onAccessDenied={revoke}
+                />
               )}
             </>
           )}
@@ -493,20 +525,6 @@ export function PersonalPage() {
         {creating && <GroupCreateModal onClose={() => setCreating(false)} />}
         {newDirect && (
           <NewDirectChatModal onClose={() => setNewDirect(false)} />
-        )}
-        {userInfoOpen && selected?.type === "direct" && (
-          <DirectUserInfoModal
-            conversation={selected}
-            onClose={() => setUserInfoOpen(false)}
-            returnFocus={() => userInfoTrigger.current}
-          />
-        )}
-        {infoOpen && selected?.type === "group" && (
-          <GroupInfoModal
-            group={selected}
-            onClose={() => setInfoOpen(false)}
-            returnFocus={() => infoTrigger.current}
-          />
         )}
       </section>
     </PersonalPeerPresenceProvider>

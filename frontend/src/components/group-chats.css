@@ -275,6 +275,129 @@
   font-size: calc(12px * var(--text-scale));
   min-height: 36px;
 }
+.group-info-screen {
+  width: min(100%, 760px);
+  margin-inline: auto;
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.group-info-screen .group-identity {
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin: 4px 0 0;
+  text-align: center;
+}
+.group-info-screen .group-avatar-large {
+  flex-basis: 120px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+}
+.group-info-screen .group-avatar-large > svg {
+  width: 56px;
+  height: 56px;
+}
+.group-info-screen .group-identity h3 {
+  margin: 0 0 6px;
+  font-size: calc(24px * var(--text-scale));
+  font-weight: 600;
+}
+.group-info-screen .group-identity small {
+  font-size: calc(13px * var(--text-scale));
+}
+.group-info-screen .group-info-actions {
+  justify-content: center;
+  gap: 12px;
+  padding: 0;
+}
+.group-info-screen .group-info-actions .button {
+  flex: 1 1 100px;
+  max-width: 170px;
+  min-height: 76px;
+  padding: 12px 16px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  background: var(--surface);
+  color: var(--primary);
+  border-radius: 16px;
+  font-size: calc(13px * var(--text-scale));
+  font-weight: 500;
+}
+.group-info-screen .group-info-actions .button:hover {
+  background: var(--primary-soft);
+}
+.group-info-description,
+.group-info-members-card {
+  min-width: 0;
+  margin: 0;
+  padding: 20px;
+  background: var(--surface);
+  border-radius: 18px;
+}
+.group-info-description dt {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: calc(12px * var(--text-scale));
+}
+.group-info-description dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  font-size: calc(14px * var(--text-scale));
+}
+.group-info-screen .group-members-heading h3 {
+  margin: 0;
+  font-size: calc(16px * var(--text-scale));
+}
+.group-info-screen .group-members {
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.group-info-screen .group-members li:last-child {
+  border-bottom: 0;
+}
+.group-info-screen .group-member-avatar .avatar {
+  border-radius: 50%;
+}
+.group-info-screen .group-footer-actions {
+  padding-top: 12px;
+}
+.group-info-screen .group-leave-action {
+  color: var(--danger);
+  font-size: calc(12px * var(--text-scale));
+}
+@media (max-width: 480px) {
+  .group-info-screen {
+    gap: 18px;
+  }
+  .group-info-screen .group-avatar-large {
+    flex-basis: 96px;
+    width: 96px;
+    height: 96px;
+  }
+  .group-info-screen .group-identity h3 {
+    font-size: calc(21px * var(--text-scale));
+  }
+  .group-info-screen .group-info-actions {
+    gap: 8px;
+  }
+  .group-info-screen .group-info-actions .button {
+    flex-basis: 80px;
+    padding-inline: 8px;
+  }
+  .group-info-description,
+  .group-info-members-card {
+    padding: 16px;
+  }
+  .group-info-screen .group-member-presence {
+    display: none;
+  }
+}
 .group-confirmation {
   border: 1px solid var(--border);
   padding: 14px;

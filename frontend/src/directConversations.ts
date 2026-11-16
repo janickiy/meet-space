@@ -186,12 +186,14 @@ export function purgePersonalConversationSearch(
   id: string,
   userId: string,
 ) {
-  const filters = { queryKey: ["personal-chat-search", id, userId] };
   // При удалении последний результат в подключённом наблюдателе остаётся до следующего
   // рендеринга.  Сброс также отменяет ожидающие запросы, поэтому при позднем ответе
   // восстановить сниппет не получится.
-  for (const query of client.getQueryCache().findAll(filters)) query.reset();
-  client.removeQueries(filters);
+  for (const prefix of ["personal-chat-search", "personal-materials"]) {
+    const filters = { queryKey: [prefix, id, userId] };
+    for (const query of client.getQueryCache().findAll(filters)) query.reset();
+    client.removeQueries(filters);
+  }
 }
 
 /**

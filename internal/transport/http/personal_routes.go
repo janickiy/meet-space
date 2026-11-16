@@ -34,6 +34,7 @@ func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *ch
 	}{{"GET", "/users", "personal_search", 30}, {"GET", "/conversations", "personal_list", 120}, {"POST", "/conversations/direct", "personal_create", 30}, {"GET", "/conversations/:id", "personal_detail", 120}, {"GET", "/conversations/:id/peer-presence", "personal_peer_presence", 120}, {"POST", "/conversations/:id/read", "personal_read", 30},
 		{"POST", "/conversations/group", "group_create", 20}, {"PATCH", "/conversations/:id", "group_metadata", 30}, {"DELETE", "/conversations/:id", "group_delete", 20},
 		{"GET", "/conversations/:id/members", "group_members", 120}, {"POST", "/conversations/:id/members", "group_add", 30},
+		{"GET", "/conversations/:id/profiles/:userId", "personal_profile", 120}, {"GET", "/conversations/:id/materials", "personal_materials", 60},
 		{"DELETE", "/conversations/:id/members/:userId", "group_remove", 30}, {"PATCH", "/conversations/:id/members/:userId", "group_role", 30},
 		{"POST", "/conversations/:id/leave", "group_leave", 30}, {"POST", "/conversations/:id/ownership", "group_ownership", 20},
 		{"PATCH", "/conversations/:id/preferences", "direct_preferences", 30}, {"POST", "/conversations/:id/clear-history", "direct_clear", 20}, {"POST", "/conversations/:id/hide", "direct_hide", 20},
@@ -52,6 +53,8 @@ func RegisterPersonalRoutes(router gin.IRouter, h *personalapp.Handler, chat *ch
 	g.POST("/conversations/group", h.CreateGroup)
 	g.GET("/conversations/:id", h.Get)
 	g.GET("/conversations/:id/peer-presence", h.PeerPresence)
+	g.GET("/conversations/:id/profiles/:userId", h.Profile)
+	g.GET("/conversations/:id/materials", h.Materials)
 	g.PATCH("/conversations/:id/preferences", h.SetConversationPreferences)
 	g.POST("/conversations/:id/clear-history", h.ClearDirectHistory)
 	g.POST("/conversations/:id/hide", h.HideDirectConversation)

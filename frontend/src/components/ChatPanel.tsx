@@ -351,6 +351,9 @@ export function MessageThread({
     void client.invalidateQueries({ queryKey: [readKey, scopeId] });
     if (personal) {
       void client.resetQueries({
+        queryKey: ["personal-materials", scopeId, user?.id],
+      });
+      void client.resetQueries({
         queryKey: ["personal-chat-search", scopeId, user?.id],
       });
       void client.invalidateQueries({ queryKey: ["personal-list", user?.id] });

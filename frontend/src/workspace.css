@@ -455,34 +455,6 @@ body {
   margin-right: 0;
   min-height: 40px;
 }
-.topbar-profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  background: transparent;
-  color: var(--text);
-  border: 0;
-  border-radius: var(--radius-sm);
-  text-align: left;
-  padding: 0;
-  cursor: pointer;
-}
-.topbar-profile-text {
-  display: grid;
-  gap: 4px;
-  max-width: 200px;
-  min-width: 0;
-}
-.topbar-profile-text strong {
-  font-size: var(--text-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.topbar-profile-text small {
-  display: none;
-}
 .workspace-main {
   width: 100%;
   min-width: 0;
@@ -825,9 +797,6 @@ body {
   .workspace-main {
     padding: 28px var(--workspace-gutter);
   }
-  .topbar-profile-text {
-    max-width: 140px;
-  }
   .auth-scenery-caption {
     display: none;
   }
@@ -950,8 +919,7 @@ body {
   .workspace-top > .mobile-only {
     order: 3;
   }
-  .workspace-context,
-  .workspace-top .topbar-profile {
+  .workspace-context {
     display: none;
   }
   .workspace-mobile-brand {
@@ -963,16 +931,9 @@ body {
     color: #fff;
     font-size: calc(20px * var(--text-scale));
   }
-  .workspace-top .avatar {
-    background: var(--sidebar-selection);
-    color: var(--sidebar-bg);
-  }
   .workspace-account {
     flex: none;
     gap: 8px;
-  }
-  .topbar-profile-text {
-    display: none;
   }
   .workspace-main {
     padding: 24px var(--workspace-gutter);

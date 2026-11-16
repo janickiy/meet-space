@@ -3,6 +3,7 @@ import type {
   PersonalPage,
   PersonalConversation,
   PersonalPeer,
+  ConversationUserProfile,
   DirectConversation,
   DirectConversationHideReceipt,
   DirectCall,
@@ -1191,6 +1192,21 @@ export const api = {
       `/conversations/${encodeURIComponent(id)}`,
       { signal },
     ),
+  conversationUserProfile: (id: string, userId: string, signal?: AbortSignal) =>
+    request<Item<ConversationUserProfile>>(
+      `/conversations/${encodeURIComponent(id)}/profiles/${encodeURIComponent(userId)}`,
+      { signal },
+    ),
+  personalMaterials: (
+    id: string,
+    kind: "media" | "file" | "link",
+    before?: string,
+    signal?: AbortSignal,
+  ) =>
+    request<CursorItems<ConferenceChatMaterial>>(
+      `/conversations/${encodeURIComponent(id)}/materials?${new URLSearchParams({ kind, limit: "30", ...(before ? { before } : {}) })}`,
+      { signal },
+    ),
   forwardMessages: (
     id: string,
     body: {
@@ -1224,10 +1240,11 @@ export const api = {
       `/conversations/${encodeURIComponent(id)}/peer-presence`,
       { signal },
     ),
-  createPersonalConversation: (userId: string) =>
+  createPersonalConversation: (userId: string, signal?: AbortSignal) =>
     request<Item<DirectConversation>>("/conversations/direct", {
       method: "POST",
       body: { userId },
+      signal,
     }),
   /**
    * Сохраняет настройку уведомлений только для текущего участника личного диалога.

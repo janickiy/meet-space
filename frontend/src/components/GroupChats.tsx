@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ReactNode,
 } from "react";
 import {
   onlineManager,
@@ -34,10 +35,10 @@ import type {
   PersonalPeer,
 } from "../types";
 import { initials } from "../utils";
+import { personalInfoLink } from "../personalInfoNavigation";
 import { Button, ErrorNotice, Modal } from "./ui";
 import { ItemActions } from "./ItemActions";
 import { MessagingSkeleton } from "./MessagingSkeleton";
-import { UserInfoModal } from "./UserInfoModal";
 import { AvatarPicker } from "./AvatarPicker";
 import { UserAvatar } from "./UserAvatar";
 import "./group-chats.css";
@@ -421,96 +422,26 @@ export function GroupCreateModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-type GroupView =
+export type GroupView =
   "info" | "members" | "add" | "edit" | "leave" | "transfer" | "delete";
 const roles = { owner: "Владелец", admin: "Администратор", member: "Участник" };
-
-function GroupMemberInfoModal({
-  member,
-  online,
-  onClose,
-  onNavigate,
-  returnFocus,
-}: {
-  member: GroupMember;
-  online?: boolean;
-  onClose: () => void;
-  onNavigate: () => void;
-  returnFocus: () => HTMLElement | null;
-}) {
-  const { user } = useAuth();
-  const client = useQueryClient();
-  const navigate = useNavigate();
-  const mounted = useRef(false);
-  const pending = useRef(false);
-  const activeActor = useRef(user?.id);
-  activeActor.current = user?.id;
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  const direct = useMutation({
-    mutationFn: ({ peerId }: { peerId: string; actorId?: string }) =>
-      api.createPersonalConversation(peerId),
-    onSuccess: ({ item }, { actorId }) => {
-      if (!mounted.current || actorId !== activeActor.current) return;
-      client.setQueryData(["personal-detail", item.id, actorId], {
-        status: "success",
-        item,
-      });
-      void client.invalidateQueries({ queryKey: ["personal-list", actorId] });
-      onNavigate();
-      navigate(`/personal/${encodeURIComponent(item.id)}`);
-    },
-    onSettled: () => {
-      pending.current = false;
-    },
-  });
-  return (
-    <UserInfoModal
-      person={member}
-      subtitle={roles[member.role]}
-      online={online}
-      onClose={() => {
-        if (!pending.current) onClose();
-      }}
-      onCallStart={onNavigate}
-      returnFocus={returnFocus}
-      actions={
-        <>
-          <ErrorNotice error={direct.error} />
-          {user && !user.guestConferenceId && user.id !== member.id && (
-            <Button
-              variant="outline"
-              busy={direct.isPending}
-              onClick={() => {
-                if (pending.current) return;
-                pending.current = true;
-                direct.mutate({ peerId: member.id, actorId: user.id });
-              }}
-            >
-              <MessageCircle size={22} aria-hidden="true" />
-              Сообщение
-            </Button>
-          )}
-        </>
-      }
-    />
-  );
-}
 
 export function GroupInfoModal({
   group,
   initialView = "info",
   onClose,
   returnFocus,
+  embedded = false,
+  onMemberProfile,
+  children,
 }: {
   group: GroupConversation;
-  initialView?: "info" | "leave";
+  initialView?: GroupView;
   onClose: () => void;
-  returnFocus: () => HTMLElement | null;
+  returnFocus?: () => HTMLElement | null;
+  embedded?: boolean;
+  onMemberProfile?: (member: GroupMember, online?: boolean) => void;
+  children?: ReactNode;
 }) {
   const { user } = useAuth();
   const client = useQueryClient();
@@ -525,8 +456,7 @@ export function GroupInfoModal({
   const [preparingAvatar, setPreparingAvatar] = useState(false);
   const [transferId, setTransferId] = useState("");
   const [removeTarget, setRemoveTarget] = useState<GroupMember>();
-  const [profileId, setProfileId] = useState<string>();
-  const profileTrigger = useRef<HTMLButtonElement | null>(null);
+  const actionTrigger = useRef<HTMLElement | null>(null);
   const submitting = useRef(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
@@ -577,12 +507,8 @@ export function GroupInfoModal({
   const connected = useSyncExternalStore(onlineManager.subscribe, () =>
     onlineManager.isOnline(),
   );
-  const profile = people.find((person) => person.id === profileId);
   const presenceKnown =
     visible && connected && !members.isPaused && !members.isError;
-  useEffect(() => {
-    if (profileId && members.isSuccess && !profile) setProfileId(undefined);
-  }, [profileId, profile, members.isSuccess]);
   const mutation = useMutation({
     mutationFn: async (operation: () => Promise<unknown>) => operation(),
     onSuccess: () => {
@@ -618,451 +544,500 @@ export function GroupInfoModal({
     transfer: "Передать владение",
     delete: "Удалить группу",
   };
+  const openView = (next: GroupView) => {
+    actionTrigger.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setValidation("");
+    mutation.reset();
+    setView(next);
+  };
+  const infoContent = (
+    <>
+      <div className="group-identity">
+        <ConversationAvatar conversation={current} large />
+        <div>
+          <h3>{current.name}</h3>
+          {!embedded && current.description.trim() && (
+            <p>{current.description}</p>
+          )}
+          <small>
+            {current.memberCount} участн. · {roles[current.myRole]}
+          </small>
+        </div>
+      </div>
+      <div className="group-info-actions">
+        {embedded && (
+          <Button variant="outline" onClick={onClose}>
+            <MessageCircle size={22} aria-hidden="true" />
+            Чат
+          </Button>
+        )}
+        {manages && (
+          <>
+            <Button
+              variant="outline"
+              aria-label="Добавить участников"
+              onClick={() => openView("add")}
+            >
+              <UserPlus size={20} />
+              Добавить
+            </Button>
+            <Button
+              variant="outline"
+              aria-label="Настройки группы"
+              onClick={() => {
+                setName(current.name);
+                setDescription(current.description);
+                openView("edit");
+              }}
+            >
+              <Pencil size={20} />
+              Изменить
+            </Button>
+          </>
+        )}
+      </div>
+      {embedded && current.description.trim() && (
+        <dl className="group-info-description">
+          <div>
+            <dt>О группе</dt>
+            <dd>{current.description}</dd>
+          </div>
+        </dl>
+      )}
+    </>
+  );
+  const renderMembers = (memberView: "info" | "members" | "transfer") => (
+    <>
+      <div className="group-members-heading">
+        <h3>Участники</h3>
+        <span>{current.memberCount} / 100</span>
+      </div>
+      <label className="field">
+        Найти участника
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </label>
+      <ErrorNotice error={members.error} />
+      {members.isPending && <MessagingSkeleton />}
+      <ul className="group-members" aria-label="Участники группы">
+        {people
+          .filter((person) =>
+            person.displayName
+              .toLocaleLowerCase("ru")
+              .includes(search.toLocaleLowerCase("ru")),
+          )
+          .map((person) => (
+            <li key={person.id}>
+              <button
+                type="button"
+                className="group-member-profile-button"
+                aria-label={`Информация о пользователе: ${person.displayName}`}
+                disabled={mutation.isPending}
+                onClick={() => {
+                  if (submitting.current) return;
+                  if (onMemberProfile) {
+                    onMemberProfile(
+                      person,
+                      presenceKnown && typeof person.online === "boolean"
+                        ? person.online
+                        : undefined,
+                    );
+                  } else {
+                    onClose();
+                    navigate(personalInfoLink(group.id, "", true, person.id));
+                  }
+                }}
+              >
+                <span className="group-member-avatar" aria-hidden="true">
+                  <UserAvatar
+                    id={person.id}
+                    name={person.displayName}
+                    className="avatar avatar-small"
+                  />
+                  {connected &&
+                    !members.isPaused &&
+                    !members.isError &&
+                    person.online === true && (
+                      <span className="group-presence-dot" />
+                    )}
+                </span>
+                <span className="group-member-name">
+                  <strong>
+                    {person.displayName}
+                    {person.id === user?.id ? " (вы)" : ""}
+                  </strong>
+                  <small>{roles[person.role]}</small>
+                </span>
+                <span
+                  className={`group-member-presence ${connected && !members.isPaused && !members.isError && person.online === true ? "is-online" : ""}`}
+                >
+                  {connected &&
+                  !members.isPaused &&
+                  !members.isError &&
+                  typeof person.online === "boolean"
+                    ? person.online
+                      ? "В сети"
+                      : "Не в сети"
+                    : "Статус недоступен"}
+                </span>
+              </button>
+              {memberView === "transfer" ? (
+                person.id !== user?.id && (
+                  <label className="group-transfer-choice">
+                    <input
+                      type="radio"
+                      name="owner"
+                      aria-label={`Передать владение: ${person.displayName}`}
+                      checked={transferId === person.id}
+                      onChange={() => setTransferId(person.id)}
+                    />
+                  </label>
+                )
+              ) : person.id !== user?.id &&
+                (owner || (manages && person.role === "member")) ? (
+                <ItemActions
+                  label={`Действия с участником: ${person.displayName}`}
+                  actions={[
+                    ...(owner
+                      ? [
+                          {
+                            label:
+                              person.role === "admin"
+                                ? "Снять администратора"
+                                : "Назначить администратором",
+                            icon: <ShieldCheck size={18} />,
+                            disabled: mutation.isPending,
+                            run: () =>
+                              run(() =>
+                                api.setGroupRole(
+                                  group.id,
+                                  person.id,
+                                  person.role === "admin" ? "member" : "admin",
+                                ),
+                              ),
+                          },
+                        ]
+                      : []),
+                    {
+                      label: "Удалить участника",
+                      icon: <Trash2 size={18} />,
+                      danger: true,
+                      disabled: mutation.isPending,
+                      run: () => setRemoveTarget(person),
+                    },
+                  ]}
+                />
+              ) : null}
+            </li>
+          ))}
+      </ul>
+      {!members.isPending &&
+        !members.isError &&
+        people.length > 0 &&
+        !people.some((person) =>
+          person.displayName
+            .toLocaleLowerCase("ru")
+            .includes(search.toLocaleLowerCase("ru")),
+        ) && (
+          <p className="compact-empty muted">
+            Никого не нашли. Попробуйте другое имя участника.
+          </p>
+        )}
+      {removeTarget && (
+        <div className="group-confirmation">
+          <p>
+            Удалить {removeTarget.displayName} из группы? Доступ к сообщениям и
+            файлам будет закрыт.
+          </p>
+          <Button
+            variant="outline"
+            disabled={mutation.isPending}
+            onClick={() => setRemoveTarget(undefined)}
+          >
+            Отмена
+          </Button>
+          <Button
+            variant="danger"
+            busy={mutation.isPending}
+            onClick={() =>
+              run(() => api.removeGroupMember(group.id, removeTarget.id))
+            }
+          >
+            Подтвердить удаление участника
+          </Button>
+        </div>
+      )}
+      {memberView === "transfer" && (
+        <>
+          <p className="field-hint">
+            Выбранный участник станет владельцем, а вы — администратором.
+          </p>
+          <Button
+            busy={mutation.isPending}
+            disabled={!transferId || !owner}
+            onClick={() =>
+              run(() => api.transferGroup(group.id, transferId), "info")
+            }
+          >
+            Передать владение
+          </Button>
+        </>
+      )}
+    </>
+  );
+  const footerContent = (
+    <footer className="group-footer-actions">
+      <Button
+        variant="outline"
+        className="group-leave-action"
+        disabled={mutation.isPending}
+        onClick={() => openView("leave")}
+      >
+        <LogOut size={18} />
+        Выйти из группы
+      </Button>
+      {owner && (
+        <ItemActions
+          label="Ещё: действия группы"
+          triggerLabel="Ещё"
+          placement="top"
+          disabled={mutation.isPending}
+          actions={[
+            {
+              label: "Передать владение",
+              icon: <ShieldCheck size={18} />,
+              run: () => openView("transfer"),
+            },
+            {
+              label: "Удалить группу",
+              icon: <Trash2 size={18} />,
+              danger: true,
+              separatorBefore: true,
+              run: () => openView("delete"),
+            },
+          ]}
+        />
+      )}
+    </footer>
+  );
   if (accessError) return <ErrorNotice error={accessError} />;
   return (
     <>
-      <Modal
-        title={titles[view]}
-        className="group-modal"
-        returnFocus={returnFocus}
-        onClose={() => {
-          if (submitting.current) return;
-          if (removeTarget) setRemoveTarget(undefined);
-          else if (view !== "info" && view !== initialView)
-            setView(initialView);
-          else onClose();
-        }}
-      >
-        {view !== "info" && (
-          <Button
-            className="group-back"
-            variant="outline"
-            disabled={mutation.isPending}
-            onClick={() => {
+      {embedded && (
+        <section className="group-info-screen" aria-label="Информация о группе">
+          <ErrorNotice
+            error={
+              detail.error || (view === "info" ? mutation.error : undefined)
+            }
+          />
+          {infoContent}
+          <section className="group-info-members-card" aria-label="Участники">
+            {renderMembers("info")}
+            {footerContent}
+          </section>
+          {children}
+        </section>
+      )}
+      {(!embedded || view !== "info") && (
+        <Modal
+          title={titles[view]}
+          className="group-modal"
+          returnFocus={embedded ? () => actionTrigger.current : returnFocus}
+          onClose={() => {
+            if (submitting.current) return;
+            if (removeTarget) setRemoveTarget(undefined);
+            else if (embedded) {
               setView("info");
-              setRemoveTarget(undefined);
               mutation.reset();
-            }}
-          >
-            <ArrowLeft size={16} />О группе
-          </Button>
-        )}
-        <ErrorNotice error={detail.error || mutation.error}>
-          {validation || null}
-        </ErrorNotice>
-        {view === "info" && (
-          <>
-            <div className="group-identity">
-              <ConversationAvatar conversation={current} large />
-              <div>
-                <h3>{current.name}</h3>
-                <p>{current.description}</p>
-                <small>
-                  {current.memberCount} участн. · {roles[current.myRole]}
-                </small>
-              </div>
-            </div>
-            <div className="group-info-actions">
-              {manages && (
+              setValidation("");
+            } else if (view !== "info" && view !== initialView)
+              setView(initialView);
+            else onClose();
+          }}
+        >
+          {view !== "info" && (
+            <Button
+              className="group-back"
+              variant="outline"
+              disabled={mutation.isPending}
+              onClick={() => {
+                setView("info");
+                setRemoveTarget(undefined);
+                mutation.reset();
+              }}
+            >
+              <ArrowLeft size={16} />О группе
+            </Button>
+          )}
+          <ErrorNotice error={detail.error || mutation.error}>
+            {validation || null}
+          </ErrorNotice>
+          {view === "info" && infoContent}
+          {(view === "info" || view === "members" || view === "transfer") &&
+            renderMembers(view)}
+          {view === "info" && footerContent}
+          {view === "add" && (
+            <>
+              <GroupUserPicker
+                selected={selected}
+                onChange={setSelected}
+                excluded={people.map((person) => person.id)}
+                disabled={mutation.isPending}
+                max={Math.max(0, 100 - current.memberCount)}
+              />
+              <Button
+                busy={mutation.isPending}
+                disabled={!selected.length || !manages}
+                onClick={() =>
+                  run(
+                    async () => {
+                      const result = await api.addGroupMembers(
+                        group.id,
+                        selected.map((person) => person.id),
+                      );
+                      setSelected([]);
+                      return result;
+                    },
+                    embedded ? "info" : "members",
+                  )
+                }
+              >
+                Добавить выбранных
+              </Button>
+            </>
+          )}
+          {view === "edit" && (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (preparingAvatar) return;
+                if (
+                  !name.trim() ||
+                  Array.from(name.trim()).length > 50 ||
+                  Array.from(description.trim()).length > 200
+                ) {
+                  setValidation(
+                    "Название — до 50 символов, описание — до 200.",
+                  );
+                  return;
+                }
+                setValidation("");
+                run(async () => {
+                  await api.updateGroup(group.id, {
+                    name: name.trim(),
+                    description: description.trim(),
+                  });
+                  if (file) {
+                    controller.current = new AbortController();
+                    await api.putGroupAvatar(
+                      group.id,
+                      file,
+                      controller.current.signal,
+                    );
+                    setFile(undefined);
+                  }
+                }, "info");
+              }}
+            >
+              <AvatarFileField
+                group={current}
+                file={file}
+                onChange={setFile}
+                disabled={mutation.isPending}
+                onPreparing={setPreparingAvatar}
+              />
+              {current.avatarVersion && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={mutation.isPending}
+                  onClick={() =>
+                    run(async () => {
+                      await api.deleteGroupAvatar(group.id);
+                      setFile(undefined);
+                    })
+                  }
+                >
+                  Удалить аватар группы
+                </Button>
+              )}
+              <label className="field">
+                Название группы
+                <input
+                  value={name}
+                  maxLength={100}
+                  disabled={mutation.isPending}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                Описание
+                <textarea
+                  rows={3}
+                  value={description}
+                  maxLength={400}
+                  disabled={mutation.isPending}
+                  onChange={(event) => setDescription(event.target.value)}
+                />
+              </label>
+              <Button
+                type="submit"
+                busy={mutation.isPending}
+                disabled={!manages || preparingAvatar}
+              >
+                Сохранить
+              </Button>
+            </form>
+          )}
+          {view === "leave" && (
+            <>
+              {owner && current.memberCount > 1 ? (
                 <>
-                  <Button
-                    variant="outline"
-                    aria-label="Добавить участников"
-                    onClick={() => setView("add")}
-                  >
-                    <UserPlus size={20} />
-                    Добавить
+                  <p>Перед выходом передайте владение другому участнику.</p>
+                  <Button onClick={() => setView("transfer")}>
+                    Выбрать нового владельца
                   </Button>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Выйти из группы «{current.name}»? Доступ к сообщениям и
+                    файлам будет закрыт.
+                  </p>
                   <Button
-                    variant="outline"
-                    aria-label="Настройки группы"
-                    onClick={() => {
-                      setName(current.name);
-                      setDescription(current.description);
-                      setView("edit");
-                    }}
+                    variant="danger"
+                    busy={mutation.isPending}
+                    onClick={() => run(() => exit(false))}
                   >
-                    <Pencil size={20} />
-                    Изменить
+                    Подтвердить выход
                   </Button>
                 </>
               )}
-            </div>
-          </>
-        )}
-        {(view === "info" || view === "members" || view === "transfer") && (
-          <>
-            <div className="group-members-heading">
-              <h3>Участники</h3>
-              <span>{current.memberCount} / 100</span>
-            </div>
-            <label className="field">
-              Найти участника
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-            <ErrorNotice error={members.error} />
-            {members.isPending && <MessagingSkeleton />}
-            <ul className="group-members" aria-label="Участники группы">
-              {people
-                .filter((person) =>
-                  person.displayName
-                    .toLocaleLowerCase("ru")
-                    .includes(search.toLocaleLowerCase("ru")),
-                )
-                .map((person) => (
-                  <li key={person.id}>
-                    <button
-                      type="button"
-                      className="group-member-profile-button"
-                      aria-label={`Информация о пользователе: ${person.displayName}`}
-                      disabled={mutation.isPending}
-                      onClick={(event) => {
-                        profileTrigger.current = event.currentTarget;
-                        setProfileId(person.id);
-                      }}
-                    >
-                      <span className="group-member-avatar" aria-hidden="true">
-                        <UserAvatar
-                          id={person.id}
-                          name={person.displayName}
-                          className="avatar avatar-small"
-                        />
-                        {connected &&
-                          !members.isPaused &&
-                          !members.isError &&
-                          person.online === true && (
-                            <span className="group-presence-dot" />
-                          )}
-                      </span>
-                      <span className="group-member-name">
-                        <strong>
-                          {person.displayName}
-                          {person.id === user?.id ? " (вы)" : ""}
-                        </strong>
-                        <small>{roles[person.role]}</small>
-                      </span>
-                      <span
-                        className={`group-member-presence ${connected && !members.isPaused && !members.isError && person.online === true ? "is-online" : ""}`}
-                      >
-                        {connected &&
-                        !members.isPaused &&
-                        !members.isError &&
-                        typeof person.online === "boolean"
-                          ? person.online
-                            ? "В сети"
-                            : "Не в сети"
-                          : "Статус недоступен"}
-                      </span>
-                    </button>
-                    {view === "transfer" ? (
-                      person.id !== user?.id && (
-                        <label className="group-transfer-choice">
-                          <input
-                            type="radio"
-                            name="owner"
-                            aria-label={`Передать владение: ${person.displayName}`}
-                            checked={transferId === person.id}
-                            onChange={() => setTransferId(person.id)}
-                          />
-                        </label>
-                      )
-                    ) : person.id !== user?.id &&
-                      (owner || (manages && person.role === "member")) ? (
-                      <ItemActions
-                        label={`Действия с участником: ${person.displayName}`}
-                        actions={[
-                          ...(owner
-                            ? [
-                                {
-                                  label:
-                                    person.role === "admin"
-                                      ? "Снять администратора"
-                                      : "Назначить администратором",
-                                  icon: <ShieldCheck size={18} />,
-                                  disabled: mutation.isPending,
-                                  run: () =>
-                                    run(() =>
-                                      api.setGroupRole(
-                                        group.id,
-                                        person.id,
-                                        person.role === "admin"
-                                          ? "member"
-                                          : "admin",
-                                      ),
-                                    ),
-                                },
-                              ]
-                            : []),
-                          {
-                            label: "Удалить участника",
-                            icon: <Trash2 size={18} />,
-                            danger: true,
-                            disabled: mutation.isPending,
-                            run: () => setRemoveTarget(person),
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </li>
-                ))}
-            </ul>
-            {!members.isPending &&
-              !members.isError &&
-              people.length > 0 &&
-              !people.some((person) =>
-                person.displayName
-                  .toLocaleLowerCase("ru")
-                  .includes(search.toLocaleLowerCase("ru")),
-              ) && (
-                <p className="compact-empty muted">
-                  Никого не нашли. Попробуйте другое имя участника.
-                </p>
-              )}
-            {removeTarget && (
-              <div className="group-confirmation">
-                <p>
-                  Удалить {removeTarget.displayName} из группы? Доступ к
-                  сообщениям и файлам будет закрыт.
-                </p>
-                <Button
-                  variant="outline"
-                  disabled={mutation.isPending}
-                  onClick={() => setRemoveTarget(undefined)}
-                >
-                  Отмена
-                </Button>
-                <Button
-                  variant="danger"
-                  busy={mutation.isPending}
-                  onClick={() =>
-                    run(() => api.removeGroupMember(group.id, removeTarget.id))
-                  }
-                >
-                  Подтвердить удаление участника
-                </Button>
-              </div>
-            )}
-            {view === "transfer" && (
-              <>
-                <p className="field-hint">
-                  Выбранный участник станет владельцем, а вы — администратором.
-                </p>
-                <Button
-                  busy={mutation.isPending}
-                  disabled={!transferId || !owner}
-                  onClick={() =>
-                    run(() => api.transferGroup(group.id, transferId), "info")
-                  }
-                >
-                  Передать владение
-                </Button>
-              </>
-            )}
-          </>
-        )}
-        {view === "info" && (
-          <footer className="group-footer-actions">
-            <Button
-              variant="outline"
-              className="group-leave-action"
-              disabled={mutation.isPending}
-              onClick={() => setView("leave")}
-            >
-              <LogOut size={18} />
-              Выйти из группы
-            </Button>
-            {owner && (
-              <ItemActions
-                label="Ещё: действия группы"
-                triggerLabel="Ещё"
-                placement="top"
-                disabled={mutation.isPending}
-                actions={[
-                  {
-                    label: "Передать владение",
-                    icon: <ShieldCheck size={18} />,
-                    run: () => setView("transfer"),
-                  },
-                  {
-                    label: "Удалить группу",
-                    icon: <Trash2 size={18} />,
-                    danger: true,
-                    separatorBefore: true,
-                    run: () => setView("delete"),
-                  },
-                ]}
-              />
-            )}
-          </footer>
-        )}
-        {view === "add" && (
-          <>
-            <GroupUserPicker
-              selected={selected}
-              onChange={setSelected}
-              excluded={people.map((person) => person.id)}
-              disabled={mutation.isPending}
-              max={Math.max(0, 100 - current.memberCount)}
-            />
-            <Button
-              busy={mutation.isPending}
-              disabled={!selected.length || !manages}
-              onClick={() =>
-                run(async () => {
-                  const result = await api.addGroupMembers(
-                    group.id,
-                    selected.map((person) => person.id),
-                  );
-                  setSelected([]);
-                  return result;
-                }, "members")
-              }
-            >
-              Добавить выбранных
-            </Button>
-          </>
-        )}
-        {view === "edit" && (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (preparingAvatar) return;
-              if (
-                !name.trim() ||
-                Array.from(name.trim()).length > 50 ||
-                Array.from(description.trim()).length > 200
-              ) {
-                setValidation("Название — до 50 символов, описание — до 200.");
-                return;
-              }
-              setValidation("");
-              run(async () => {
-                await api.updateGroup(group.id, {
-                  name: name.trim(),
-                  description: description.trim(),
-                });
-                if (file) {
-                  controller.current = new AbortController();
-                  await api.putGroupAvatar(
-                    group.id,
-                    file,
-                    controller.current.signal,
-                  );
-                  setFile(undefined);
-                }
-              }, "info");
-            }}
-          >
-            <AvatarFileField
-              group={current}
-              file={file}
-              onChange={setFile}
-              disabled={mutation.isPending}
-              onPreparing={setPreparingAvatar}
-            />
-            {current.avatarVersion && (
+            </>
+          )}
+          {view === "delete" && (
+            <>
+              <p>
+                Удалить группу «{current.name}» для всех участников? Доступ к её
+                сообщениям и файлам будет закрыт.
+              </p>
               <Button
-                type="button"
-                variant="outline"
-                disabled={mutation.isPending}
-                onClick={() =>
-                  run(async () => {
-                    await api.deleteGroupAvatar(group.id);
-                    setFile(undefined);
-                  })
-                }
+                variant="danger"
+                busy={mutation.isPending}
+                disabled={!owner}
+                onClick={() => run(() => exit(true))}
               >
-                Удалить аватар группы
+                Подтвердить удаление группы
               </Button>
-            )}
-            <label className="field">
-              Название группы
-              <input
-                value={name}
-                maxLength={100}
-                disabled={mutation.isPending}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-            <label className="field">
-              Описание
-              <textarea
-                rows={3}
-                value={description}
-                maxLength={400}
-                disabled={mutation.isPending}
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </label>
-            <Button
-              type="submit"
-              busy={mutation.isPending}
-              disabled={!manages || preparingAvatar}
-            >
-              Сохранить
-            </Button>
-          </form>
-        )}
-        {view === "leave" && (
-          <>
-            {owner && current.memberCount > 1 ? (
-              <>
-                <p>Перед выходом передайте владение другому участнику.</p>
-                <Button onClick={() => setView("transfer")}>
-                  Выбрать нового владельца
-                </Button>
-              </>
-            ) : (
-              <>
-                <p>
-                  Выйти из группы «{current.name}»? Доступ к сообщениям и файлам
-                  будет закрыт.
-                </p>
-                <Button
-                  variant="danger"
-                  busy={mutation.isPending}
-                  onClick={() => run(() => exit(false))}
-                >
-                  Подтвердить выход
-                </Button>
-              </>
-            )}
-          </>
-        )}
-        {view === "delete" && (
-          <>
-            <p>
-              Удалить группу «{current.name}» для всех участников? Доступ к её
-              сообщениям и файлам будет закрыт.
-            </p>
-            <Button
-              variant="danger"
-              busy={mutation.isPending}
-              disabled={!owner}
-              onClick={() => run(() => exit(true))}
-            >
-              Подтвердить удаление группы
-            </Button>
-          </>
-        )}
-      </Modal>
-      {profile && (
-        <GroupMemberInfoModal
-          key={profile.id}
-          member={profile}
-          online={
-            presenceKnown && typeof profile.online === "boolean"
-              ? profile.online
-              : undefined
-          }
-          onClose={() => setProfileId(undefined)}
-          onNavigate={onClose}
-          returnFocus={() => profileTrigger.current}
-        />
+            </>
+          )}
+        </Modal>
       )}
     </>
   );

@@ -409,22 +409,6 @@ export function Layout() {
               <span className="workspace-context">{sectionContext}</span>
               <div className="workspace-account">
                 <NotificationBell />
-                <button
-                  type="button"
-                  className="topbar-profile"
-                  aria-label="Профиль и настройки аккаунта"
-                  onClick={(event) => showAccountSettings(event.currentTarget)}
-                >
-                  <UserAvatar
-                    id={user?.id}
-                    name={user?.displayName || user?.email || ""}
-                    version={user?.avatarVersion}
-                  />
-                  <span className="topbar-profile-text">
-                    <strong>{user?.displayName || "Мой аккаунт"}</strong>
-                    <small>{user?.email}</small>
-                  </span>
-                </button>
               </div>
             </header>
             <main

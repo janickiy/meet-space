@@ -662,6 +662,11 @@ export interface PersonalPeer {
   id: string;
   displayName: string;
 }
+/** Полный профиль, доступный только участникам общей переписки. */
+export interface ConversationUserProfile extends PersonalPeer {
+  email: string;
+  bio: string;
+}
 /** Подтверждённое сервером присутствие собеседника в доступной личной переписке.
  * @params conversationId — проверенный диалог; peerId — собеседник, определённый сервером;
  * online — наличие живой физической сессии; отсутствие подтверждения передаётся ошибкой API.
