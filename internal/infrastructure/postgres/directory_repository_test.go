@@ -256,7 +256,8 @@ func TestLDAPAuthLocalBoundary(t *testing.T) {
 	if _, err := auth.Refresh(ctx, login.SessionToken); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := auth.UpdateProfile(ctx, user.ID, users.UpdateProfileRequest{DisplayName: "Изменить"}); !errors.Is(err, apperrors.ErrForbidden) {
+	name := "Изменить"
+	if _, err := auth.UpdateProfile(ctx, user.ID, users.UpdateProfileRequest{DisplayName: &name}); !errors.Is(err, apperrors.ErrForbidden) {
 		t.Fatalf("LDAP rename permitted: %v", err)
 	}
 	if err := auth.DeleteAccount(ctx, user.ID, "anything"); !errors.Is(err, apperrors.ErrForbidden) {

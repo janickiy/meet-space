@@ -25,12 +25,15 @@ import { TEXT_SIZE_OPTIONS, useAppearance } from "../appearance";
 import type { TextSize } from "../appearance";
 import "./history-notifications.css";
 
+const profileBioLimit = 1000;
+
 /** Показывает вкладки профиля, устройств, уведомлений и оформления внутри диалога аккаунта.
  * @return Содержимое настроек без интеграций и неподдерживаемого раздела безопасности.
  */
 export function SettingsPage() {
   const { user, updateProfile } = useAuth();
   const [name, setName] = useState(user?.displayName || "");
+  const [bio, setBio] = useState(user?.bio ?? "");
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState<unknown>();
   const [profileValidation, setProfileValidation] = useState("");
@@ -38,6 +41,10 @@ export function SettingsPage() {
   const appearance = useAppearance();
   const guest = Boolean(user?.guestConferenceId);
   const managed = user?.authSource === "ldap";
+  const nameChanged = !managed && name.trim() !== (user?.displayName || "");
+  const bioChanged = bio !== (user?.bio ?? "");
+  const bioLength = Array.from(bio).length;
+  const bioTooLong = bioLength > profileBioLimit;
   const tabs = [
     ...(!guest
       ? [
@@ -80,7 +87,11 @@ export function SettingsPage() {
   useLayoutEffect(() => {
     if (panel.current) panel.current.scrollTop = 0;
   }, [activeSection, mobileSectionOpen]);
-  useEffect(() => setName(user?.displayName || ""), [user?.displayName]);
+  useEffect(
+    () => setName(user?.displayName || ""),
+    [user?.id, user?.displayName],
+  );
+  useEffect(() => setBio(user?.bio ?? ""), [user?.id, user?.bio]);
   useEffect(() => {
     const media = window.matchMedia?.("(max-width: 767px)");
     if (!media) return;
@@ -107,18 +118,16 @@ export function SettingsPage() {
     tabButtons.current[next]?.focus();
   }
 
-  /** Проверяет имя и сохраняет его через существующий контракт профиля.
-   * @args event — отправка формы, которую обрабатывает приложение.
-   * @return Завершение запроса; ошибки и подтверждение показаны рядом с полем.
-   */
+  /** Проверяет изменённые поля и сохраняет их в текущем профиле. */
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (managed) return;
+    if (saving || bioTooLong || (!nameChanged && !bioChanged)) return;
     const value = name.trim();
     if (
-      !value ||
-      [...value].length > 100 ||
-      /[\u0000-\u001f\u007f]/u.test(value)
+      nameChanged &&
+      (!value ||
+        [...value].length > 100 ||
+        /[\u0000-\u001f\u007f]/u.test(value))
     ) {
       setProfileValidation(
         "Укажите имя от 1 до 100 символов без управляющих знаков.",
@@ -131,7 +140,10 @@ export function SettingsPage() {
     setProfileError(undefined);
     setSaved(false);
     try {
-      await updateProfile(value);
+      await updateProfile({
+        ...(nameChanged ? { displayName: value } : {}),
+        ...(bioChanged ? { bio } : {}),
+      });
       setSaved(true);
     } catch (error) {
       setProfileError(error);
@@ -223,8 +235,8 @@ export function SettingsPage() {
                     setSaved(false);
                     setProfileValidation("");
                   }}
-                  required
-                  readOnly={managed}
+                  required={nameChanged}
+                  readOnly={managed || saving}
                   aria-describedby="profile-name-hint"
                 />
               </label>
@@ -232,6 +244,24 @@ export function SettingsPage() {
                 {managed
                   ? "Имя обновляется из каталога вашей организации."
                   : "От 1 до 100 символов."}
+              </p>
+              <label className="field">
+                <span>О себе</span>
+                <textarea
+                  rows={4}
+                  value={bio}
+                  readOnly={saving}
+                  aria-describedby={`${prefix}-profile-bio-hint`}
+                  aria-invalid={bioTooLong || undefined}
+                  onChange={(event) => {
+                    setBio(event.target.value);
+                    setSaved(false);
+                  }}
+                />
+              </label>
+              <p id={`${prefix}-profile-bio-hint`} className="field-hint">
+                {bioLength} / {profileBioLimit} символов
+                {bioTooLong && ". Сократите текст, чтобы сохранить профиль."}
               </p>
               <label className="field">
                 <span>Email</span>
@@ -249,18 +279,16 @@ export function SettingsPage() {
               </p>
               <ErrorNotice>{profileValidation || null}</ErrorNotice>
               <ErrorNotice error={profileError} />
-              {saved && <p role="status">Имя сохранено.</p>}
-              {!managed && (
-                <div className="profile-save-row">
-                  <Button
-                    type="submit"
-                    busy={saving}
-                    disabled={name.trim() === (user?.displayName || "")}
-                  >
-                    Сохранить имя
-                  </Button>
-                </div>
-              )}
+              {saved && <p role="status">Профиль сохранён.</p>}
+              <div className="profile-save-row">
+                <Button
+                  type="submit"
+                  busy={saving}
+                  disabled={bioTooLong || (!nameChanged && !bioChanged)}
+                >
+                  Сохранить профиль
+                </Button>
+              </div>
             </form>
             <p className="profile-created">
               <CalendarDays size={16} aria-hidden="true" /> Регистрация:{" "}

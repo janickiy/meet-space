@@ -160,11 +160,15 @@ const { chromium, serve } = require("../../../admin/tests/browser/harness.cjs");
     const name = managed.page.getByLabel("Имя для встреч", { exact: true });
     await name.waitFor();
     assert.equal(await name.getAttribute("readonly"), "");
-    assert.equal(
+    assert(
       await managed.page
-        .getByRole("button", { name: "Сохранить имя", exact: true })
-        .count(),
-      0,
+        .getByRole("textbox", { name: "О себе", exact: true })
+        .isEditable(),
+    );
+    assert(
+      await managed.page
+        .getByRole("button", { name: "Сохранить профиль", exact: true })
+        .isDisabled(),
     );
     await managed.page
       .getByRole("tab", { name: "Аккаунты", exact: true })

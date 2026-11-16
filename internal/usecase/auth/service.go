@@ -60,22 +60,9 @@ type userRepository interface {
 	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
 	//   передачи данных или сохранения.
 	GetByEmail(context.Context, string) (users.User, error)
-	// UpdateDisplayName обновляет только публичное имя учетной записи, полученное из субъекта
-	// аутентификации.
-	//
-	// @Parameters:
-	//   - arg1: Контекст, контролирующий отмену, сроки и продолжительность выполнения
-	//   операции.
-	//   - arg2: Идентификатор действующего аккаунта, используемый для ограничения
-	//   доступа.
-	//   - arg3: Имя параметра, файла cookie, ресурса или провайдера, к которому
-	//   осуществляется обращение.
-	//
-	// @returns:
-	//   - result1: Полученный пользователь.
-	//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-	//   передачи данных или сохранения.
-	UpdateDisplayName(context.Context, string, string) (users.User, error)
+	// UpdateProfile atomically patches only supplied fields after rechecking the
+	// account mode and security version observed by the service.
+	UpdateProfile(context.Context, string, users.UpdateProfileRequest, int64) (users.User, error)
 }
 
 // passwordHasher определяет заменяемый контракт зависимостей для аутентификации учётных записей
@@ -318,14 +305,14 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, request user
 	if err != nil {
 		return users.View{}, err
 	}
-	if current.IsLDAP() {
+	if current.IsLDAP() && request.DisplayName != nil {
 		return users.View{}, managedDirectoryAccount()
 	}
-	name, err := users.NormalizeDisplayName(request.DisplayName)
+	patch, err := request.Normalized()
 	if err != nil {
 		return users.View{}, err
 	}
-	user, err := s.repository.UpdateDisplayName(ctx, userID, name)
+	user, err := s.repository.UpdateProfile(ctx, userID, patch, current.AuthVersion)
 	if errors.Is(err, apperrors.ErrNotFound) {
 		return users.View{}, apperrors.ErrUnauthorized
 	}

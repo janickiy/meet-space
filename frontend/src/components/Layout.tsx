@@ -10,7 +10,14 @@ import {
   useState,
 } from "react";
 import type { MouseEvent } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import {
+  Link,
+  matchPath,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router";
 import {
   CalendarDays,
   Home,
@@ -205,6 +212,12 @@ export function Layout() {
     : location.pathname.startsWith("/folders")
       ? "Организация"
       : sectionTitle;
+  const underlineHeadingOnFocus = [
+    "/",
+    "/folders",
+    "/folders/:id",
+    "/calendar",
+  ].some((pattern) => matchPath(pattern, location.pathname));
   return (
     <AccountSettingsContext.Provider value={showAccountSettings}>
       <DirectCallsProvider>
@@ -414,7 +427,15 @@ export function Layout() {
                 </button>
               </div>
             </header>
-            <main id="workspace-main" className="workspace-main" tabIndex={-1}>
+            <main
+              id="workspace-main"
+              className={
+                underlineHeadingOnFocus
+                  ? "workspace-main workspace-main-heading-focus"
+                  : "workspace-main"
+              }
+              tabIndex={-1}
+            >
               <Suspense fallback={<Loading />}>
                 <Outlet />
               </Suspense>

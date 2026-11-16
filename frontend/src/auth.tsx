@@ -10,7 +10,13 @@ import {
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, configureAuth, isAccountBlocked } from "./api";
-import type { User, LoginResponse, Item, Participant } from "./types";
+import type {
+  User,
+  LoginResponse,
+  Item,
+  Participant,
+  ProfileUpdate,
+} from "./types";
 import {
   ACCOUNT_CHANGE_KEY,
   accessTokenTTLSeconds,
@@ -34,7 +40,7 @@ interface Auth {
   login: (email: string, password: string) => Promise<void>;
   switchAccount: (id: string) => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
-  updateProfile: (displayName: string) => Promise<User>;
+  updateProfile: (profile: ProfileUpdate) => Promise<User>;
   updateAvatar: (file: File | null, signal: AbortSignal) => Promise<User>;
   enterGuest: (
     code: string,
@@ -518,11 +524,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function updateProfile(displayName: string): Promise<User> {
+  async function updateProfile(profile: ProfileUpdate): Promise<User> {
     const expected = generation.current;
     if (!sessionRef.current?.token)
       throw new ApiError(401, "Войдите в аккаунт.");
-    const result = await api.updateProfile(displayName);
+    const result = await api.updateProfile(profile);
     if (generation.current !== expected || !sessionRef.current)
       throw new ApiError(409, "Сессия изменилась. Повторите действие.");
     userRef.current = result.user;

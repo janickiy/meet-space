@@ -105,6 +105,6 @@ func (r *UserRepository) DeleteAccount(ctx context.Context, id, verifiedHash str
 		if err := tx.RollbackTo("account_erasure").Error; err != nil {
 			return err
 		}
-		return tx.Model(&users.User{}).Where("id=?", id).Updates(map[string]any{"email": "deleted." + id + "@invalid", "password_hash": "", "deleted_at": gorm.Expr("clock_timestamp()"), "display_name": "Удалённый аккаунт", "is_admin": false, "avatar_version": nil}).Error
+		return tx.Table("users").Where("id=?", id).Updates(map[string]any{"email": "deleted." + id + "@invalid", "password_hash": "", "deleted_at": gorm.Expr("clock_timestamp()"), "display_name": "Удалённый аккаунт", "bio": "", "is_admin": false, "avatar_version": nil}).Error
 	})
 }

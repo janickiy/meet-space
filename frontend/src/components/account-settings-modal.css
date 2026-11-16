@@ -116,6 +116,7 @@
   margin: 16px 0;
 }
 .account-dialog-panel .field input,
+.account-dialog-panel .field textarea,
 .account-dialog-panel .field select {
   min-width: 0;
   width: 100%;

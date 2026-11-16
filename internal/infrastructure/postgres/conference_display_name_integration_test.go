@@ -15,7 +15,7 @@ func TestConferenceDisplaysRenamedAccountInExistingMeetingAndChat(t *testing.T) 
 	db := auditDatabase(t)
 	ctx := context.Background()
 	oldName := "12345678"
-	const newName = "Саша"
+	newName := "Саша"
 	const guestAlias = "Гость встречи"
 	owner := users.User{
 		ID: uuid.NewString(), Email: "owner@example.invalid",
@@ -60,7 +60,7 @@ func TestConferenceDisplaysRenamedAccountInExistingMeetingAndChat(t *testing.T) 
 		t.Fatalf("unexpected sender before profile change: %q, reply preview: %+v", message.SenderName, reply.ReplyPreview)
 	}
 
-	if _, err := NewUserRepository(db).UpdateDisplayName(ctx, owner.ID, newName); err != nil {
+	if _, err := NewUserRepository(db).UpdateProfile(ctx, owner.ID, users.UpdateProfileRequest{DisplayName: &newName}, owner.AuthVersion); err != nil {
 		t.Fatal(err)
 	}
 	// The meeting alias remains authoritative for a guest even if the user row differs.

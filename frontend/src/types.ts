@@ -14,11 +14,17 @@ export interface User {
   id: string;
   email: string;
   displayName: string | null;
+  bio?: string;
   isAdmin?: boolean;
   guestConferenceId?: string;
   avatarVersion?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProfileUpdate {
+  displayName?: string;
+  bio?: string;
 }
 
 export interface AuthProviders {

@@ -34,7 +34,10 @@ func (s *Service) SessionAccount(ctx context.Context, raw string) (users.View, e
 		return users.View{}, err
 	}
 	user, err := s.account(ctx, session.UserID)
-	return user.View(), err
+	view := user.View()
+	// The browser account picker needs identity, not the other saved accounts' profile text.
+	view.Bio = nil
+	return view, err
 }
 
 // DeleteAccount проверяет право владения учетной записью и удаляет учетную запись вместе с ее

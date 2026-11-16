@@ -26,6 +26,7 @@ import type {
   Participant,
   PersonalPeerPresence,
   User,
+  ProfileUpdate,
   ParticipantMediaState,
   ModerationAction,
   ConferenceRecording,
@@ -734,11 +735,11 @@ export const api = {
    * @returns Promise с проверенным ответом API; сетевые ошибки и отказ сервера отклоняют Promise.
    */
   me: (signal?: AbortSignal) => request<{ user: User }>("/auth/me", { signal }),
-  /** Обновляет имя текущего пользователя, оставляя токен и остальные поля без изменений. */
-  updateProfile: (displayName: string) =>
+  /** Сохраняет переданные поля профиля текущего пользователя. */
+  updateProfile: (profile: ProfileUpdate) =>
     request<{ status: string; user: User }>("/auth/me", {
       method: "PATCH",
-      body: { displayName },
+      body: profile,
     }),
   /**
    * logout отправляет запрос завершения авторизации.

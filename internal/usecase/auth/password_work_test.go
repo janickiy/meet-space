@@ -23,7 +23,7 @@ func (auditUsers) GetByEmail(ctx context.Context, email string) (users.User, err
 	}
 	return users.User{}, apperrors.ErrNotFound
 }
-func (auditUsers) UpdateDisplayName(context.Context, string, string) (users.User, error) {
+func (auditUsers) UpdateProfile(context.Context, string, users.UpdateProfileRequest, int64) (users.User, error) {
 	return users.User{}, nil
 }
 func (auditUsers) DeleteAccount(context.Context, string, string) error { return nil }

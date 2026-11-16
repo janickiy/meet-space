@@ -21,15 +21,17 @@ import (
 // User сохраняет данные для входа в учетную запись и хэш пароля; публичные представления
 // формируются отдельно.
 type User struct {
-	ID                        string     `gorm:"type:uuid;primaryKey" json:"-"`
-	Email                     string     `json:"-"`
-	PasswordHash              string     `gorm:"column:password_hash" json:"-"`
-	AuthSource                string     `gorm:"column:auth_source;default:local" json:"-"`
-	DeletedAt                 *time.Time `gorm:"column:deleted_at" json:"-"`
-	LDAPDisabled              bool       `gorm:"column:ldap_disabled" json:"-"`
-	AuthVersion               int64      `gorm:"column:auth_version" json:"-"`
-	LDAPRevision              int64      `gorm:"-" json:"-"`
-	DisplayName               *string    `gorm:"column:display_name" json:"-"`
+	ID           string     `gorm:"type:uuid;primaryKey" json:"-"`
+	Email        string     `json:"-"`
+	PasswordHash string     `gorm:"column:password_hash" json:"-"`
+	AuthSource   string     `gorm:"column:auth_source;default:local" json:"-"`
+	DeletedAt    *time.Time `gorm:"column:deleted_at" json:"-"`
+	LDAPDisabled bool       `gorm:"column:ldap_disabled" json:"-"`
+	AuthVersion  int64      `gorm:"column:auth_version" json:"-"`
+	LDAPRevision int64      `gorm:"-" json:"-"`
+	DisplayName  *string    `gorm:"column:display_name" json:"-"`
+	// Bio is written through the profile patch, keeping older-schema insert fixtures compatible.
+	Bio                       string     `gorm:"column:bio;->" json:"-"`
 	IsAdmin                   bool       `gorm:"column:is_admin" json:"-"`
 	IsBlocked                 bool       `gorm:"column:is_blocked;->" json:"-"`
 	AuthInvalidBefore         *time.Time `gorm:"column:auth_invalid_before;->" json:"-"`
@@ -62,6 +64,7 @@ type View struct {
 	Email                     string    `json:"email"`
 	AuthSource                string    `json:"authSource"`
 	DisplayName               *string   `json:"displayName"`
+	Bio                       *string   `json:"bio,omitempty"`
 	IsAdmin                   bool      `json:"isAdmin"`
 	GuestConferenceID         *string   `json:"guestConferenceId,omitempty"`
 	AvatarVersion             *string   `json:"avatarVersion,omitempty"`
@@ -83,7 +86,7 @@ func (u User) View() View {
 	if source == "" {
 		source = "local"
 	}
-	return View{ID: u.ID, Email: email, AuthSource: source, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, AvatarVersion: u.AvatarVersion, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt, EmailVerificationRequired: u.EmailVerificationRequired && u.EmailVerifiedAt == nil}
+	return View{ID: u.ID, Email: email, AuthSource: source, DisplayName: u.DisplayName, Bio: &u.Bio, IsAdmin: u.IsAdmin, GuestConferenceID: u.GuestConferenceID, AvatarVersion: u.AvatarVersion, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt, EmailVerificationRequired: u.EmailVerificationRequired && u.EmailVerifiedAt == nil}
 }
 
 // IsLDAP отличает корпоративную учётную запись от локального пароля и гостя.
@@ -110,11 +113,6 @@ type RegisterRequest struct {
 	Email       string  `json:"email"`
 	Password    string  `json:"password"`
 	DisplayName *string `json:"displayName"`
-}
-
-// UpdateProfileRequest позволяет изменять только отображаемое имя текущего аккаунта.
-type UpdateProfileRequest struct {
-	DisplayName string `json:"displayName"`
 }
 
 // NormalizeDisplayName обрезает и проверяет отображаемое имя перед сохранением.

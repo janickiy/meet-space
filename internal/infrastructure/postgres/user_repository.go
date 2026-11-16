@@ -95,30 +95,6 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (users.Us
 	return user, mapNotFound(err)
 }
 
-// UpdateDisplayName обновляет только публичное имя учетной записи, полученное из субъекта
-// аутентификации.
-//
-// @Parameters:
-//   - ctx: Контекст, контролирующий отмену, сроки и продолжительность выполнения операции.
-//   - userID: Идентификатор действующего аккаунта, используемый для ограничения доступа.
-//   - name: Имя параметра, файла cookie, ресурса или провайдера, к которому осуществляется
-//     обращение.
-//
-// @returns:
-//   - result1: Полученный пользователь.
-//   - result2: nil — в случае успеха; в противном случае — ошибка валидации, доступа,
-//     передачи данных или сохранения.
-func (r *UserRepository) UpdateDisplayName(ctx context.Context, userID, name string) (users.User, error) {
-	result := r.db.WithContext(ctx).Model(&users.User{}).Where("id = ? AND deleted_at IS NULL AND auth_source='local'", userID).Update("display_name", name)
-	if result.Error != nil {
-		return users.User{}, result.Error
-	}
-	if result.RowsAffected == 0 {
-		return users.User{}, apperrors.ErrNotFound
-	}
-	return r.GetByID(ctx, userID)
-}
-
 // mapNotFound преобразует ошибку GORM, связанную с отсутствующей строкой, в ошибку «приложение
 // не найдено».
 //

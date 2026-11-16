@@ -110,7 +110,13 @@ func migrationDataSnapshot(t *testing.T, db *gorm.DB) map[string][]string {
 	for _, table := range plan.tables {
 		name := table.table
 		var rows []string
-		if err := db.Raw(`SELECT row_to_json(r)::text FROM "` + name + `" r ORDER BY row_to_json(r)::text`).Scan(&rows).Error; err != nil {
+		projection := "row_to_json(r)::text"
+		if name == "users" {
+			// Migration105 adds an empty bio to older rows. Compare that exact
+			// expected default while preserving and checking any existing value.
+			projection = `(row_to_json(r)::jsonb || jsonb_build_object('bio',COALESCE(row_to_json(r)::jsonb->'bio','""'::jsonb)))::text`
+		}
+		if err := db.Raw(`SELECT ` + projection + ` FROM "` + name + `" r ORDER BY ` + projection).Scan(&rows).Error; err != nil {
 			t.Fatal(err)
 		}
 		result[name] = rows
