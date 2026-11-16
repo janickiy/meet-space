@@ -214,11 +214,11 @@ export function PersonalPage() {
         className={`personal-page ${id ? "personal-selected" : ""}`}
         data-keyboard-open={keyboardOpen || undefined}
         ref={root}
-        aria-label="Личные"
+        aria-label="Чаты"
       >
         <aside className="personal-sidebar">
           <div className="section-heading">
-            <h1>Личные</h1>
+            <h1>Чаты</h1>
             <ItemActions
               label="Новый чат"
               triggerIcon={<SquarePen size={20} aria-hidden="true" />}
@@ -283,35 +283,33 @@ export function PersonalPage() {
           {list.isPending && <MessagingSkeleton rows={4} />}
           <nav className="personal-conversations" aria-label="Переписки">
             {conversations.map((c) => (
-              <div className="personal-conversation-row" key={c.id}>
-                <NavLink
-                  to={`/personal/${c.id}${location.search}`}
-                  className={({ isActive }) =>
-                    `personal-conversation ${isActive ? "selected" : ""}`
-                  }
-                >
-                  <ConversationAvatar conversation={c} />
-                  <span className="personal-preview">
-                    <strong>{conversationName(c)}</strong>
-                    <span>
-                      {c.type === "group" && c.preview && c.lastSender
-                        ? `${c.lastSender.id === user?.id ? "Вы" : c.lastSender.displayName}: `
-                        : ""}
-                      {c.preview || "Начните переписку"}
-                    </span>
+              <NavLink
+                key={c.id}
+                to={`/personal/${c.id}${location.search}`}
+                className={({ isActive }) =>
+                  `personal-conversation ${isActive ? "selected" : ""}`
+                }
+              >
+                <ConversationAvatar conversation={c} />
+                <span className="personal-preview">
+                  <strong>{conversationName(c)}</strong>
+                  <span>
+                    {c.type === "group" && c.preview && c.lastSender
+                      ? `${c.lastSender.id === user?.id ? "Вы" : c.lastSender.displayName}: `
+                      : ""}
+                    {c.preview || "Начните переписку"}
                   </span>
-                  <span className="personal-meta">
-                    <time>
-                      {c.lastMessageAt ? chatTime(c.lastMessageAt) : ""}
-                    </time>
-                    <UnreadMessageCount count={c.unreadCount} />
-                    {c.notificationsEnabled === false && (
-                      <BellOff size={14} aria-label="Уведомления отключены" />
-                    )}
-                  </span>
-                </NavLink>
-                <ConversationActions conversation={c} />
-              </div>
+                </span>
+                <span className="personal-meta">
+                  <time>
+                    {c.lastMessageAt ? chatTime(c.lastMessageAt) : ""}
+                  </time>
+                  <UnreadMessageCount count={c.unreadCount} />
+                  {c.notificationsEnabled === false && (
+                    <BellOff size={14} aria-label="Уведомления отключены" />
+                  )}
+                </span>
+              </NavLink>
             ))}
             {!list.isPending && !list.isError && !conversations.length && (
               <div className="messaging-empty">

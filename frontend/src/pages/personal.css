@@ -408,20 +408,6 @@
   }
 }
 
-.personal-conversation-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-.personal-conversation-row .personal-conversation {
-  min-width: 0;
-  flex: 1;
-}
-.personal-conversation-row .item-actions {
-  margin-right: 0;
-}
-
 /* Рабочая область, список и диалог повторяют пропорции макета «Общение». */
 .workspace-main:has(> .personal-page) {
   padding: 16px var(--workspace-gutter);
@@ -500,33 +486,14 @@
   margin: 0;
   padding: 0 8px;
 }
-.personal-conversation-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  align-items: center;
-  position: relative;
-  border-radius: 6px;
-}
-.personal-conversation-row + .personal-conversation-row {
+.personal-conversation + .personal-conversation {
   margin-top: 4px;
-}
-.personal-conversation-row:hover {
-  background: var(--surface-soft);
-}
-.personal-conversation-row:has(.selected) {
-  background: var(--primary-soft);
-  box-shadow: inset 3px 0 var(--primary);
 }
 .personal-conversation {
   gap: 12px;
   min-width: 0;
   min-height: 76px;
-  padding: 12px 6px 12px 12px;
-}
-.personal-conversation-row .personal-conversation:hover,
-.personal-conversation-row .personal-conversation.selected {
-  background: transparent;
-  box-shadow: none;
+  padding: 12px;
 }
 .personal-conversation .personal-avatar {
   flex-basis: 44px;
@@ -547,21 +514,6 @@
   min-width: 38px;
   font-size: calc(12px * var(--text-scale));
   line-height: 1.4;
-}
-.personal-conversation-row > .item-actions,
-.personal-conversation-row > .personal-direct-actions {
-  position: relative;
-  justify-self: center;
-  opacity: 0;
-}
-.personal-conversation-row:hover > .item-actions,
-.personal-conversation-row:focus-within > .item-actions,
-.personal-conversation-row:hover > .personal-direct-actions,
-.personal-conversation-row:focus-within > .personal-direct-actions {
-  opacity: 1;
-}
-.personal-conversation-row .item-actions > .icon-button {
-  background: transparent;
 }
 .personal-header {
   min-height: 72px;
@@ -717,15 +669,6 @@
     width: 36px;
     height: 36px;
     flex-basis: 36px;
-  }
-  .personal-conversation-row > .item-actions,
-  .personal-conversation-row > .personal-direct-actions {
-    opacity: 1;
-  }
-  .personal-conversation-row .item-actions > .icon-button {
-    min-height: 44px;
-    height: 44px;
-    width: 44px;
   }
 }
 [data-large-text="true"] .personal-page {

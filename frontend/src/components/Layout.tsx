@@ -180,7 +180,7 @@ export function Layout() {
   const items = [
     { to: "/", label: "Главная", Icon: Home, end: true },
     { to: "/conferences", label: "Встречи", Icon: Video },
-    { to: "/personal", label: "Личные", Icon: MessageCircle },
+    { to: "/personal", label: "Чаты", Icon: MessageCircle },
     { to: "/calendar", label: "Календарь", Icon: CalendarDays },
     { to: "/recordings", label: "Записи", Icon: CirclePlay },
   ];
@@ -436,13 +436,13 @@ export function Layout() {
               </NavLink>
               <NavLink
                 to="/personal"
-                aria-label={`Личные — быстрая навигация${personal.unread ? `, непрочитанных: ${personal.unread}` : ""}`}
+                aria-label={`Чаты — быстрая навигация${personal.unread ? `, непрочитанных: ${personal.unread}` : ""}`}
               >
                 <span className="mobile-nav-message-icon">
                   <MessageCircle size={20} aria-hidden="true" />
                   <UnreadMessageCount count={personal.unread} />
                 </span>
-                Личные
+                Чаты
               </NavLink>
               <NavLink to="/recordings" aria-label="Записи — быстрая навигация">
                 <CirclePlay size={20} />
