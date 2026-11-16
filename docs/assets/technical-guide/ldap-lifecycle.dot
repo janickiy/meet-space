@@ -9,7 +9,7 @@ digraph ldap_lifecycle {
   settings_db [shape=cylinder, label="PostgreSQL\nplatform_settings\nЗашифрованный bind-пароль", fillcolor="#fff2d4", color="#94630d"];
   {rank=same; settings; directory; settings_db;}
 
-  user [label="Корпоративный вход\nЛогин и пароль LDAP"];
+  user [label="Единая форма: email и пароль\nРежим: только LDAP"];
   auth [label="API: LDAP-аутентификация\nСервисный bind → поиск\nГруппа доступа → user bind"];
   identity [label="Профиль и локальный сеанс\nusers + ldap_identities\nusers.auth_version\nauth_sessions: SID + revoked_at", fillcolor="#fff2d4", color="#94630d"];
   {rank=same; user; auth; identity;}
@@ -19,10 +19,10 @@ digraph ldap_lifecycle {
   atomic [label="Одна транзакция PostgreSQL\nСоздать / обновить / отключить\nПри ошибке — без изменений", fillcolor="#fff2d4", color="#94630d"];
   {rank=same; worker; snapshot; atomic;}
 
-  revoke [label="Отзыв корпоративных SID\nОтключение LDAP / смена security-настроек\nУтрата доступа по успешному снимку\nauth_invalid_before + revoked_at", fillcolor="#fff0ef", color="#b65b58", fontcolor="#8e3633", fontsize=16];
+  revoke [label="Отзыв пользовательских SID\nСмена источника / security-настроек LDAP\nУтрата доступа по успешному снимку\nauth_invalid_before + revoked_at", fillcolor="#fff0ef", color="#b65b58", fontcolor="#8e3633", fontsize=16];
 
   settings -> settings_db [label="Сохранить через API", color="#7b439a", fontcolor="#7b439a", constraint=false];
-  user -> auth [label="POST /auth/ldap/login", constraint=false];
+  user -> auth [label="POST /auth/login", constraint=false];
   auth -> directory [label="TLS · поиск + проверка пароля", color="#067566", fontcolor="#067566"];
   auth -> identity [label="Успешная проверка", color="#94630d", fontcolor="#94630d", constraint=false];
   worker -> snapshot [label="Чтение каталога", color="#067566", fontcolor="#067566", constraint=false];

@@ -72,20 +72,25 @@
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   margin: 24px 0;
 }
 .conversation-profile-actions .button {
-  flex: 1 1 120px;
-  max-width: 220px;
+  flex: 1 1 100px;
+  max-width: 184px;
   flex-direction: column;
-  min-height: 76px;
-  gap: 8px;
+  min-height: 64px;
+  padding: 8px 12px;
+  gap: 6px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 12px;
   color: var(--primary);
   background: var(--surface);
   font-size: calc(13px * var(--text-scale));
+}
+.conversation-profile-actions .button > svg {
+  width: 20px;
+  height: 20px;
 }
 .conversation-profile-actions .button:hover {
   background: var(--primary-soft);
