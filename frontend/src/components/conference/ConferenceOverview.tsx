@@ -1,5 +1,4 @@
 import { RealtimePanel } from "../RealtimePanel";
-import { RecordingPanel } from "../RecordingPanel";
 import { WaitingRoomPanel } from "../WaitingRoomPanel";
 import { ChatPanel } from "../ChatPanel";
 import { ConferenceCalendarStatus } from "../IntegrationsSettings";
@@ -28,7 +27,6 @@ export function ConferenceOverview(props: ConferenceViewProps) {
     closed,
     live,
     activeMeeting,
-    recordingAccess,
     canInvite,
   } = props.data;
   const { mutation } = props.commands;
@@ -181,13 +179,6 @@ export function ConferenceOverview(props: ConferenceViewProps) {
           Организатор исключил вас из конференции. Повторное присоединение
           недоступно.
         </ErrorNotice>
-      )}
-      {recordingAccess && (
-        <RecordingPanel
-          conference={conference}
-          membership={membership}
-          showPlayback
-        />
       )}
       {admitted &&
         user &&

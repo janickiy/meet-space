@@ -55,15 +55,22 @@ select:focus-visible {
   outline-offset: -3px;
 }
 /* При переходе к содержимому фокус обозначается заголовком страницы. */
-.workspace-main-heading-focus:focus {
+:is(
+  .workspace-main-heading-focus,
+  .workspace-main:has(> .conference-heading)
+):focus {
   outline: none;
 }
-.workspace-main-heading-focus:focus-visible
+:is(
+    .workspace-main-heading-focus,
+    .workspace-main:has(> .conference-heading)
+  ):focus-visible
   :is(
     .folders-heading h1,
     .calendar-page h1,
     .home-intro-title,
-    .recordings-heading h1
+    .recordings-heading h1,
+    .conference-heading h1
   ) {
   text-decoration: underline;
   text-decoration-color: var(--primary);
