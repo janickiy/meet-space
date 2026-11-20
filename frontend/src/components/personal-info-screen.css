@@ -96,26 +96,29 @@
   background: var(--primary-soft);
 }
 .conversation-profile-details {
-  padding: 4px 20px;
-  margin: 0 0 24px;
-  border-radius: 16px;
+  display: grid;
+  gap: 6px;
+  max-width: 600px;
+  padding: 12px 16px;
+  margin: 0 auto 16px;
+  border-radius: 12px;
   background: var(--surface);
 }
 .conversation-profile-details > div {
-  padding: 16px 0;
-}
-.conversation-profile-details > div + div {
-  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: min(38%, 9em) minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
 }
 .conversation-profile-details dt {
-  margin-bottom: 6px;
   font-size: calc(12px * var(--text-scale));
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .conversation-profile-details dd {
   margin: 0;
   font-size: calc(14px * var(--text-scale));
-  line-height: 1.6;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 .conversation-profile-details a {
@@ -150,9 +153,6 @@
   }
   .personal-info-body {
     padding: 24px 12px;
-  }
-  .conversation-profile-details {
-    padding-inline: 16px;
   }
   .conversation-profile-actions {
     gap: 8px;

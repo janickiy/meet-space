@@ -24,6 +24,7 @@ const peer = {
   displayName: "Анна Смирнова",
   email: "anna@example.test",
   bio: "Дизайнер интерфейсов.\nЛюблю путешествия и хорошие книги.",
+  createdAt: "2024-02-05T12:15:00Z",
 };
 const participant = {
   id: memberId,
@@ -156,10 +157,12 @@ document.size = pdf.length;
       materialsError: 0,
       requests: [],
       role: "owner",
+      peerCreatedAt: peer.createdAt,
       ...options,
     };
     const page = await browser.newPage({
       viewport: options.viewport || { width: 1440, height: 1100 },
+      timezoneId: "Europe/Moscow",
     });
     page.setDefaultTimeout(10000);
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -243,7 +246,11 @@ document.size = pdf.length;
           status: "success",
           item:
             id === peerId
-              ? { ...peer, bio: state.emptyBio ? "" : peer.bio }
+              ? {
+                  ...peer,
+                  bio: state.emptyBio ? "" : peer.bio,
+                  createdAt: state.peerCreatedAt,
+                }
               : id === actorId
                 ? user
                 : participant,
@@ -402,6 +409,19 @@ document.size = pdf.length;
       await desktop.page.locator(".conversation-profile-bio").innerText(),
       peer.bio,
     );
+    const registration = desktop.page
+      .locator(".conversation-profile-details div")
+      .filter({
+        has: desktop.page.getByText("Дата регистрации", { exact: true }),
+      });
+    assert.equal(
+      await registration.locator("time").getAttribute("datetime"),
+      peer.createdAt,
+    );
+    assert.equal(
+      (await registration.locator("dd").innerText()).replace(/\s+/g, " "),
+      "5 февраля 2024 г.",
+    );
     assert(
       await desktop.page
         .getByRole("navigation", { name: "Переписки" })
@@ -417,7 +437,7 @@ document.size = pdf.length;
       animations: "disabled",
     });
     completed.push(
-      "direct info is nonmodal, profile fields and sidebar visible",
+      "direct profile shows peer registration date without time and keeps sidebar visible",
     );
     const firstPhoto = desktop.page.getByRole("button", {
       name: `Открыть ${photo.filename}`,
@@ -534,7 +554,7 @@ document.size = pdf.length;
     completed.push("browser back returns to same chat draft");
     await desktop.page.close();
 
-    const noBio = await fixture({ emptyBio: true });
+    const noBio = await fixture({ emptyBio: true, peerCreatedAt: "invalid" });
     await noBio.page.goto(`${server.url}/personal/${directId}?view=info`);
     await noBio.page.getByText(peer.email, { exact: true }).waitFor();
     assert.equal(
@@ -544,7 +564,11 @@ document.size = pdf.length;
         .count(),
       0,
     );
-    completed.push("empty bio is omitted");
+    assert.equal(
+      await noBio.page.getByText("Дата регистрации", { exact: true }).count(),
+      0,
+    );
+    completed.push("empty bio and invalid registration date are omitted");
     await noBio.page.close();
 
     const owner = await fixture();
@@ -619,6 +643,11 @@ document.size = pdf.length;
       .click();
     await owner.page.getByText(participant.email, { exact: true }).waitFor();
     assert.equal(await owner.page.getByRole("dialog").count(), 0);
+    assert.equal(
+      await owner.page.getByText("Дата регистрации", { exact: true }).count(),
+      0,
+      "profiles from older servers may omit the registration timestamp",
+    );
     assert.equal(
       await owner.page
         .locator(".conversation-profile-details dt")

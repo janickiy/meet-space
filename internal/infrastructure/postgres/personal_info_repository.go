@@ -43,7 +43,7 @@ func (r *PersonalRepository) ConversationProfile(ctx context.Context, user, id, 
 			return err
 		}
 		return mapNotFound(tx.Table("conversation_members m").
-			Select("u.id,COALESCE(NULLIF(u.display_name,''),'Пользователь') AS display_name,u.email,u.bio").
+			Select("u.id,COALESCE(NULLIF(u.display_name,''),'Пользователь') AS display_name,u.email,u.bio,u.created_at").
 			Joins("JOIN users u ON u.id=m.user_id").
 			Where("m.conversation_id=? AND m.user_id=? AND m.left_at IS NULL AND u.deleted_at IS NULL AND u.guest_conference_id IS NULL AND NOT u.is_blocked AND NOT u.ldap_disabled", id, target).
 			Take(&item).Error)

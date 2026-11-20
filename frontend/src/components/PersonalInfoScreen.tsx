@@ -15,6 +15,10 @@ import { ConversationActions } from "./FolderPicker";
 import { ConversationMaterials } from "./ConversationMaterials";
 import "./personal-info-screen.css";
 
+const registrationDateFormat = new Intl.DateTimeFormat("ru-RU", {
+  dateStyle: "long",
+});
+
 /** Информация занимает область переписки; список чатов и черновик остаются на месте. */
 export function PersonalInfoScreen({
   conversation,
@@ -166,6 +170,7 @@ function ConversationProfile({
   }, [callerDenied]);
   // Не оставляем старые контактные данные на экране после отзыва доступа к профилю.
   const profile = denied ? undefined : query.data?.item;
+  const registeredAt = Date.parse(profile?.createdAt ?? "");
   return (
     <>
       <ErrorNotice error={query.error || direct.error} />
@@ -238,6 +243,16 @@ function ConversationProfile({
                 )}
               </dd>
             </div>
+            {Number.isFinite(registeredAt) && (
+              <div>
+                <dt>Дата регистрации</dt>
+                <dd>
+                  <time dateTime={profile.createdAt}>
+                    {registrationDateFormat.format(registeredAt)}
+                  </time>
+                </dd>
+              </div>
+            )}
           </dl>
         </>
       )}

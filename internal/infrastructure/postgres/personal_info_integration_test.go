@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -31,7 +32,8 @@ func TestConversationProfileRequiresActiveSharedMembership(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := db.Exec("UPDATE users SET bio=? WHERE id=?", "О себе\nСсылка https://example.invalid", peer).Error; err != nil {
+	registeredAt := time.Date(2023, time.March, 14, 11, 30, 0, 0, time.UTC)
+	if err := db.Exec("UPDATE users SET bio=?,created_at=? WHERE id=?", "О себе\nСсылка https://example.invalid", registeredAt, peer).Error; err != nil {
 		t.Fatal(err)
 	}
 	direct, _, err := repo.GetOrCreate(ctx, owner, peer)
@@ -41,6 +43,9 @@ func TestConversationProfileRequiresActiveSharedMembership(t *testing.T) {
 	profile, err := repo.ConversationProfile(ctx, owner, direct.ID, peer)
 	if err != nil || profile.ID != peer || profile.Email != peer+"@example.invalid" || profile.Bio != "О себе\nСсылка https://example.invalid" || profile.DisplayName != "Profile "+peer {
 		t.Fatalf("wrong scoped profile: %+v, %v", profile, err)
+	}
+	if !profile.CreatedAt.Equal(registeredAt) {
+		t.Fatalf("profile registration date = %s, want %s", profile.CreatedAt, registeredAt)
 	}
 	if _, err := repo.ConversationProfile(ctx, outsider, direct.ID, peer); !errors.Is(err, apperrors.ErrForbidden) {
 		t.Fatal("unrelated caller accessed profile", err)

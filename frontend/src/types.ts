@@ -666,6 +666,7 @@ export interface PersonalPeer {
 export interface ConversationUserProfile extends PersonalPeer {
   email: string;
   bio: string;
+  createdAt: string;
 }
 /** Подтверждённое сервером присутствие собеседника в доступной личной переписке.
  * @params conversationId — проверенный диалог; peerId — собеседник, определённый сервером;
