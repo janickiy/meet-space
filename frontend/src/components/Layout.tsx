@@ -217,6 +217,8 @@ export function Layout() {
     "/folders",
     "/folders/:id",
     "/calendar",
+    "/recordings",
+    "/app/recordings",
   ].some((pattern) => matchPath(pattern, location.pathname));
   return (
     <AccountSettingsContext.Provider value={showAccountSettings}>

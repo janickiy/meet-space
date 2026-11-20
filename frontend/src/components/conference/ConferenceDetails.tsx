@@ -113,12 +113,12 @@ export function ConferenceDetails(props: ConferenceViewProps) {
                 >
                   {membership?.status === "joined" ? (
                     <>
-                      <LogOut size={18} />
+                      <LogOut size={18} aria-hidden="true" />
                       Покинуть конференцию
                     </>
                   ) : (
                     <>
-                      <LogIn size={18} />
+                      <LogIn size={18} aria-hidden="true" />
                       Присоединиться
                     </>
                   )}
@@ -131,7 +131,7 @@ export function ConferenceDetails(props: ConferenceViewProps) {
                   busy={mutation.isPending}
                   onClick={() => mutation.mutate("start")}
                 >
-                  <Play size={17} />
+                  <Play size={18} aria-hidden="true" />
                   Начать конференцию
                 </Button>
                 <Button
@@ -139,7 +139,7 @@ export function ConferenceDetails(props: ConferenceViewProps) {
                   disabled={mutation.isPending}
                   onClick={() => setConfirm("cancel")}
                 >
-                  <X size={17} />
+                  <X size={18} aria-hidden="true" />
                   Отменить конференцию
                 </Button>
                 {conference.status === "scheduled" && (
@@ -148,6 +148,7 @@ export function ConferenceDetails(props: ConferenceViewProps) {
                     onClick={() => setEditingSchedule(true)}
                     disabled={mutation.isPending}
                   >
+                    <CalendarDays size={18} aria-hidden="true" />
                     Изменить расписание
                   </Button>
                 )}
@@ -159,7 +160,7 @@ export function ConferenceDetails(props: ConferenceViewProps) {
                 disabled={mutation.isPending}
                 onClick={() => setConfirm("finish")}
               >
-                <Square size={16} />
+                <Square size={18} aria-hidden="true" />
                 Завершить конференцию
               </Button>
             )}

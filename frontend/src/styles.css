@@ -1929,6 +1929,16 @@ textarea:disabled {
   max-width: 280px;
   margin: 0 auto;
 }
+.meeting-card .meeting-actions > .button {
+  justify-content: flex-start;
+  text-align: start;
+}
+.meeting-card .meeting-actions > .button > svg {
+  flex-shrink: 0;
+}
+.meeting-card .meeting-actions > .button[aria-busy="true"] > .spin + svg {
+  display: none;
+}
 .membership-note {
   font-size: calc(11px * var(--text-scale));
   color: #24a96c;
